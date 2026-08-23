@@ -1,0 +1,286 @@
+/**
+ * TranslateSense - AI Services Provider (OpenAI, Gemini, DeepL)
+ * File: assets/js/providers/ai-services/ai-translate.js
+ * 
+ * Registers "openai", "gemini", and "deepl" on window.TranslateSenseCore.
+ * Features:
+ * - Intelligent token-aware batching (MAX_TOKENS per request)
+ * - Concurrent queue processing (CONCURRENCY_LIMIT)
+ * - Robust AbortController cancellation
+ * - Detailed error diagnostics (quota limits, invalid keys, network timeouts)
+ * - Word & character count statistics
+ */
+
+(function (window) {
+  'use strict';
+
+  if (!window.TranslateSenseCore) {
+    console.error('[TranslateSense] core-translate.js must be loaded before ai-translate.js');
+    return;
+  }
+
+  const DeepLLangHelper = window.TranslateSenseDeepLLanguages || {
+    isSupported: () => true,
+    formatCode: (code, isTarget) => (code ? code.toUpperCase() : 'EN')
+  };
+
+  class AIServiceRunner {
+    constructor(providerName, options = {}) {
+      this.providerName = providerName;
+      this.concurrencyLimit = options.concurrencyLimit || 5;
+      this.maxTokensPerBatch = options.maxTokensPerBatch || 600;
+    }
+
+    /**
+     * Estimate token count for a text string (~4 characters per token).
+     * @param {string} text
+     * @returns {number}
+     */
+    estimateTokens(text) {
+      if (!text) return 0;
+      return Math.ceil(text.length / 4);
+    }
+
+    /**
+     * Partition items into token-balanced batches.
+     * @param {Array<Object>} items
+     * @returns {Array<Array<Object>>}
+     */
+    createBatches(items) {
+      const batches = [];
+      let currentBatch = [];
+      let currentTokens = 0;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const content = item.content || item.source || '';
+        const tokens = this.estimateTokens(content);
+
+        if (currentTokens + tokens > this.maxTokensPerBatch && currentBatch.length > 0) {
+          batches.push(currentBatch);
+          currentBatch = [item];
+          currentTokens = tokens;
+        } else {
+          currentBatch.push(item);
+          currentTokens += tokens;
+        }
+      }
+
+      if (currentBatch.length > 0) {
+        batches.push(currentBatch);
+      }
+
+      return batches;
+    }
+
+    /**
+     * Execute translation for a single batch over WordPress REST API.
+     */
+    async executeBatchRequest(batch, { sourceLang, targetLang, postId, signal }, onProgressCallback) {
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+
+      const stringContents = batch.map((item) => item.content || item.source || '');
+      const widgetIds = batch.map((item) => item.widget_id || 'generic');
+
+      const response = await fetch(restUrl + 'translate-batch', {
+        method: 'POST',
+        signal: signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': nonce,
+        },
+        body: JSON.stringify({
+          strings: stringContents,
+          widget_ids: widgetIds,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+          provider: this.providerName,
+          post_id: postId || config.postId || 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        let message = errorData.message || `HTTP ${response.status} ${response.statusText}`;
+        if (response.status === 429 || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
+          message = `API Quota / Rate Limit reached for ${this.providerName.toUpperCase()}. Please check your API account plan.`;
+        }
+        throw new Error(message);
+      }
+
+      const data = await response.json();
+      const translatedList = data.results || [];
+      const batchResults = [];
+
+      for (let i = 0; i < batch.length; i++) {
+        const item = batch[i];
+        const sourceText = item.content || item.source || '';
+        const transResult = translatedList[i];
+        const translatedText = transResult && transResult.translated ? transResult.translated : sourceText;
+        const isCached = transResult && transResult.cached;
+
+        const itemResult = {
+          hash: item.hash || '',
+          source: sourceText,
+          translated: translatedText,
+          status: isCached ? 'Cached' : 'AI Completed',
+        };
+
+        batchResults.push(itemResult);
+
+        if (typeof onProgressCallback === 'function') {
+          onProgressCallback(itemResult);
+        }
+      }
+
+      return batchResults;
+    }
+
+    /**
+     * Run all batches with controlled concurrency.
+     */
+    async run({ items, sourceLang, targetLang, postId, signal }, onProgressCallback) {
+      if (!Array.isArray(items) || items.length === 0) {
+        return [];
+      }
+
+      const batches = this.createBatches(items);
+      const allResults = [];
+      let batchIndex = 0;
+      let stopProcessing = false;
+      let lastError = null;
+
+      const worker = async () => {
+        while (batchIndex < batches.length && !stopProcessing) {
+          if (signal && signal.aborted) {
+            throw new Error('Translation cancelled');
+          }
+
+          const currentIdx = batchIndex++;
+          const batch = batches[currentIdx];
+
+          try {
+            const batchResults = await this.executeBatchRequest(batch, { sourceLang, targetLang, postId, signal }, onProgressCallback);
+            allResults.push(...batchResults);
+          } catch (err) {
+            if (err.name === 'AbortError' || (signal && signal.aborted)) {
+              stopProcessing = true;
+              throw err;
+            }
+
+            console.error(`[TranslateSense] Error in ${this.providerName} batch #${currentIdx}:`, err.message);
+            lastError = err;
+
+            // Fail-safe reporting for this batch
+            for (let j = 0; j < batch.length; j++) {
+              const item = batch[j];
+              const sourceText = item.content || item.source || '';
+              const fallbackResult = {
+                hash: item.hash || '',
+                source: sourceText,
+                translated: sourceText,
+                status: 'AI Failed',
+                error: err.message,
+              };
+
+              allResults.push(fallbackResult);
+
+              if (typeof onProgressCallback === 'function') {
+                onProgressCallback(fallbackResult);
+              }
+            }
+
+            // Stop if serious auth or quota error
+            if (err.message.includes('Quota') || err.message.includes('401') || err.message.includes('Unauthorized')) {
+              stopProcessing = true;
+            }
+          }
+        }
+      };
+
+      const workers = [];
+      const activeWorkersCount = Math.min(this.concurrencyLimit, batches.length);
+      for (let w = 0; w < activeWorkersCount; w++) {
+        workers.push(worker());
+      }
+
+      await Promise.all(workers);
+
+      if (lastError && allResults.every((r) => r.status === 'AI Failed')) {
+        throw lastError;
+      }
+
+      return allResults;
+    }
+  }
+
+  // 1. Register OpenAI Provider
+  window.TranslateSenseCore.registerProvider('openai', {
+    title: 'OpenAI (GPT-4o)',
+    icon: '🧠',
+    desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
+    category: 'ai',
+    savesToDb: true,
+    requiresApiKey: true,
+
+    checkAvailability: function () {
+      return { available: true };
+    },
+
+    translate: function (params, onProgressCallback) {
+      const runner = new AIServiceRunner('openai', { concurrencyLimit: 4, maxTokensPerBatch: 500 });
+      return runner.run(params, onProgressCallback);
+    },
+  });
+
+  // 2. Register Gemini AI Provider
+  window.TranslateSenseCore.registerProvider('gemini', {
+    title: 'Gemini AI',
+    icon: '✨',
+    desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
+    category: 'ai',
+    savesToDb: true,
+    requiresApiKey: true,
+
+    checkAvailability: function () {
+      return { available: true };
+    },
+
+    translate: function (params, onProgressCallback) {
+      const runner = new AIServiceRunner('gemini', { concurrencyLimit: 4, maxTokensPerBatch: 600 });
+      return runner.run(params, onProgressCallback);
+    },
+  });
+
+  // 3. Register DeepL AI Provider
+  window.TranslateSenseCore.registerProvider('deepl', {
+    title: 'DeepL Translate',
+    icon: '🔷',
+    desc: 'Industry-standard nuance and precision via DeepL Translation API.',
+    category: 'ai',
+    savesToDb: true,
+    requiresApiKey: true,
+
+    isLanguageSupported: function (sourceLang, targetLang) {
+      return DeepLLangHelper.isSupported(sourceLang, targetLang);
+    },
+
+    checkAvailability: function (sourceLang, targetLang) {
+      if (!DeepLLangHelper.isSupported(sourceLang, targetLang)) {
+        return {
+          available: false,
+          reason: `DeepL does not support language pair (${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}).`,
+          noticeType: 'warning'
+        };
+      }
+      return { available: true };
+    },
+
+    translate: function (params, onProgressCallback) {
+      const runner = new AIServiceRunner('deepl', { concurrencyLimit: 3, maxTokensPerBatch: 400 });
+      return runner.run(params, onProgressCallback);
+    },
+  });
+})(window);

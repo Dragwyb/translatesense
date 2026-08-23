@@ -12,17 +12,20 @@
 (function (window, document) {
   'use strict';
 
-  // Helper to dynamically get providers registered on TranslateSenseCore
+  // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      const providers = window.TranslateSenseCore.getProviders();
+      const providers = window.TranslateSenseCore.getProviders(true);
       if (providers.length > 0) return providers;
+      const all = window.TranslateSenseCore.getProviders(false);
+      if (all.length > 0) return all;
     }
     return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.' },
-      { id: 'google_widget', title: 'Google Widget', icon: '🚀', desc: 'Instant frontend translation widget. No API key required.' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).' },
+      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+      { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+      { id: 'deepl', title: 'DeepL Translate', icon: '🔷', desc: 'Industry-standard nuance via DeepL API.', category: 'ai' },
+      { id: 'google_widget', title: 'Google Translate', icon: '🚀', desc: 'Instant frontend translation widget. No API key required.', category: 'free' },
+      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
     ];
   }
 

@@ -691,14 +691,36 @@
 
   // Settings Panel Component
   function SettingsPanel({ settings, setSettings, onSave, languages }) {
+    const enabledProviders = settings.enabled_providers || ['google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl'];
+
+    const toggleProvider = (providerId) => {
+      let updated;
+      if (enabledProviders.includes(providerId)) {
+        updated = enabledProviders.filter((p) => p !== providerId);
+      } else {
+        updated = [...enabledProviders, providerId];
+      }
+      setSettings({ ...settings, enabled_providers: updated });
+    };
+
+    const providerList = [
+      { id: 'openai', title: 'OpenAI (ChatGPT)', desc: 'High-accuracy neural AI translation via OpenAI API.', icon: '🧠', requiresKey: true },
+      { id: 'gemini', title: 'Google Gemini AI', desc: 'Fast & fluent translations via Google Gemini models.', icon: '✨', requiresKey: true },
+      { id: 'deepl', title: 'DeepL Translate', desc: 'Industry-standard nuance via DeepL API (Free / Pro).', icon: '🔷', requiresKey: true },
+      { id: 'google_widget', title: 'Google Translate', desc: 'Instant frontend translation widget. No API key required.', icon: '🚀', requiresKey: false },
+      { id: 'chrome_ai', title: 'Chrome Built-in AI', desc: 'Private on-device local translation via Chrome 128+ models.', icon: '🤖', requiresKey: false },
+    ];
+
     return el(
       'form',
-      { className: 'ts-settings-panel', onSubmit: onSave },
-      el('h2', { style: { marginTop: 0, marginBottom: '20px' } }, 'TranslateSense Settings'),
+      { className: 'ts-settings-panel', onSubmit: onSave, style: { maxWidth: '850px' } },
+      el('h2', { style: { marginTop: 0, marginBottom: '8px' } }, 'TranslateSense Settings'),
+      el('p', { style: { color: '#64748b', fontSize: '13px', marginBottom: '24px' } }, 'Configure active translation engines, API keys, and auto-mapping preferences.'),
 
+      // 1. Config Mapping Mode Toggle
       el(
         'div',
-        { className: 'ts-form-group', style: { background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' } },
+        { className: 'ts-form-group', style: { background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' } },
         el(
           'label',
           { className: 'ts-switch-label' },
@@ -715,82 +737,158 @@
           el(
             'div',
             null,
-            el('strong', null, 'Enable Config Mapping Mode'),
-            el('div', { className: 'ts-form-desc', style: { margin: '2px 0 0 0' } }, "When active, saving any post automatically detects 'Translate This Content' placeholders and updates XML rules.")
+            el('strong', { style: { color: '#1e293b' } }, 'Enable Config Mapping Mode'),
+            el('div', { className: 'ts-form-desc', style: { margin: '2px 0 0 0' } }, "When active, saving any post in Gutenberg/Elementor automatically scans for 'Translate This Content' and creates XML rules.")
           )
         )
       ),
 
+      // 2. Active Translation Providers Section
+      el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' } }, '🌐 Active Translation Providers'),
+      el('p', { style: { color: '#64748b', fontSize: '13px', marginTop: 0, marginBottom: '16px' } }, 'Enable or disable providers to control what choices appear in the Editor Panel and Bulk Translation wizard.'),
+
+      el(
+        'div',
+        { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '24px' } },
+        providerList.map((p) => {
+          const isEnabled = enabledProviders.includes(p.id);
+          return el(
+            'div',
+            {
+              key: p.id,
+              onClick: () => toggleProvider(p.id),
+              style: {
+                padding: '14px',
+                borderRadius: '8px',
+                border: `1.5px solid ${isEnabled ? '#4f46e5' : '#e2e8f0'}`,
+                background: isEnabled ? '#f5f3ff' : '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              },
+            },
+            el(
+              'div',
+              { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+              el('span', { style: { fontWeight: '600', fontSize: '14px', color: '#1e293b' } }, `${p.icon} ${p.title}`),
+              el('input', {
+                type: 'checkbox',
+                checked: isEnabled,
+                onChange: () => toggleProvider(p.id),
+                onClick: (e) => e.stopPropagation(),
+              })
+            ),
+            el('p', { style: { margin: 0, fontSize: '12px', color: '#64748b', lineHeight: '1.4' } }, p.desc)
+          );
+        })
+      ),
+
+      // 3. Default Provider
       el(
         'div',
         { className: 'ts-form-group' },
-        el('label', { className: 'ts-form-label' }, 'Translation Engine Provider'),
-        el('div', { className: 'ts-form-desc' }, 'Choose which engine translates content during Bulk or Live Editor translation.'),
+        el('label', { className: 'ts-form-label' }, 'Default Translation Provider'),
+        el('div', { className: 'ts-form-desc' }, 'The default provider pre-selected when starting a new translation.'),
         el(
           'select',
           {
             className: 'ts-form-select',
-            value: settings.provider || 'client_google',
+            value: settings.provider || 'openai',
             onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
           },
-          el('option', { value: 'client_google' }, 'Client-Side / Free Translation Engine (Default)'),
-          el('option', { value: 'chrome_ai' }, 'Chrome Built-in AI Translation (Local on-device)'),
-          el('option', { value: 'google_api' }, 'Google Cloud Translation API (Official Key)'),
-          el('option', { value: 'deepl' }, 'DeepL Translation API (Free / Pro Key)'),
-          el('option', { value: 'libre' }, 'LibreTranslate Server')
+          providerList
+            .filter((p) => enabledProviders.includes(p.id))
+            .map((p) => el('option', { key: p.id, value: p.id }, `${p.icon} ${p.title}`))
         )
       ),
 
-      settings.provider === 'google_api' &&
-        el(
-          'div',
-          { className: 'ts-form-group' },
-          el('label', { className: 'ts-form-label' }, 'Google Cloud API Key'),
-          el('input', {
-            type: 'password',
-            className: 'ts-form-input',
-            value: settings.api_key || '',
-            placeholder: 'AIzaSy...',
-            onChange: (e) => setSettings({ ...settings, api_key: e.target.value }),
-          })
-        ),
+      // 4. API Credentials Sub-Section
+      el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginTop: '28px', marginBottom: '16px' } }, '🔑 API Credentials & Models'),
 
-      settings.provider === 'deepl' &&
-        el(
-          'div',
-          { className: 'ts-form-group' },
-          el('label', { className: 'ts-form-label' }, 'DeepL Auth Key'),
-          el('input', {
-            type: 'password',
-            className: 'ts-form-input',
-            value: settings.deepl_api_key || '',
-            placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx',
-            onChange: (e) => setSettings({ ...settings, deepl_api_key: e.target.value }),
-          })
-        ),
-
-      settings.provider === 'libre' &&
-        el(
-          'div',
-          { className: 'ts-form-group' },
-          el('label', { className: 'ts-form-label' }, 'LibreTranslate URL'),
-          el('input', {
-            type: 'text',
-            className: 'ts-form-input',
-            value: settings.libre_url || '',
-            placeholder: 'https://libretranslate.com',
-            onChange: (e) => setSettings({ ...settings, libre_url: e.target.value }),
-          })
-        ),
-
+      // OpenAI Config
       el(
         'div',
-        { className: 'ts-form-group' },
-        el('label', { className: 'ts-form-label' }, 'Bulk Translation Batch Size'),
+        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
+        el('label', { className: 'ts-form-label' }, '🧠 OpenAI API Key'),
+        el('input', {
+          type: 'password',
+          className: 'ts-form-input',
+          value: settings.openai_api_key || '',
+          placeholder: 'sk-proj-...',
+          onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value }),
+        }),
+        el(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' } },
+          el('span', { style: { fontSize: '12px', color: '#64748b' } }, 'Model:'),
+          el(
+            'select',
+            {
+              className: 'ts-form-select',
+              style: { maxWidth: '200px' },
+              value: settings.openai_model || 'gpt-4o-mini',
+              onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
+            },
+            el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini (Fast & Affordable)'),
+            el('option', { value: 'gpt-4o' }, 'gpt-4o (Highest Accuracy)'),
+            el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo')
+          )
+        )
+      ),
+
+      // Gemini Config
+      el(
+        'div',
+        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
+        el('label', { className: 'ts-form-label' }, '✨ Google Gemini API Key'),
+        el('input', {
+          type: 'password',
+          className: 'ts-form-input',
+          value: settings.gemini_api_key || '',
+          placeholder: 'AIzaSy...',
+          onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value }),
+        }),
+        el(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' } },
+          el('span', { style: { fontSize: '12px', color: '#64748b' } }, 'Model:'),
+          el(
+            'select',
+            {
+              className: 'ts-form-select',
+              style: { maxWidth: '220px' },
+              value: settings.gemini_model || 'gemini-1.5-flash',
+              onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
+            },
+            el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash (Fast & High Quota)'),
+            el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro (Advanced Reasoning)')
+          )
+        )
+      ),
+
+      // DeepL Config
+      el(
+        'div',
+        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
+        el('label', { className: 'ts-form-label' }, '🔷 DeepL Auth Key (Free or Pro)'),
+        el('input', {
+          type: 'password',
+          className: 'ts-form-input',
+          value: settings.deepl_api_key || '',
+          placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx',
+          onChange: (e) => setSettings({ ...settings, deepl_api_key: e.target.value }),
+        })
+      ),
+
+      // Batch size
+      el(
+        'div',
+        { className: 'ts-form-group', style: { marginTop: '20px' } },
+        el('label', { className: 'ts-form-label' }, 'Batch Concurrency Size'),
+        el('div', { className: 'ts-form-desc' }, 'Number of parallel requests sent during bulk translation.'),
         el('input', {
           type: 'number',
           min: 1,
-          max: 20,
+          max: 10,
           className: 'ts-form-input',
           style: { maxWidth: '120px' },
           value: settings.batch_size || 5,
@@ -801,7 +899,7 @@
       el(
         'div',
         { style: { marginTop: '30px' } },
-        el('button', { type: 'submit', className: 'ts-btn ts-btn-primary' }, '💾 Save Settings')
+        el('button', { type: 'submit', className: 'ts-btn ts-btn-primary', style: { padding: '10px 24px', fontSize: '14px' } }, '💾 Save Settings')
       )
     );
   }

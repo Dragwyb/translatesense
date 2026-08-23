@@ -657,7 +657,13 @@ class Rest_Api {
 	 */
 	public static function get_settings( WP_REST_Request $request ) {
 		global $wpdb;
-		$settings        = get_option( 'translatesense_settings', array() );
+		$settings = get_option( 'translatesense_settings', array() );
+		if ( empty( $settings['enabled_providers'] ) ) {
+			$settings['enabled_providers'] = array( 'google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl' );
+		}
+		if ( empty( $settings['provider'] ) ) {
+			$settings['provider'] = 'openai';
+		}
 		$languages       = Polylang_Bridge::get_languages();
 		$polylang_active = Polylang_Bridge::is_polylang_active();
 
