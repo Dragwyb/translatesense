@@ -1,9 +1,42 @@
 /**
  * TranslateSense - Bulk Translation Flow on WP List Table (Step 4.1)
+ * Grid View Provider Selection with Google Widget, Chrome Local AI, OpenAI & Gemini AI
  */
 
 (function ($) {
   'use strict';
+
+  // 4 Primary Translation Providers
+  const BULK_PROVIDERS = [
+    {
+      id: 'google_widget',
+      title: 'Google Widget',
+      icon: '🚀',
+      desc: 'Instant frontend translation widget. No API key required.',
+      savesToDb: false,
+    },
+    {
+      id: 'chrome_ai',
+      title: 'Chrome Local AI',
+      icon: '🤖',
+      desc: 'On-device translation powered by Chrome built-in AI (window.ai).',
+      savesToDb: false,
+    },
+    {
+      id: 'openai',
+      title: 'OpenAI (GPT-4o)',
+      icon: '🧠',
+      desc: 'High accuracy translation via OpenAI ChatGPT API.',
+      savesToDb: true,
+    },
+    {
+      id: 'gemini',
+      title: 'Gemini AI',
+      icon: '✨',
+      desc: 'Next-gen multilingual translation via Google Gemini AI.',
+      savesToDb: true,
+    },
+  ];
 
   $(document).ready(function () {
     const config = window.TranslateSenseBulkData || {};
@@ -36,7 +69,7 @@
       openBulkTranslateModal(selectedPosts);
     });
 
-    // 1. Intercept Bulk Action Form (Step 4.1 #1)
+    // Intercept Bulk Action Dropdown
     $('#doaction, #doaction2').on('click', function (e) {
       const selectName = $(this).attr('id') === 'doaction' ? 'action' : 'action2';
       const selectedAction = $(`select[name="${selectName}"]`).val();
@@ -50,7 +83,6 @@
           })
           .get();
 
-        // Validation check (Step 4.1 #1)
         if (selectedPosts.length === 0) {
           alert('Please select posts first.');
           return false;
@@ -60,7 +92,7 @@
       }
     });
 
-    // 2. Render Modal (Step 4.1 #2)
+    // Render Grid View Provider Modal
     function openBulkTranslateModal(postIds) {
       const languages = config.languages || [];
       const defaultLang = config.defaultLanguage || 'en';
@@ -69,6 +101,8 @@
       const targetOptionsHtml = (availableTargets.length > 0 ? availableTargets : languages)
         .map((l) => `<option value="${l.slug}">${l.name} (${l.slug.toUpperCase()})</option>`)
         .join('');
+
+      let selectedProviderId = 'openai';
 
       const modalHtml = `
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
@@ -90,28 +124,23 @@
               </div>
 
               <div class="ts-bulk-field">
-                <label>Translation Provider</label>
-                <div class="ts-provider-options">
-                  <div class="ts-provider-radio ${config.defaultProvider === 'client_google' ? 'selected' : ''}" data-provider="client_google">
-                    <input type="radio" name="ts_bulk_provider" value="client_google" ${config.defaultProvider === 'client_google' ? 'checked' : ''}>
-                    <span>Client / Free Engine</span>
-                  </div>
-                  <div class="ts-provider-radio ${config.defaultProvider === 'chrome_ai' ? 'selected' : ''}" data-provider="chrome_ai">
-                    <input type="radio" name="ts_bulk_provider" value="chrome_ai" ${config.defaultProvider === 'chrome_ai' ? 'checked' : ''}>
-                    <span>Chrome Built-in AI</span>
-                  </div>
-                  <div class="ts-provider-radio ${config.defaultProvider === 'google_api' ? 'selected' : ''}" data-provider="google_api">
-                    <input type="radio" name="ts_bulk_provider" value="google_api" ${config.defaultProvider === 'google_api' ? 'checked' : ''}>
-                    <span>Google Cloud API</span>
-                  </div>
-                  <div class="ts-provider-radio ${config.defaultProvider === 'deepl' ? 'selected' : ''}" data-provider="deepl">
-                    <input type="radio" name="ts_bulk_provider" value="deepl" ${config.defaultProvider === 'deepl' ? 'checked' : ''}>
-                    <span>DeepL API</span>
-                  </div>
+                <label>Choose Translation Provider</label>
+                <div class="ts-provider-grid">
+                  ${BULK_PROVIDERS.map((p) => `
+                    <div class="ts-provider-card ${p.id === selectedProviderId ? 'selected' : ''}" data-provider="${p.id}">
+                      <input type="radio" name="ts_bulk_provider" value="${p.id}" ${p.id === selectedProviderId ? 'checked' : ''} class="ts-provider-radio" />
+                      <div class="ts-provider-info">
+                        <div class="ts-provider-title">
+                          <span>${p.icon} ${p.title}</span>
+                        </div>
+                        <p class="ts-provider-desc">${p.desc}</p>
+                      </div>
+                    </div>
+                  `).join('')}
                 </div>
               </div>
 
-              <!-- Live Progress (Step 4.1 #4) -->
+              <!-- Live Progress -->
               <div class="ts-progress-wrap" id="ts-progress-wrap" style="display: none;">
                 <div class="ts-progress-bar-bg">
                   <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
@@ -126,7 +155,7 @@
 
             <div class="ts-bulk-footer">
               <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-bulk-cancel-btn">Cancel</button>
-              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-start-btn">⚡ Start Translation</button>
+              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-start-btn">🚀 Start Bulk Translation</button>
             </div>
           </div>
         </div>
@@ -134,21 +163,24 @@
 
       $('#translatesense-bulk-modal-root').html(modalHtml);
 
-      // Event handlers
+      // Event handlers for Modal Grid Card Selection
       $('#ts-bulk-close-btn, #ts-bulk-cancel-btn').on('click', function () {
         $('#translatesense-bulk-modal-root').empty();
       });
 
-      $('.ts-provider-radio').on('click', function () {
-        $('.ts-provider-radio').removeClass('selected');
+      $('.ts-provider-card').on('click', function () {
+        $('.ts-provider-card').removeClass('selected');
         $(this).addClass('selected');
         $(this).find('input[type="radio"]').prop('checked', true);
+
+        const provId = $(this).data('provider');
+        selectedProviderId = provId;
       });
 
-      // 3. Execution Engine (Step 4.1 #3 & #4)
+      // Execution Engine
       $('#ts-bulk-start-btn').on('click', async function () {
         const targetLang = $('#ts-bulk-target-lang').val();
-        const selectedProvider = $('input[name="ts_bulk_provider"]:checked').val() || 'client_google';
+        const selectedProvider = $('input[name="ts_bulk_provider"]:checked').val() || selectedProviderId;
 
         $(this).prop('disabled', true).text('Processing...');
         $('#ts-bulk-cancel-btn').prop('disabled', true);
@@ -164,7 +196,7 @@
 
         for (let i = 0; i < total; i++) {
           const postId = postIds[i];
-          statusText.text(`Translating post ID ${postId} (${i + 1}/${total})...`);
+          statusText.text(`Translating post ID ${postId} with ${selectedProvider} (${i + 1}/${total})...`);
 
           try {
             const res = await $.ajax({

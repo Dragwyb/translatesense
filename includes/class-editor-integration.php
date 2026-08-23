@@ -114,7 +114,7 @@ class Editor_Integration {
 
 		add_meta_box(
 			'translatesense-classic-metabox',
-			__( 'TranslateSense - Translation & XML Mapping', 'translatesense' ),
+			__( 'TranslateSense', 'translatesense' ),
 			array( __CLASS__, 'render_classic_meta_box' ),
 			array( 'post', 'page' ),
 			'side',
@@ -128,43 +128,19 @@ class Editor_Integration {
 	public static function render_classic_meta_box( $post ) {
 		$post_id = $post->ID;
 		$current_lang = Polylang_Bridge::get_post_language( $post_id );
-		$languages = Polylang_Bridge::get_languages();
-		$is_mapping = get_post_meta( $post_id, '_translatesense_mapping_mode', true );
 		?>
 		<div class="translatesense-metabox-content" style="padding: 6px 0;">
-			<p><strong><?php esc_html_e( 'Current Post Language:', 'translatesense' ); ?></strong> <code><?php echo esc_html( strtoupper( $current_lang ) ); ?></code></p>
-			
-			<div style="margin: 12px 0;">
-				<label for="ts-classic-target-lang"><strong><?php esc_html_e( 'Translate To:', 'translatesense' ); ?></strong></label>
-				<select id="ts-classic-target-lang" class="widefat" style="margin-top: 4px;">
-					<?php foreach ( $languages as $lang ) : ?>
-						<?php if ( $lang['slug'] !== $current_lang ) : ?>
-							<option value="<?php echo esc_attr( $lang['slug'] ); ?>"><?php echo esc_html( $lang['name'] ); ?> (<?php echo esc_html( $lang['slug'] ); ?>)</option>
-						<?php endif; ?>
-					<?php endforeach; ?>
-				</select>
-			</div>
-
-			<button type="button" id="ts-classic-translate-btn" class="button button-primary widefat" style="margin-bottom: 8px;">
-				<?php esc_html_e( '⚡ Translate Current Post', 'translatesense' ); ?>
+			<button type="button" id="ts-classic-translate-btn" class="button button-primary widefat" style="margin-bottom: 4px; font-weight: 600;">
+				<?php esc_html_e( '⚡ Translate Page', 'translatesense' ); ?>
 			</button>
 
-			<hr style="margin: 14px 0; border: none; border-top: 1px solid #ddd;" />
-
-			<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-				<input type="checkbox" name="_translatesense_mapping_mode" value="1" <?php checked( $is_mapping, '1' ); ?> />
-				<span><strong><?php esc_html_e( 'Enable Config Mapping Mode', 'translatesense' ); ?></strong></span>
-			</label>
-			<p class="description" style="font-size: 11px; margin-top: 4px;">
-				<?php esc_html_e( 'When enabled, saving this post detects unmapped widgets or dummy text and updates custom XML.', 'translatesense' ); ?>
-			</p>
 			<div id="ts-classic-status-message" style="margin-top: 8px;"></div>
 		</div>
 		<script>
 		jQuery(document).ready(function($){
 			$('#ts-classic-translate-btn').on('click', function(){
 				var btn = $(this);
-				var targetLang = $('#ts-classic-target-lang').val();
+				var targetLang = '<?php echo esc_js( $current_lang ); ?>';
 				var statusBox = $('#ts-classic-status-message');
 				
 				btn.prop('disabled', true).text('Translating...');
@@ -177,18 +153,19 @@ class Editor_Integration {
 					contentType: 'application/json',
 					data: JSON.stringify({
 						post_id: <?php echo (int) $post_id; ?>,
-						target_lang: targetLang
+						target_lang: targetLang,
+						provider: 'openai'
 					}),
 					success: function(res) {
-						btn.prop('disabled', false).text('⚡ Translate Current Post');
+						btn.prop('disabled', false).text('⚡ Translate Page');
 						if(res.success && res.edit_url) {
-							statusBox.html('<div class="notice notice-success inline"><p><strong>Success!</strong> Translated post created. <a href="'+res.edit_url+'" target="_blank">Edit Translation &rarr;</a></p></div>');
+							statusBox.html('<div class="notice notice-success inline"><p><strong>Success!</strong> Translated post updated/created. <a href="'+res.edit_url+'" target="_blank">Edit Translation &rarr;</a></p></div>');
 						} else {
 							statusBox.html('<div class="notice notice-success inline"><p>Translation complete!</p></div>');
 						}
 					},
 					error: function(xhr) {
-						btn.prop('disabled', false).text('⚡ Translate Current Post');
+						btn.prop('disabled', false).text('⚡ Translate Page');
 						var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Translation failed.';
 						statusBox.html('<div class="notice notice-error inline"><p>'+msg+'</p></div>');
 					}

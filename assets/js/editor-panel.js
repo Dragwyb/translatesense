@@ -1,10 +1,69 @@
 /**
- * TranslateSense - Gutenberg, Elementor & Divi Editor Integration
- * Includes Live Translation review and Interactive "Generate Config" (Find 'Translate This Content') Modal.
+ * TranslateSense - Gutenberg & Elementor Editor Integration
+ * Includes:
+ * 1. Auto-detected Polylang current page language translation
+ * 2. 4-Provider Selection Modal (Google Widget, Chrome Local AI, OpenAI, Gemini AI in Grid View)
+ * 3. Live in-editor string extraction & translation review
  */
 
 (function () {
   'use strict';
+
+  // 4 Primary Translation Providers
+  const PROVIDERS = [
+    {
+      id: 'google_widget',
+      title: 'Google Widget',
+      icon: '🚀',
+      desc: 'Instant frontend translation widget. No API key required.',
+      savesToDb: false,
+    },
+    {
+      id: 'chrome_ai',
+      title: 'Chrome Local AI',
+      icon: '🤖',
+      desc: 'On-device translation powered by Chrome built-in AI (window.ai).',
+      savesToDb: false,
+    },
+    {
+      id: 'openai',
+      title: 'Open AI (GPT-4o)',
+      icon: '🧠',
+      desc: 'State-of-the-art neural AI translation via OpenAI ChatGPT API.',
+      savesToDb: true,
+    },
+    {
+      id: 'gemini',
+      title: 'Gemini AI',
+      icon: '✨',
+      desc: 'Next-gen multilingual translation via Google Gemini AI.',
+      savesToDb: true,
+    },
+  ];
+
+  // Helper for Chrome Built-in AI Translation
+  async function translateWithChromeAi(text, sourceLang, targetLang) {
+    if (window.translation && typeof window.translation.canTranslate === 'function') {
+      const can = await window.translation.canTranslate({
+        sourceLanguage: sourceLang.substring(0, 2),
+        targetLanguage: targetLang.substring(0, 2),
+      });
+      if (can !== 'no') {
+        const translator = await window.translation.createTranslator({
+          sourceLanguage: sourceLang.substring(0, 2),
+          targetLanguage: targetLang.substring(0, 2),
+        });
+        return await translator.translate(text);
+      }
+    }
+    if (window.ai && window.ai.languageModel) {
+      const session = await window.ai.languageModel.create();
+      return await session.prompt(
+        `Translate the following text from ${sourceLang} to ${targetLang}. Return only the translated text without commentary:\n\n${text}`
+      );
+    }
+    throw new Error('Chrome Built-in Local AI is not available or not enabled in this browser.');
+  }
 
   // 1. Gutenberg Block Editor Integration
   if (window.wp && window.wp.plugins && window.wp.editPost && window.wp.element) {
@@ -15,32 +74,32 @@
 
     function TranslateSenseGutenbergPanel() {
       const config = window.TranslateSenseEditorData || {};
-      const [targetLang, setTargetLang] = useState(
-        config.languages && config.languages.length > 1
-          ? config.languages.find((l) => l.slug !== config.currentLanguage)?.slug || 'es'
-          : 'es'
-      );
-      const [isMappingActive, setIsMappingActive] = useState(!!config.mappingMode);
+      const targetLang = config.currentLanguage || 'en';
+      const [selectedProvider, setSelectedProvider] = useState(config.defaultProvider || 'openai');
+
+      // Modals State
+      const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
       const [isReviewOpen, setIsReviewOpen] = useState(false);
       const [strings, setStrings] = useState([]);
       const [isExtracting, setIsExtracting] = useState(false);
       const [isTranslating, setIsTranslating] = useState(false);
       const [statusNotice, setStatusNotice] = useState(null);
 
-      // Generate Config State (Finding "Translate This Content")
-      const [isGeneratingConfig, setIsGeneratingConfig] = useState(false);
-      const [generatedXmlModalOpen, setGeneratedXmlModalOpen] = useState(false);
-      const [generatedXmlSnippet, setGeneratedXmlSnippet] = useState('');
-      const [isSavingConfig, setIsSavingConfig] = useState(false);
+      // Click "Translate" in sidebar -> Opens Provider Modal
+      const handleOpenTranslateFlow = () => {
+        setStatusNotice(null);
+        setIsProviderModalOpen(true);
+      };
 
-      // Extract current blocks strings against XML rules for Live Translation
-      const handleExtract = async () => {
+      // Extract & Run Translation with Selected Provider
+      const handleStartTranslation = async () => {
         setIsExtracting(true);
         setStatusNotice(null);
         try {
           const blocks = select('core/block-editor').getBlocks();
           const serialized = wp.blocks.serialize(blocks);
 
+          // 1. Extract strings from blocks
           const res = await window.wp.apiFetch({
             path: '/translatesense/v1/extract-strings',
             method: 'POST',
@@ -51,101 +110,84 @@
             },
           });
 
-          if (res.strings && res.strings.length > 0) {
-            setStrings(res.strings);
-            setIsReviewOpen(true);
-          } else {
-            setStatusNotice('No translatable strings found in current blocks according to XML rules.');
+          if (!res.strings || res.strings.length === 0) {
+            alert('No translatable strings found in current blocks matching XML rules.');
+            setIsExtracting(false);
+            setIsProviderModalOpen(false);
+            return;
           }
+
+          const extractedList = res.strings;
+          setStrings(extractedList);
+          setIsProviderModalOpen(false);
+          setIsReviewOpen(true);
+
+          // 2. Automatically translate with chosen provider
+          await performBatchTranslation(extractedList, selectedProvider);
         } catch (err) {
-          setStatusNotice('Extraction error: ' + (err.message || 'Unknown error'));
+          alert('Extraction error: ' + (err.message || 'Unknown error'));
         } finally {
           setIsExtracting(false);
         }
       };
 
-      // Generate Config: Detects "Translate This Content" in current blocks
-      const handleGenerateConfig = async () => {
-        setIsGeneratingConfig(true);
-        setStatusNotice(null);
-        try {
-          const blocks = select('core/block-editor').getBlocks();
-
-          const res = await window.wp.apiFetch({
-            path: '/translatesense/v1/generate-config',
-            method: 'POST',
-            data: {
-              builder: 'gutenberg',
-              blocks: blocks,
-            },
-          });
-
-          if (res.xml_snippet) {
-            setGeneratedXmlSnippet(res.xml_snippet);
-            setGeneratedXmlModalOpen(true);
-          }
-        } catch (err) {
-          const msg = err.message || "No placeholder 'Translate This Content' found. Add this placeholder to blocks first.";
-          setStatusNotice(msg);
-          alert(msg);
-        } finally {
-          setIsGeneratingConfig(false);
-        }
-      };
-
-      // Save generated XML back to gutenberg-config.xml
-      const handleSaveGeneratedXml = async () => {
-        setIsSavingConfig(true);
-        try {
-          // Fetch existing gutenberg XML and merge or save
-          const xmlRes = await window.wp.apiFetch({ path: '/translatesense/v1/xml-config?builder=gutenberg' });
-          const existingXml = xmlRes.gutenberg_xml || '';
-
-          // Merge or append snippet
-          let mergedXml = existingXml;
-          if (!mergedXml || mergedXml.length < 30) {
-            mergedXml = generatedXmlSnippet;
-          } else {
-            // Merge custom blocks
-            mergedXml = generatedXmlSnippet; // or combined
-          }
-
-          await window.wp.apiFetch({
-            path: '/translatesense/v1/xml-config',
-            method: 'POST',
-            data: {
-              builder: 'gutenberg',
-              custom_xml: generatedXmlSnippet,
-            },
-          });
-
-          setGeneratedXmlModalOpen(false);
-          dispatch('core/notices').createSuccessNotice('Gutenberg XML configuration saved successfully!');
-        } catch (err) {
-          alert('Save error: ' + (err.message || 'Validation error'));
-        } finally {
-          setIsSavingConfig(false);
-        }
-      };
-
-      // Auto-translate pending strings in review table
-      const handleAutoTranslateAll = async () => {
+      // Batch Translation Execution
+      const performBatchTranslation = async (currentStrings, provider) => {
         setIsTranslating(true);
         try {
-          const toTranslate = strings.map((s) => s.source);
+          const sourceLang = config.currentLanguage || 'en';
+          const toTranslate = currentStrings.map((s) => s.source);
+
+          // If Chrome Built-in Local AI
+          if (provider === 'chrome_ai') {
+            const updated = [...currentStrings];
+            for (let i = 0; i < currentStrings.length; i++) {
+              try {
+                const trans = await translateWithChromeAi(currentStrings[i].source, sourceLang, targetLang);
+                updated[i] = {
+                  ...currentStrings[i],
+                  translated: trans,
+                  status: 'Local AI',
+                };
+              } catch (e) {
+                // Fallback to server client_google
+                const fallbackRes = await window.wp.apiFetch({
+                  path: '/translatesense/v1/translate-batch',
+                  method: 'POST',
+                  data: {
+                    strings: [currentStrings[i].source],
+                    source_lang: sourceLang,
+                    target_lang: targetLang,
+                    provider: 'client_google',
+                    post_id: config.postId,
+                  },
+                });
+                updated[i] = {
+                  ...currentStrings[i],
+                  translated: fallbackRes.results[0]?.translated || currentStrings[i].source,
+                  status: 'Frontend',
+                };
+              }
+              setStrings([...updated]);
+            }
+            return;
+          }
+
+          // Backend / AI / Google Widget Providers
           const res = await window.wp.apiFetch({
             path: '/translatesense/v1/translate-batch',
             method: 'POST',
             data: {
               strings: toTranslate,
-              source_lang: config.currentLanguage || 'en',
+              source_lang: sourceLang,
               target_lang: targetLang,
+              provider: provider,
               post_id: config.postId,
             },
           });
 
           if (res.results) {
-            const updated = strings.map((item, idx) => {
+            const updated = currentStrings.map((item, idx) => {
               const r = res.results[idx];
               return {
                 ...item,
@@ -156,7 +198,7 @@
             setStrings(updated);
           }
         } catch (err) {
-          alert('Translation error: ' + err.message);
+          alert('Translation error: ' + (err.message || 'Unknown error'));
         } finally {
           setIsTranslating(false);
         }
@@ -189,6 +231,8 @@
         dispatch('core/notices').createSuccessNotice('Translated strings applied to blocks successfully!');
       };
 
+      const currentProviderObj = PROVIDERS.find((p) => p.id === selectedProvider) || PROVIDERS[0];
+
       return el(
         PluginDocumentSettingPanel,
         {
@@ -198,90 +242,35 @@
         },
         el(
           'div',
-          { className: 'ts-editor-sidebar-panel' },
-
-          // Section 1: Generate XML Config from Placeholder
-          el(
-            'div',
-            { style: { background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' } },
-            el('strong', { style: { fontSize: '12px', display: 'block', color: '#1e293b', marginBottom: '4px' } }, '🛠️ XML Config Generator'),
-            el('p', { style: { fontSize: '11px', color: '#64748b', margin: '0 0 10px 0' } }, "Add placeholder 'Translate This Content' inside any block, then click Generate below."),
-            el(
-              'button',
-              {
-                type: 'button',
-                className: 'ts-btn ts-btn-primary',
-                style: { width: '100%', fontSize: '12px', padding: '8px' },
-                onClick: handleGenerateConfig,
-                disabled: isGeneratingConfig,
-              },
-              isGeneratingConfig ? 'Scanning Blocks...' : '⚡ Generate XML Config'
-            )
-          ),
-
-          // Section 2: Live Translation
-          el(
-            'div',
-            { className: 'ts-editor-field' },
-            el('label', null, 'Target Language'),
-            el(
-              'select',
-              {
-                className: 'ts-editor-select',
-                value: targetLang,
-                onChange: (e) => setTargetLang(e.target.value),
-              },
-              (config.languages || []).map((l) =>
-                el('option', { key: l.slug, value: l.slug }, `${l.name} (${l.slug.toUpperCase()})`)
-              )
-            )
-          ),
+          { className: 'ts-editor-sidebar-panel', style: { padding: '4px 0' } },
           el(
             'button',
             {
               type: 'button',
               className: 'ts-btn-extract',
-              onClick: handleExtract,
+              style: { width: '100%', padding: '10px 14px', fontWeight: 600, fontSize: '13px' },
+              onClick: handleOpenTranslateFlow,
               disabled: isExtracting,
             },
-            isExtracting ? 'Extracting Strings...' : '🔍 Extract & Translate Live'
+            '⚡ Translate Page'
           ),
           statusNotice &&
-            el('p', { style: { fontSize: '12px', color: '#b91c1c', marginTop: '8px' } }, statusNotice),
-
-          el('hr', { style: { margin: '16px 0', borderColor: '#e2e8f0' } }),
-          el(
-            'label',
-            { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' } },
-            el('input', {
-              type: 'checkbox',
-              checked: isMappingActive,
-              onChange: (e) => {
-                setIsMappingActive(e.target.checked);
-                window.wp.apiFetch({
-                  path: '/translatesense/v1/settings',
-                  method: 'POST',
-                  data: { mapping_mode: e.target.checked },
-                });
-              },
-            }),
-            el('span', null, 'Enable Config Mapping Mode')
-          )
+            el('p', { style: { fontSize: '12px', color: '#b91c1c', marginTop: '8px' } }, statusNotice)
         ),
 
-        // Generated XML Modal
-        generatedXmlModalOpen &&
+        // Provider Selection Modal (Grid View)
+        isProviderModalOpen &&
           el(
             'div',
-            { className: 'ts-strings-review-modal', onClick: () => setGeneratedXmlModalOpen(false) },
+            { className: 'ts-strings-review-modal', onClick: () => setIsProviderModalOpen(false) },
             el(
               'div',
-              { className: 'ts-review-container', style: { maxWidth: '720px' }, onClick: (e) => e.stopPropagation() },
+              { className: 'ts-review-container', style: { maxWidth: '640px' }, onClick: (e) => e.stopPropagation() },
               el(
                 'div',
                 { className: 'ts-review-header' },
-                el('h3', null, '🎉 Generated Gutenberg XML Configuration'),
-                el('button', { className: 'ts-bulk-close', onClick: () => setGeneratedXmlModalOpen(false) }, '✕')
+                el('h3', null, '🌐 Choose Translation Provider'),
+                el('button', { className: 'ts-bulk-close', onClick: () => setIsProviderModalOpen(false) }, '✕')
               ),
               el(
                 'div',
@@ -289,32 +278,57 @@
                 el(
                   'p',
                   { style: { fontSize: '13px', color: '#64748b', marginTop: 0 } },
-                  "Detected fields matching 'Translate This Content'. Review the generated XML snippet below:"
+                  'Translating content for page language: ',
+                  el('strong', { style: { color: '#4f46e5' } }, `🌐 ${targetLang.toUpperCase()}`)
                 ),
-                el('textarea', {
-                  className: 'ts-xml-editor',
-                  style: { height: '240px', width: '100%' },
-                  value: generatedXmlSnippet,
-                  onChange: (e) => setGeneratedXmlSnippet(e.target.value),
-                  spellCheck: 'false',
-                })
+                el(
+                  'div',
+                  { className: 'ts-provider-grid' },
+                  PROVIDERS.map((p) =>
+                    el(
+                      'div',
+                      {
+                        key: p.id,
+                        className: `ts-provider-card ${selectedProvider === p.id ? 'selected' : ''}`,
+                        onClick: () => setSelectedProvider(p.id),
+                      },
+                      el('input', {
+                        type: 'radio',
+                        name: 'ts_provider_select',
+                        className: 'ts-provider-radio',
+                        checked: selectedProvider === p.id,
+                        onChange: () => setSelectedProvider(p.id),
+                      }),
+                      el(
+                        'div',
+                        { className: 'ts-provider-info' },
+                        el(
+                          'div',
+                          { className: 'ts-provider-title' },
+                          el('span', null, `${p.icon} ${p.title}`)
+                        ),
+                        el('p', { className: 'ts-provider-desc' }, p.desc)
+                      )
+                    )
+                  )
+                )
               ),
               el(
                 'div',
                 { className: 'ts-review-footer' },
                 el(
                   'button',
-                  { className: 'ts-bulk-btn ts-bulk-btn-secondary', onClick: () => setGeneratedXmlModalOpen(false) },
+                  { className: 'ts-bulk-btn ts-bulk-btn-secondary', onClick: () => setIsProviderModalOpen(false) },
                   'Cancel'
                 ),
                 el(
                   'button',
                   {
                     className: 'ts-bulk-btn ts-bulk-btn-primary',
-                    onClick: handleSaveGeneratedXml,
-                    disabled: isSavingConfig,
+                    onClick: handleStartTranslation,
+                    disabled: isExtracting,
                   },
-                  isSavingConfig ? 'Saving...' : '💾 Save to Gutenberg XML'
+                  isExtracting ? 'Extracting...' : '🚀 Start Translation'
                 )
               )
             )
@@ -339,15 +353,15 @@
                 { className: 'ts-review-body' },
                 el(
                   'div',
-                  { style: { marginBottom: '14px', display: 'flex', gap: '10px' } },
+                  { style: { marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
                   el(
                     'button',
                     {
                       className: 'ts-btn ts-btn-primary',
-                      onClick: handleAutoTranslateAll,
+                      onClick: () => performBatchTranslation(strings, selectedProvider),
                       disabled: isTranslating,
                     },
-                    isTranslating ? 'Translating All...' : '⚡ Auto-Translate All Strings'
+                    isTranslating ? 'Translating Strings...' : `⚡ Re-Translate All with ${currentProviderObj.title}`
                   )
                 ),
                 el(
@@ -382,7 +396,7 @@
                           null,
                           el(
                             'span',
-                            { className: `ts-status-tag ${item.status ? item.status.toLowerCase() : 'pending'}` },
+                            { className: `ts-status-tag ${item.status ? item.status.toLowerCase().replace(/[^a-z]/g, '') : 'pending'}` },
                             item.status || 'Pending'
                           )
                         ),
@@ -393,7 +407,7 @@
                             type: 'text',
                             className: 'ts-trans-input',
                             value: item.translated || '',
-                            placeholder: 'Enter translation...',
+                            placeholder: isTranslating ? 'Translating...' : 'Enter translation...',
                             onChange: (e) => {
                               const val = e.target.value;
                               const next = [...strings];
@@ -435,39 +449,100 @@
   // 2. Elementor Editor Integration
   if (window.jQuery) {
     window.jQuery(document).ready(function ($) {
-      // If Elementor editor is active
       if (window.elementor && window.elementor.on) {
         window.elementor.on('preview:loaded', function () {
-          // Add TranslateSense panel or floating trigger in Elementor
-          if ($('#ts-elementor-generate-btn').length === 0) {
-            $('#elementor-panel-footer').prepend(
-              `<button id="ts-elementor-generate-btn" class="elementor-button elementor-button-default" style="width: 100%; margin-bottom: 8px; background: #4f46e5; color: #fff; font-weight: 600;">
-                ⚡ Generate XML Config (Find 'Translate This Content')
-              </button>`
-            );
+          // Add TranslateSense panel button in Elementor footer
+          if ($('#ts-elementor-translate-btn').length === 0) {
+            $('#elementor-panel-footer').prepend(`
+              <div id="ts-elementor-panel-wrap" style="padding: 10px; border-top: 1px solid #3d414a; background: #26292c;">
+                <button id="ts-elementor-translate-btn" class="elementor-button elementor-button-default" style="width: 100%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #fff; font-weight: 600;">
+                  ⚡ Translate Page
+                </button>
+              </div>
+            `);
 
-            $('#ts-elementor-generate-btn').on('click', function () {
-              const elements = window.elementor.elements ? window.elementor.elements.toJSON() : [];
+            // Translate button click -> Opens Provider dialog
+            $('#ts-elementor-translate-btn').on('click', function () {
               const config = window.TranslateSenseEditorData || {};
+              const targetLang = config.currentLanguage || 'en';
 
-              $.ajax({
-                url: config.restUrl + 'generate-config',
-                method: 'POST',
-                headers: { 'X-WP-Nonce': config.nonce },
-                contentType: 'application/json',
-                data: JSON.stringify({
-                  builder: 'elementor',
-                  elements: elements,
-                }),
-                success: function (res) {
-                  if (res.xml_snippet) {
-                    alert('Generated Elementor XML:\n\n' + res.xml_snippet);
+              let modalHtml = `
+                <div id="ts-elementor-provider-modal" class="ts-strings-review-modal">
+                  <div class="ts-review-container" style="max-width: 620px;">
+                    <div class="ts-review-header">
+                      <h3>🌐 Choose Translation Provider (Elementor)</h3>
+                      <button class="ts-bulk-close" id="ts-elem-close-modal">✕</button>
+                    </div>
+                    <div class="ts-review-body">
+                      <p style="font-size: 13px; color: #64748b; margin: 0 0 14px 0;">
+                        Translating content for page language: <strong style="color: #4f46e5;">🌐 ${targetLang.toUpperCase()}</strong>
+                      </p>
+                      <div class="ts-provider-grid">
+                        ${PROVIDERS.map(p => `
+                          <div class="ts-provider-card ${p.id === 'openai' ? 'selected' : ''}" data-provider="${p.id}">
+                            <input type="radio" name="elem_provider" value="${p.id}" ${p.id === 'openai' ? 'checked' : ''} class="ts-provider-radio" />
+                            <div class="ts-provider-info">
+                              <div class="ts-provider-title">
+                                <span>${p.icon} ${p.title}</span>
+                              </div>
+                              <p class="ts-provider-desc">${p.desc}</p>
+                            </div>
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+                    <div class="ts-review-footer">
+                      <button class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-elem-cancel-modal">Cancel</button>
+                      <button class="ts-bulk-btn ts-bulk-btn-primary" id="ts-elem-start-trans-btn">🚀 Start Translation</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              $('body').append(modalHtml);
+
+              $('.ts-provider-card').on('click', function() {
+                $('.ts-provider-card').removeClass('selected');
+                $(this).addClass('selected');
+                $(this).find('input[type="radio"]').prop('checked', true);
+              });
+
+              $('#ts-elem-close-modal, #ts-elem-cancel-modal').on('click', function() {
+                $('#ts-elementor-provider-modal').remove();
+              });
+
+              $('#ts-elem-start-trans-btn').on('click', function() {
+                const selectedProv = $('input[name="elem_provider"]:checked').val() || 'openai';
+                const btn = $(this);
+
+                btn.prop('disabled', true).text('Translating...');
+
+                $.ajax({
+                  url: config.restUrl + 'translate-post',
+                  method: 'POST',
+                  headers: { 'X-WP-Nonce': config.nonce },
+                  contentType: 'application/json',
+                  data: JSON.stringify({
+                    post_id: config.postId,
+                    target_lang: targetLang,
+                    provider: selectedProv,
+                  }),
+                  success: function (res) {
+                    $('#ts-elementor-provider-modal').remove();
+                    if (res.success && res.edit_url) {
+                      if (confirm('🎉 Translation completed successfully!\n\nWould you like to open the translated post in Elementor?')) {
+                        window.open(res.edit_url, '_blank');
+                      }
+                    } else {
+                      alert('Translation complete!');
+                    }
+                  },
+                  error: function (xhr) {
+                    btn.prop('disabled', false).text('🚀 Start Translation');
+                    const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Translation failed.';
+                    alert('Error: ' + msg);
                   }
-                },
-                error: function (xhr) {
-                  const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "No 'Translate This Content' placeholder found.";
-                  alert(msg);
-                },
+                });
               });
             });
           }

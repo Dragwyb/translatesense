@@ -1,5 +1,5 @@
 /**
- * TranslateSense - Gutenberg & Elementor Editor Panel Styles
+ * TranslateSense - Gutenberg, Elementor & Classic Editor Panel Styles
  */
 
 .ts-editor-sidebar-panel {
@@ -51,6 +51,7 @@
   opacity: 0.95;
 }
 
+/* Modals */
 .ts-strings-review-modal {
   position: fixed;
   top: 0;
@@ -71,11 +72,17 @@
   border-radius: 12px;
   width: 100%;
   max-width: 960px;
-  max-height: 85vh;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  animation: tsFadeIn 0.2s ease-out;
+}
+
+@keyframes tsFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .ts-review-header {
@@ -98,6 +105,110 @@
   padding: 20px 24px;
   overflow-y: auto;
   flex: 1;
+}
+
+/* Provider Selection Cards in Modal */
+.ts-provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0 20px 0;
+}
+
+@media (max-width: 600px) {
+  .ts-provider-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ts-provider-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.ts-provider-card:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.ts-provider-card.selected {
+  border-color: #4f46e5;
+  background: #f5f3ff;
+}
+
+.ts-provider-radio {
+  margin-top: 3px !important;
+}
+
+.ts-provider-info {
+  flex: 1;
+}
+
+.ts-provider-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.ts-provider-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ts-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ts-badge-cache {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ts-badge-nocache {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ts-provider-notice {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.ts-notice-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.ts-notice-warning {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #92400e;
 }
 
 /* Interactive Table (Step 4.2 #3) */
@@ -177,4 +288,44 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.ts-bulk-btn {
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.ts-bulk-btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.ts-bulk-btn-secondary:hover {
+  background: #f1f5f9;
+}
+
+.ts-bulk-btn-primary {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #ffffff;
+  border-color: #3730a3;
+}
+.ts-bulk-btn-primary:hover {
+  opacity: 0.95;
+}
+
+.ts-bulk-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+}
+.ts-bulk-close:hover {
+  color: #0f172a;
 }

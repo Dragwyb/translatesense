@@ -26,7 +26,10 @@
   border-radius: 14px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   width: 100%;
-  max-width: 560px;
+  max-width: 680px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: #1e293b;
@@ -34,14 +37,14 @@
 }
 
 @keyframes tsBulkModalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .ts-bulk-header {
   background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 100%);
   color: #ffffff;
-  padding: 20px 24px;
+  padding: 18px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -49,7 +52,7 @@
 
 .ts-bulk-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: #ffffff;
   display: flex;
@@ -61,7 +64,7 @@
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 24px;
+  font-size: 22px;
   cursor: pointer;
   line-height: 1;
   padding: 0;
@@ -72,19 +75,23 @@
 }
 
 .ts-bulk-body {
-  padding: 24px;
+  padding: 22px 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .ts-bulk-field {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .ts-bulk-field label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .ts-bulk-select {
@@ -92,7 +99,7 @@
   padding: 10px 14px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   background: #f8fafc;
   outline: none;
 }
@@ -102,30 +109,109 @@
   background: #ffffff;
 }
 
-.ts-provider-options {
+/* Provider Grid Layout */
+.ts-provider-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 6px;
 }
 
-.ts-provider-radio {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
+@media (max-width: 600px) {
+  .ts-provider-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ts-provider-card {
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  transition: all 0.15s ease;
+  align-items: flex-start;
+  gap: 10px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.ts-provider-card:hover {
+  border-color: #cbd5e1;
   background: #f8fafc;
 }
 
-.ts-provider-radio.selected {
+.ts-provider-card.selected {
   border-color: #4f46e5;
-  background: #eef2ff;
-  color: #4338ca;
-  font-weight: 600;
+  background: #f5f3ff;
+}
+
+.ts-provider-radio {
+  margin-top: 3px !important;
+}
+
+.ts-provider-info {
+  flex: 1;
+}
+
+.ts-provider-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.ts-provider-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.ts-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ts-badge-cache {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ts-badge-nocache {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ts-provider-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.ts-notice-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.ts-notice-warning {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #92400e;
 }
 
 /* Progress bar */
@@ -135,9 +221,9 @@
 
 .ts-progress-bar-bg {
   width: 100%;
-  height: 10px;
+  height: 8px;
   background: #e2e8f0;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -146,7 +232,7 @@
   background: linear-gradient(90deg, #4f46e5, #06b6d4);
   width: 0%;
   transition: width 0.3s ease;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .ts-progress-text {
@@ -158,13 +244,13 @@
 }
 
 .ts-progress-logs {
-  margin-top: 14px;
-  max-height: 120px;
+  margin-top: 12px;
+  max-height: 140px;
   overflow-y: auto;
   background: #f1f5f9;
   border-radius: 6px;
   padding: 10px;
-  font-size: 12px;
+  font-size: 11px;
   font-family: monospace;
 }
 
@@ -187,7 +273,7 @@
 
 .ts-bulk-btn {
   padding: 9px 18px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -201,13 +287,18 @@
   color: #475569;
 }
 
+.ts-bulk-btn-secondary:hover {
+  background: #f1f5f9;
+}
+
 .ts-bulk-btn-primary {
-  background: #4f46e5;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
   color: #ffffff;
+  border-color: #3730a3;
 }
 
 .ts-bulk-btn-primary:hover {
-  background: #4338ca;
+  opacity: 0.95;
 }
 
 .ts-bulk-btn:disabled {
