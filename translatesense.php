@@ -12,6 +12,22 @@
  * Domain Path:       /languages
  */
 
+declare(strict_types=1);
+
+namespace TranslateSense;
+
+use TranslateSense\Includes\Activator;
+use TranslateSense\Includes\Deactivator;
+use TranslateSense\Includes\Polylang_Bridge;
+use TranslateSense\Includes\Xml_Engine;
+use TranslateSense\Includes\Hashing_Db;
+use TranslateSense\Includes\Detector;
+use TranslateSense\Includes\Rest_Api;
+use TranslateSense\Includes\Admin_Menu;
+use TranslateSense\Includes\Bulk_Translate;
+use TranslateSense\Includes\Editor_Integration;
+use TranslateSense\Includes\Cron;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
@@ -22,39 +38,28 @@ define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 /**
- * Autoload includes classes.
+ * Register PSR/WordPress dynamic class autoloader.
  */
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-activator.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-deactivator.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-xml-engine.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-hashing-db.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-translator.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-polylang-bridge.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-detector.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-rest-api.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-admin-menu.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-bulk-translate.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-editor-integration.php';
-require_once TRANSLATESENSE_PLUGIN_DIR . 'includes/class-cron.php';
+require_once TRANSLATESENSE_PLUGIN_DIR . 'class-translatesense-autoload.php';
+Autoload::instance();
 
 /**
  * The code that runs during plugin activation.
  */
 function activates_translatesense() {
-	if ( ! TranslateSense_Polylang_Bridge::is_polylang_active() ) {
-		// Set a transient so we show an admin notice upon activation
+	if ( ! Polylang_Bridge::is_polylang_active() ) {
 		set_transient( 'translatesense_polylang_missing_notice', true, 30 );
 	}
-	TranslateSense_Activator::activate();
+	Activator::activate();
 }
-register_activation_hook( __FILE__, 'activates_translatesense' );
+register_activation_hook( __FILE__, __NAMESPACE__ . '\\activates_translatesense' );
 
 /**
  * Check if Polylang is active and display admin notice if missing.
  */
-add_action( 'admin_notices', 'translatesense_check_polylang_requirement' );
+add_action( 'admin_notices', __NAMESPACE__ . '\\translatesense_check_polylang_requirement' );
 function translatesense_check_polylang_requirement() {
-	if ( ! TranslateSense_Polylang_Bridge::is_polylang_active() ) {
+	if ( ! Polylang_Bridge::is_polylang_active() ) {
 		?>
 		<div class="notice notice-warning is-dismissible">
 			<p>
@@ -70,24 +75,24 @@ function translatesense_check_polylang_requirement() {
  * The code that runs during plugin deactivation.
  */
 function deactivates_translatesense() {
-	TranslateSense_Deactivator::deactivate();
+	Deactivator::deactivate();
 }
-register_deactivation_hook( __FILE__, 'deactivates_translatesense' );
+register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivates_translatesense' );
 
 /**
  * Main TranslateSense Plugin Class.
  */
-class TranslateSense {
+class Plugin {
 
 	/**
 	 * Single instance of the plugin.
 	 *
-	 * @var TranslateSense
+	 * @var Plugin
 	 */
 	protected static $_instance = null;
 
 	/**
-	 * Main instance of TranslateSense.
+	 * Main instance of Plugin.
 	 */
 	public static function instance() {
 		if ( is_null( self::$_instance ) ) {
@@ -108,14 +113,14 @@ class TranslateSense {
 	 */
 	private function init_hooks() {
 		// Initialize Subsystems
-		TranslateSense_Xml_Engine::init();
-		TranslateSense_Hashing_Db::init();
-		TranslateSense_Detector::init();
-		TranslateSense_Rest_Api::init();
-		TranslateSense_Admin_Menu::init();
-		TranslateSense_Bulk_Translate::init();
-		TranslateSense_Editor_Integration::init();
-		TranslateSense_Cron::init();
+		Xml_Engine::init();
+		Hashing_Db::init();
+		Detector::init();
+		Rest_Api::init();
+		Admin_Menu::init();
+		Bulk_Translate::init();
+		Editor_Integration::init();
+		Cron::init();
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
 	}
@@ -135,8 +140,8 @@ class TranslateSense {
 /**
  * Kick off plugin.
  */
-function translatesense() {
-	return TranslateSense::instance();
+function plugin() {
+	return Plugin::instance();
 }
 
-translatesense();
+plugin();

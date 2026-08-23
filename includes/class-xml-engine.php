@@ -1,15 +1,18 @@
 <?php
-/**
- * XML Engine for TranslateSense
- * Supports separate XML configurations per editor (Gutenberg, Elementor, Divi, Classic)
- * as well as unified rules parsing and dynamic rule generation.
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
+
+use WP_Error;
+use SimpleXMLElement;
+use DOMDocument;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Xml_Engine {
+class Xml_Engine {
 
 	/**
 	 * Supported builders.

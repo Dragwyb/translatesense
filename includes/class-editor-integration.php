@@ -1,13 +1,14 @@
 <?php
-/**
- * Editor Translation Flow for Gutenberg, Elementor & Classic (Step 4.2)
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Editor_Integration {
+class Editor_Integration {
 
 	/**
 	 * Initialize hooks.
@@ -54,11 +55,11 @@ class TranslateSense_Editor_Integration {
 				'postId'          => $post_id,
 				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => TranslateSense_Polylang_Bridge::is_polylang_active(),
-				'currentLanguage' => TranslateSense_Polylang_Bridge::get_post_language( $post_id ),
-				'languages'       => TranslateSense_Polylang_Bridge::get_languages(),
+				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
+				'currentLanguage' => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'       => Polylang_Bridge::get_languages(),
 				'defaultProvider' => $settings['provider'] ?? 'client_google',
-				'mappingMode'     => TranslateSense_Detector::is_mapping_mode_active( $post_id ),
+				'mappingMode'     => Detector::is_mapping_mode_active( $post_id ),
 			)
 		);
 	}
@@ -93,11 +94,11 @@ class TranslateSense_Editor_Integration {
 				'postId'          => $post_id,
 				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => TranslateSense_Polylang_Bridge::is_polylang_active(),
-				'currentLanguage' => TranslateSense_Polylang_Bridge::get_post_language( $post_id ),
-				'languages'       => TranslateSense_Polylang_Bridge::get_languages(),
+				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
+				'currentLanguage' => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'       => Polylang_Bridge::get_languages(),
 				'defaultProvider' => $settings['provider'] ?? 'client_google',
-				'mappingMode'     => TranslateSense_Detector::is_mapping_mode_active( $post_id ),
+				'mappingMode'     => Detector::is_mapping_mode_active( $post_id ),
 			)
 		);
 	}
@@ -126,8 +127,8 @@ class TranslateSense_Editor_Integration {
 	 */
 	public static function render_classic_meta_box( $post ) {
 		$post_id = $post->ID;
-		$current_lang = TranslateSense_Polylang_Bridge::get_post_language( $post_id );
-		$languages = TranslateSense_Polylang_Bridge::get_languages();
+		$current_lang = Polylang_Bridge::get_post_language( $post_id );
+		$languages = Polylang_Bridge::get_languages();
 		$is_mapping = get_post_meta( $post_id, '_translatesense_mapping_mode', true );
 		?>
 		<div class="translatesense-metabox-content" style="padding: 6px 0;">

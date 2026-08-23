@@ -1,13 +1,14 @@
 <?php
-/**
- * Admin Menu & Settings Page (Step 1.1)
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Admin_Menu {
+class Admin_Menu {
 
 	/**
 	 * Hook suffix for the admin menu page.
@@ -34,7 +35,7 @@ class TranslateSense_Admin_Menu {
 		$capability = apply_filters( 'translatesense_menu_capability', $capability );
 
 		// If Polylang is active, place directly under Polylang's main "Languages" (mlang) menu
-		if ( TranslateSense_Polylang_Bridge::is_polylang_active() ) {
+		if ( Polylang_Bridge::is_polylang_active() ) {
 			self::$page_hook = add_submenu_page(
 				'mlang',
 				__( 'TranslateSense Config', 'translatesense' ),
@@ -109,9 +110,9 @@ class TranslateSense_Admin_Menu {
 			array(
 				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => TranslateSense_Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage' => TranslateSense_Polylang_Bridge::get_default_language(),
-				'languages'       => TranslateSense_Polylang_Bridge::get_languages(),
+				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
+				'defaultLanguage' => Polylang_Bridge::get_default_language(),
+				'languages'       => Polylang_Bridge::get_languages(),
 				'activeBuilders'  => self::get_active_builders(),
 				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
 			)

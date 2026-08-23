@@ -1,13 +1,14 @@
 <?php
-/**
- * Bulk Translation Flow on WP List Table (Step 4.1)
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Bulk_Translate {
+class Bulk_Translate {
 
 	/**
 	 * Initialize hooks.
@@ -73,9 +74,9 @@ class TranslateSense_Bulk_Translate {
 			array(
 				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => TranslateSense_Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage' => TranslateSense_Polylang_Bridge::get_default_language(),
-				'languages'       => TranslateSense_Polylang_Bridge::get_languages(),
+				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
+				'defaultLanguage' => Polylang_Bridge::get_default_language(),
+				'languages'       => Polylang_Bridge::get_languages(),
 				'defaultProvider' => $settings['provider'] ?? 'client_google',
 			)
 		);

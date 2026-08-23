@@ -1,13 +1,14 @@
 <?php
-/**
- * Translation Provider Dispatcher & Cache Coordinator
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Translator {
+class Translator {
 
 	/**
 	 * Translate a single string.
@@ -29,10 +30,10 @@ class TranslateSense_Translator {
 			);
 		}
 
-		$hash = TranslateSense_Hashing_Db::generate_hash( $widget_id, $source_string );
+		$hash = Hashing_Db::generate_hash( $widget_id, $source_string );
 
 		// Step 3.3: Check DB Cache first
-		$cached = TranslateSense_Hashing_Db::get_cached_translation( $hash, $target_lang );
+		$cached = Hashing_Db::get_cached_translation( $hash, $target_lang );
 		if ( null !== $cached ) {
 			return array(
 				'translated' => $cached,
@@ -43,7 +44,7 @@ class TranslateSense_Translator {
 
 		// Save package in DB
 		if ( $post_id ) {
-			TranslateSense_Hashing_Db::record_package( $post_id, $target_lang, $hash, $source_string );
+			Hashing_Db::record_package( $post_id, $target_lang, $hash, $source_string );
 		}
 
 		// Translate via configured provider
@@ -54,7 +55,7 @@ class TranslateSense_Translator {
 
 		// Save to cache
 		if ( ! empty( $translated_text ) ) {
-			TranslateSense_Hashing_Db::save_translation_result( $hash, $target_lang, $translated_text );
+			Hashing_Db::save_translation_result( $hash, $target_lang, $translated_text );
 		} else {
 			$translated_text = $source_string; // fallback
 		}
@@ -75,11 +76,11 @@ class TranslateSense_Translator {
 
 		foreach ( $strings_array as $idx => $str ) {
 			$w_id = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
-			$hashes[ $idx ] = TranslateSense_Hashing_Db::generate_hash( $w_id, $str );
+			$hashes[ $idx ] = Hashing_Db::generate_hash( $w_id, $str );
 		}
 
 		// Step 3.3: Batch Cache Lookup
-		$cached_map = TranslateSense_Hashing_Db::get_cached_translations_batch( array_values( $hashes ), $target_lang );
+		$cached_map = Hashing_Db::get_cached_translations_batch( array_values( $hashes ), $target_lang );
 
 		$to_translate = array();
 		foreach ( $strings_array as $idx => $str ) {
@@ -108,12 +109,12 @@ class TranslateSense_Translator {
 			$h = $hashes[ $idx ];
 
 			if ( $post_id ) {
-				TranslateSense_Hashing_Db::record_package( $post_id, $target_lang, $h, $str );
+				Hashing_Db::record_package( $post_id, $target_lang, $h, $str );
 			}
 
 			$trans = self::execute_provider_translation( $str, $source_lang, $target_lang, $provider, $settings );
 			if ( ! empty( $trans ) ) {
-				TranslateSense_Hashing_Db::save_translation_result( $h, $target_lang, $trans );
+				Hashing_Db::save_translation_result( $h, $target_lang, $trans );
 				$results[ $idx ] = array(
 					'translated' => $trans,
 					'cached'     => false,
@@ -174,7 +175,7 @@ class TranslateSense_Translator {
 		$response = wp_remote_post(
 			$url,
 			array(
-				'body'    => json_encode( $body ),
+				'body'    => wp_json_encode( $body ),
 				'headers' => array( 'Content-Type' => 'application/json' ),
 				'timeout' => 15,
 			)
@@ -212,7 +213,7 @@ class TranslateSense_Translator {
 		$response = wp_remote_post(
 			$endpoint,
 			array(
-				'body'    => json_encode( $body ),
+				'body'    => wp_json_encode( $body ),
 				'headers' => array(
 					'Authorization' => 'DeepL-Auth-Key ' . $api_key,
 					'Content-Type'  => 'application/json',
@@ -252,7 +253,7 @@ class TranslateSense_Translator {
 		$response = wp_remote_post(
 			$endpoint,
 			array(
-				'body'    => json_encode( $body ),
+				'body'    => wp_json_encode( $body ),
 				'headers' => array( 'Content-Type' => 'application/json' ),
 				'timeout' => 15,
 			)

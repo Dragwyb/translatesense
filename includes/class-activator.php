@@ -1,13 +1,14 @@
 <?php
-/**
- * Fired during plugin activation.
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Activator {
+class Activator {
 
 	/**
 	 * Run activation tasks.
@@ -70,7 +71,6 @@ class TranslateSense_Activator {
 
 		if ( ! file_exists( $custom_dir ) ) {
 			wp_mkdir_p( $custom_dir );
-			// Add an index.html and .htaccess for security
 			file_put_contents( $custom_dir . '/index.html', '' );
 		}
 	}
@@ -98,7 +98,7 @@ class TranslateSense_Activator {
 	 * Save core-config.xml into database option table on activation.
 	 */
 	public static function save_core_config_to_db() {
-		$path = TranslateSense_Xml_Engine::get_core_xml_path();
+		$path = Xml_Engine::get_core_xml_path();
 		if ( file_exists( $path ) ) {
 			$core_xml = file_get_contents( $path );
 			if ( ! empty( $core_xml ) ) {

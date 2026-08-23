@@ -1,14 +1,14 @@
 <?php
-/**
- * Hashing & Database Caching Engine (Step 3)
- * Manages translation packages and translations cache in wp_translatesense_translations.
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Hashing_Db {
+class Hashing_Db {
 
 	/**
 	 * Initialize.

@@ -1,13 +1,16 @@
 <?php
-/**
- * Polylang Integration Bridge
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
+
+use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Polylang_Bridge {
+class Polylang_Bridge {
 
 	/**
 	 * Check if Polylang is installed and active.

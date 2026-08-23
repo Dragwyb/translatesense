@@ -1,13 +1,14 @@
 <?php
-/**
- * Auto-Detection & XML Updating Engine (Step 2)
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Detector {
+class Detector {
 
 	/**
 	 * Target placeholder dummy text to detect.
@@ -39,7 +40,7 @@ class TranslateSense_Detector {
 	 * Check if Config Mapping Mode is active (Step 2.2).
 	 */
 	public static function is_mapping_mode_active( $post_id = 0 ) {
-		$settings = get_option( 'translatesense_settings', array() );
+		$settings    = get_option( 'translatesense_settings', array() );
 		$global_mode = ! empty( $settings['mapping_mode'] );
 
 		if ( $post_id ) {
@@ -82,7 +83,7 @@ class TranslateSense_Detector {
 	 * Recursively scan Gutenberg blocks for unmapped text or dummy markers.
 	 */
 	public static function scan_blocks_for_mapping( $blocks ) {
-		$rules = TranslateSense_Xml_Engine::get_all_rules();
+		$rules           = Xml_Engine::get_all_rules();
 		$gutenberg_rules = $rules['gutenberg'];
 
 		foreach ( $blocks as $block ) {
@@ -91,7 +92,7 @@ class TranslateSense_Detector {
 				continue;
 			}
 
-			$attrs = $block['attrs'] ?? array();
+			$attrs         = $block['attrs'] ?? array();
 			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['keys'] ) : array();
 
 			$new_fields = array();
@@ -111,7 +112,7 @@ class TranslateSense_Detector {
 
 			// If new fields found, register into custom XML
 			if ( ! empty( $new_fields ) ) {
-				TranslateSense_Xml_Engine::append_custom_rule( 'gutenberg', $block_name, $new_fields );
+				Xml_Engine::append_custom_rule( 'gutenberg', $block_name, $new_fields );
 			}
 
 			// Recurse inner blocks
@@ -155,22 +156,22 @@ class TranslateSense_Detector {
 	 * Recursively scan Elementor elements tree for unmapped settings.
 	 */
 	public static function scan_elementor_elements( $elements ) {
-		$rules = TranslateSense_Xml_Engine::get_all_rules();
+		$rules           = Xml_Engine::get_all_rules();
 		$elementor_rules = $rules['elementor'];
 
 		foreach ( $elements as $element ) {
-			$el_type = $element['elType'] ?? '';
+			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? ( 'widget' === $el_type ? ( $element['name'] ?? '' ) : '' );
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
-				$settings = $element['settings'] ?? array();
+				$settings        = $element['settings'] ?? array();
 				$existing_fields = isset( $elementor_rules[ $widget_type ] ) ? array_keys( $elementor_rules[ $widget_type ]['fields'] ) : array();
 
 				$new_fields = array();
 				self::find_elementor_text_settings( $settings, '', $existing_fields, $new_fields );
 
 				if ( ! empty( $new_fields ) ) {
-					TranslateSense_Xml_Engine::append_custom_rule(
+					Xml_Engine::append_custom_rule(
 						'elementor',
 						$widget_type,
 						$new_fields,
@@ -229,9 +230,9 @@ class TranslateSense_Detector {
 
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n";
 		foreach ( $found_items as $b_name => $fields ) {
-			$generated_xml .= "        <gutenberg-block name=\"" . esc_attr( $b_name ) . "\">\n";
+			$generated_xml .= '        <gutenberg-block name="' . esc_attr( $b_name ) . "\">\n";
 			foreach ( $fields as $f_key => $f_info ) {
-				$generated_xml .= "            <key name=\"" . esc_attr( $f_key ) . "\" type=\"" . esc_attr( $f_info['type'] ) . "\" editor_type=\"" . esc_attr( $f_info['editor_type'] ) . "\" />\n";
+				$generated_xml .= '            <key name="' . esc_attr( $f_key ) . '" type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . "\" />\n";
 			}
 			$generated_xml .= "        </gutenberg-block>\n";
 		}
@@ -252,11 +253,11 @@ class TranslateSense_Detector {
 
 		$scan_recursive = function ( $element_list ) use ( &$scan_recursive, &$found_items ) {
 			foreach ( $element_list as $element ) {
-				$el_type = $element['elType'] ?? '';
+				$el_type     = $element['elType'] ?? '';
 				$widget_type = $element['widgetType'] ?? ( 'widget' === $el_type ? ( $element['name'] ?? '' ) : '' );
 
 				if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
-					$settings = $element['settings'] ?? array();
+					$settings   = $element['settings'] ?? array();
 					$new_fields = array();
 					self::find_elementor_text_settings( $settings, '', array(), $new_fields );
 
@@ -282,11 +283,11 @@ class TranslateSense_Detector {
 
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <elementor-widgets>\n";
 		foreach ( $found_items as $w_name => $fields ) {
-			$generated_xml .= "        <widget name=\"" . esc_attr( $w_name ) . "\">\n";
+			$generated_xml .= '        <widget name="' . esc_attr( $w_name ) . "\">\n";
 			$generated_xml .= "            <conditions>\n                <condition key=\"widgetType\">" . esc_html( $w_name ) . "</condition>\n            </conditions>\n";
 			$generated_xml .= "            <fields>\n";
 			foreach ( $fields as $f_path => $f_info ) {
-				$generated_xml .= "                <field type=\"" . esc_attr( $f_info['type'] ) . "\" editor_type=\"" . esc_attr( $f_info['editor_type'] ) . "\">" . esc_html( $f_path ) . "</field>\n";
+				$generated_xml .= '                <field type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . '">' . esc_html( $f_path ) . "</field>\n";
 			}
 			$generated_xml .= "            </fields>\n";
 			$generated_xml .= "        </widget>\n";
@@ -314,7 +315,7 @@ class TranslateSense_Detector {
 			$path = $prefix ? ( $prefix . '>' . $key ) : $key;
 
 			if ( is_string( $val ) && ! empty( trim( $val ) ) ) {
-				$is_text = ! preg_match( '/^#[0-9a-f]{3,8}$/i', $val ) && ! filter_var( $val, FILTER_VALIDATE_URL );
+				$is_text  = ! preg_match( '/^#[0-9a-f]{3,8}$/i', $val ) && ! filter_var( $val, FILTER_VALIDATE_URL );
 				$is_dummy = ( false !== stripos( $val, self::$dummy_text ) ) || ( false !== stripos( $val, 'translate this content' ) ) || ( false !== stripos( $val, 'translate_me_dummy_text' ) );
 
 				if ( ( $is_dummy || ( $is_text && ! in_array( $path, $existing_fields, true ) ) ) ) {

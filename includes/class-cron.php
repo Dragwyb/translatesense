@@ -1,13 +1,14 @@
 <?php
-/**
- * 5-Day Cleanup Cron System (Step 4.3)
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Cron {
+class Cron {
 
 	/**
 	 * Initialize cron hooks.
@@ -23,8 +24,8 @@ class TranslateSense_Cron {
 	public static function run_cache_cleanup() {
 		global $wpdb;
 
-		$table_translations = TranslateSense_Hashing_Db::get_translations_table();
-		$table_packages     = TranslateSense_Hashing_Db::get_packages_table();
+		$table_translations = Hashing_Db::get_translations_table();
+		$table_packages     = Hashing_Db::get_packages_table();
 
 		// Clean cached strings after 5 days
 		$wpdb->query(
@@ -45,7 +46,7 @@ class TranslateSense_Cron {
 	 */
 	public static function purge_all_cache() {
 		global $wpdb;
-		$table_translations = TranslateSense_Hashing_Db::get_translations_table();
+		$table_translations = Hashing_Db::get_translations_table();
 		return $wpdb->query( "UPDATE {$table_translations} SET translated_strings = '{}', languages = '[]'" );
 	}
 }

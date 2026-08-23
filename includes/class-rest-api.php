@@ -1,13 +1,18 @@
 <?php
-/**
- * REST API Endpoints for TranslateSense
- */
+
+declare(strict_types=1);
+
+namespace TranslateSense\Includes;
+
+use WP_REST_Server;
+use WP_REST_Request;
+use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class TranslateSense_Rest_Api {
+class Rest_Api {
 
 	const NAMESPACE = 'translatesense/v1';
 
@@ -151,7 +156,7 @@ class TranslateSense_Rest_Api {
 	 * Get widgets status endpoint.
 	 */
 	public static function get_widgets_status( WP_REST_Request $request ) {
-		$rules = TranslateSense_Xml_Engine::get_all_rules();
+		$rules    = Xml_Engine::get_all_rules();
 		$response = array(
 			'gutenberg' => self::get_gutenberg_widgets_list( $rules['gutenberg'] ),
 			'elementor' => self::get_elementor_widgets_list( $rules['elementor'] ),
@@ -170,27 +175,66 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function get_gutenberg_widgets_list( $rules ) {
 		$standard_blocks = array(
-			'core/paragraph'   => array( 'title' => 'Paragraph', 'category' => 'core' ),
-			'core/heading'     => array( 'title' => 'Heading', 'category' => 'core' ),
-			'core/button'      => array( 'title' => 'Button', 'category' => 'core' ),
-			'core/list-item'   => array( 'title' => 'List Item', 'category' => 'core' ),
-			'core/quote'       => array( 'title' => 'Quote', 'category' => 'core' ),
-			'core/pullquote'   => array( 'title' => 'Pullquote', 'category' => 'core' ),
-			'core/cover'       => array( 'title' => 'Cover', 'category' => 'core' ),
-			'core/image'       => array( 'title' => 'Image', 'category' => 'core' ),
-			'core/media-text'  => array( 'title' => 'Media & Text', 'category' => 'core' ),
-			'core/columns'     => array( 'title' => 'Columns', 'category' => 'core' ),
-			'core/group'       => array( 'title' => 'Group', 'category' => 'core' ),
-			'core/table'       => array( 'title' => 'Table', 'category' => 'core' ),
-			'core/code'        => array( 'title' => 'Code', 'category' => 'core' ),
+			'core/paragraph'  => array(
+				'title'    => 'Paragraph',
+				'category' => 'core',
+			),
+			'core/heading'    => array(
+				'title'    => 'Heading',
+				'category' => 'core',
+			),
+			'core/button'     => array(
+				'title'    => 'Button',
+				'category' => 'core',
+			),
+			'core/list-item'  => array(
+				'title'    => 'List Item',
+				'category' => 'core',
+			),
+			'core/quote'      => array(
+				'title'    => 'Quote',
+				'category' => 'core',
+			),
+			'core/pullquote'  => array(
+				'title'    => 'Pullquote',
+				'category' => 'core',
+			),
+			'core/cover'      => array(
+				'title'    => 'Cover',
+				'category' => 'core',
+			),
+			'core/image'      => array(
+				'title'    => 'Image',
+				'category' => 'core',
+			),
+			'core/media-text' => array(
+				'title'    => 'Media & Text',
+				'category' => 'core',
+			),
+			'core/columns'    => array(
+				'title'    => 'Columns',
+				'category' => 'core',
+			),
+			'core/group'      => array(
+				'title'    => 'Group',
+				'category' => 'core',
+			),
+			'core/table'      => array(
+				'title'    => 'Table',
+				'category' => 'core',
+			),
+			'core/code'       => array(
+				'title'    => 'Code',
+				'category' => 'core',
+			),
 		);
 
 		// Merge all blocks present in rules (from core-config.xml or custom)
 		foreach ( $rules as $block_name => $block_data ) {
 			if ( ! isset( $standard_blocks[ $block_name ] ) ) {
-				$parts = explode( '/', $block_name );
-				$cat = count( $parts ) > 1 ? $parts[0] : 'custom';
-				$title = ucwords( str_replace( array( '-', '_' ), ' ', count( $parts ) > 1 ? $parts[1] : $block_name ) );
+				$parts                          = explode( '/', $block_name );
+				$cat                            = count( $parts ) > 1 ? $parts[0] : 'custom';
+				$title                          = ucwords( str_replace( array( '-', '_' ), ' ', count( $parts ) > 1 ? $parts[1] : $block_name ) );
 				$standard_blocks[ $block_name ] = array(
 					'title'    => $title,
 					'category' => $cat,
@@ -199,8 +243,8 @@ class TranslateSense_Rest_Api {
 		}
 
 		// Merge registered server blocks if WP_Block_Type_Registry is available
-		if ( class_exists( 'WP_Block_Type_Registry' ) ) {
-			$registered = WP_Block_Type_Registry::get_instance()->get_all_registered();
+		if ( class_exists( '\WP_Block_Type_Registry' ) ) {
+			$registered = \WP_Block_Type_Registry::get_instance()->get_all_registered();
 			foreach ( $registered as $name => $type ) {
 				if ( ! isset( $standard_blocks[ $name ] ) ) {
 					$standard_blocks[ $name ] = array(
@@ -214,8 +258,8 @@ class TranslateSense_Rest_Api {
 		$result = array();
 		foreach ( $standard_blocks as $name => $info ) {
 			$is_supported = isset( $rules[ $name ] );
-			$source = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$keys = $is_supported ? $rules[ $name ]['keys'] : array();
+			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$keys         = $is_supported ? $rules[ $name ]['keys'] : array();
 
 			$result[] = array(
 				'id'          => $name,
@@ -225,7 +269,7 @@ class TranslateSense_Rest_Api {
 				'source'      => $source,
 				'field_count' => count( $keys ),
 				'fields'      => $keys,
-				'xml_snippet' => TranslateSense_Xml_Engine::get_widget_xml_snippet( 'gutenberg', $name ),
+				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'gutenberg', $name ),
 			);
 		}
 
@@ -237,19 +281,58 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function get_elementor_widgets_list( $rules ) {
 		$standard_widgets = array(
-			'heading'        => array( 'title' => 'Heading', 'category' => 'basic' ),
-			'text-editor'    => array( 'title' => 'Text Editor', 'category' => 'basic' ),
-			'button'         => array( 'title' => 'Button', 'category' => 'basic' ),
-			'icon-box'       => array( 'title' => 'Icon Box', 'category' => 'general' ),
-			'image-box'      => array( 'title' => 'Image Box', 'category' => 'general' ),
-			'call-to-action' => array( 'title' => 'Call to Action', 'category' => 'general' ),
-			'testimonial'    => array( 'title' => 'Testimonial', 'category' => 'general' ),
-			'alert'          => array( 'title' => 'Alert Box', 'category' => 'general' ),
-			'counter'        => array( 'title' => 'Counter', 'category' => 'general' ),
-			'progress'       => array( 'title' => 'Progress Bar', 'category' => 'general' ),
-			'tabs'           => array( 'title' => 'Tabs', 'category' => 'general' ),
-			'accordion'      => array( 'title' => 'Accordion', 'category' => 'general' ),
-			'toggle'         => array( 'title' => 'Toggle', 'category' => 'general' ),
+			'heading'        => array(
+				'title'    => 'Heading',
+				'category' => 'basic',
+			),
+			'text-editor'    => array(
+				'title'    => 'Text Editor',
+				'category' => 'basic',
+			),
+			'button'         => array(
+				'title'    => 'Button',
+				'category' => 'basic',
+			),
+			'icon-box'       => array(
+				'title'    => 'Icon Box',
+				'category' => 'general',
+			),
+			'image-box'      => array(
+				'title'    => 'Image Box',
+				'category' => 'general',
+			),
+			'call-to-action' => array(
+				'title'    => 'Call to Action',
+				'category' => 'general',
+			),
+			'testimonial'    => array(
+				'title'    => 'Testimonial',
+				'category' => 'general',
+			),
+			'alert'          => array(
+				'title'    => 'Alert Box',
+				'category' => 'general',
+			),
+			'counter'        => array(
+				'title'    => 'Counter',
+				'category' => 'general',
+			),
+			'progress'       => array(
+				'title'    => 'Progress Bar',
+				'category' => 'general',
+			),
+			'tabs'           => array(
+				'title'    => 'Tabs',
+				'category' => 'general',
+			),
+			'accordion'      => array(
+				'title'    => 'Accordion',
+				'category' => 'general',
+			),
+			'toggle'         => array(
+				'title'    => 'Toggle',
+				'category' => 'general',
+			),
 		);
 
 		// Merge any widgets present in rules
@@ -281,8 +364,8 @@ class TranslateSense_Rest_Api {
 		$result = array();
 		foreach ( $standard_widgets as $name => $info ) {
 			$is_supported = isset( $rules[ $name ] );
-			$source = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields = $is_supported ? $rules[ $name ]['fields'] : array();
+			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$fields       = $is_supported ? $rules[ $name ]['fields'] : array();
 
 			$result[] = array(
 				'id'          => $name,
@@ -292,7 +375,7 @@ class TranslateSense_Rest_Api {
 				'source'      => $source,
 				'field_count' => count( $fields ),
 				'fields'      => $fields,
-				'xml_snippet' => TranslateSense_Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
+				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
 			);
 		}
 
@@ -304,11 +387,26 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function get_divi_widgets_list( $rules ) {
 		$standard_modules = array(
-			'et_pb_text'   => array( 'title' => 'Divi Text', 'category' => 'content' ),
-			'et_pb_header' => array( 'title' => 'Divi Fullwidth Header', 'category' => 'header' ),
-			'et_pb_blurb'  => array( 'title' => 'Divi Blurb', 'category' => 'content' ),
-			'et_pb_cta'    => array( 'title' => 'Divi Call To Action', 'category' => 'content' ),
-			'et_pb_button' => array( 'title' => 'Divi Button', 'category' => 'content' ),
+			'et_pb_text'   => array(
+				'title'    => 'Divi Text',
+				'category' => 'content',
+			),
+			'et_pb_header' => array(
+				'title'    => 'Divi Fullwidth Header',
+				'category' => 'header',
+			),
+			'et_pb_blurb'  => array(
+				'title'    => 'Divi Blurb',
+				'category' => 'content',
+			),
+			'et_pb_cta'    => array(
+				'title'    => 'Divi Call To Action',
+				'category' => 'content',
+			),
+			'et_pb_button' => array(
+				'title'    => 'Divi Button',
+				'category' => 'content',
+			),
 		);
 
 		// Merge any modules present in rules
@@ -324,8 +422,8 @@ class TranslateSense_Rest_Api {
 		$result = array();
 		foreach ( $standard_modules as $name => $info ) {
 			$is_supported = isset( $rules[ $name ] );
-			$source = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields = $is_supported ? $rules[ $name ]['fields'] : array();
+			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$fields       = $is_supported ? $rules[ $name ]['fields'] : array();
 
 			$result[] = array(
 				'id'          => $name,
@@ -335,7 +433,7 @@ class TranslateSense_Rest_Api {
 				'source'      => $source,
 				'field_count' => count( $fields ),
 				'fields'      => $fields,
-				'xml_snippet' => TranslateSense_Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
+				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
 			);
 		}
 
@@ -347,13 +445,34 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function get_classic_widgets_list( $rules ) {
 		$fields = array(
-			'post_title'              => array( 'title' => 'Post Title', 'category' => 'standard' ),
-			'post_content'            => array( 'title' => 'Post Body (Classic Editor)', 'category' => 'standard' ),
-			'post_excerpt'            => array( 'title' => 'Post Excerpt', 'category' => 'standard' ),
-			'_yoast_wpseo_title'      => array( 'title' => 'Yoast SEO Title', 'category' => 'seo' ),
-			'_yoast_wpseo_metadesc'   => array( 'title' => 'Yoast Meta Description', 'category' => 'seo' ),
-			'rank_math_title'         => array( 'title' => 'Rank Math Title', 'category' => 'seo' ),
-			'rank_math_description'   => array( 'title' => 'Rank Math Description', 'category' => 'seo' ),
+			'post_title'            => array(
+				'title'    => 'Post Title',
+				'category' => 'standard',
+			),
+			'post_content'          => array(
+				'title'    => 'Post Body (Classic Editor)',
+				'category' => 'standard',
+			),
+			'post_excerpt'          => array(
+				'title'    => 'Post Excerpt',
+				'category' => 'standard',
+			),
+			'_yoast_wpseo_title'    => array(
+				'title'    => 'Yoast SEO Title',
+				'category' => 'seo',
+			),
+			'_yoast_wpseo_metadesc' => array(
+				'title'    => 'Yoast Meta Description',
+				'category' => 'seo',
+			),
+			'rank_math_title'       => array(
+				'title'    => 'Rank Math Title',
+				'category' => 'seo',
+			),
+			'rank_math_description' => array(
+				'title'    => 'Rank Math Description',
+				'category' => 'seo',
+			),
 		);
 
 		// Merge any custom fields present in rules
@@ -369,15 +488,20 @@ class TranslateSense_Rest_Api {
 		$result = array();
 		foreach ( $fields as $key => $info ) {
 			$is_supported = isset( $rules[ $key ] ) || in_array( $key, array( 'post_title', 'post_content', 'post_excerpt' ), true );
-			$result[] = array(
+			$result[]     = array(
 				'id'          => $key,
 				'name'        => $info['title'],
 				'category'    => $info['category'],
 				'status'      => $is_supported ? 'supported' : 'unsupported',
 				'source'      => isset( $rules[ $key ] ) ? ( $rules[ $key ]['source'] ?? 'core' ) : 'core',
 				'field_count' => 1,
-				'fields'      => array( $key => array( 'name' => $key, 'type' => 'text' ) ),
-				'xml_snippet' => TranslateSense_Xml_Engine::get_widget_xml_snippet( 'classic', $key ),
+				'fields'      => array(
+					$key => array(
+						'name' => $key,
+						'type' => 'text',
+					),
+				),
+				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'classic', $key ),
 			);
 		}
 
@@ -393,13 +517,13 @@ class TranslateSense_Rest_Api {
 		return rest_ensure_response(
 			array(
 				'builder'       => $builder,
-				'core_xml'      => TranslateSense_Xml_Engine::get_core_xml_raw(),
-				'custom_xml'    => TranslateSense_Xml_Engine::get_builder_xml_raw( $builder ),
-				'gutenberg_xml' => TranslateSense_Xml_Engine::get_builder_xml_raw( 'gutenberg' ),
-				'elementor_xml' => TranslateSense_Xml_Engine::get_builder_xml_raw( 'elementor' ),
-				'divi_xml'      => TranslateSense_Xml_Engine::get_builder_xml_raw( 'divi' ),
-				'classic_xml'   => TranslateSense_Xml_Engine::get_builder_xml_raw( 'classic' ),
-				'rules'         => TranslateSense_Xml_Engine::get_all_rules(),
+				'core_xml'      => Xml_Engine::get_core_xml_raw(),
+				'custom_xml'    => Xml_Engine::get_builder_xml_raw( $builder ),
+				'gutenberg_xml' => Xml_Engine::get_builder_xml_raw( 'gutenberg' ),
+				'elementor_xml' => Xml_Engine::get_builder_xml_raw( 'elementor' ),
+				'divi_xml'      => Xml_Engine::get_builder_xml_raw( 'divi' ),
+				'classic_xml'   => Xml_Engine::get_builder_xml_raw( 'classic' ),
+				'rules'         => Xml_Engine::get_all_rules(),
 			)
 		);
 	}
@@ -408,15 +532,15 @@ class TranslateSense_Rest_Api {
 	 * Save custom XML configuration (supports builder and widget_id parameters).
 	 */
 	public static function save_xml_config( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
-		$builder = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'all';
+		$params     = $request->get_json_params();
+		$builder    = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'all';
 		$custom_xml = $params['custom_xml'] ?? '';
-		$widget_id = isset( $params['widget_id'] ) ? sanitize_text_field( $params['widget_id'] ) : '';
+		$widget_id  = isset( $params['widget_id'] ) ? sanitize_text_field( $params['widget_id'] ) : '';
 
 		if ( ! empty( $widget_id ) ) {
-			$saved = TranslateSense_Xml_Engine::save_widget_xml_snippet( $builder, $widget_id, $custom_xml );
+			$saved = Xml_Engine::save_widget_xml_snippet( $builder, $widget_id, $custom_xml );
 		} else {
-			$saved = TranslateSense_Xml_Engine::save_builder_xml( $builder, $custom_xml );
+			$saved = Xml_Engine::save_builder_xml( $builder, $custom_xml );
 		}
 
 		if ( is_wp_error( $saved ) ) {
@@ -429,9 +553,9 @@ class TranslateSense_Rest_Api {
 				'builder'    => $builder,
 				'widget_id'  => $widget_id,
 				'message'    => sprintf( __( '%s XML configuration saved successfully.', 'translatesense' ), ucfirst( $builder ) ),
-				'custom_xml' => TranslateSense_Xml_Engine::get_builder_xml_raw( $builder ),
-				'core_xml'   => TranslateSense_Xml_Engine::get_core_xml_raw(),
-				'rules'      => TranslateSense_Xml_Engine::get_all_rules( true ),
+				'custom_xml' => Xml_Engine::get_builder_xml_raw( $builder ),
+				'core_xml'   => Xml_Engine::get_core_xml_raw(),
+				'rules'      => Xml_Engine::get_all_rules( true ),
 			)
 		);
 	}
@@ -440,16 +564,16 @@ class TranslateSense_Rest_Api {
 	 * Generate XML config from in-memory editor content containing "Translate This Content".
 	 */
 	public static function generate_config_from_content( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
-		$builder = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'gutenberg';
-		$blocks = $params['blocks'] ?? array();
+		$params   = $request->get_json_params();
+		$builder  = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'gutenberg';
+		$blocks   = $params['blocks'] ?? array();
 		$elements = $params['elements'] ?? array();
 
 		$detection = null;
 		if ( 'gutenberg' === $builder && ! empty( $blocks ) ) {
-			$detection = TranslateSense_Detector::detect_from_gutenberg_blocks( $blocks );
+			$detection = Detector::detect_from_gutenberg_blocks( $blocks );
 		} elseif ( 'elementor' === $builder && ! empty( $elements ) ) {
-			$detection = TranslateSense_Detector::detect_from_elementor_data( $elements );
+			$detection = Detector::detect_from_elementor_data( $elements );
 		}
 
 		if ( ! $detection || empty( $detection['xml_snippet'] ) ) {
@@ -475,7 +599,7 @@ class TranslateSense_Rest_Api {
 	 * Open or create a drafting mapping sandbox post for the selected builder.
 	 */
 	public static function open_mapping_sandbox( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
+		$params  = $request->get_json_params();
 		$builder = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'gutenberg';
 
 		// Find existing or create draft sandbox post
@@ -509,7 +633,13 @@ class TranslateSense_Rest_Api {
 		// If Elementor builder requested
 		if ( 'elementor' === $builder && class_exists( '\Elementor\Plugin' ) ) {
 			update_post_meta( $sandbox_id, '_elementor_edit_mode', 'builder' );
-			$edit_url = add_query_arg( array( 'post' => $sandbox_id, 'action' => 'elementor' ), admin_url( 'post.php' ) );
+			$edit_url = add_query_arg(
+				array(
+					'post'   => $sandbox_id,
+					'action' => 'elementor',
+				),
+				admin_url( 'post.php' )
+			);
 		}
 
 		return rest_ensure_response(
@@ -527,24 +657,24 @@ class TranslateSense_Rest_Api {
 	 */
 	public static function get_settings( WP_REST_Request $request ) {
 		global $wpdb;
-		$settings = get_option( 'translatesense_settings', array() );
-		$languages = TranslateSense_Polylang_Bridge::get_languages();
-		$polylang_active = TranslateSense_Polylang_Bridge::is_polylang_active();
+		$settings        = get_option( 'translatesense_settings', array() );
+		$languages       = Polylang_Bridge::get_languages();
+		$polylang_active = Polylang_Bridge::is_polylang_active();
 
 		// Stats
-		$table_translations = TranslateSense_Hashing_Db::get_translations_table();
-		$packages_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" );
-		$results_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_strings != '' AND translated_strings != '{}' AND translated_strings != '[]'" );
+		$table_translations = Hashing_Db::get_translations_table();
+		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" );
+		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_strings != '' AND translated_strings != '{}' AND translated_strings != '[]'" );
 
 		return rest_ensure_response(
 			array(
 				'settings'        => $settings,
 				'languages'       => $languages,
 				'polylang_active' => $polylang_active,
-				'active_builders' => TranslateSense_Admin_Menu::get_active_builders(),
+				'active_builders' => Admin_Menu::get_active_builders(),
 				'stats'           => array(
-					'total_packages'  => $packages_count,
-					'cached_results'  => $results_count,
+					'total_packages' => $packages_count,
+					'cached_results' => $results_count,
 				),
 			)
 		);
@@ -574,9 +704,9 @@ class TranslateSense_Rest_Api {
 	 * Extract translatable strings from post content / Elementor data.
 	 */
 	public static function extract_strings( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
-		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
-		$content = $params['content'] ?? '';
+		$params      = $request->get_json_params();
+		$post_id     = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+		$content     = $params['content'] ?? '';
 		$target_lang = $params['target_lang'] ?? 'es';
 
 		if ( $post_id && empty( $content ) ) {
@@ -593,15 +723,15 @@ class TranslateSense_Rest_Api {
 		foreach ( $extracted as $item ) {
 			$hashes[] = $item['hash'];
 		}
-		$cache_map = TranslateSense_Hashing_Db::get_cached_translations_batch( $hashes, $target_lang );
+		$cache_map = Hashing_Db::get_cached_translations_batch( $hashes, $target_lang );
 
 		foreach ( $extracted as &$item ) {
 			if ( isset( $cache_map[ $item['hash'] ] ) ) {
 				$item['translated'] = $cache_map[ $item['hash'] ];
-				$item['status'] = 'Cached';
+				$item['status']     = 'Cached';
 			} else {
 				$item['translated'] = '';
-				$item['status'] = 'Pending';
+				$item['status']     = 'Pending';
 			}
 		}
 
@@ -612,7 +742,7 @@ class TranslateSense_Rest_Api {
 	 * Parse content (blocks or Elementor JSON or plain text) into translatable strings array.
 	 */
 	private static function parse_content_for_strings( $content, $post_id = 0 ) {
-		$rules = TranslateSense_Xml_Engine::get_all_rules();
+		$rules     = Xml_Engine::get_all_rules();
 		$extracted = array();
 
 		// Check if Elementor post
@@ -636,7 +766,7 @@ class TranslateSense_Rest_Api {
 
 		// Plain text fallback / Classic Editor
 		if ( ! empty( trim( $content ) ) ) {
-			$h = TranslateSense_Hashing_Db::generate_hash( 'classic_content', $content );
+			$h           = Hashing_Db::generate_hash( 'classic_content', $content );
 			$extracted[] = array(
 				'widget_id'   => 'classic_content',
 				'widget_name' => 'Classic Editor Body',
@@ -663,13 +793,13 @@ class TranslateSense_Rest_Api {
 				$keys = $gutenberg_rules[ $name ]['keys'];
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
-						$val = $block['attrs'][ $k_name ];
+						$val         = $block['attrs'][ $k_name ];
 						$extracted[] = array(
 							'widget_id'   => $name,
 							'widget_name' => $name,
 							'field'       => $k_name,
 							'source'      => $val,
-							'hash'        => TranslateSense_Hashing_Db::generate_hash( $name, $val ),
+							'hash'        => Hashing_Db::generate_hash( $name, $val ),
 						);
 					}
 				}
@@ -684,7 +814,7 @@ class TranslateSense_Rest_Api {
 						'widget_name' => 'Paragraph',
 						'field'       => 'innerHTML',
 						'source'      => $clean,
-						'hash'        => TranslateSense_Hashing_Db::generate_hash( 'core/paragraph', $clean ),
+						'hash'        => Hashing_Db::generate_hash( 'core/paragraph', $clean ),
 					);
 				}
 			}
@@ -700,11 +830,11 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function extract_elementor_strings_recursive( $elements, $elementor_rules, &$extracted ) {
 		foreach ( $elements as $element ) {
-			$el_type = $element['elType'] ?? '';
+			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? '';
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) && isset( $elementor_rules[ $widget_type ] ) ) {
-				$fields = $elementor_rules[ $widget_type ]['fields'];
+				$fields   = $elementor_rules[ $widget_type ]['fields'];
 				$settings = $element['settings'] ?? array();
 
 				foreach ( $fields as $path => $f_info ) {
@@ -715,7 +845,7 @@ class TranslateSense_Rest_Api {
 							'widget_name' => 'Elementor ' . $widget_type,
 							'field'       => $path,
 							'source'      => $val,
-							'hash'        => TranslateSense_Hashing_Db::generate_hash( $widget_type, $val ),
+							'hash'        => Hashing_Db::generate_hash( $widget_type, $val ),
 						);
 					}
 				}
@@ -732,7 +862,7 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function get_nested_val( $arr, $path ) {
 		$keys = explode( '>', $path );
-		$cur = $arr;
+		$cur  = $arr;
 		foreach ( $keys as $k ) {
 			if ( is_array( $cur ) && isset( $cur[ $k ] ) ) {
 				$cur = $cur[ $k ];
@@ -747,19 +877,19 @@ class TranslateSense_Rest_Api {
 	 * Translate a batch of strings endpoint.
 	 */
 	public static function translate_batch( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
-		$strings = $params['strings'] ?? array();
+		$params      = $request->get_json_params();
+		$strings     = $params['strings'] ?? array();
 		$source_lang = $params['source_lang'] ?? 'en';
 		$target_lang = $params['target_lang'] ?? 'es';
-		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
-		$provider = $params['provider'] ?? null;
+		$post_id     = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+		$provider    = $params['provider'] ?? null;
 
 		$custom_opts = array();
 		if ( $provider ) {
 			$custom_opts['provider'] = $provider;
 		}
 
-		$results = TranslateSense_Translator::translate_batch(
+		$results = Translator::translate_batch(
 			$strings,
 			$source_lang,
 			$target_lang,
@@ -775,10 +905,10 @@ class TranslateSense_Rest_Api {
 	 * Translate complete post endpoint (Step 4.1 & 4.2).
 	 */
 	public static function translate_post( WP_REST_Request $request ) {
-		$params = $request->get_json_params();
-		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+		$params      = $request->get_json_params();
+		$post_id     = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
 		$target_lang = $params['target_lang'] ?? '';
-		$provider = $params['provider'] ?? null;
+		$provider    = $params['provider'] ?? null;
 
 		if ( ! $post_id || ! $target_lang ) {
 			return new WP_Error( 'invalid_params', __( 'Post ID and Target Language are required.', 'translatesense' ), array( 'status' => 400 ) );
@@ -789,11 +919,11 @@ class TranslateSense_Rest_Api {
 			return new WP_Error( 'post_not_found', __( 'Post not found.', 'translatesense' ), array( 'status' => 404 ) );
 		}
 
-		$source_lang = TranslateSense_Polylang_Bridge::get_post_language( $post_id );
+		$source_lang = Polylang_Bridge::get_post_language( $post_id );
 		$custom_opts = $provider ? array( 'provider' => $provider ) : array();
 
 		// 1. Translate Title
-		$title_res = TranslateSense_Translator::translate_string(
+		$title_res        = Translator::translate_string(
 			$source_post->post_title,
 			$source_lang,
 			$target_lang,
@@ -804,27 +934,27 @@ class TranslateSense_Rest_Api {
 		$translated_title = $title_res['translated'];
 
 		// 2. Check if Elementor
-		$is_elementor = ( 'builder' === get_post_meta( $post_id, '_elementor_edit_mode', true ) );
+		$is_elementor       = ( 'builder' === get_post_meta( $post_id, '_elementor_edit_mode', true ) );
 		$new_elementor_data = null;
 		$translated_content = $source_post->post_content;
 
 		if ( $is_elementor ) {
 			$elementor_data_raw = get_post_meta( $post_id, '_elementor_data', true );
-			$elements = is_string( $elementor_data_raw ) ? json_decode( $elementor_data_raw, true ) : $elementor_data_raw;
+			$elements           = is_string( $elementor_data_raw ) ? json_decode( $elementor_data_raw, true ) : $elementor_data_raw;
 			if ( is_array( $elements ) ) {
-				$rules = TranslateSense_Xml_Engine::get_all_rules();
+				$rules = Xml_Engine::get_all_rules();
 				self::translate_elementor_elements_tree( $elements, $rules['elementor'], $source_lang, $target_lang, $post_id, $custom_opts );
 				$new_elementor_data = $elements;
 			}
 		} elseif ( function_exists( 'has_blocks' ) && has_blocks( $source_post->post_content ) ) {
 			// Gutenberg Blocks
 			$blocks = parse_blocks( $source_post->post_content );
-			$rules = TranslateSense_Xml_Engine::get_all_rules();
+			$rules  = Xml_Engine::get_all_rules();
 			self::translate_gutenberg_blocks_tree( $blocks, $rules['gutenberg'], $source_lang, $target_lang, $post_id, $custom_opts );
 			$translated_content = serialize_blocks( $blocks );
 		} else {
 			// Classic post content
-			$content_res = TranslateSense_Translator::translate_string(
+			$content_res        = Translator::translate_string(
 				$source_post->post_content,
 				$source_lang,
 				$target_lang,
@@ -836,7 +966,7 @@ class TranslateSense_Rest_Api {
 		}
 
 		// 3. Create or update Polylang translated post
-		$created_post_id = TranslateSense_Polylang_Bridge::create_or_update_translated_post(
+		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
 			$post_id,
 			$target_lang,
 			$translated_title,
@@ -850,12 +980,12 @@ class TranslateSense_Rest_Api {
 
 		return rest_ensure_response(
 			array(
-				'success'            => true,
-				'source_post_id'     => $post_id,
-				'target_post_id'     => $created_post_id,
-				'target_language'    => $target_lang,
-				'translated_title'   => $translated_title,
-				'edit_url'           => get_edit_post_link( $created_post_id, 'raw' ),
+				'success'          => true,
+				'source_post_id'   => $post_id,
+				'target_post_id'   => $created_post_id,
+				'target_language'  => $target_lang,
+				'translated_title' => $translated_title,
+				'edit_url'         => get_edit_post_link( $created_post_id, 'raw' ),
 			)
 		);
 	}
@@ -874,7 +1004,7 @@ class TranslateSense_Rest_Api {
 				$keys = $rules[ $name ]['keys'];
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
-						$res = TranslateSense_Translator::translate_string(
+						$res                       = Translator::translate_string(
 							$block['attrs'][ $k_name ],
 							$source_lang,
 							$target_lang,
@@ -891,7 +1021,7 @@ class TranslateSense_Rest_Api {
 			if ( 'core/paragraph' === $name && ! empty( $block['innerHTML'] ) ) {
 				$plain = strip_tags( $block['innerHTML'] );
 				if ( ! empty( trim( $plain ) ) ) {
-					$res = TranslateSense_Translator::translate_string(
+					$res                = Translator::translate_string(
 						$plain,
 						$source_lang,
 						$target_lang,
@@ -917,7 +1047,7 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function translate_elementor_elements_tree( &$elements, $rules, $source_lang, $target_lang, $post_id, $custom_opts ) {
 		foreach ( $elements as &$element ) {
-			$el_type = $element['elType'] ?? '';
+			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? '';
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) && isset( $rules[ $widget_type ] ) ) {
@@ -938,7 +1068,7 @@ class TranslateSense_Rest_Api {
 	 */
 	private static function translate_nested_elementor_setting( &$settings, $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts ) {
 		$keys = explode( '>', $path );
-		$ref = &$settings;
+		$ref  = &$settings;
 
 		foreach ( $keys as $k ) {
 			if ( ! isset( $ref[ $k ] ) ) {
@@ -948,7 +1078,7 @@ class TranslateSense_Rest_Api {
 		}
 
 		if ( is_string( $ref ) && '' !== trim( $ref ) ) {
-			$res = TranslateSense_Translator::translate_string(
+			$res = Translator::translate_string(
 				$ref,
 				$source_lang,
 				$target_lang,
