@@ -16,12 +16,178 @@
   class TranslateSenseCore {
     constructor() {
       this.providers = new Map();
+      this.pageEditors = new Map();
+      this.sourceStrings = new Map();
+      this.translatedStrings = new Map();
       this.activeControllers = new Set();
       this.defaultProvider = 'openai';
       this.enabledProviders = ['chrome_ai', 'openai', 'gemini'];
 
       // Initialize enabled providers from localized data if available
       this.syncEnabledProviders();
+    }
+
+    /**
+     * Generate MD5 hash for a string and widget/block name using SparkMD5 or internal fallback.
+     * 
+     * @param {string} widgetOrBlockName Block name, Elementor widget type, or Divi module name
+     * @param {string} stringValue Source string value
+     * @returns {string} 32-character hexadecimal MD5 hash
+     */
+    generateHash(widgetOrBlockName = '', stringValue = '') {
+      const payload = (widgetOrBlockName ? String(widgetOrBlockName).trim() : '') + '_' + (stringValue !== undefined ? String(stringValue) : '');
+      if (typeof window !== 'undefined' && window.SparkMD5 && typeof window.SparkMD5.hash === 'function') {
+        return window.SparkMD5.hash(payload);
+      }
+      throw new Error("SparkMD5 is not loaded");
+    }
+
+    /**
+     * Save a source string with ID and source value.
+     * 
+     * @param {string} id Unique identifier or field name
+     * @param {string} sourceValue Raw source string text
+     * @param {string} [widgetOrBlockName=''] Block name, widget name, or module name
+     * @returns {Object} Saved source string record { id, source, widget_id, hash, timestamp }
+     */
+    saveSourceString(id, sourceValue, widgetOrBlockName = '') {
+      const widget = widgetOrBlockName || id || 'generic';
+      const hash = this.generateHash(widget, sourceValue);
+
+      const entry = {
+        id: id || hash,
+        source: sourceValue !== undefined ? String(sourceValue) : '',
+        widget_id: widget,
+        hash: hash,
+        timestamp: Date.now(),
+      };
+
+      this.sourceStrings.set(hash, entry);
+      if (id && id !== hash) {
+        this.sourceStrings.set(id, entry);
+      }
+
+      return entry;
+    }
+
+    /**
+     * Save a translated string with ID, source value, translated value, and provider.
+     * 
+     * @param {string} id Unique identifier or field name
+     * @param {string} sourceValue Raw source string text
+     * @param {string} translatedValue Translated string text
+     * @param {string} [provider='default'] Translation provider ID (e.g. 'openai', 'gemini', 'chrome_ai')
+     * @param {string} [widgetOrBlockName=''] Block name, widget name, or module name
+     * @returns {Object} Saved translated string record
+     */
+    saveTranslatedString(id, sourceValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
+      const widget = widgetOrBlockName || id || 'generic';
+      const hash = this.generateHash(widget, sourceValue);
+
+      const entry = {
+        id: id || hash,
+        source: sourceValue !== undefined ? String(sourceValue) : '',
+        translated: translatedValue !== undefined ? String(translatedValue) : '',
+        provider: provider || 'default',
+        widget_id: widget,
+        hash: hash,
+        timestamp: Date.now(),
+      };
+
+      // Save by provider-specific composite key and generic hash
+      this.translatedStrings.set(`${hash}_${provider}`, entry);
+      this.translatedStrings.set(hash, entry);
+
+      if (id && id !== hash) {
+        this.translatedStrings.set(`${id}_${provider}`, entry);
+        this.translatedStrings.set(id, entry);
+      }
+
+      return entry;
+    }
+
+    /**
+     * Get all registered source and translated strings.
+     * 
+     * @returns {{ source: Array<Object>, translated: Array<Object>, all: Array<Object> }}
+     */
+    getAllStrings() {
+      const sourceList = Array.from(new Set(this.sourceStrings.values()));
+      const translatedList = Array.from(new Set(this.translatedStrings.values()));
+
+      // Composite list linking source with available translations
+      const all = sourceList.map((src) => {
+        const trans = this.getTranslatedString(src.id, src.source, null, src.widget_id);
+        return {
+          ...src,
+          translated: trans || '',
+        };
+      });
+
+      return {
+        source: sourceList,
+        translated: translatedList,
+        all: all,
+      };
+    }
+
+    /**
+     * Get translated string by ID, source value, and optional provider.
+     * 
+     * @param {string} id Unique identifier or field name
+     * @param {string} [sourceValue=''] Source string value
+     * @param {string} [provider=null] Specific provider ID or null for latest
+     * @param {string} [widgetOrBlockName=''] Block name, widget name, or module name
+     * @returns {string} Translated string content or empty string if not found
+     */
+    getTranslatedString(id, sourceValue = '', provider = null, widgetOrBlockName = '') {
+      const widget = widgetOrBlockName || id || '';
+      const hash = this.generateHash(widget, sourceValue);
+
+      // 1. Check by hash + provider
+      if (provider && this.translatedStrings.has(`${hash}_${provider}`)) {
+        return this.translatedStrings.get(`${hash}_${provider}`).translated;
+      }
+
+      // 2. Check by hash directly
+      if (this.translatedStrings.has(hash)) {
+        return this.translatedStrings.get(hash).translated;
+      }
+
+      // 3. Check by ID + provider
+      if (id && provider && this.translatedStrings.has(`${id}_${provider}`)) {
+        return this.translatedStrings.get(`${id}_${provider}`).translated;
+      }
+
+      // 4. Check by ID directly
+      if (id && this.translatedStrings.has(id)) {
+        return this.translatedStrings.get(id).translated;
+      }
+
+      // 5. Fallback search across values
+      for (const entry of this.translatedStrings.values()) {
+        if (sourceValue && entry.source === sourceValue) {
+          if (!provider || entry.provider === provider) {
+            return entry.translated;
+          }
+        }
+      }
+
+      return '';
+    }
+
+    /**
+     * Get source string record by ID or hash.
+     * 
+     * @param {string} id
+     * @param {string} [sourceValue='']
+     * @param {string} [widgetOrBlockName='']
+     * @returns {Object|null}
+     */
+    getSourceString(id, sourceValue = '', widgetOrBlockName = '') {
+      const widget = widgetOrBlockName || id || '';
+      const hash = this.generateHash(widget, sourceValue);
+      return this.sourceStrings.get(hash) || this.sourceStrings.get(id) || null;
     }
 
     /**
@@ -229,12 +395,119 @@
         throw new Error(`Translation provider "${providerId}" is not registered.`);
       }
 
-      const safeCallback = typeof onProgressCallback === 'function' ? onProgressCallback : () => {};
+      const safeCallback = typeof onProgressCallback === 'function' ? onProgressCallback : () => { };
 
       try {
         return await provider.translate(params, safeCallback);
       } catch (error) {
         console.error(`[TranslateSense] Error translating with provider "${providerId}":`, error);
+        throw error;
+      }
+    }
+    /**
+     * Register a Page Editor live updater (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+     * 
+     * @param {string} id Unique editor ID
+     * @param {Object} options
+     * @param {string} options.title Human readable name
+     * @param {Function} options.isActive Function returning boolean if editor is currently loaded
+     * @param {Function} options.apply Function (strings, options) to apply translated content live
+     */
+    registerPageEditor(id, options) {
+      if (!id || typeof id !== 'string') {
+        console.error('[TranslateSense] Invalid editor ID:', id);
+        return;
+      }
+
+      if (!options || typeof options.apply !== 'function') {
+        console.error(`[TranslateSense] Editor "${id}" must provide an apply() function.`);
+        return;
+      }
+
+      const editorData = {
+        id,
+        title: options.title || id,
+        isActive: typeof options.isActive === 'function' ? options.isActive : () => false,
+        apply: options.apply,
+      };
+
+      this.pageEditors.set(id, editorData);
+    }
+
+    /**
+     * Get registered page editor by ID.
+     * @param {string} id
+     * @returns {Object|null}
+     */
+    getPageEditor(id) {
+      return this.pageEditors.get(id) || null;
+    }
+
+    /**
+     * Get all registered page editors.
+     * @returns {Array<Object>}
+     */
+    getPageEditors() {
+      return Array.from(this.pageEditors.values());
+    }
+
+    /**
+     * Check if a page editor is registered.
+     * @param {string} id
+     * @returns {boolean}
+     */
+    hasPageEditor(id) {
+      return this.pageEditors.has(id);
+    }
+
+    /**
+     * Detect and return the currently active page editor.
+     * @returns {Object|null}
+     */
+    getActivePageEditor() {
+      for (const editor of this.pageEditors.values()) {
+        try {
+          if (editor.isActive()) {
+            return editor;
+          }
+        } catch (e) {
+          console.warn(`[TranslateSense] Error checking isActive for editor "${editor.id}":`, e);
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Apply translated strings live to the specified or automatically detected page editor.
+     * 
+     * @param {string} [editorId] Optional specific editor ID ('gutenberg', 'elementor', 'divi', 'classic')
+     * @param {Object} options
+     * @param {Array<Object>} options.strings Array of { field, widget_id, source, translated, hash }
+     * @returns {Promise<Object>} Status object { success: boolean, editor: string, count: number }
+     */
+    async applyToPageEditor(editorId, { strings, options = {} }) {
+      if (!Array.isArray(strings) || strings.length === 0) {
+        return { success: false, message: 'No strings to apply' };
+      }
+
+      let editor = editorId ? this.getPageEditor(editorId) : null;
+      if (!editor || (typeof editor.isActive === 'function' && !editor.isActive())) {
+        editor = this.getActivePageEditor();
+      }
+
+      if (!editor) {
+        console.warn('[TranslateSense] No active page editor matched. Falling back to universal meta updater.');
+        if (window.TranslateSenseMetaUpdater) {
+          window.TranslateSenseMetaUpdater.apply(strings);
+        }
+        return { success: true, editor: 'generic', count: strings.length };
+      }
+
+      try {
+        await editor.apply(strings, options);
+        return { success: true, editor: editor.id, count: strings.length };
+      } catch (error) {
+        console.error(`[TranslateSense] Error applying translation to editor "${editor.id}":`, error);
         throw error;
       }
     }
