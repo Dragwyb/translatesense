@@ -106,23 +106,7 @@ class Bulk_Translate {
 			true
 		);
 
-		// 2. Google Translate Provider & Languages
-		wp_enqueue_script(
-			'translatesense-google-languages-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/google/google-languages.js',
-			array( 'translatesense-core-js' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-		wp_enqueue_script(
-			'translatesense-google-translate-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/google/google-translate.js',
-			array( 'translatesense-core-js', 'translatesense-google-languages-js' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-
-		// 3. Chrome Built-in Translate Provider & Languages
+		// 2. Chrome Built-in Translate Provider & Languages
 		wp_enqueue_script(
 			'translatesense-chrome-languages-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/chrome-ai/chrome-languages.js',
@@ -138,27 +122,20 @@ class Bulk_Translate {
 			true
 		);
 
-		// 4. AI Translate Provider (OpenAI, Gemini, DeepL) & Languages
+		// 3. AI Translate Provider (OpenAI & Gemini)
 		wp_enqueue_script(
-			'translatesense-deepl-languages-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/ai-services/deepl-languages.js',
+			'translatesense-ai-translate-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/ai-services/ai-translate.js',
 			array( 'translatesense-core-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
-		wp_enqueue_script(
-			'translatesense-ai-translate-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/ai-services/ai-translate.js',
-			array( 'translatesense-core-js', 'translatesense-deepl-languages-js' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
 
-		// 5. Bulk Translation Script
+		// 4. Bulk Translation Script
 		wp_enqueue_script(
 			'translatesense-bulk-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/bulk-translate.js',
-			array( 'jquery', 'translatesense-core-js', 'translatesense-google-translate-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js' ),
+			array( 'jquery', 'translatesense-core-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -175,7 +152,7 @@ class Bulk_Translate {
 				'defaultLanguage'  => Polylang_Bridge::get_default_language(),
 				'languages'        => Polylang_Bridge::get_languages(),
 				'defaultProvider'  => $settings['provider'] ?? 'openai',
-				'enabledProviders' => $settings['enabled_providers'] ?? array( 'google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl' ),
+				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
 			)
 		);
 	}

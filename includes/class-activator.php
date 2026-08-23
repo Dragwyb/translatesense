@@ -80,10 +80,12 @@ class Activator {
 	 */
 	public static function set_default_options() {
 		$defaults = array(
-			'provider'            => 'client_google', // 'google_api', 'deepl', 'libre', 'chrome_ai', 'client_google'
-			'api_key'             => '',
-			'deepl_api_key'       => '',
-			'libre_url'           => '',
+			'provider'            => 'openai',
+			'enabled_providers'   => array( 'chrome_ai', 'openai', 'gemini' ),
+			'openai_api_key'      => '',
+			'openai_model'        => 'gpt-4o-mini',
+			'gemini_api_key'      => '',
+			'gemini_model'        => 'gemini-1.5-flash',
 			'mapping_mode'        => false,
 			'auto_translate_save' => false,
 			'batch_size'          => 5,

@@ -18,7 +18,7 @@
       this.providers = new Map();
       this.activeControllers = new Set();
       this.defaultProvider = 'openai';
-      this.enabledProviders = ['google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl'];
+      this.enabledProviders = ['chrome_ai', 'openai', 'gemini'];
 
       // Initialize enabled providers from localized data if available
       this.syncEnabledProviders();
@@ -40,7 +40,7 @@
     /**
      * Register a translation provider.
      * 
-     * @param {string} id Unique provider ID (e.g. 'google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl')
+     * @param {string} id Unique provider ID (e.g. 'chrome_ai', 'openai', 'gemini')
      * @param {Object} options Configuration options
      * @param {string} options.title Display name
      * @param {string} options.icon Emoji or Dashicon icon identifier

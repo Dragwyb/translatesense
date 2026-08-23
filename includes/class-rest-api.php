@@ -659,7 +659,7 @@ class Rest_Api {
 		global $wpdb;
 		$settings = get_option( 'translatesense_settings', array() );
 		if ( empty( $settings['enabled_providers'] ) ) {
-			$settings['enabled_providers'] = array( 'google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl' );
+			$settings['enabled_providers'] = array( 'chrome_ai', 'openai', 'gemini' );
 		}
 		if ( empty( $settings['provider'] ) ) {
 			$settings['provider'] = 'openai';

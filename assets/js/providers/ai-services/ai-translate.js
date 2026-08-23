@@ -1,8 +1,8 @@
 /**
- * TranslateSense - AI Services Provider (OpenAI, Gemini, DeepL)
+ * TranslateSense - AI Services Provider (OpenAI & Gemini AI)
  * File: assets/js/providers/ai-services/ai-translate.js
  * 
- * Registers "openai", "gemini", and "deepl" on window.TranslateSenseCore.
+ * Registers "openai" and "gemini" on window.TranslateSenseCore.
  * Features:
  * - Intelligent token-aware batching (MAX_TOKENS per request)
  * - Concurrent queue processing (CONCURRENCY_LIMIT)
@@ -18,11 +18,6 @@
     console.error('[TranslateSense] core-translate.js must be loaded before ai-translate.js');
     return;
   }
-
-  const DeepLLangHelper = window.TranslateSenseDeepLLanguages || {
-    isSupported: () => true,
-    formatCode: (code, isTarget) => (code ? code.toUpperCase() : 'EN')
-  };
 
   class AIServiceRunner {
     constructor(providerName, options = {}) {
@@ -250,36 +245,6 @@
 
     translate: function (params, onProgressCallback) {
       const runner = new AIServiceRunner('gemini', { concurrencyLimit: 4, maxTokensPerBatch: 600 });
-      return runner.run(params, onProgressCallback);
-    },
-  });
-
-  // 3. Register DeepL AI Provider
-  window.TranslateSenseCore.registerProvider('deepl', {
-    title: 'DeepL Translate',
-    icon: '🔷',
-    desc: 'Industry-standard nuance and precision via DeepL Translation API.',
-    category: 'ai',
-    savesToDb: true,
-    requiresApiKey: true,
-
-    isLanguageSupported: function (sourceLang, targetLang) {
-      return DeepLLangHelper.isSupported(sourceLang, targetLang);
-    },
-
-    checkAvailability: function (sourceLang, targetLang) {
-      if (!DeepLLangHelper.isSupported(sourceLang, targetLang)) {
-        return {
-          available: false,
-          reason: `DeepL does not support language pair (${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}).`,
-          noticeType: 'warning'
-        };
-      }
-      return { available: true };
-    },
-
-    translate: function (params, onProgressCallback) {
-      const runner = new AIServiceRunner('deepl', { concurrencyLimit: 3, maxTokensPerBatch: 400 });
       return runner.run(params, onProgressCallback);
     },
   });

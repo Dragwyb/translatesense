@@ -138,13 +138,13 @@ class Translator {
 
 	/**
 	 * Determine if provider results should be cached in translations table.
-	 * Frontend widget and Chrome built-in local AI are NOT saved to database.
+	 * Chrome built-in local AI is on-device and NOT saved to database cache.
 	 *
 	 * @param string $provider
 	 * @return bool
 	 */
 	public static function should_cache_provider( $provider ) {
-		$no_cache_providers = array( 'client_google', 'google_widget', 'chrome_ai', 'frontend_widget', 'google_frontend' );
+		$no_cache_providers = array( 'chrome_ai' );
 		return ! in_array( $provider, $no_cache_providers, true );
 	}
 
@@ -159,18 +159,7 @@ class Translator {
 			case 'gemini':
 				return self::translate_gemini( $text, $source_lang, $target_lang, $settings['gemini_api_key'] ?? '', $settings['gemini_model'] ?? 'gemini-1.5-flash' );
 
-			case 'google_api':
-				return self::translate_google_api( $text, $source_lang, $target_lang, $settings['api_key'] ?? '' );
-
-			case 'deepl':
-				return self::translate_deepl( $text, $source_lang, $target_lang, $settings['deepl_api_key'] ?? '' );
-
-			case 'libre':
-				return self::translate_libre( $text, $source_lang, $target_lang, $settings['libre_url'] ?? '' );
-
-			case 'google_widget':
 			case 'chrome_ai':
-			case 'client_google':
 			default:
 				// Fallback server translation endpoint using public translation API or echo
 				return self::translate_public_engine( $text, $source_lang, $target_lang );
@@ -269,121 +258,6 @@ class Translator {
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
 			return trim( $data['candidates'][0]['content']['parts'][0]['text'] );
-		}
-
-		return $text;
-	}
-
-	/**
-	 * Google Cloud Translation API.
-	 */
-	private static function translate_google_api( $text, $source_lang, $target_lang, $api_key ) {
-		if ( empty( $api_key ) ) {
-			return self::translate_public_engine( $text, $source_lang, $target_lang );
-		}
-
-		$url = 'https://translation.googleapis.com/language/translate/v2?key=' . urlencode( $api_key );
-		$body = array(
-			'q'      => $text,
-			'source' => substr( $source_lang, 0, 2 ),
-			'target' => substr( $target_lang, 0, 2 ),
-			'format' => 'html',
-		);
-
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'timeout' => 15,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( isset( $data['data']['translations'][0]['translatedText'] ) ) {
-			return html_entity_decode( $data['data']['translations'][0]['translatedText'], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-		}
-
-		return $text;
-	}
-
-	/**
-	 * DeepL Translation API.
-	 */
-	private static function translate_deepl( $text, $source_lang, $target_lang, $api_key ) {
-		if ( empty( $api_key ) ) {
-			return self::translate_public_engine( $text, $source_lang, $target_lang );
-		}
-
-		$endpoint = ( substr( $api_key, -3 ) === ':fx' ) ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
-
-		$body = array(
-			'text'        => array( $text ),
-			'source_lang' => strtoupper( substr( $source_lang, 0, 2 ) ),
-			'target_lang' => strtoupper( substr( $target_lang, 0, 2 ) ),
-			'tag_handling'=> 'html',
-		);
-
-		$response = wp_remote_post(
-			$endpoint,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array(
-					'Authorization' => 'DeepL-Auth-Key ' . $api_key,
-					'Content-Type'  => 'application/json',
-				),
-				'timeout' => 15,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( isset( $data['translations'][0]['text'] ) ) {
-			return $data['translations'][0]['text'];
-		}
-
-		return $text;
-	}
-
-	/**
-	 * LibreTranslate API.
-	 */
-	private static function translate_libre( $text, $source_lang, $target_lang, $base_url ) {
-		if ( empty( $base_url ) ) {
-			return self::translate_public_engine( $text, $source_lang, $target_lang );
-		}
-
-		$endpoint = trailingslashit( $base_url ) . 'translate';
-		$body = array(
-			'q'      => $text,
-			'source' => substr( $source_lang, 0, 2 ),
-			'target' => substr( $target_lang, 0, 2 ),
-			'format' => 'html',
-		);
-
-		$response = wp_remote_post(
-			$endpoint,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'timeout' => 15,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( isset( $data['translatedText'] ) ) {
-			return $data['translatedText'];
 		}
 
 		return $text;

@@ -23,8 +23,6 @@
     return [
       { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
       { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'deepl', title: 'DeepL Translate', icon: '🔷', desc: 'Industry-standard nuance via DeepL API.', category: 'ai' },
-      { id: 'google_widget', title: 'Google Translate', icon: '🚀', desc: 'Instant frontend translation widget. No API key required.', category: 'free' },
       { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
     ];
   }

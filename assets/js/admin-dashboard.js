@@ -19,10 +19,12 @@
       classic: '',
     });
     const [settings, setSettings] = useState({
-      provider: 'client_google',
-      api_key: '',
-      deepl_api_key: '',
-      libre_url: '',
+      provider: 'openai',
+      openai_api_key: '',
+      openai_model: 'gpt-4o-mini',
+      gemini_api_key: '',
+      gemini_model: 'gemini-1.5-flash',
+      enabled_providers: ['chrome_ai', 'openai', 'gemini'],
       mapping_mode: false,
       batch_size: 5,
     });
@@ -691,7 +693,7 @@
 
   // Settings Panel Component
   function SettingsPanel({ settings, setSettings, onSave, languages }) {
-    const enabledProviders = settings.enabled_providers || ['google_widget', 'chrome_ai', 'openai', 'gemini', 'deepl'];
+    const enabledProviders = settings.enabled_providers || ['chrome_ai', 'openai', 'gemini'];
 
     const toggleProvider = (providerId) => {
       let updated;
@@ -706,8 +708,6 @@
     const providerList = [
       { id: 'openai', title: 'OpenAI (ChatGPT)', desc: 'High-accuracy neural AI translation via OpenAI API.', icon: '🧠', requiresKey: true },
       { id: 'gemini', title: 'Google Gemini AI', desc: 'Fast & fluent translations via Google Gemini models.', icon: '✨', requiresKey: true },
-      { id: 'deepl', title: 'DeepL Translate', desc: 'Industry-standard nuance via DeepL API (Free / Pro).', icon: '🔷', requiresKey: true },
-      { id: 'google_widget', title: 'Google Translate', desc: 'Instant frontend translation widget. No API key required.', icon: '🚀', requiresKey: false },
       { id: 'chrome_ai', title: 'Chrome Built-in AI', desc: 'Private on-device local translation via Chrome 128+ models.', icon: '🤖', requiresKey: false },
     ];
 
@@ -807,7 +807,7 @@
       // OpenAI Config
       el(
         'div',
-        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
+        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '14px' } },
         el('label', { className: 'ts-form-label' }, '🧠 OpenAI API Key'),
         el('input', {
           type: 'password',
@@ -863,20 +863,6 @@
             el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro (Advanced Reasoning)')
           )
         )
-      ),
-
-      // DeepL Config
-      el(
-        'div',
-        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
-        el('label', { className: 'ts-form-label' }, '🔷 DeepL Auth Key (Free or Pro)'),
-        el('input', {
-          type: 'password',
-          className: 'ts-form-input',
-          value: settings.deepl_api_key || '',
-          placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx',
-          onChange: (e) => setSettings({ ...settings, deepl_api_key: e.target.value }),
-        })
       ),
 
       // Batch size
