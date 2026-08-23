@@ -1,6 +1,6 @@
 /**
  * TranslateSense - Core Translate Registry & Provider Manager
- * File: assets/js/providers/core-translate.js
+ * File: assets/js/core-translate.js
  * 
  * Provides:
  * 1. Global registry for translation providers (registerProvider, getProviders, getProvider)

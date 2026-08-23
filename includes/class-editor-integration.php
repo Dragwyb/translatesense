@@ -105,7 +105,7 @@ class Editor_Integration {
 		// 2. Core Translate Registry (Pure Vanilla JS)
 		wp_enqueue_script(
 			'translatesense-core-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/core-translate.js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/core-translate.js',
 			array( 'translatesense-sparkmd-js' ),
 			TRANSLATESENSE_VERSION,
 			true

@@ -100,7 +100,7 @@ class Bulk_Translate {
 		// 1. Core Translate Registry
 		wp_enqueue_script(
 			'translatesense-core-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/core-translate.js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/core-translate.js',
 			array( 'jquery' ),
 			TRANSLATESENSE_VERSION,
 			true
