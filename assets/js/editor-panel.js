@@ -451,7 +451,7 @@
             this.selectedProvider,
             {
               items: itemsToTranslate,
-              sourceLang: this.config.currentLanguage || 'en',
+              sourceLang: this.sourceLanguage || 'en',
               targetLang: this.targetLang,
               postId: this.postId || this.config.postId || 0,
             },

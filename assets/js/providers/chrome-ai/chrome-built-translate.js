@@ -119,7 +119,7 @@
   /**
    * Internal worker: Translate a single string using available Chrome On-Device APIs.
    */
-  async function translateSingleWithChromeAi(text, sourceLang, targetLang, signal) {
+  async function translateSingleWithChromeAi(text, sourceLang, targetLang) {
     if (!text || text.trim() === '') {
       return text;
     }
@@ -128,30 +128,28 @@
     const tgt2 = ChromeLangHelper.formatCode(targetLang);
 
     // 1. Check Translation API (window.translation / window.ai.translator)
-    if (window.translation && typeof window.translation.createTranslator === 'function') {
+    if ('translation' in self && 'createTranslator' in self.translation) {
       const translator = await window.translation.createTranslator({
         sourceLanguage: src2,
         targetLanguage: tgt2,
-        signal: signal,
       });
       return await translator.translate(text);
     }
 
-    if (window.ai && window.ai.translator && typeof window.ai.translator.create === 'function') {
+    if ('ai' in self && 'translator' in self.ai) {
       const translator = await window.ai.translator.create({
         sourceLanguage: src2,
         targetLanguage: tgt2,
-        signal: signal,
       });
       return await translator.translate(text);
     }
 
-    // 2. Fallback to Prompt API (window.ai.languageModel)
-    if (window.ai && window.ai.languageModel && typeof window.ai.languageModel.create === 'function') {
-      const session = await window.ai.languageModel.create({ signal });
-      const promptText = `Translate the following text accurately from ${sourceLang} to ${targetLang}. Preserve all HTML tags, placeholders, and formatting. Return ONLY the translated string without quotes or commentary:\n\n${text}`;
-      const result = await session.prompt(promptText, { signal });
-      return result ? result.trim() : text;
+    if ("Translator" in self && "create" in self.Translator) {
+      const translator = await self.Translator.create({
+        sourceLanguage: src2,
+        targetLanguage: tgt2,
+      });
+      return await translator.translate(text);
     }
 
     throw new Error('On-device Chrome AI engine is not available on this browser.');
@@ -182,11 +180,10 @@
      * @param {string} params.sourceLang Source language code
      * @param {string} params.targetLang Target language code
      * @param {number} [params.postId] Current post ID
-     * @param {AbortSignal} [params.signal] Cancellation signal
      * @param {Function} onProgressCallback Callback returning { hash, source, translated, status, error }
      * @returns {Promise<Array<Object>>}
      */
-    translate: async function ({ items, sourceLang, targetLang, signal }, onProgressCallback) {
+    translate: async function ({ items, sourceLang, targetLang }, onProgressCallback) {
       if (!Array.isArray(items) || items.length === 0) {
         return [];
       }
@@ -194,16 +191,12 @@
       const results = [];
 
       for (let i = 0; i < items.length; i++) {
-        if (signal && signal.aborted) {
-          throw new Error('Translation cancelled');
-        }
-
         const item = items[i];
         const sourceText = item.content || item.source || '';
 
         try {
           // 100% On-device Chrome AI translation
-          const translatedText = await translateSingleWithChromeAi(sourceText, sourceLang, targetLang, signal);
+          const translatedText = await translateSingleWithChromeAi(sourceText, sourceLang, targetLang);
 
           const itemResult = {
             hash: item.hash || '',
@@ -218,7 +211,7 @@
             onProgressCallback(itemResult);
           }
         } catch (localError) {
-          if (localError.name === 'AbortError' || (signal && signal.aborted)) {
+          if (localError.name === 'AbortError') {
             throw localError;
           }
 
