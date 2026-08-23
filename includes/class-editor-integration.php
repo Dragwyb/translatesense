@@ -14,165 +14,307 @@ class Editor_Integration {
 	 * Initialize hooks.
 	 */
 	public static function init() {
+		// Save _translatesense_source_id when new translation post is created via Polylang '+' icon
+		add_action( 'save_post', array( __CLASS__, 'save_source_post_id_on_create' ), 10, 3 );
+		add_action( 'wp_insert_post', array( __CLASS__, 'save_source_post_id_on_create' ), 10, 3 );
+
 		// Gutenberg Block Editor
 		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_block_editor_assets' ) );
 
-		// Classic Editor Meta Box
-		add_action( 'add_meta_boxes', array( __CLASS__, 'add_classic_meta_box' ) );
+		// Classic Editor & Admin Edit Screens
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_editor_assets' ) );
+
+		// Meta Box for Gutenberg & Classic Editor
+		add_action( 'add_meta_boxes', array( __CLASS__, 'add_translatesense_meta_box' ) );
+
+		// Classic Editor Media Buttons (After Add Media)
+		add_action( 'media_buttons', array( __CLASS__, 'render_media_translate_button' ), 25 );
 
 		// Elementor Editor Hooks
 		add_action( 'elementor/editor/after_enqueue_scripts', array( __CLASS__, 'enqueue_elementor_editor_assets' ) );
+
+		// Divi Visual Builder Hooks
+		add_action( 'et_builder_ready', array( __CLASS__, 'enqueue_divi_editor_assets' ) );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_builder_assets' ) );
 	}
 
 	/**
-	 * Enqueue Gutenberg editor sidebar plugin.
+	 * Automatically save _translatesense_source_id when creating a translation post via from_post query parameter.
+	 */
+	public static function save_source_post_id_on_create( $post_id, $post = null, $update = false ) {
+		if ( isset( $_GET['from_post'] ) && ! empty( $_GET['from_post'] ) ) { // phpcs:ignore
+			$from_post_id = (int) $_GET['from_post']; // phpcs:ignore
+			if ( $from_post_id > 0 ) {
+				update_post_meta( $post_id, '_translatesense_source_id', $from_post_id );
+			}
+		}
+	}
+
+	/**
+	 * Detect editor type for a given post ID.
+	 *
+	 * @param int $post_id
+	 * @return string 'elementor' | 'divi' | 'gutenberg' | 'classic'
+	 */
+	public static function get_post_editor_type( $post_id ) {
+		if ( ! $post_id ) {
+			return 'classic';
+		}
+
+		// 1. Check Elementor
+		$elementor_edit_mode = get_post_meta( $post_id, '_elementor_edit_mode', true );
+		if ( 'builder' === $elementor_edit_mode ) {
+			return 'elementor';
+		}
+
+		// 2. Check Divi Builder
+		$et_pb_use_builder = get_post_meta( $post_id, '_et_pb_use_builder', true );
+		if ( 'on' === $et_pb_use_builder ) {
+			return 'divi';
+		}
+
+		// 3. Check Gutenberg (has blocks)
+		$post = get_post( $post_id );
+		if ( $post && function_exists( 'has_blocks' ) && has_blocks( $post->post_content ) ) {
+			return 'gutenberg';
+		}
+
+		return 'classic';
+	}
+
+	/**
+	 * Enqueue Universal Editor Assets (Helper).
+	 */
+	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'classic' ) {
+		wp_enqueue_style(
+			'translatesense-editor-css',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor.css',
+			array(),
+			TRANSLATESENSE_VERSION
+		);
+
+		// 1. Core Translate Registry (Pure Vanilla JS)
+		wp_enqueue_script(
+			'translatesense-core-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/core-translate.js',
+			array(),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 2. Google Translate Provider
+		wp_enqueue_script(
+			'translatesense-google-translate-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/google-translate.js',
+			array( 'translatesense-core-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 3. Chrome Built-in Translate Provider
+		wp_enqueue_script(
+			'translatesense-chrome-built-translate-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/chrome-built-translate-.js',
+			array( 'translatesense-core-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 4. AI Translate Provider (OpenAI, Gemini)
+		wp_enqueue_script(
+			'translatesense-ai-translate-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/ai-translate.js',
+			array( 'translatesense-core-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 5. Universal Editor Panel (Pure Vanilla JS)
+		wp_enqueue_script(
+			'translatesense-editor-panel-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor-panel.js',
+			array( 'translatesense-core-js', 'translatesense-google-translate-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		$settings = get_option( 'translatesense_settings', array() );
+
+		// Resolve source post ID and its editor type
+		$source_post_id = 0;
+		if ( $post_id ) {
+			$source_post_id = (int) get_post_meta( $post_id, '_translatesense_source_id', true );
+			if ( ! $source_post_id && isset( $_GET['from_post'] ) ) { // phpcs:ignore
+				$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
+				update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
+			}
+			// If still empty, check Polylang default language translation
+			if ( ! $source_post_id && Polylang_Bridge::is_polylang_active() ) {
+				$translations = Polylang_Bridge::get_post_translations( $post_id );
+				$default_lang = Polylang_Bridge::get_default_language();
+				if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== (int) $post_id ) {
+					$source_post_id = (int) $translations[ $default_lang ];
+					update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
+				}
+			}
+		} elseif ( isset( $_GET['from_post'] ) ) { // phpcs:ignore
+			$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
+		}
+
+		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
+		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
+
+		wp_localize_script(
+			'translatesense-editor-panel-js',
+			'TranslateSenseEditorData',
+			array(
+				'postId'           => $post_id,
+				'editorType'       => $editor_type,
+				'sourcePostId'     => $source_post_id,
+				'sourceLanguage'   => $source_language,
+				'sourceEditorType' => $source_editor_type,
+				'fromPost'         => isset( $_GET['from_post'] ) ? (int) $_GET['from_post'] : 0, // phpcs:ignore
+				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'            => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
+				'currentLanguage'  => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'        => Polylang_Bridge::get_languages(),
+				'defaultProvider'  => $settings['provider'] ?? 'openai',
+				'mappingMode'      => Detector::is_mapping_mode_active( $post_id ),
+			)
+		);
+	}
+
+	/**
+	 * Enqueue Gutenberg editor assets (only for Polylang translated post types).
 	 */
 	public static function enqueue_block_editor_assets() {
 		global $post;
-		$post_id = $post ? $post->ID : 0;
-
-		wp_enqueue_style(
-			'translatesense-editor-css',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor.css',
-			array(),
-			TRANSLATESENSE_VERSION
-		);
-
-		wp_enqueue_script(
-			'translatesense-editor-panel-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor-panel.js',
-			array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-compose', 'wp-api-fetch' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-
-		$settings = get_option( 'translatesense_settings', array() );
-
-		wp_localize_script(
-			'translatesense-editor-panel-js',
-			'TranslateSenseEditorData',
-			array(
-				'postId'          => $post_id,
-				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
-				'currentLanguage' => Polylang_Bridge::get_post_language( $post_id ),
-				'languages'       => Polylang_Bridge::get_languages(),
-				'defaultProvider' => $settings['provider'] ?? 'client_google',
-				'mappingMode'     => Detector::is_mapping_mode_active( $post_id ),
-			)
-		);
-	}
-
-	/**
-	 * Enqueue Elementor editor scripts.
-	 */
-	public static function enqueue_elementor_editor_assets() {
-		$post_id = get_the_ID();
-
-		wp_enqueue_style(
-			'translatesense-editor-css',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor.css',
-			array(),
-			TRANSLATESENSE_VERSION
-		);
-
-		wp_enqueue_script(
-			'translatesense-elementor-panel-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor-panel.js',
-			array( 'jquery' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-
-		$settings = get_option( 'translatesense_settings', array() );
-
-		wp_localize_script(
-			'translatesense-elementor-panel-js',
-			'TranslateSenseEditorData',
-			array(
-				'postId'          => $post_id,
-				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
-				'currentLanguage' => Polylang_Bridge::get_post_language( $post_id ),
-				'languages'       => Polylang_Bridge::get_languages(),
-				'defaultProvider' => $settings['provider'] ?? 'client_google',
-				'mappingMode'     => Detector::is_mapping_mode_active( $post_id ),
-			)
-		);
-	}
-
-	/**
-	 * Add Classic Editor Meta Box.
-	 */
-	public static function add_classic_meta_box() {
-		$screen = get_current_screen();
-		if ( $screen && method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor() ) {
-			return; // Handled by Gutenberg sidebar
+		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+			return;
 		}
 
-		add_meta_box(
-			'translatesense-classic-metabox',
-			__( 'TranslateSense', 'translatesense' ),
-			array( __CLASS__, 'render_classic_meta_box' ),
-			array( 'post', 'page' ),
-			'side',
-			'high'
-		);
+		$post_id = (int) $post->ID;
+		self::enqueue_universal_editor_assets( $post_id, 'gutenberg' );
 	}
 
 	/**
-	 * Render Classic Editor Meta Box HTML.
+	 * Enqueue Classic Editor & Post Edit Admin Assets (only for Polylang translated post types).
 	 */
-	public static function render_classic_meta_box( $post ) {
-		$post_id = $post->ID;
+	public static function enqueue_admin_editor_assets( $hook ) {
+		if ( 'post.php' !== $hook && 'post-new.php' !== $hook ) {
+			return;
+		}
+		global $post;
+		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+			return;
+		}
+
+		$post_id = (int) $post->ID;
+		self::enqueue_universal_editor_assets( $post_id, 'classic' );
+	}
+
+	/**
+	 * Enqueue Elementor editor scripts (only for Polylang translated post types).
+	 */
+	public static function enqueue_elementor_editor_assets() {
+		$post_id   = (int) get_the_ID();
+		$post_type = get_post_type( $post_id );
+
+		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+			return;
+		}
+
+		self::enqueue_universal_editor_assets( $post_id, 'elementor' );
+	}
+
+	/**
+	 * Enqueue Divi builder scripts (only for Polylang translated post types).
+	 */
+	public static function enqueue_divi_editor_assets() {
+		$post_id   = (int) get_the_ID();
+		$post_type = get_post_type( $post_id );
+
+		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+			return;
+		}
+
+		self::enqueue_universal_editor_assets( $post_id, 'divi' );
+	}
+
+	/**
+	 * Enqueue frontend builder assets (only for Polylang translated post types).
+	 */
+	public static function enqueue_frontend_builder_assets() {
+		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+			$post_id   = (int) get_the_ID();
+			$post_type = get_post_type( $post_id );
+
+			if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+				return;
+			}
+
+			self::enqueue_universal_editor_assets( $post_id, 'divi' );
+		}
+	}
+
+	/**
+	 * Add TranslateSense Meta Box only for post types translated/supported by Polylang.
+	 */
+	public static function add_translatesense_meta_box() {
+		$post_types = Polylang_Bridge::get_translated_post_types();
+
+		foreach ( $post_types as $post_type ) {
+			add_meta_box(
+				'translatesense-editor-metabox',
+				__( '⚡ TranslateSense', 'translatesense' ),
+				array( __CLASS__, 'render_editor_meta_box' ),
+				$post_type,
+				'side',
+				'high'
+			);
+		}
+	}
+
+	/**
+	 * Render Meta Box HTML for Gutenberg and Classic Editor.
+	 */
+	public static function render_editor_meta_box( $post ) {
+		$post_id      = $post->ID;
 		$current_lang = Polylang_Bridge::get_post_language( $post_id );
 		?>
 		<div class="translatesense-metabox-content" style="padding: 6px 0;">
-			<button type="button" id="ts-classic-translate-btn" class="button button-primary widefat" style="margin-bottom: 4px; font-weight: 600;">
+			<button type="button" id="ts-metabox-translate-btn" class="button button-primary widefat ts-open-translate-btn" style="margin-bottom: 4px; font-weight: 600; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #fff; padding: 6px 12px; height: auto;">
 				<?php esc_html_e( '⚡ Translate Page', 'translatesense' ); ?>
 			</button>
-
-			<div id="ts-classic-status-message" style="margin-top: 8px;"></div>
+			<p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0;">
+				Language: <strong><?php echo esc_html( strtoupper( $current_lang ?: 'EN' ) ); ?></strong>
+			</p>
 		</div>
-		<script>
-		jQuery(document).ready(function($){
-			$('#ts-classic-translate-btn').on('click', function(){
-				var btn = $(this);
-				var targetLang = '<?php echo esc_js( $current_lang ); ?>';
-				var statusBox = $('#ts-classic-status-message');
-				
-				btn.prop('disabled', true).text('Translating...');
-				statusBox.html('<div class="notice notice-info inline"><p>Processing translation...</p></div>');
-				
-				$.ajax({
-					url: '<?php echo esc_url_raw( rest_url( 'translatesense/v1/translate-post' ) ); ?>',
-					method: 'POST',
-					headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce( 'wp_rest' ); ?>' },
-					contentType: 'application/json',
-					data: JSON.stringify({
-						post_id: <?php echo (int) $post_id; ?>,
-						target_lang: targetLang,
-						provider: 'openai'
-					}),
-					success: function(res) {
-						btn.prop('disabled', false).text('⚡ Translate Page');
-						if(res.success && res.edit_url) {
-							statusBox.html('<div class="notice notice-success inline"><p><strong>Success!</strong> Translated post updated/created. <a href="'+res.edit_url+'" target="_blank">Edit Translation &rarr;</a></p></div>');
-						} else {
-							statusBox.html('<div class="notice notice-success inline"><p>Translation complete!</p></div>');
-						}
-					},
-					error: function(xhr) {
-						btn.prop('disabled', false).text('⚡ Translate Page');
-						var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Translation failed.';
-						statusBox.html('<div class="notice notice-error inline"><p>'+msg+'</p></div>');
-					}
-				});
-			});
-		});
-		</script>
+		<?php
+	}
+
+	/**
+	 * Render Translate button in Classic Editor after the "Add Media" button (only for Polylang translated post types).
+	 */
+	public static function render_media_translate_button( $editor_id ) {
+		if ( 'content' !== $editor_id && ! empty( $editor_id ) ) {
+			return;
+		}
+
+		$post_id   = (int) get_the_ID();
+		$post_type = get_post_type( $post_id );
+
+		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+			return;
+		}
+
+		$current_lang = $post_id ? Polylang_Bridge::get_post_language( $post_id ) : '';
+		?>
+		<button type="button" id="ts-media-translate-btn" class="button ts-open-translate-btn" style="margin-left: 5px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;">
+			<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1.2;"></span>
+			<?php esc_html_e( 'Translate Page', 'translatesense' ); ?>
+		</button>
 		<?php
 	}
 }

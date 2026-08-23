@@ -20,6 +20,44 @@ class Polylang_Bridge {
 	}
 
 	/**
+	 * Check if a post type is translated / supported by Polylang.
+	 *
+	 * @param string $post_type
+	 * @return bool
+	 */
+	public static function is_translated_post_type( $post_type ) {
+		if ( empty( $post_type ) ) {
+			return false;
+		}
+
+		if ( self::is_polylang_active() && function_exists( 'pll_is_translated_post_type' ) ) {
+			return (bool) pll_is_translated_post_type( $post_type );
+		}
+
+		// Fallback for public post types when Polylang isn't fully initialized
+		$public_types = get_post_types( array( 'public' => true ), 'names' );
+		return in_array( $post_type, $public_types, true );
+	}
+
+	/**
+	 * Get all post types supported/translated by Polylang.
+	 *
+	 * @return array
+	 */
+	public static function get_translated_post_types() {
+		$public_types = get_post_types( array( 'public' => true ), 'names' );
+		$translated = array();
+
+		foreach ( $public_types as $post_type ) {
+			if ( self::is_translated_post_type( $post_type ) ) {
+				$translated[] = $post_type;
+			}
+		}
+
+		return ! empty( $translated ) ? $translated : array( 'post', 'page' );
+	}
+
+	/**
 	 * Get configured Polylang languages list.
 	 * Returns array of languages: [ [ 'slug' => 'en', 'name' => 'English', 'locale' => 'en_US', 'is_default' => true ], ... ]
 	 */
