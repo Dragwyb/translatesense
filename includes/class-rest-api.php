@@ -770,6 +770,14 @@ class Rest_Api {
 			return $extracted;
 		}
 
+		// Divi Builder shortcode content parsing
+		if ( false !== strpos( $content, '[et_pb_' ) ) {
+			self::extract_divi_strings( $content, $rules['divi'] ?? array(), $extracted );
+			if ( ! empty( $extracted ) ) {
+				return $extracted;
+			}
+		}
+
 		// Plain text fallback / Classic Editor
 		if ( ! empty( trim( $content ) ) ) {
 			$h           = Hashing_Db::generate_hash( 'classic_content', $content );
@@ -859,6 +867,56 @@ class Rest_Api {
 
 			if ( ! empty( $element['elements'] ) ) {
 				self::extract_elementor_strings_recursive( $element['elements'], $elementor_rules, $extracted );
+			}
+		}
+	}
+
+	/**
+	 * Extract strings from Divi Builder shortcode content.
+	 */
+	private static function extract_divi_strings( $content, $divi_rules, &$extracted ) {
+		// Pattern for matching Divi module shortcodes
+		if ( preg_match_all( '/\[(et_pb_[a-z0-9_]+)([^\]]*)\](?:(.*?)\[\/\1\])?/s', $content, $matches, PREG_SET_ORDER ) ) {
+			foreach ( $matches as $match ) {
+				$module_name = $match[1];
+				$raw_attrs   = $match[2];
+				$inner_body  = $match[3] ?? '';
+
+				// Parse shortcode attributes
+				$attrs = shortcode_parse_atts( $raw_attrs );
+				if ( is_array( $attrs ) ) {
+					if ( isset( $divi_rules[ $module_name ]['fields'] ) ) {
+						foreach ( $divi_rules[ $module_name ]['fields'] as $field_key => $f_info ) {
+							if ( isset( $attrs[ $field_key ] ) && is_string( $attrs[ $field_key ] ) && '' !== trim( $attrs[ $field_key ] ) ) {
+								$val         = $attrs[ $field_key ];
+								$extracted[] = array(
+									'widget_id'   => $module_name,
+									'widget_name' => 'Divi ' . $module_name,
+									'field'       => $field_key,
+									'source'      => $val,
+									'hash'        => Hashing_Db::generate_hash( $module_name, $val ),
+								);
+							}
+						}
+					}
+				}
+
+				// Check inner body text for content modules
+				if ( ! empty( $inner_body ) && false === strpos( $inner_body, '[et_pb_' ) ) {
+					$clean_body = trim( $inner_body );
+					if ( ! empty( $clean_body ) ) {
+						$extracted[] = array(
+							'widget_id'   => $module_name,
+							'widget_name' => 'Divi ' . $module_name,
+							'field'       => 'content',
+							'source'      => $clean_body,
+							'hash'        => Hashing_Db::generate_hash( $module_name, $clean_body ),
+						);
+					}
+				} elseif ( ! empty( $inner_body ) ) {
+					// Recurse inner modules
+					self::extract_divi_strings( $inner_body, $divi_rules, $extracted );
+				}
 			}
 		}
 	}
