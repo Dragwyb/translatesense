@@ -435,6 +435,16 @@
         const onProgress = (result) => {
           this.strings = this.strings.map((item) => {
             if (item.source === result.source || (result.hash && item.hash === result.hash)) {
+              if (window.TranslateSenseCore) {
+                window.TranslateSenseCore.saveSourceString(item.field || item.widget_id, item.source, item.widget_id);
+                window.TranslateSenseCore.saveTranslatedString(
+                  item.field || item.widget_id,
+                  item.source,
+                  result.translated,
+                  this.selectedProvider,
+                  item.widget_id
+                );
+              }
               return {
                 ...item,
                 translated: result.translated,
@@ -598,36 +608,24 @@
     }
 
     /**
-     * Apply translated strings back to block editor.
+     * Apply translated strings back to the active editor (Gutenberg, Elementor, Divi, Classic).
      */
-    applyTranslationsToEditor() {
-      if (window.wp && window.wp.data && window.wp.data.select && window.wp.data.dispatch) {
-        const blocks = window.wp.data.select('core/block-editor').getBlocks();
+    async applyTranslationsToEditor() {
+      if (window.TranslateSenseCore && typeof window.TranslateSenseCore.applyToPageEditor === 'function') {
+        const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
+          strings: this.strings,
+        });
 
-        const updateBlocksRecursively = (blockList) => {
-          blockList.forEach((blk) => {
-            this.strings.forEach((strItem) => {
-              if (blk.name === strItem.widget_id && strItem.translated) {
-                if (blk.attrs && blk.attrs[strItem.field] === strItem.source) {
-                  window.wp.data.dispatch('core/block-editor').updateBlockAttributes(blk.clientId, {
-                    [strItem.field]: strItem.translated,
-                  });
-                }
-              }
-            });
-
-            if (blk.innerBlocks && blk.innerBlocks.length > 0) {
-              updateBlocksRecursively(blk.innerBlocks);
-            }
-          });
-        };
-
-        updateBlocksRecursively(blocks);
-        if (window.wp.data.dispatch('core/notices')) {
-          window.wp.data.dispatch('core/notices').createSuccessNotice('Translated strings applied to blocks successfully!');
+        if (result && result.success) {
+          console.log(`[TranslateSense] Successfully applied ${result.count} translated strings to ${result.editor} editor.`);
         }
+      } else if (window.TranslateSenseLiveUpdater) {
+        await window.TranslateSenseLiveUpdater.apply({
+          strings: this.strings,
+          editorType: this.editorType,
+        });
       } else {
-        alert('Translations applied successfully!');
+        alert('🎉 Translations applied to page successfully!');
       }
     }
   }

@@ -93,16 +93,25 @@ class Editor_Integration {
 			TRANSLATESENSE_VERSION
 		);
 
-		// 1. Core Translate Registry (Pure Vanilla JS)
+		// 1. Spark MD5 (static library version. so no change).
+		wp_enqueue_script(
+			'translatesense-sparkmd-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/lib/spark-md5/index.min.js',
+			array(),
+			'3.0.2',
+			true
+		);
+
+		// 2. Core Translate Registry (Pure Vanilla JS)
 		wp_enqueue_script(
 			'translatesense-core-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/core-translate.js',
-			array(),
+			array( 'translatesense-sparkmd-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
-		// 2. Chrome Built-in Translate Provider & Languages
+		// 3. Chrome Built-in Translate Provider & Languages
 		wp_enqueue_script(
 			'translatesense-chrome-languages-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/chrome-ai/chrome-languages.js',
@@ -118,7 +127,7 @@ class Editor_Integration {
 			true
 		);
 
-		// 3. AI Translate Provider (OpenAI & Gemini)
+		// 4. AI Translate Provider (OpenAI & Gemini)
 		wp_enqueue_script(
 			'translatesense-ai-translate-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/ai-services/ai-translate.js',
@@ -127,11 +136,55 @@ class Editor_Integration {
 			true
 		);
 
-		// 4. Universal Editor Panel (Pure Vanilla JS)
+		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Divi, Classic)
+		wp_enqueue_script(
+			'translatesense-live-meta-fields-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/meta-fields.js',
+			array(),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'translatesense-live-gutenberg-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/gutenberg.js',
+			array( 'translatesense-live-meta-fields-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'translatesense-live-elementor-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/elementor.js',
+			array( 'translatesense-live-meta-fields-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'translatesense-live-divi-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/divi.js',
+			array( 'translatesense-live-meta-fields-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'translatesense-live-classic-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/classic.js',
+			array( 'translatesense-live-meta-fields-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'translatesense-page-editor-js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/index.js',
+			array( 'translatesense-live-meta-fields-js', 'translatesense-live-gutenberg-js', 'translatesense-live-elementor-js', 'translatesense-live-divi-js', 'translatesense-live-classic-js' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 5. Universal Editor Panel (Pure Vanilla JS)
 		wp_enqueue_script(
 			'translatesense-editor-panel-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor-panel.js',
-			array( 'translatesense-core-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js' ),
+			array( 'translatesense-core-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js', 'translatesense-page-editor-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
