@@ -1,0 +1,216 @@
+/**
+ * TranslateSense - Bulk Translation Modal Styles
+ */
+
+#translatesense-bulk-modal-root {
+  position: fixed;
+  z-index: 999999;
+}
+
+.ts-bulk-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ts-bulk-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 560px;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1e293b;
+  animation: tsBulkModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tsBulkModalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ts-bulk-header {
+  background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 100%);
+  color: #ffffff;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ts-bulk-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-bulk-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.ts-bulk-close:hover {
+  color: #ffffff;
+}
+
+.ts-bulk-body {
+  padding: 24px;
+}
+
+.ts-bulk-field {
+  margin-bottom: 20px;
+}
+
+.ts-bulk-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.ts-bulk-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #f8fafc;
+  outline: none;
+}
+
+.ts-bulk-select:focus {
+  border-color: #4f46e5;
+  background: #ffffff;
+}
+
+.ts-provider-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ts-provider-radio {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  background: #f8fafc;
+}
+
+.ts-provider-radio.selected {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+/* Progress bar */
+.ts-progress-wrap {
+  margin: 20px 0 10px 0;
+}
+
+.ts-progress-bar-bg {
+  width: 100%;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ts-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #06b6d4);
+  width: 0%;
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+.ts-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+.ts-progress-logs {
+  margin-top: 14px;
+  max-height: 120px;
+  overflow-y: auto;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.ts-log-item {
+  margin-bottom: 4px;
+  color: #334155;
+}
+
+.ts-log-item.success { color: #10b981; }
+.ts-log-item.error { color: #ef4444; }
+
+.ts-bulk-footer {
+  padding: 16px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ts-bulk-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.ts-bulk-btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.ts-bulk-btn-primary {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.ts-bulk-btn-primary:hover {
+  background: #4338ca;
+}
+
+.ts-bulk-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

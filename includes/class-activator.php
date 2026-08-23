@@ -1,0 +1,118 @@
+<?php
+/**
+ * Fired during plugin activation.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class TranslateSense_Activator {
+
+	/**
+	 * Run activation tasks.
+	 */
+	public static function activate() {
+		self::create_tables();
+		self::create_uploads_directory();
+		self::set_default_options();
+		self::save_core_config_to_db();
+		self::schedule_cleanup_cron();
+	}
+
+	/**
+	 * Create custom DB tables for translation packages and cached results.
+	 */
+	public static function create_tables() {
+		global $wpdb;
+
+		$charset_collate = $wpdb->get_charset_collate();
+
+		// Custom translation packages table (Step 3)
+		$table_packages = $wpdb->prefix . 'translatesense_packages';
+		$sql_packages   = "CREATE TABLE {$table_packages} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			post_id bigint(20) unsigned NOT NULL,
+			language varchar(10) NOT NULL,
+			package_hash varchar(32) NOT NULL,
+			source_string text NOT NULL,
+			filter_string text NOT NULL,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY hash_index (package_hash),
+			KEY post_index (post_id)
+		) {$charset_collate};";
+
+		// Custom translations table storing languages array and translated_strings map
+		$table_translations = $wpdb->prefix . 'translatesense_translations';
+		$sql_translations   = "CREATE TABLE {$table_translations} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			package_hash varchar(32) NOT NULL,
+			languages text NOT NULL,
+			translated_strings longtext NOT NULL,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY hash_index (package_hash)
+		) {$charset_collate};";
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( $sql_packages );
+		dbDelta( $sql_translations );
+	}
+
+	/**
+	 * Ensure custom config directory exists.
+	 */
+	public static function create_uploads_directory() {
+		$upload_dir = wp_upload_dir();
+		$custom_dir = trailingslashit( $upload_dir['basedir'] ) . 'translatesense-configs';
+
+		if ( ! file_exists( $custom_dir ) ) {
+			wp_mkdir_p( $custom_dir );
+			// Add an index.html and .htaccess for security
+			file_put_contents( $custom_dir . '/index.html', '' );
+		}
+	}
+
+	/**
+	 * Initialize default plugin options.
+	 */
+	public static function set_default_options() {
+		$defaults = array(
+			'provider'            => 'client_google', // 'google_api', 'deepl', 'libre', 'chrome_ai', 'client_google'
+			'api_key'             => '',
+			'deepl_api_key'       => '',
+			'libre_url'           => '',
+			'mapping_mode'        => false,
+			'auto_translate_save' => false,
+			'batch_size'          => 5,
+		);
+
+		if ( ! get_option( 'translatesense_settings' ) ) {
+			update_option( 'translatesense_settings', $defaults );
+		}
+	}
+
+	/**
+	 * Save core-config.xml into database option table on activation.
+	 */
+	public static function save_core_config_to_db() {
+		$path = TranslateSense_Xml_Engine::get_core_xml_path();
+		if ( file_exists( $path ) ) {
+			$core_xml = file_get_contents( $path );
+			if ( ! empty( $core_xml ) ) {
+				update_option( 'translatesense_core_xml', $core_xml );
+			}
+		}
+	}
+
+	/**
+	 * Schedule daily cache cleanup cron (Step 4.3).
+	 */
+	public static function schedule_cleanup_cron() {
+		if ( ! wp_next_scheduled( 'translatesense_cache_cleanup' ) ) {
+			wp_schedule_event( time(), 'daily', 'translatesense_cache_cleanup' );
+		}
+	}
+}
