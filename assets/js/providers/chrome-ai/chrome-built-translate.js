@@ -175,7 +175,7 @@
     },
 
     /**
-     * Translate items using on-device Chrome Local AI.
+     * Translate items using on-device Chrome Local AI (100% Client-side).
      * 
      * @param {Object} params
      * @param {Array<Object>} params.items Array of { hash, content/source, widget_id, field }
@@ -186,15 +186,12 @@
      * @param {Function} onProgressCallback Callback returning { hash, source, translated, status, error }
      * @returns {Promise<Array<Object>>}
      */
-    translate: async function ({ items, sourceLang, targetLang, postId, signal }, onProgressCallback) {
+    translate: async function ({ items, sourceLang, targetLang, signal }, onProgressCallback) {
       if (!Array.isArray(items) || items.length === 0) {
         return [];
       }
 
       const results = [];
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-      const nonce = config.nonce || '';
 
       for (let i = 0; i < items.length; i++) {
         if (signal && signal.aborted) {
@@ -205,7 +202,7 @@
         const sourceText = item.content || item.source || '';
 
         try {
-          // Attempt on-device Chrome AI translation
+          // 100% On-device Chrome AI translation
           const translatedText = await translateSingleWithChromeAi(sourceText, sourceLang, targetLang, signal);
 
           const itemResult = {
@@ -225,58 +222,20 @@
             throw localError;
           }
 
-          console.warn(`[TranslateSense] Chrome AI local translation error for item #${i}, falling back to server:`, localError.message);
+          console.warn(`[TranslateSense] Chrome AI local translation error for item #${i}:`, localError.message);
 
-          // Graceful fallback to server translation endpoint
-          try {
-            const fallbackResponse = await fetch(restUrl + 'translate-batch', {
-              method: 'POST',
-              signal: signal,
-              headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': nonce,
-              },
-              body: JSON.stringify({
-                strings: [sourceText],
-                widget_ids: [item.widget_id || 'generic'],
-                source_lang: sourceLang,
-                target_lang: targetLang,
-                provider: 'client_google',
-                post_id: postId || config.postId || 0,
-              }),
-            });
+          const errorResult = {
+            hash: item.hash || '',
+            source: sourceText,
+            translated: sourceText,
+            status: 'Failed',
+            error: localError.message,
+          };
 
-            const fallbackData = await fallbackResponse.json();
-            const fallbackText = fallbackData.results && fallbackData.results[0] && fallbackData.results[0].translated
-              ? fallbackData.results[0].translated
-              : sourceText;
+          results.push(errorResult);
 
-            const fallbackResult = {
-              hash: item.hash || '',
-              source: sourceText,
-              translated: fallbackText,
-              status: 'Local AI (Fallback)',
-            };
-
-            results.push(fallbackResult);
-
-            if (typeof onProgressCallback === 'function') {
-              onProgressCallback(fallbackResult);
-            }
-          } catch (serverFallbackError) {
-            const errorResult = {
-              hash: item.hash || '',
-              source: sourceText,
-              translated: sourceText,
-              status: 'Failed',
-              error: serverFallbackError.message,
-            };
-
-            results.push(errorResult);
-
-            if (typeof onProgressCallback === 'function') {
-              onProgressCallback(errorResult);
-            }
+          if (typeof onProgressCallback === 'function') {
+            onProgressCallback(errorResult);
           }
         }
       }
