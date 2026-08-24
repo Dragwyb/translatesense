@@ -52,22 +52,19 @@
       // Dispatch specific initialization based on localized editorType
       switch (this.editorType) {
         case 'gutenberg':
-          this.initGutenberg();
+          window.addEventListener('load', () => this.initGutenberg())
           break;
         case 'elementor':
-          this.initElementor();
+          jQuery(window).on('elementor:init', () => elementor.on('document:loaded', () => this.initElementor()));
           break;
         case 'divi':
           this.initDivi();
           break;
         case 'classic':
         default:
-          this.initClassicEditorMediaButton();
+          window.addEventListener('load', () => this.initClassicEditorMediaButton())
           break;
       }
-
-      // Check and show Page Load Auto-Translate Prompt Modal
-      this.initPageLoadPrompt();
     }
 
     /**
@@ -220,23 +217,31 @@
      * Elementor: Insert button into Elementor Panel footer.
      */
     initElementor() {
-      const elScope = window.elementor || (window.top && window.top.elementor);
-      if (!elScope || !elScope.on) return;
+      console.log("testing complete")
+      const elementorBtnGroup = document.querySelector('.MuiButtonGroup-root.MuiButtonGroup-contained');
 
-      elScope.on('preview:loaded', () => {
-        const footer = document.getElementById('elementor-panel-footer');
-        if (footer && !document.getElementById('ts-elementor-translate-btn')) {
-          const wrap = document.createElement('div');
-          wrap.id = 'ts-elementor-panel-wrap';
-          wrap.style.cssText = 'padding: 10px; border-top: 1px solid #3d414a; background: #26292c;';
-          wrap.innerHTML = `
-            <button id="ts-elementor-translate-btn" class="elementor-button elementor-button-default ts-open-translate-btn" style="width: 100%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #fff; font-weight: 600;">
-              ⚡ Translate Page
-            </button>
-          `;
-          footer.insertBefore(wrap, footer.firstChild);
-        }
-      });
+      console.log(elementorBtnGroup)
+      if (!elementorBtnGroup) {
+        return;
+      }
+
+      const btnContainer = elementorBtnGroup.closest('.MuiGrid-root');
+
+      console.log(btnContainer)
+      if (!btnContainer) {
+        return;
+      }
+
+      const translateBtn = document.createElement('button');
+      translateBtn.id = 'ts-elementor-translate-btn';
+      translateBtn.className = 'elementor-button elementor-button-default ts-open-translate-btn';
+      translateBtn.style.cssText = 'width: 100%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #fff; font-weight: 600;';
+      translateBtn.innerText = '⚡ Translate Page';
+
+      btnContainer.prepend(translateBtn)
+
+      // Check and show Page Load Auto-Translate Prompt Modal
+      this.initPageLoadPrompt();
     }
 
     /**
@@ -635,9 +640,5 @@
     window.TranslateSenseEditorInstance = new TranslateSenseEditor();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initTranslateSenseEditor);
-  } else {
-    initTranslateSenseEditor();
-  }
+  initTranslateSenseEditor();
 })(window, document);
