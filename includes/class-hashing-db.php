@@ -120,10 +120,13 @@ class Hashing_Db {
 	 * @param string $target_lang
 	 * @param string $hash
 	 * @param string $source_string
+	 * @param string $editor_type
+	 * @param string $widget_name
+	 * @param string $widget_key
 	 * @param string $filter_string
 	 * @return int Package ID
 	 */
-	public static function record_package( $post_id, $target_lang, $hash, $source_string, $filter_string = '' ) {
+	public static function record_package( $post_id, $target_lang, $hash, $source_string, $editor_type, $widget_name, $widget_key, $filter_string = '' ) {
 		global $wpdb;
 		$packages_table = self::get_packages_table();
 
@@ -147,12 +150,36 @@ class Hashing_Db {
 				'package_hash'  => sanitize_text_field( $hash ),
 				'source_string' => $source_string,
 				'filter_string' => $filter_string ? $filter_string : $source_string,
+				'widget_name'   => $widget_name,
+				'widget_key'    => $widget_key,
+				'editor_type'   => $editor_type,
 				'created_at'    => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Get post packages result from package table.
+	 *
+	 * @param init   $post_id
+	 * @param string $lang
+	 */
+	public static function get_post_package( int $post_id, string $lang ) {
+		global $wpdb;
+
+		$packages_table = self::get_packages_table();
+		$results        = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT package_hash as hash, widget_name as name, widget_key as key, source_string as source, filter_string as value from {$packages_table} WHERE post_id = %d AND language=%s",
+				$post_id,
+				$lang
+			)
+		);
+
+		return $results;
 	}
 
 	/**

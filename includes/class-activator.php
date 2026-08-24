@@ -38,6 +38,9 @@ class Activator {
 			package_hash varchar(32) NOT NULL,
 			source_string text NOT NULL,
 			filter_string text NOT NULL,
+			editor_type text NOT NULL,
+			widget_name text NOT NULL,
+			widget_key	text NOT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY hash_index (package_hash),
@@ -49,12 +52,14 @@ class Activator {
 		$sql_translations   = "CREATE TABLE {$table_translations} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			package_hash varchar(32) NOT NULL,
-			languages text NOT NULL,
-			translated_strings longtext NOT NULL,
+			language varchar(20) NOT NULL,
+			translated_string longtext NOT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
-			UNIQUE KEY hash_index (package_hash)
+			UNIQUE INDEX hash_lang_unique (package_hash, language),
+			INDEX package_hash_index (package_hash),
+			INDEX language_index (language)
 		) {$charset_collate};";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
