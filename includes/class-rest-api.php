@@ -93,6 +93,28 @@ class Rest_Api {
 			)
 		);
 
+		// 3.4 Specific Editor XML Config endpoint (accepts editor excluding all)
+		register_rest_route(
+			self::NAMESPACE,
+			'/editor-xml-config',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'get_editor_xml_config' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
+
+		// 3.5 Page Content Retrieval endpoint (accesses content, metafield, title, _elementor_data)
+		register_rest_route(
+			self::NAMESPACE,
+			'/get-page-content',
+			array(
+				'methods'             => array( WP_REST_Server::READABLE, WP_REST_Server::CREATABLE ),
+				'callback'            => array( __CLASS__, 'get_page_content' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
+
 		// 4. Get Plugin Settings & Languages
 		register_rest_route(
 			self::NAMESPACE,
@@ -682,6 +704,103 @@ class Rest_Api {
 				'success'     => true,
 				'block_rules' => $gutenberg_rules,
 				'block_names' => array_keys( $gutenberg_rules ),
+			)
+		);
+	}
+
+	/**
+	 * Get specific editor XML configuration and parsed rules.
+	 * Accepts editor parameter (gutenberg, elementor, divi, classic) and excludes 'all'.
+	 */
+	public static function get_editor_xml_config( WP_REST_Request $request ) {
+		$editor = sanitize_key( (string) ( $request->get_param( 'editor' ) ?: $request->get_param( 'builder' ) ?: '' ) );
+
+		if ( empty( $editor ) || 'all' === $editor || ! in_array( $editor, Xml_Engine::BUILDERS, true ) ) {
+			return new WP_Error(
+				'invalid_editor',
+				__( 'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, divi, classic).', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$rules = Xml_Engine::get_all_rules( $editor );
+		$xml   = Xml_Engine::get_config( $editor );
+
+		return rest_ensure_response(
+			array(
+				'success'      => true,
+				'editor'       => $editor,
+				'editor_xml'   => $xml,
+				'rules'        => $rules,
+				'block_rules'  => ( 'gutenberg' === $editor ) ? $rules : array(),
+				'widget_rules' => ( 'elementor' === $editor ) ? $rules : array(),
+				'module_rules' => ( 'divi' === $editor ) ? $rules : array(),
+				'field_rules'  => ( 'classic' === $editor ) ? $rules : array(),
+			)
+		);
+	}
+
+	/**
+	 * Get comprehensive page content for translation, frontend hash generation, and replacement.
+	 * Accesses content, title, excerpt, slug, meta fields, and _elementor_data post meta.
+	 */
+	public static function get_page_content( WP_REST_Request $request ) {
+		$params  = array_merge( $request->get_query_params(), (array) $request->get_json_params() );
+		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+
+		if ( ! $post_id ) {
+			return new WP_Error(
+				'invalid_post_id',
+				__( 'A valid post_id parameter is required.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$post        = get_post( $post_id );
+		$editor_type = Editor_Integration::get_post_editor_type( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error(
+				'post_not_found',
+				__( 'Post not found.', 'translatesense' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		if ( 'elementor' === $editor_type ) {
+			// 1. Elementor Data
+			$elementor_data = array();
+			if ( class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance->documents ) ) {
+				$elementor_doc = \Elementor\Plugin::$instance->documents->get( $post_id );
+				if ( $elementor_doc && method_exists( $elementor_doc, 'get_elements_data' ) ) {
+					$elementor_data     = $elementor_doc->get_elements_data();
+					$post->post_content = $elementor_data;
+				} else {
+					$post->post_content = '';
+				}
+			}
+		}
+
+		// 2. All Custom Meta Fields
+		$all_meta_raw = get_post_meta( $post_id );
+		$meta_fields  = array();
+		if ( is_array( $all_meta_raw ) ) {
+			foreach ( $all_meta_raw as $k => $v ) {
+				$val = ( is_array( $v ) && 1 === count( $v ) ) ? $v[0] : $v;
+				if ( is_serialized( $val ) ) {
+					$val = maybe_unserialize( $val );
+				}
+				$meta_fields[ $k ] = $val;
+			}
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'title'   => $post->post_title,
+				'content' => $post->post_content,
+				'excerpt' => $post->post_excerpt,
+				'slug'    => $post->post_name,
 			)
 		);
 	}
