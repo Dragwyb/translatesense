@@ -85,7 +85,7 @@ class Editor_Integration {
 	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
-	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'classic' ) {
+	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
 		wp_enqueue_style(
 			'translatesense-editor-css',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor.css',
@@ -215,9 +215,7 @@ class Editor_Integration {
 		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
 		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
 
-		wp_localize_script(
-			'translatesense-editor-panel-js',
-			'TranslateSenseEditorData',
+		$localize_data = array_merge(
 			array(
 				'postId'           => $post_id,
 				'editorType'       => $editor_type,
@@ -233,7 +231,14 @@ class Editor_Integration {
 				'defaultProvider'  => $settings['provider'] ?? 'openai',
 				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
 				'mappingMode'      => Detector::is_mapping_mode_active( $post_id ),
-			)
+			),
+			$localize_data
+		);
+
+		wp_localize_script(
+			'translatesense-editor-panel-js',
+			'TranslateSenseEditorData',
+			$localize_data
 		);
 	}
 
@@ -247,7 +252,12 @@ class Editor_Integration {
 		}
 
 		$post_id = (int) $post->ID;
-		self::enqueue_universal_editor_assets( $post_id, 'gutenberg' );
+
+		$localize_data = array(
+			'gutenbergBlockRules' => Xml_Engine::get_builder_xml_raw( 'gutenberg' ),
+		);
+
+		self::enqueue_universal_editor_assets( $post_id, 'gutenberg', $localize_data );
 	}
 
 	/**
