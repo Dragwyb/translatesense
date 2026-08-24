@@ -112,7 +112,7 @@
       let modalMessage = '';
       let actionBtnText = '🚀 Continue to Translation';
 
-      if (isElementorOrDivi) {
+      if (!['elementor', 'divi'].includes(this.editorType) && isElementorOrDivi) {
         modalTitle = `🌐 Source Post: ${sourceEditorName} Editor Detected`;
         modalMessage = `Original post created with <strong>${sourceEditorName}</strong> editor.<br><br>If you want to translate this post in same editor then Click on <strong>Translate with ${sourceEditorName}</strong> button, or click the close icon to close this modal.`;
         actionBtnText = `⚡ Translate with ${sourceEditorName}`;
@@ -173,7 +173,7 @@
           e.preventDefault();
 
           // If source post was built in Elementor or Divi, show editor-specific prompt modal first
-          if (this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi') {
+          if (!['elementor', 'divi'].includes(this.editorType) && (this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi')) {
             this.showSourceEditorPromptModal(false);
           } else {
             this.openProviderModal();
@@ -217,17 +217,14 @@
      * Elementor: Insert button into Elementor Panel footer.
      */
     initElementor() {
-      console.log("testing complete")
       const elementorBtnGroup = document.querySelector('.MuiButtonGroup-root.MuiButtonGroup-contained');
 
-      console.log(elementorBtnGroup)
       if (!elementorBtnGroup) {
         return;
       }
 
       const btnContainer = elementorBtnGroup.closest('.MuiGrid-root');
 
-      console.log(btnContainer)
       if (!btnContainer) {
         return;
       }
@@ -361,63 +358,44 @@
     }
 
     async extractAndTranslate() {
-      const isGutenberg = window.wp && window.wp.data && window.wp.data.select && window.wp.data.select('core/block-editor');
+      try {
+        const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
+        const nonce = this.config.nonce || '';
 
-      // If in Gutenberg block editor, do in-editor block extraction and open Review Table
-      if (isGutenberg) {
-        try {
-          const blocks = window.wp.data.select('core/block-editor').getBlocks();
-          const serialized = window.wp.blocks.serialize(blocks);
-          const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
-          const nonce = this.config.nonce || '';
+        if (!this.sourcePostId) {
+          return;
+        }
 
-          const extractRes = await fetch(restUrl + 'extract-strings', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-WP-Nonce': nonce,
-            },
-            body: JSON.stringify({
-              post_id: this.postId || this.config.postId || 0,
-              content: serialized,
-              target_lang: this.targetLang,
-            }),
-          });
+        const extractRes = await fetch(restUrl + 'extract-strings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+          body: JSON.stringify({
+            post_id: this.sourcePostId,
+            target_lang: this.targetLang,
+          }),
+        });
 
-          const data = await extractRes.json();
-          if (!data.strings || data.strings.length === 0) {
-            // If empty in Gutenberg (new post), fallback to translating from source post
-            if (this.sourcePostId > 0) {
-              const serverRes = await this.processServerPostTranslation();
-              if (serverRes.success && serverRes.edit_url) {
-                window.location.href = serverRes.edit_url;
-                return;
-              }
-            }
-            alert('No translatable strings found in current blocks matching XML rules.');
+        const data = await extractRes.json();
+        if (!data.strings || data.strings.length === 0) {
+          const serverRes = await this.processServerPostTranslation();
+
+          if (serverRes.success && serverRes.edit_url) {
+            window.location.href = serverRes.edit_url;
             return;
           }
 
-          this.strings = data.strings;
-          this.openReviewModal();
-          await this.performBatchTranslation();
-        } catch (err) {
-          alert('Extraction Error: ' + (err.message || 'Unknown error'));
+          alert('No translatable strings found in current blocks matching XML rules.');
+          return;
         }
-      } else {
-        // For Classic Editor, Elementor, Divi: execute seamless server post translation
-        try {
-          const res = await this.processServerPostTranslation();
-          if (res.success && res.edit_url) {
-            if (confirm('🎉 Translation completed successfully!\n\nWould you like to open the translated post in the editor?')) {
-              window.open(res.edit_url, '_blank');
-            }
-          } else {
-            alert('Translation complete!');
-          }
-        } catch (err) {
-          alert('Translation Failed: ' + (err.message || 'Error'));
-        }
+
+        this.strings = data.strings;
+        this.openReviewModal();
+        await this.performBatchTranslation();
+      } catch (err) {
+        alert('Extraction Error: ' + (err.message || 'Unknown error'));
       }
     }
 
@@ -430,11 +408,11 @@
 
       try {
         const itemsToTranslate = this.strings.map((s) => ({
-          hash: s.hash || s.source,
-          content: s.source,
+          hash: s.hash,
+          widget_id: s.name,
+          field: s.key,
           source: s.source,
-          widget_id: s.widget_id,
-          field: s.field,
+          content: s.value,
         }));
 
         const onProgress = (result) => {
@@ -461,47 +439,16 @@
           this.renderReviewTableRows();
         };
 
-        if (window.TranslateSenseCore && typeof window.TranslateSenseCore.translate === 'function') {
-          await window.TranslateSenseCore.translate(
-            this.selectedProvider,
-            {
-              items: itemsToTranslate,
-              sourceLang: this.sourceLanguage || 'en',
-              targetLang: this.targetLang,
-              postId: this.postId || this.config.postId || 0,
-            },
-            onProgress
-          );
-        } else {
-          // Direct fallback
-          const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
-          const nonce = this.config.nonce || '';
-
-          const res = await fetch(restUrl + 'translate-batch', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-WP-Nonce': nonce,
-            },
-            body: JSON.stringify({
-              strings: this.strings.map((s) => s.source),
-              source_lang: this.config.currentLanguage || 'en',
-              target_lang: this.targetLang,
-              provider: this.selectedProvider,
-              post_id: this.postId || this.config.postId || 0,
-            }),
-          });
-
-          const data = await res.json();
-          if (data.results) {
-            this.strings = this.strings.map((item, idx) => ({
-              ...item,
-              translated: data.results[idx] ? data.results[idx].translated : item.source,
-              status: 'Complete',
-            }));
-            this.renderReviewTableRows();
-          }
-        }
+        await window.TranslateSenseCore.translate(
+          this.selectedProvider,
+          {
+            items: itemsToTranslate,
+            sourceLang: this.sourceLanguage || 'en',
+            targetLang: this.targetLang,
+            postId: this.postId || this.config.postId || 0,
+          },
+          onProgress
+        );
       } catch (err) {
         alert('Translation Batch Error: ' + (err.message || 'Error'));
       } finally {
@@ -578,8 +525,8 @@
       tbody.innerHTML = this.strings.map((item, idx) => `
         <tr data-idx="${idx}">
           <td>
-            <div class="ts-source-text">${item.source || ''}</div>
-            <div class="ts-widget-tag">${item.widget_id || 'block'} &rarr; ${item.field || 'text'}</div>
+            <div class="ts-source-text">${item.value || ''}</div>
+            <div class="ts-widget-tag">${item.name || 'block'} &rarr; ${item.key || 'text'}</div>
           </td>
           <td>
             <span class="ts-status-tag ${(item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '')}">

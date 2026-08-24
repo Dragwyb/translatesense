@@ -274,6 +274,8 @@
   font-size: 13px;
   outline: none;
   font-family: inherit;
+  background-color: transparent;
+  color: #334155;
 }
 
 .ts-trans-input:focus {
