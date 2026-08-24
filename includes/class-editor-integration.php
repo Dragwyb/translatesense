@@ -252,12 +252,7 @@ class Editor_Integration {
 		}
 
 		$post_id = (int) $post->ID;
-
-		$localize_data = array(
-			'gutenbergBlockRules' => Xml_Engine::get_config( 'gutenberg' ),
-		);
-
-		self::enqueue_universal_editor_assets( $post_id, 'gutenberg', $localize_data );
+		self::enqueue_universal_editor_assets( $post_id, 'gutenberg' );
 	}
 
 	/**

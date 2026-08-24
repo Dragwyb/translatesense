@@ -485,7 +485,11 @@
      * @param {Array<Object>} options.strings Array of { field, widget_id, source, translated, hash }
      * @returns {Promise<Object>} Status object { success: boolean, editor: string, count: number }
      */
-    async applyToPageEditor(editorId, { strings, options = {} }) {
+    async applyToPageEditor(editorId, params = {}) {
+      const strings = params.strings || [];
+      const options = params.options || {};
+      const sourcePageData = params.sourcePageData || options.sourcePageData || null;
+
       if (!Array.isArray(strings) || strings.length === 0) {
         return { success: false, message: 'No strings to apply' };
       }
@@ -504,12 +508,47 @@
       }
 
       try {
-        await editor.apply(strings, options);
+        await editor.apply(strings, { ...options, sourcePageData });
         return { success: true, editor: editor.id, count: strings.length };
       } catch (error) {
         console.error(`[TranslateSense] Error applying translation to editor "${editor.id}":`, error);
         throw error;
       }
+    }
+
+    /**
+     * Fetch comprehensive page content from REST endpoint (/get-page-content).
+     * Returns post_title, post_content, post_excerpt, meta fields, etc.
+     * 
+     * @param {number} postId Post ID to retrieve
+     * @param {Array<string>|string} [fields=[]] Optional specific fields filter
+     * @returns {Promise<Object>}
+     */
+    async getPageContent(postId, fields = []) {
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+      const id = postId || config.postId || 0;
+
+      if (!id) {
+        throw new Error('Missing post ID for getPageContent');
+      }
+
+      let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id);
+      if (fields && fields.length > 0) {
+        const fieldsStr = Array.isArray(fields) ? fields.join(',') : fields;
+        url += '&fields=' + encodeURIComponent(fieldsStr);
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': nonce,
+        },
+      });
+
+      return await response.json();
     }
   }
 

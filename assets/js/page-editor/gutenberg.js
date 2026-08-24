@@ -93,26 +93,19 @@
     blockRulesCache: null,
 
     /**
-     * Fetch block configuration rules parsed from translatesense_all_xml.
+     * Fetch block configuration rules parsed from editor-xml-config REST endpoint.
      */
     async getBlockRules() {
       if (this.blockRulesCache) {
         return this.blockRulesCache;
       }
 
-      // Check preloaded configuration
       const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      if (config.gutenbergBlockRules && typeof config.gutenbergBlockRules === 'object') {
-        this.blockRulesCache = config.gutenbergBlockRules;
-        return this.blockRulesCache;
-      }
-
-      // Fetch from REST API endpoint
       const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
       const nonce = config.nonce || '';
 
       try {
-        const response = await fetch(restUrl + 'gutenberg-config', {
+        const response = await fetch(restUrl + 'editor-xml-config?editor=gutenberg', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -120,12 +113,12 @@
           },
         });
         const data = await response.json();
-        if (data && data.block_rules) {
-          this.blockRulesCache = data.block_rules;
+        if (data && (data.block_rules || data.rules)) {
+          this.blockRulesCache = data.block_rules || data.rules;
           return this.blockRulesCache;
         }
       } catch (err) {
-        console.warn('[TranslateSense] Could not fetch /gutenberg-config:', err);
+        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=gutenberg:', err);
       }
 
       return {};
@@ -135,7 +128,6 @@
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
-      const { updateBlockAttributes } = window.wp.data.dispatch('core/block-editor');
       const blockRules = await this.getBlockRules();
 
       // Populate TranslateSenseCore stores
@@ -194,6 +186,17 @@
               newAttrs[kName] = transVal;
               hasChanged = true;
             }
+          } else if (val instanceof wp.richText.RichTextData) {
+            const originalHTML = val.originalHTML;
+
+            if (originalHTML && '' !== originalHTML) {
+              const transVal = findTranslation(originalHTML, blockName);
+              if (transVal && transVal !== originalHTML) {
+                newAttrs[kName] = transVal;
+                hasChanged = true;
+              }
+            }
+
           } else if (Array.isArray(val)) {
             // Nested array structure
             const childSchema = kInfo.children || keySchema;
@@ -235,41 +238,19 @@
       };
 
       const traverse = (blockList) => {
-        if (!Array.isArray(blockList)) return;
+        if (!Array.isArray(blockList)) return blockList;
 
         blockList.forEach((block) => {
-          const clientId = block.clientId;
           const blockName = block.name;
           const attrs = block.attributes || {};
-          let updatedAttrs = {};
-          let hasChanges = false;
 
           // Check if we have XML rules for this block
           const rule = blockRules[blockName];
-          console.log(rule)
           if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
             const res = updateAttributeTree(attrs, rule.keys, blockName);
             if (res.changed) {
-              updatedAttrs = res.updated;
-              hasChanges = true;
+              block.attributes = res.updated;
             }
-          } else {
-            // Generic attribute check if block is not in XML rules
-            Object.keys(attrs).forEach((attrKey) => {
-              const attrVal = attrs[attrKey];
-              if (typeof attrVal === 'string' && attrVal.trim() !== '') {
-                const transVal = findTranslation(attrVal, blockName);
-                if (transVal) {
-                  updatedAttrs[attrKey] = transVal;
-                  hasChanges = true;
-                }
-              }
-            });
-          }
-
-          // Dispatch update for this block if changes were made
-          if (hasChanges) {
-            updateBlockAttributes(clientId, updatedAttrs);
           }
 
           // Traverse inner blocks
@@ -283,17 +264,36 @@
     },
 
     /**
-     * Apply all translated strings live to Gutenberg.
+     * Apply all translated strings live to Gutenberg directly from source post content.
      */
-    async apply(strings) {
+    async apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
-      // 1. Update Post Title, Excerpt & Slug
+      const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
+
+      // 1. Update Post Title, Excerpt & Slug from translated source strings
       this.updatePostAttributes(strings);
 
-      // 2. Update Blocks using XML block configuration
-      const blocks = window.wp.data.select('core/block-editor').getBlocks();
-      await this.updateBlocks(blocks, strings);
+      // 2. If source page content is provided, parse into blocks with wp.blocks.parse, translate, and completely reset canvas
+      if (sourceData && sourceData.content && window.wp.blocks && typeof window.wp.blocks.parse === 'function') {
+        const parsedBlocks = window.wp.blocks.parse(sourceData.content);
+
+        if (parsedBlocks && parsedBlocks.length > 0) {
+          await this.updateBlocks(parsedBlocks, strings);
+
+          if (window.wp.data.dispatch('core/block-editor') && typeof window.wp.data.dispatch('core/block-editor').resetBlocks === 'function') {
+            window.wp.data.dispatch('core/block-editor').resetBlocks(parsedBlocks);
+          } else if (window.wp.data.dispatch('core/editor') && typeof window.wp.data.dispatch('core/editor').resetEditorBlocks === 'function') {
+            window.wp.data.dispatch('core/editor').resetEditorBlocks(parsedBlocks);
+          }
+        }
+      } else {
+        // Fallback only if no sourceData is available
+        const currentBlocks = window.wp.data.select('core/block-editor').getBlocks();
+        if (currentBlocks && currentBlocks.length > 0) {
+          await this.updateBlocks(currentBlocks, strings);
+        }
+      }
 
       // 3. Update Meta Fields & SEO
       if (window.TranslateSenseMetaUpdater) {
@@ -302,7 +302,7 @@
 
       // 4. Create Success Notice
       if (window.wp.data.dispatch('core/notices')) {
-        window.wp.data.dispatch('core/notices').createSuccessNotice('✨ Translated content applied to Gutenberg blocks successfully!', {
+        window.wp.data.dispatch('core/notices').createSuccessNotice('✨ Source post content translated and inserted into Gutenberg successfully!', {
           type: 'snackbar',
           isDismissible: true,
         });

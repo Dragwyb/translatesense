@@ -14,6 +14,40 @@
   'use strict';
 
   const ElementorUpdater = {
+    widgetRulesCache: null,
+
+    /**
+     * Fetch widget configuration rules parsed from editor-xml-config REST endpoint.
+     */
+    async getWidgetRules() {
+      if (this.widgetRulesCache) {
+        return this.widgetRulesCache;
+      }
+
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+
+      try {
+        const response = await fetch(restUrl + 'editor-xml-config?editor=elementor', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+        });
+        const data = await response.json();
+        if (data && (data.widget_rules || data.rules)) {
+          this.widgetRulesCache = data.widget_rules || data.rules;
+          return this.widgetRulesCache;
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=elementor:', err);
+      }
+
+      return {};
+    },
+
     /**
      * Get active Elementor instance (current frame or top frame).
      */
@@ -70,6 +104,7 @@
      * Update Elementor Widgets and Models.
      */
     updateWidgets(strings) {
+      console.log(strings)
       const el = this.getElementorScope();
       if (!el || !el.elements || !el.elements.models) return;
 
@@ -189,21 +224,142 @@
     },
 
     /**
-     * Apply all translated strings live to Elementor.
+     * Replace translated strings in Elementor JSON elements structure.
      */
-    apply(strings) {
+    replaceInElementorJson(elements, strings) {
+      if (!Array.isArray(elements)) return elements;
+
+      const findTranslation = (strVal, widgetType = '') => {
+        if (typeof strVal !== 'string' || strVal.trim() === '') return null;
+        const clean = strVal.trim();
+
+        if (window.TranslateSenseCore) {
+          const trans = window.TranslateSenseCore.getTranslatedString(widgetType, clean, null, widgetType);
+          if (trans && trans !== clean) return trans;
+        }
+
+        for (const s of strings) {
+          if (s.translated && s.source && s.source.trim() === clean) {
+            return s.translated;
+          }
+        }
+        return null;
+      };
+
+      const traverse = (list) => {
+        if (!Array.isArray(list)) return;
+
+        list.forEach((item) => {
+          const widgetType = item.widgetType || item.elType || 'widget';
+          if (item.settings && typeof item.settings === 'object') {
+            Object.keys(item.settings).forEach((key) => {
+              const val = item.settings[key];
+              if (typeof val === 'string' && val.trim() !== '') {
+                const transVal = findTranslation(val, widgetType);
+                if (transVal) {
+                  item.settings[key] = transVal;
+                }
+              } else if (Array.isArray(val)) {
+                val.forEach((subItem) => {
+                  if (typeof subItem === 'object' && subItem !== null) {
+                    Object.keys(subItem).forEach((subKey) => {
+                      const subVal = subItem[subKey];
+                      if (typeof subVal === 'string' && subVal.trim() !== '') {
+                        const transSub = findTranslation(subVal, widgetType);
+                        if (transSub) {
+                          subItem[subKey] = transSub;
+                        }
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+
+          if (item.elements && Array.isArray(item.elements)) {
+            traverse(item.elements);
+          }
+        });
+      };
+
+      traverse(elements);
+      return elements;
+    },
+
+    /**
+     * Apply all translated strings live to Elementor purely from source post content.
+     */
+    apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
-      // Find translated title
+      const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
+      const el = this.getElementorScope();
+
+      // 1. Update Page Title from translated source
       const titleItem = strings.find((s) => s.field === 'post_title' || s.field === 'title');
-      if (titleItem && titleItem.translated) {
-        this.updatePageTitle(titleItem.translated);
+      const translatedTitle = titleItem ? titleItem.translated : (sourceData ? sourceData.title : '');
+      if (translatedTitle) {
+        this.updatePageTitle(translatedTitle);
       }
 
-      // Update widget models and canvas
-      this.updateWidgets(strings);
+      // 2. Completely translate and reset/insert data from source post elementor JSON
+      let sourceElementorData = null;
+      if (sourceData) {
+        if (sourceData.content && Array.isArray(sourceData.content)) {
+          sourceElementorData = sourceData.content;
+        } else if (sourceData.content) {
+          try {
+            sourceElementorData = typeof sourceData.content === 'string' ? JSON.parse(sourceData.content) : sourceData.content;
+          } catch (e) {
+            console.warn('[TranslateSense] Error parsing elementor content JSON:', e);
+          }
+        }
+      }
 
-      // Update Meta Fields & SEO
+      if (sourceElementorData && Array.isArray(sourceElementorData) && sourceElementorData.length > 0) {
+        // Replace translated strings inside source JSON structure
+        const updatedJson = this.replaceInElementorJson(JSON.parse(JSON.stringify(sourceElementorData)), strings);
+
+        // Completely reset/replace Elementor canvas elements with updated source JSON data
+        if (el && el.elements && typeof el.elements.reset === 'function') {
+          try {
+            el.elements.reset(updatedJson);
+          } catch (e) {
+            console.warn('[TranslateSense] Elementor elements.reset warning:', e);
+          }
+        }
+
+        // Trigger remote server rendering on all models
+        if (el && el.elements && el.elements.models) {
+          el.elements.models.forEach((model) => {
+            try {
+              if (typeof model.renderRemoteServer === 'function') {
+                model.renderRemoteServer();
+              }
+            } catch (err) {
+              // ignore
+            }
+          });
+        }
+
+        // Mark document as modified
+        try {
+          const topWindow = window.top || window;
+          if (topWindow.$e && topWindow.$e.internal) {
+            topWindow.$e.internal('document/save/set-is-modified', { status: true });
+          } else if (el.saver && typeof el.saver.setFlagEditorChange === 'function') {
+            el.saver.setFlagEditorChange(true);
+          }
+        } catch (e) {
+          console.warn('[TranslateSense] Elementor mark modified warning:', e);
+        }
+      } else {
+        // Fallback if no source elementor data is available
+        this.updateWidgets(strings);
+      }
+
+      // 3. Update Meta Fields & SEO
       if (window.TranslateSenseMetaUpdater) {
         window.TranslateSenseMetaUpdater.apply(strings);
       }

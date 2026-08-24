@@ -366,6 +366,15 @@
           return;
         }
 
+        // Fetch comprehensive source page content using TranslateSenseCore
+        if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+          try {
+            this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
+          } catch (e) {
+            console.warn('[TranslateSense] Could not fetch source page content:', e);
+          }
+        }
+
         const extractRes = await fetch(restUrl + 'extract-strings', {
           method: 'POST',
           headers: {
@@ -563,9 +572,19 @@
      * Apply translated strings back to the active editor (Gutenberg, Elementor, Divi, Classic).
      */
     async applyTranslationsToEditor() {
+      // Ensure sourcePageData is fetched if not present
+      if (!this.sourcePageData && this.sourcePostId && window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+        try {
+          this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
+        } catch (e) {
+          console.warn('[TranslateSense] Could not fetch source page content:', e);
+        }
+      }
+
       if (window.TranslateSenseCore && typeof window.TranslateSenseCore.applyToPageEditor === 'function') {
         const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
           strings: this.strings,
+          sourcePageData: this.sourcePageData,
         });
 
         if (result && result.success) {
@@ -575,6 +594,7 @@
         await window.TranslateSenseLiveUpdater.apply({
           strings: this.strings,
           editorType: this.editorType,
+          options: { sourcePageData: this.sourcePageData },
         });
       } else {
         alert('🎉 Translations applied to page successfully!');

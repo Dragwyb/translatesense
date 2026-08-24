@@ -12,6 +12,40 @@
   'use strict';
 
   const DiviUpdater = {
+    moduleRulesCache: null,
+
+    /**
+     * Fetch module configuration rules parsed from editor-xml-config REST endpoint.
+     */
+    async getModuleRules() {
+      if (this.moduleRulesCache) {
+        return this.moduleRulesCache;
+      }
+
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+
+      try {
+        const response = await fetch(restUrl + 'editor-xml-config?editor=divi', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+        });
+        const data = await response.json();
+        if (data && (data.module_rules || data.rules)) {
+          this.moduleRulesCache = data.module_rules || data.rules;
+          return this.moduleRulesCache;
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=divi:', err);
+      }
+
+      return {};
+    },
+
     getDiviScope() {
       if (window.divi && window.divi.data) return window.divi;
       if (window.top && window.top.divi && window.top.divi.data) return window.top.divi;
@@ -46,10 +80,12 @@
       }
     },
 
-    apply(strings) {
+    apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
-      // 1. Update Page Settings
+      const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
+
+      // 1. Update Page Settings (Title, Excerpt) from source
       this.updatePageSettings(strings);
 
       // 2. Update Meta Fields & SEO
