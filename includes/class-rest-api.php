@@ -82,7 +82,7 @@ class Rest_Api {
 			)
 		);
 
-		// 3.3 Gutenberg Block Config endpoint (reads translatesense_core_xml option)
+		// 3.3 Gutenberg Block Config endpoint (reads translatesense_all_xml option)
 		register_rest_route(
 			self::NAMESPACE,
 			'/gutenberg-config',
@@ -524,34 +524,42 @@ class Rest_Api {
 	 */
 	public static function get_xml_config( WP_REST_Request $request ) {
 		$builder = $request->get_param( 'builder' ) ? sanitize_key( $request->get_param( 'builder' ) ) : 'all';
+		if ( 'core' === $builder ) {
+			$builder = 'all';
+		}
 
-		return rest_ensure_response(
-			array(
-				'builder'       => $builder,
-				'core_xml'      => Xml_Engine::get_core_xml_raw(),
-				'custom_xml'    => Xml_Engine::get_builder_xml_raw( $builder ),
-				'gutenberg_xml' => Xml_Engine::get_builder_xml_raw( 'gutenberg' ),
-				'elementor_xml' => Xml_Engine::get_builder_xml_raw( 'elementor' ),
-				'divi_xml'      => Xml_Engine::get_builder_xml_raw( 'divi' ),
-				'classic_xml'   => Xml_Engine::get_builder_xml_raw( 'classic' ),
-				'rules'         => Xml_Engine::get_all_rules(),
-			)
+		$is_all = ( 'all' === $builder );
+
+		$response = array(
+			'builder'       => $builder,
+			'custom_xml'    => Xml_Engine::get_config( $builder ),
+			'gutenberg_xml' => Xml_Engine::get_config( 'gutenberg' ),
+			'elementor_xml' => Xml_Engine::get_config( 'elementor' ),
+			'divi_xml'      => Xml_Engine::get_config( 'divi' ),
+			'classic_xml'   => Xml_Engine::get_config( 'classic' ),
+			'rules'         => Xml_Engine::get_all_rules( $builder ),
+			'all_rules'     => Xml_Engine::get_all_rules( 'all' ),
 		);
+
+		return rest_ensure_response( $response );
 	}
 
 	/**
 	 * Save custom XML configuration (supports builder and widget_id parameters).
 	 */
 	public static function save_xml_config( WP_REST_Request $request ) {
-		$params     = $request->get_json_params();
-		$builder    = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'all';
+		$params  = $request->get_json_params();
+		$builder = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'all';
+		if ( 'core' === $builder ) {
+			$builder = 'all';
+		}
 		$custom_xml = $params['custom_xml'] ?? '';
 		$widget_id  = isset( $params['widget_id'] ) ? sanitize_text_field( $params['widget_id'] ) : '';
 
 		if ( ! empty( $widget_id ) ) {
 			$saved = Xml_Engine::save_widget_xml_snippet( $builder, $widget_id, $custom_xml );
 		} else {
-			$saved = Xml_Engine::save_builder_xml( $builder, $custom_xml );
+			$saved = Xml_Engine::save_config( $builder, $custom_xml );
 		}
 
 		if ( is_wp_error( $saved ) ) {
@@ -564,9 +572,9 @@ class Rest_Api {
 				'builder'    => $builder,
 				'widget_id'  => $widget_id,
 				'message'    => sprintf( __( '%s XML configuration saved successfully.', 'translatesense' ), ucfirst( $builder ) ),
-				'custom_xml' => Xml_Engine::get_builder_xml_raw( $builder ),
-				'core_xml'   => Xml_Engine::get_core_xml_raw(),
-				'rules'      => Xml_Engine::get_all_rules( true ),
+				'custom_xml' => Xml_Engine::get_config( $builder ),
+				'rules'      => Xml_Engine::get_all_rules( $builder, true ),
+				'all_rules'  => Xml_Engine::get_all_rules( 'all', true ),
 			)
 		);
 	}
@@ -664,11 +672,10 @@ class Rest_Api {
 	}
 
 	/**
-	 * Get Gutenberg block configuration rules parsed from translatesense_core_xml.
+	 * Get Gutenberg block configuration rules parsed from database option table.
 	 */
 	public static function get_gutenberg_config( WP_REST_Request $request ) {
-		$rules           = Xml_Engine::get_all_rules();
-		$gutenberg_rules = $rules['gutenberg'] ?? array();
+		$gutenberg_rules = Xml_Engine::get_all_rules( 'gutenberg' );
 
 		return rest_ensure_response(
 			array(

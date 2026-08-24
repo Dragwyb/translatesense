@@ -17,7 +17,7 @@ class Activator {
 		self::create_tables();
 		self::create_uploads_directory();
 		self::set_default_options();
-		self::save_core_config_to_db();
+		self::save_config_to_db();
 		self::schedule_cleanup_cron();
 	}
 
@@ -102,14 +102,14 @@ class Activator {
 	}
 
 	/**
-	 * Save core-config.xml into database option table on activation.
+	 * Save default configuration into database option table on activation.
 	 */
-	public static function save_core_config_to_db() {
-		$path = Xml_Engine::get_core_xml_path();
+	public static function save_config_to_db() {
+		$path = Xml_Engine::get_master_xml_path();
 		if ( file_exists( $path ) ) {
-			$core_xml = file_get_contents( $path );
-			if ( ! empty( $core_xml ) ) {
-				update_option( 'translatesense_core_xml', $core_xml );
+			$all_xml = file_get_contents( $path );
+			if ( ! empty( $all_xml ) ) {
+				update_option( 'translatesense_all_xml', $all_xml );
 			}
 		}
 	}

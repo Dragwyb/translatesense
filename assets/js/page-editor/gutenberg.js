@@ -93,7 +93,7 @@
     blockRulesCache: null,
 
     /**
-     * Fetch block configuration rules parsed from translatesense_core_xml.
+     * Fetch block configuration rules parsed from translatesense_all_xml.
      */
     async getBlockRules() {
       if (this.blockRulesCache) {
