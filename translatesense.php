@@ -27,6 +27,7 @@ use TranslateSense\Includes\Admin_Menu;
 use TranslateSense\Includes\Bulk_Translate;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Cron;
+use TranslateSense\Includes\Content_Parser\Content_Parser;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -120,6 +121,7 @@ class Plugin {
 		Admin_Menu::init();
 		Bulk_Translate::init();
 		Editor_Integration::init();
+		Content_Parser::init();
 		Cron::init();
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );

@@ -7,6 +7,7 @@ namespace TranslateSense\Includes;
 use WP_REST_Server;
 use WP_REST_Request;
 use WP_Error;
+use TranslateSense\Includes\Content_Parser\Content_Parser;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -860,25 +861,37 @@ class Rest_Api {
 	}
 
 	/**
-	 * Extract translatable strings from post content / Elementor data.
+	 * Extract translatable strings from post content / Elementor data / builders.
 	 */
 	public static function extract_strings( WP_REST_Request $request ) {
-		$params          = $request->get_json_params();
-		$post_id         = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
-		$content         = array();
+		$params  = $request->get_json_params();
+		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+
+		if ( ! $post_id ) {
+			return rest_ensure_response(
+				array(
+					'success' => false,
+					'message' => __( 'Post ID is required.', 'translatesense' ),
+				)
+			);
+		}
+
+		if ( ! isset( $params['builder'] ) || empty( $params['builder'] ) ) {
+			return rest_ensure_response(
+				array(
+					'success' => false,
+					'message' => __( 'Builder is required.', 'translatesense' ),
+				)
+			);
+		}
+
 		$target_lang     = $params['target_lang'] ?? 'es';
-		$editor_type     = $params['builder'] ?? 'gutenberg';
+		$editor_type     = $params['builder'] ?? 'core';
 		$source_language = Polylang_Bridge::get_post_language( $post_id );
 		$package_strings = Hashing_Db::get_post_package( $post_id, $source_language, $editor_type );
 
-		if ( ! isset( $post_package ) || empty( $post_package ) ) {
-			if ( $post_id && empty( $content ) ) {
-				$post = get_post( $post_id );
-				if ( $post ) {
-					$content         = $post->post_content;
-					$package_strings = self::parse_content_for_strings( $content, $post_id, $source_language );
-				}
-			}
+		if ( empty( $package_strings ) ) {
+			$package_strings = Content_Parser::parse( '', $post_id, $source_language, $editor_type );
 		}
 
 		return rest_ensure_response( array( 'strings' => $package_strings ) );
@@ -886,209 +899,10 @@ class Rest_Api {
 
 	/**
 	 * Parse content (blocks or Elementor JSON or plain text) into translatable strings array.
+	 * Maintained as backward-compatible delegation to Content_Parser::parse.
 	 */
-	private static function parse_content_for_strings( $content, $post_id = 0, $lang ) {
-
-		$lang = empty( $lang ) ? Polylang_Bridge::get_post_language( $post_id ) : $lang;
-
-		$rules     = Xml_Engine::get_all_rules();
-		$extracted = array();
-
-		// Check if Elementor post
-		if ( $post_id && 'builder' === get_post_meta( $post_id, '_elementor_edit_mode', true ) ) {
-			$elementor_data = get_post_meta( $post_id, '_elementor_data', true );
-			if ( ! empty( $elementor_data ) ) {
-				$elements = is_string( $elementor_data ) ? json_decode( $elementor_data, true ) : $elementor_data;
-				if ( is_array( $elements ) ) {
-					self::extract_elementor_strings_recursive( $elements, $rules['elementor'], $post_id, $lang, $extracted );
-					return $extracted;
-				}
-			}
-		}
-
-		// Gutenberg Blocks parsing
-		if ( function_exists( 'has_blocks' ) && has_blocks( $content ) ) {
-			$blocks = parse_blocks( $content );
-			self::extract_gutenberg_strings_recursive( $blocks, $rules['gutenberg'], $post_id, $lang, $extracted );
-			return $extracted;
-		}
-
-		// Divi Builder shortcode content parsing
-		if ( false !== strpos( $content, '[et_pb_' ) ) {
-			self::extract_divi_strings( $content, $rules['divi'] ?? array(), $post_id, $lang, $extracted );
-			if ( ! empty( $extracted ) ) {
-				return $extracted;
-			}
-		}
-
-		// Plain text fallback / Classic Editor
-		if ( ! empty( trim( $content ) ) ) {
-			$h = Hashing_Db::generate_hash( 'classic_content', $content );
-			Hashing_Db::record_package( $post_id, $lang, $h, $content, 'classic', 'Classic Editor Body', 'classic_content' );
-			$extracted[] = array(
-				'hash'   => $h,
-				'name'   => 'classic_content',
-				'key'    => 'post_content',
-				'source' => $content,
-				'value'  => $content,
-			);
-		}
-
-		return $extracted;
-	}
-
-	/**
-	 * Extract strings recursively from Gutenberg blocks.
-	 */
-	private static function extract_gutenberg_strings_recursive( $blocks, $gutenberg_rules, $post_id, $lang, &$extracted ) {
-		foreach ( $blocks as $index => $block ) {
-			$name = $block['blockName'];
-			if ( empty( $name ) ) {
-				continue;
-			}
-
-			if ( isset( $gutenberg_rules[ $name ] ) ) {
-				$keys = $gutenberg_rules[ $name ]['keys'];
-				foreach ( $keys as $k_name => $k_info ) {
-					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
-						$val = $block['attrs'][ $k_name ];
-						$h   = Hashing_Db::generate_hash( $name, $val );
-						Hashing_Db::record_package( $post_id, $lang, $h, $val, 'gutenberg', $name, $k_name );
-						$extracted[] = array(
-							'hash'   => $h,
-							'name'   => $name,
-							'key'    => $k_name,
-							'source' => $val,
-							'value'  => $val,
-						);
-					}
-				}
-			}
-
-			// Also extract innerHTML for core/paragraph or generic blocks if content is inside
-			if ( 'core/paragraph' === $name && ! empty( $block['innerHTML'] ) ) {
-				$clean = trim( strip_tags( $block['innerHTML'] ) );
-				if ( ! empty( $clean ) ) {
-					$h = Hashing_Db::generate_hash( 'core/paragraph', $clean );
-					Hashing_Db::record_package( $post_id, $lang, $h, $clean, 'gutenberg', 'core/paragraph', 'innerHTML' );
-					$extracted[] = array(
-						'hash'   => $h,
-						'name'   => 'core/paragraph',
-						'key'    => 'innerHTML',
-						'source' => $clean,
-						'value'  => $clean,
-					);
-				}
-			}
-
-			if ( ! empty( $block['innerBlocks'] ) ) {
-				self::extract_gutenberg_strings_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted );
-			}
-		}
-	}
-
-	/**
-	 * Extract strings recursively from Elementor element trees.
-	 */
-	private static function extract_elementor_strings_recursive( $elements, $elementor_rules, $post_id, $lang, &$extracted ) {
-		foreach ( $elements as $element ) {
-			$el_type     = $element['elType'] ?? '';
-			$widget_type = $element['widgetType'] ?? '';
-
-			if ( 'widget' === $el_type && ! empty( $widget_type ) && isset( $elementor_rules[ $widget_type ] ) ) {
-				$fields   = $elementor_rules[ $widget_type ]['fields'];
-				$settings = $element['settings'] ?? array();
-
-				foreach ( $fields as $path => $f_info ) {
-					$val = self::get_nested_val( $settings, $path );
-					if ( is_string( $val ) && '' !== trim( $val ) ) {
-						$h = Hashing_Db::generate_hash( $widget_type, $val );
-						Hashing_Db::record_package( $post_id, $lang, $h, $val, 'elementor', $widget_type, $path );
-						$extracted[] = array(
-							'hash'   => $h,
-							'name'   => $widget_type,
-							'key'    => $path,
-							'source' => $val,
-							'value'  => $val,
-						);
-					}
-				}
-			}
-
-			if ( ! empty( $element['elements'] ) ) {
-				self::extract_elementor_strings_recursive( $element['elements'], $elementor_rules, $post_id, $lang, $extracted );
-			}
-		}
-	}
-
-	/**
-	 * Extract strings from Divi Builder shortcode content.
-	 */
-	private static function extract_divi_strings( $content, $divi_rules, $post_id, $lang, &$extracted ) {
-		// Pattern for matching Divi module shortcodes
-		if ( preg_match_all( '/\[(et_pb_[a-z0-9_]+)([^\]]*)\](?:(.*?)\[\/\1\])?/s', $content, $matches, PREG_SET_ORDER ) ) {
-			foreach ( $matches as $match ) {
-				$module_name = $match[1];
-				$raw_attrs   = $match[2];
-				$inner_body  = $match[3] ?? '';
-
-				// Parse shortcode attributes
-				$attrs = shortcode_parse_atts( $raw_attrs );
-				if ( is_array( $attrs ) ) {
-					if ( isset( $divi_rules[ $module_name ]['fields'] ) ) {
-						foreach ( $divi_rules[ $module_name ]['fields'] as $field_key => $f_info ) {
-							if ( isset( $attrs[ $field_key ] ) && is_string( $attrs[ $field_key ] ) && '' !== trim( $attrs[ $field_key ] ) ) {
-								$val = $attrs[ $field_key ];
-								$h   = Hashing_Db::generate_hash( $module_name, $val );
-								Hashing_Db::record_package( $post_id, $lang, $h, $val, 'divi', $module_name, $field_key );
-								$extracted[] = array(
-									'hash'   => $h,
-									'name'   => $module_name,
-									'key'    => $field_key,
-									'source' => $val,
-									'value'  => $val,
-								);
-							}
-						}
-					}
-				}
-
-				// Check inner body text for content modules
-				if ( ! empty( $inner_body ) && false === strpos( $inner_body, '[et_pb_' ) ) {
-					$clean_body = trim( $inner_body );
-					if ( ! empty( $clean_body ) ) {
-						$h = Hashing_Db::generate_hash( $module_name, $clean_body );
-						Hashing_Db::record_package( $post_id, $lang, $h, $clean_body, 'divi', $module_name, 'content' );
-						$extracted[] = array(
-							'hash'   => $h,
-							'name'   => $module_name,
-							'key'    => 'content',
-							'source' => $clean_body,
-							'value'  => $clean_body,
-						);
-					}
-				} elseif ( ! empty( $inner_body ) ) {
-					// Recurse inner modules
-					self::extract_divi_strings( $inner_body, $divi_rules, $post_id, $lang, $extracted );
-				}
-			}
-		}
-	}
-
-	/**
-	 * Helper for nested keys with `>` delimiter.
-	 */
-	private static function get_nested_val( $arr, $path ) {
-		$keys = explode( '>', $path );
-		$cur  = $arr;
-		foreach ( $keys as $k ) {
-			if ( is_array( $cur ) && isset( $cur[ $k ] ) ) {
-				$cur = $cur[ $k ];
-			} else {
-				return null;
-			}
-		}
-		return $cur;
+	public static function parse_content_for_strings( $content, $post_id = 0, $lang = '', $builder = '' ) {
+		return Content_Parser::parse( $content, $post_id, $lang, $builder );
 	}
 
 	/**
