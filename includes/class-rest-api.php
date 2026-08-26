@@ -110,7 +110,7 @@ class Rest_Api {
 			self::NAMESPACE,
 			'/get-page-content',
 			array(
-				'methods'             => array( WP_REST_Server::READABLE, WP_REST_Server::CREATABLE ),
+				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_page_content' ),
 				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
 			)
@@ -746,7 +746,8 @@ class Rest_Api {
 	 * Accesses content, title, excerpt, slug, meta fields, and _elementor_data post meta.
 	 */
 	public static function get_page_content( WP_REST_Request $request ) {
-		$params  = array_merge( $request->get_query_params(), (array) $request->get_json_params() );
+		$params = $request->get_params();
+
 		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
 
 		if ( ! $post_id ) {
@@ -876,22 +877,24 @@ class Rest_Api {
 			);
 		}
 
-		if ( ! isset( $params['builder'] ) || empty( $params['builder'] ) ) {
+		$target_lang        = $params['target_lang'] ?? 'es';
+		$target_editor_type = $params['builder'] ?? 'core';
+		$source_editor_type = Editor_Integration::get_post_editor_type( $post_id );
+
+		if ( $target_editor_type !== $source_editor_type ) {
 			return rest_ensure_response(
 				array(
 					'success' => false,
-					'message' => __( 'Builder is required.', 'translatesense' ),
+					'message' => sprintf( __( 'Source editor type (%1$s) must be same as Current Post editor type (%2$s).', 'translatesense' ), $source_editor_type, $target_editor_type ),
 				)
 			);
 		}
 
-		$target_lang     = $params['target_lang'] ?? 'es';
-		$editor_type     = $params['builder'] ?? 'core';
 		$source_language = Polylang_Bridge::get_post_language( $post_id );
-		$package_strings = Hashing_Db::get_post_package( $post_id, $source_language, $editor_type );
+		$package_strings = Hashing_Db::get_post_package( $post_id, $source_language, $source_editor_type );
 
 		if ( empty( $package_strings ) ) {
-			$package_strings = Content_Parser::parse( '', $post_id, $source_language, $editor_type );
+			$package_strings = Content_Parser::parse( '', $post_id, $source_language, $source_editor_type );
 		}
 
 		return rest_ensure_response( array( 'strings' => $package_strings ) );
