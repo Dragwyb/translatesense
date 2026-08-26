@@ -155,6 +155,46 @@
     throw new Error('On-device Chrome AI engine is not available on this browser.');
   }
 
+  /**
+   * Helper: Translate text preserving exact HTML tags and structure (even unclosed tags).
+   */
+  async function translateTextPreservingHtml(sourceText, sourceLang, targetLang) {
+    if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
+      return sourceText;
+    }
+
+    // Split string into HTML tags/comments and text segments
+    // Matches HTML tags (<...>) and comments (<!--...-->)
+    const tagRegex = /(<!--[\s\S]*?-->|<[^>]+>)/g;
+    const parts = sourceText.split(tagRegex);
+
+    let result = '';
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part) continue;
+
+      // If this part is an HTML tag or comment, keep it exactly as-is without adding/closing tags
+      if (part.startsWith('<') && part.endsWith('>')) {
+        result += part;
+      } else {
+        // This is a plain text segment
+        const leadingSpace = part.match(/^\s*/)[0];
+        const trailingSpace = part.match(/\s*$/)[0];
+        const cleanText = part.trim();
+
+        if (cleanText) {
+          const translated = await translateSingleWithChromeAi(cleanText, sourceLang, targetLang);
+          result += leadingSpace + translated + trailingSpace;
+        } else {
+          result += part;
+        }
+      }
+    }
+
+    return result;
+  }
+
   // Register provider on TranslateSenseCore
   window.TranslateSenseCore.registerProvider('chrome_ai', {
     title: 'Chrome Local AI',
@@ -195,8 +235,8 @@
         const sourceText = item.content || item.source || '';
 
         try {
-          // 100% On-device Chrome AI translation
-          const translatedText = await translateSingleWithChromeAi(sourceText, sourceLang, targetLang);
+          // 100% On-device Chrome AI translation preserving HTML structure
+          const translatedText = await translateTextPreservingHtml(sourceText, sourceLang, targetLang);
 
           const itemResult = {
             hash: item.hash || '',
