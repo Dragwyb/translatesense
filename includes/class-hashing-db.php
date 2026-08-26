@@ -169,12 +169,14 @@ class Hashing_Db {
 		global $wpdb;
 
 		$packages_table = self::get_packages_table();
-		$results        = $wpdb->get_var(
+		$results        = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT package_hash as hash, widget_name as name, widget_key as key, source_string as source, filter_string as value from {$packages_table} WHERE post_id = %d AND language=%s",
+				"SELECT package_hash as hash, widget_name as name, widget_key as `key`, source_string as source, filter_string as value from {$packages_table} WHERE post_id = %d AND language=%s AND editor_type=%s",
 				$post_id,
-				$lang
-			)
+				$lang,
+				$editor_type
+			),
+			ARRAY_A
 		);
 
 		return $results;
