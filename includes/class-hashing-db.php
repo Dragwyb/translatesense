@@ -57,17 +57,15 @@ class Hashing_Db {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT translated_strings FROM {$table} WHERE package_hash = %s LIMIT 1",
-				$hash
+				"SELECT translated_string FROM {$table} WHERE package_hash = %s AND language=%s LIMIT 1",
+				$hash,
+				$target_lang
 			),
 			ARRAY_A
 		);
 
-		if ( ! empty( $row['translated_strings'] ) ) {
-			$strings = json_decode( $row['translated_strings'], true );
-			if ( is_array( $strings ) && isset( $strings[ $target_lang ] ) && '' !== $strings[ $target_lang ] ) {
-				return $strings[ $target_lang ];
-			}
+		if ( ! empty( $row['translated_string'] ) ) {
+			return $row['translated_string'];
 		}
 
 		return null;
@@ -167,7 +165,7 @@ class Hashing_Db {
 	 * @param init   $post_id
 	 * @param string $lang
 	 */
-	public static function get_post_package( int $post_id, string $lang ) {
+	public static function get_post_package( int $post_id, string $lang, string $editor_type ) {
 		global $wpdb;
 
 		$packages_table = self::get_packages_table();
@@ -197,8 +195,9 @@ class Hashing_Db {
 
 		$existing = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT id, languages, translated_strings FROM {$table} WHERE package_hash = %s LIMIT 1",
-				$hash
+				"SELECT id, language, translated_string FROM {$table} WHERE package_hash = %s AND language = %s LIMIT 1",
+				$hash,
+				$translated_string
 			),
 			ARRAY_A
 		);
