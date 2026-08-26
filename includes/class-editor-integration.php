@@ -86,6 +86,12 @@ class Editor_Integration {
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
 	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
+		$source_post_id = self::get_source_post_id( $post_id );
+
+		if ( ! $source_post_id ) {
+			return;
+		}
+
 		wp_enqueue_style(
 			'translatesense-editor-css',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor.css',
@@ -191,27 +197,6 @@ class Editor_Integration {
 
 		$settings = get_option( 'translatesense_settings', array() );
 
-		// Resolve source post ID and its editor type
-		$source_post_id = 0;
-		if ( $post_id ) {
-			$source_post_id = (int) get_post_meta( $post_id, '_translatesense_source_id', true );
-			if ( ! $source_post_id && isset( $_GET['from_post'] ) ) { // phpcs:ignore
-				$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
-				update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
-			}
-			// If still empty, check Polylang default language translation
-			if ( ! $source_post_id && Polylang_Bridge::is_polylang_active() ) {
-				$translations = Polylang_Bridge::get_post_translations( $post_id );
-				$default_lang = Polylang_Bridge::get_default_language();
-				if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== (int) $post_id ) {
-					$source_post_id = (int) $translations[ $default_lang ];
-					update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
-				}
-			}
-		} elseif ( isset( $_GET['from_post'] ) ) { // phpcs:ignore
-			$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
-		}
-
 		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
 		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
 
@@ -267,8 +252,12 @@ class Editor_Integration {
 			return;
 		}
 
-		$post_id = (int) $post->ID;
-		self::enqueue_universal_editor_assets( $post_id, 'classic' );
+		$current_screen = get_current_screen();
+		$post_id        = (int) $post->ID;
+
+		if ( method_exists( $current_screen, 'is_block_editor' ) && ! $current_screen->is_block_editor() ) {
+			self::enqueue_universal_editor_assets( $post_id, 'classic' );
+		}
 	}
 
 	/**
@@ -315,6 +304,32 @@ class Editor_Integration {
 		}
 	}
 
+	private static function get_source_post_id( $post_id ) {
+		// Resolve source post ID and its editor type
+		$source_post_id = 0;
+
+		if ( $post_id ) {
+			$source_post_id = (int) get_post_meta( $post_id, '_translatesense_source_id', true );
+			if ( ! $source_post_id && isset( $_GET['from_post'] ) ) { // phpcs:ignore
+				$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
+				update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
+			}
+			// If still empty, check Polylang default language translation
+			if ( ! $source_post_id && Polylang_Bridge::is_polylang_active() ) {
+				$translations = Polylang_Bridge::get_post_translations( $post_id );
+				$default_lang = Polylang_Bridge::get_default_language();
+				if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== (int) $post_id ) {
+					$source_post_id = (int) $translations[ $default_lang ];
+					update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
+				}
+			}
+		} elseif ( isset( $_GET['from_post'] ) ) { // phpcs:ignore
+			$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
+		}
+
+		return $source_post_id;
+	}
+
 	/**
 	 * Add TranslateSense Meta Box only for post types translated/supported by Polylang.
 	 */
@@ -337,7 +352,14 @@ class Editor_Integration {
 	 * Render Meta Box HTML for Gutenberg and Classic Editor.
 	 */
 	public static function render_editor_meta_box( $post ) {
-		$post_id      = $post->ID;
+		$post_id = $post->ID;
+
+		$source_post_id = self::get_source_post_id( $post_id );
+
+		if ( ! $source_post_id ) {
+			return;
+		}
+
 		$current_lang = Polylang_Bridge::get_post_language( $post_id );
 		?>
 		<div class="translatesense-metabox-content" style="padding: 6px 0;">
@@ -359,7 +381,14 @@ class Editor_Integration {
 			return;
 		}
 
-		$post_id   = (int) get_the_ID();
+		$post_id = (int) get_the_ID();
+
+		$source_post_id = self::get_source_post_id( $post_id );
+
+		if ( ! $source_post_id ) {
+			return;
+		}
+
 		$post_type = get_post_type( $post_id );
 
 		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
