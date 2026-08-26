@@ -117,7 +117,7 @@
 
       // Composite list linking source with available translations
       const all = sourceList.map((src) => {
-        const trans = this.getTranslatedString(src.id, src.source, null, src.widget_id);
+        const trans = this.getTranslatedString(src.id, src.value, null, src.widget_id);
         return {
           ...src,
           translated: trans || '',
@@ -142,6 +142,7 @@
      */
     getTranslatedString(id, sourceValue = '', provider = null, widgetOrBlockName = '') {
       const widget = widgetOrBlockName || id || '';
+
       const hash = this.generateHash(widget, sourceValue);
 
       // 1. Check by hash + provider

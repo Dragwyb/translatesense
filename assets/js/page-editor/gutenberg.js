@@ -134,7 +134,7 @@
       if (window.TranslateSenseCore) {
         strings.forEach((s) => {
           const wId = s.widget_id || 'core/paragraph';
-          const src = s.source || '';
+          const src = s.value || '';
           const trans = s.translated || '';
           if (src) {
             window.TranslateSenseCore.saveSourceString(s.field || wId, src, wId);
@@ -158,7 +158,7 @@
 
         // 2. Direct string match
         for (const s of strings) {
-          if (s.translated && s.source && s.source.trim() === clean) {
+          if (s.translated && s.value && s.value.trim() === clean) {
             return s.translated;
           }
         }

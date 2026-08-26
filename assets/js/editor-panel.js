@@ -266,6 +266,8 @@
      * Open Pure Vanilla JS Provider Selection Modal (Grid View).
      */
     openProviderModal() {
+      if (this.editorType !== this.sourceEditorType) return;
+
       const existingModal = document.getElementById('ts-universal-provider-modal');
       if (existingModal) existingModal.remove();
 
@@ -384,6 +386,7 @@
           body: JSON.stringify({
             post_id: this.sourcePostId,
             target_lang: this.targetLang,
+            builder: this.editorType,
           }),
         });
 
