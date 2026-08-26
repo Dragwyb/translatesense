@@ -101,9 +101,9 @@
 
         // Replace translatable strings in source content
         strings.forEach((s) => {
-          if (s.source && s.translated) {
-            if (content.includes(s.source)) {
-              content = content.split(s.source).join(s.translated);
+          if (s.value && s.translated) {
+            if (content.includes(s.value)) {
+              content = content.split(s.value).join(s.translated);
             }
             if (s.field === 'post_title' || s.field === 'title') {
               title = s.translated;
