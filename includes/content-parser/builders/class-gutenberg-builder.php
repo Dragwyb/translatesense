@@ -75,19 +75,20 @@ class Gutenberg_Builder extends Base_Builder {
 			// Match XML configured keys for the block
 			if ( isset( $gutenberg_rules[ $name ]['keys'] ) ) {
 				$keys = $gutenberg_rules[ $name ]['keys'];
+
+				$found_strings = array();
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
-						$val = $block['attrs'][ $k_name ];
+						$val             = $block['attrs'][ $k_name ];
+						$found_strings[] = $val;
 						$this->record_extracted_string( $post_id, $lang, $name, $k_name, $val, $extracted );
 					}
 				}
-			}
 
-			// Also extract innerHTML for core/paragraph or other blocks if not already in attrs
-			if ( 'core/paragraph' === $name && ! empty( $block['innerHTML'] ) ) {
-				$clean = trim( strip_tags( $block['innerHTML'] ) );
-				if ( ! empty( $clean ) ) {
-					$this->record_extracted_string( $post_id, $lang, 'core/paragraph', 'innerHTML', $clean, $extracted );
+				if ( empty( $found_strings ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+					foreach ( $block['innerContent'] as $inner_content ) {
+						$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
+					}
 				}
 			}
 
