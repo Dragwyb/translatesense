@@ -196,6 +196,38 @@ class Content_Parser {
 		return self::parse( $post->post_content, $post_id, $lang, $builder );
 	}
 
+	public static function is_save_package( $post_id ): bool {
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return false;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return false;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return false;
+		}
+
+		$is_translated_post = get_post_meta( $post_id, '_translatesense_source_id', true );
+
+		if ( ! empty( $is_translated_post ) && $is_translated_post !== intval( $post_id ) ) {
+			return false;
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
+			return false;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Handle Elementor document save action.
 	 * Removes old package records for the post and re-parses new strings into packages.
@@ -215,27 +247,11 @@ class Content_Parser {
 
 		$post_id = (int) $ele_doc->get_id();
 
-		if ( ! $post_id ) {
-			return;
-		}
-
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		if ( ! self::is_save_package( $post_id ) ) {
 			return;
 		}
 
 		$post = get_post( $post_id );
-
-		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
-			return;
-		}
 
 		// Detect source language
 		$lang = '';
@@ -263,24 +279,13 @@ class Content_Parser {
 	 * @param \WP_Post|null $post    Post object
 	 */
 	public static function handle_save_post( int $post_id, $post = null ): void {
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
 
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		if ( ! self::is_save_package( $post_id ) ) {
 			return;
 		}
 
 		if ( ! $post ) {
 			$post = get_post( $post_id );
-		}
-
-		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
-			return;
 		}
 
 		// Detect source language
