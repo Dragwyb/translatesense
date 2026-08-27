@@ -336,6 +336,124 @@
     }
 
     /**
+     * Get details for currently selected provider.
+     */
+    getSelectedProviderInfo() {
+      const providers = getRegisteredProviders();
+      return providers.find((p) => p.id === this.selectedProvider) || {
+        id: this.selectedProvider,
+        title: this.selectedProvider.toUpperCase(),
+        icon: '⚡',
+      };
+    }
+
+    /**
+     * Show Translation Progress Overlay on top of the String Review Modal with blur effect.
+     *
+     * @param {number} totalStrings Total strings to translate.
+     * @param {string} initialStatus Status text.
+     */
+    showTranslationProgressModal(totalStrings = 0, initialStatus = 'Extracting strings...') {
+      this.closeTranslationProgressModal(true);
+
+      // Ensure review modal exists so overlay sits directly on top of it
+      let reviewContainer = document.querySelector('#ts-universal-review-modal .ts-review-container');
+      if (!reviewContainer) {
+        this.openReviewModal();
+        reviewContainer = document.querySelector('#ts-universal-review-modal .ts-review-container');
+      }
+
+      const providerInfo = this.getSelectedProviderInfo();
+      const overlay = document.createElement('div');
+      overlay.id = 'ts-translation-progress-modal';
+      overlay.className = 'ts-review-progress-overlay';
+      overlay.innerHTML = `
+        <div class="ts-progress-modal-card" onclick="event.stopPropagation()">
+          <div class="ts-coffee-visual">
+            <div class="ts-coffee-circle-bg"></div>
+            <svg class="ts-coffee-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 52C12 50.8954 12.8954 50 14 50H50C51.1046 50 52 50.8954 52 52C52 53.1046 51.1046 54 50 54H14C12.8954 54 12 53.1046 12 52Z" fill="#94A3B8"/>
+              <path d="M16 26H48V38C48 44.6274 42.6274 50 36 50H28C21.3726 50 16 44.6274 16 38V26Z" fill="url(#tsCoffeeGrad)"/>
+              <path d="M48 30H51C53.7614 30 56 32.2386 56 35C56 37.7614 53.7614 40 51 40H48" stroke="#4F46E5" stroke-width="3.5" stroke-linecap="round"/>
+              <path class="ts-steam-line ts-steam-1" d="M26 20C25 17 27 14 26 11" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"/>
+              <path class="ts-steam-line ts-steam-2" d="M32 21C31 17 33 13 32 9" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"/>
+              <path class="ts-steam-line ts-steam-3" d="M38 20C37 17 39 14 38 11" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"/>
+              <defs>
+                <linearGradient id="tsCoffeeGrad" x1="16" y1="26" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6366F1"/>
+                  <stop offset="1" stop-color="#4338CA"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          <div class="ts-progress-header-badge">
+            <span>🌐 Translating to ${this.targetLang.toUpperCase()}</span>
+          </div>
+
+          <h3 class="ts-progress-title">Translation in progress...</h3>
+          <p class="ts-progress-coffee-quote">
+            Translation will take a few seconds or a minute, you can enjoy your coffee ☕ during this process.
+          </p>
+
+          <div class="ts-progress-section">
+            <div class="ts-progress-meta-top">
+              <span class="ts-progress-status-label" id="ts-modal-progress-status">${initialStatus}</span>
+              <span class="ts-progress-percent-badge" id="ts-modal-progress-percent">0%</span>
+            </div>
+            <div class="ts-progress-track-wrap">
+              <div class="ts-progress-track-fill" id="ts-modal-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="ts-progress-sub-info">
+              <span id="ts-modal-progress-subtext">${totalStrings > 0 ? `0 of ${totalStrings} strings translated` : 'Initializing translation...'}</span>
+              <span class="ts-progress-provider-tag">
+                <span>${providerInfo.icon}</span> ${providerInfo.title}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (reviewContainer) {
+        reviewContainer.appendChild(overlay);
+      } else {
+        document.body.appendChild(overlay);
+      }
+    }
+
+    /**
+     * Update Translation Progress Bar & Status Text.
+     */
+    updateTranslationProgress(percent = 0, statusText = '', subText = '') {
+      const bar = document.getElementById('ts-modal-progress-bar');
+      const percentEl = document.getElementById('ts-modal-progress-percent');
+      const statusEl = document.getElementById('ts-modal-progress-status');
+      const subTextEl = document.getElementById('ts-modal-progress-subtext');
+
+      const clampedPercent = Math.min(100, Math.max(0, Math.round(percent)));
+
+      if (bar) bar.style.width = clampedPercent + '%';
+      if (percentEl) percentEl.textContent = clampedPercent + '%';
+      if (statusText && statusEl) statusEl.textContent = statusText;
+      if (subText && subTextEl) subTextEl.textContent = subText;
+    }
+
+    /**
+     * Close Translation Progress Overlay with smooth fade out.
+     */
+    closeTranslationProgressModal(immediate = false) {
+      const modal = document.getElementById('ts-translation-progress-modal');
+      if (!modal) return;
+
+      if (immediate) {
+        modal.remove();
+      } else {
+        modal.classList.add('ts-fade-out');
+        setTimeout(() => modal.remove(), 320);
+      }
+    }
+
+    /**
      * Extract strings from current active editor and run translation.
      */
     async processServerPostTranslation() {
@@ -357,6 +475,31 @@
       });
 
       return await response.json();
+    }
+
+    /**
+     * Check if a string represents an email address, URL, or URL-related file path.
+     * @param {string} str
+     * @returns {boolean}
+     */
+    isEmailOrUrl(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim();
+      if (!clean) return false;
+
+      // 1. Email or mailto:
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) || /^mailto:/i.test(clean)) return true;
+
+      // 2. Protocols and schemes
+      if (/^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i.test(clean)) return true;
+
+      // 3. Media or asset paths
+      if (/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i.test(clean)) return true;
+
+      // 4. Domain-like strings
+      if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i.test(clean)) return true;
+
+      return false;
     }
 
     async extractAndTranslate() {
@@ -391,7 +534,12 @@
         });
 
         const data = await extractRes.json();
-        if (!data.strings || data.strings.length === 0) {
+        let rawStrings = Array.isArray(data.strings) ? data.strings : [];
+
+        // Exclude email addresses, URLs, and asset paths from translation
+        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || s.source || ''));
+
+        if (!rawStrings || rawStrings.length === 0) {
           const serverRes = await this.processServerPostTranslation();
 
           if (serverRes.success && serverRes.edit_url) {
@@ -403,10 +551,11 @@
           return;
         }
 
-        this.strings = data.strings;
+        this.strings = rawStrings;
         this.openReviewModal();
         await this.performBatchTranslation();
       } catch (err) {
+        this.closeTranslationProgressModal(true);
         alert('Extraction Error: ' + (err.message || 'Unknown error'));
       }
     }
@@ -416,14 +565,21 @@
      */
     async performBatchTranslation() {
       this.isTranslating = true;
-      this.updateReviewTableStatus('Translating...');
+      const total = this.strings.length;
+
+      // Show progress overlay on top of string modal
+      this.showTranslationProgressModal(total, 'Starting translation...');
+      this.updateTranslationProgress(10, 'Preparing strings...', `0 of ${total} strings translated`);
+
+      const startTime = performance.now();
+      let completedCount = 0;
 
       try {
         const itemsToTranslate = this.strings.map((s) => ({
           hash: s.hash,
           widget_id: s.name,
           field: s.key,
-          source: s.source,
+          source: s.source || s.value,
           content: s.value,
         }));
 
@@ -448,7 +604,18 @@
             }
             return item;
           });
+
+          // Live update table rows in background under the blur
           this.renderReviewTableRows();
+
+          // Count translated
+          completedCount = this.strings.filter((s) => s.translated && s.translated.trim() !== '').length;
+          const pct = Math.min(98, Math.max(15, Math.round((completedCount / total) * 100)));
+          this.updateTranslationProgress(
+            pct,
+            `Translating strings... (${pct}%)`,
+            `${completedCount} of ${total} strings translated`
+          );
         };
 
         await window.TranslateSenseCore.translate(
@@ -461,48 +628,175 @@
           },
           onProgress
         );
+
+        // Compute Statistics (based on original source characters)
+        const elapsedMs = performance.now() - startTime;
+        const elapsedSec = (elapsedMs / 1000).toFixed(1);
+        const timeFormatted = elapsedMs >= 60000
+          ? `${Math.floor(elapsedMs / 60000)}m ${Math.round((elapsedMs % 60000) / 1000)}s`
+          : `${elapsedSec}s`;
+
+        const totalSourceChars = this.strings.reduce((sum, s) => {
+          const val = String(s.value || s.source || '');
+          return sum + val.length;
+        }, 0);
+
+        const totalTransChars = this.strings.reduce((sum, s) => {
+          const isTranslated = s.translated && String(s.translated).trim() !== '';
+          if (isTranslated) {
+            const originalVal = String(s.value || s.source || '');
+            return sum + originalVal.length;
+          }
+          return sum;
+        }, 0);
+
+        this.translationStats = {
+          timeTaken: timeFormatted,
+          totalChars: totalSourceChars,
+          translatedChars: totalTransChars,
+          stringCount: total,
+        };
+
+        // Update Stats Header in Review Modal
+        this.updateStatsHeader();
+
+        // 100% Progress Complete
+        this.updateTranslationProgress(
+          100,
+          '✓ Translation Completed (100%)',
+          `All ${total} strings translated successfully!`
+        );
+
+        // Graceful 1-2 seconds delay (1400ms) before fading out overlay
+        await new Promise((resolve) => setTimeout(resolve, 1400));
+
+        this.closeTranslationProgressModal();
       } catch (err) {
+        this.closeTranslationProgressModal(true);
         alert('Translation Batch Error: ' + (err.message || 'Error'));
       } finally {
         this.isTranslating = false;
-        this.updateReviewTableStatus('Re-Translate All');
+        this.updateReviewTableStatus('⚡ Re-Translate All');
       }
     }
 
     /**
-     * Open Pure Vanilla JS Strings Review Modal.
+     * Update stats cards in review modal header dynamically based on original characters.
+     */
+    updateStatsHeader() {
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalTransChars = this.strings.reduce((sum, s) => {
+        const isTranslated = s.translated && String(s.translated).trim() !== '';
+        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+      }, 0);
+
+      const timeEl = document.querySelector('#ts-universal-review-modal .ts-stat-time .ts-stat-value');
+      const srcCharsEl = document.querySelector('#ts-universal-review-modal .ts-stat-source-chars .ts-stat-value');
+      const transCharsEl = document.querySelector('#ts-universal-review-modal .ts-stat-trans-chars .ts-stat-value');
+      const totalEl = document.querySelector('#ts-universal-review-modal .ts-stat-total .ts-stat-value');
+
+      if (this.translationStats && timeEl) timeEl.textContent = this.translationStats.timeTaken;
+      if (srcCharsEl) srcCharsEl.textContent = totalSourceChars.toLocaleString();
+      if (transCharsEl) transCharsEl.textContent = totalTransChars.toLocaleString();
+      if (totalEl) totalEl.textContent = this.strings.length;
+    }
+
+    /**
+     * Open Pure Vanilla JS Strings Review Modal with Header Stats Bar.
      */
     openReviewModal() {
-      const existing = document.getElementById('ts-universal-review-modal');
-      if (existing) existing.remove();
+      let modalContainer = document.getElementById('ts-universal-review-modal');
+      if (modalContainer) return; // Keep existing if already opened
 
-      const modalContainer = document.createElement('div');
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalTransChars = this.strings.reduce((sum, s) => {
+        const isTranslated = s.translated && String(s.translated).trim() !== '';
+        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+      }, 0);
+
+      const stats = this.translationStats || {
+        timeTaken: '0.0s',
+        totalChars: totalSourceChars,
+        translatedChars: totalTransChars,
+        stringCount: this.strings.length,
+      };
+
+      const providerInfo = this.getSelectedProviderInfo();
+
+      modalContainer = document.createElement('div');
       modalContainer.id = 'ts-universal-review-modal';
       modalContainer.className = 'ts-strings-review-modal';
       modalContainer.innerHTML = `
         <div class="ts-review-container" onclick="event.stopPropagation()">
           <div class="ts-review-header">
-            <h3>Review Translations (${this.targetLang.toUpperCase()}) - <span id="ts-strings-count">${this.strings.length}</span> Strings</h3>
-            <button class="ts-bulk-close" id="ts-review-modal-close">✕</button>
+            <div class="ts-review-header-title">
+              <h3>⚡ Review Translations</h3>
+              <span class="ts-badge-pill">🌐 ${this.targetLang.toUpperCase()}</span>
+              <span class="ts-badge-pill">${providerInfo.icon} ${providerInfo.title}</span>
+            </div>
+            <button class="ts-bulk-close" id="ts-review-modal-close" title="Close">✕</button>
           </div>
           <div class="ts-review-body">
-            <div style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
-              <button type="button" class="ts-btn ts-btn-primary" id="ts-retranslate-btn">
-                ⚡ Re-Translate All
-              </button>
+            <!-- Header Stats Bar -->
+            <div class="ts-modal-stats-bar">
+              <div class="ts-stat-card ts-stat-time">
+                <div class="ts-stat-icon-wrap">⏱️</div>
+                <div class="ts-stat-content">
+                  <span class="ts-stat-label">Translation Time</span>
+                  <span class="ts-stat-value">${stats.timeTaken}</span>
+                </div>
+              </div>
+              <div class="ts-stat-card ts-stat-source-chars">
+                <div class="ts-stat-icon-wrap">📄</div>
+                <div class="ts-stat-content">
+                  <span class="ts-stat-label">Total Characters</span>
+                  <span class="ts-stat-value">${stats.totalChars.toLocaleString()}</span>
+                </div>
+              </div>
+              <div class="ts-stat-card ts-stat-trans-chars">
+                <div class="ts-stat-icon-wrap">✨</div>
+                <div class="ts-stat-content">
+                  <span class="ts-stat-label">Translated Chars</span>
+                  <span class="ts-stat-value">${stats.translatedChars.toLocaleString()}</span>
+                </div>
+              </div>
+              <div class="ts-stat-card ts-stat-total">
+                <div class="ts-stat-icon-wrap">🔤</div>
+                <div class="ts-stat-content">
+                  <span class="ts-stat-label">Total Strings</span>
+                  <span class="ts-stat-value">${stats.stringCount}</span>
+                </div>
+              </div>
             </div>
-            <table class="ts-strings-table">
-              <thead>
-                <tr>
-                  <th style="width: 40%;">Source Text (XML Rule)</th>
-                  <th style="width: 15%;">Status</th>
-                  <th style="width: 45%;">Translated Text (Editable)</th>
-                </tr>
-              </thead>
-              <tbody id="ts-review-table-tbody"></tbody>
-            </table>
+
+            <!-- Toolbar (Search & Actions) -->
+            <div class="ts-review-toolbar">
+              <div class="ts-review-search-wrap">
+                <span class="ts-review-search-icon">🔍</span>
+                <input type="text" id="ts-review-search-input" class="ts-review-search-input" placeholder="Search source or translated text..." />
+              </div>
+              <div>
+                <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-retranslate-btn">
+                  ⚡ Re-Translate All
+                </button>
+              </div>
+            </div>
+
+            <!-- Strings Table Card -->
+            <div class="ts-table-card">
+              <table class="ts-strings-table">
+                <thead>
+                  <tr>
+                    <th style="width: 38%;">Source Text & XML Rule</th>
+                    <th style="width: 14%;">Status</th>
+                    <th style="width: 48%;">Translated Text (Editable)</th>
+                  </tr>
+                </thead>
+                <tbody id="ts-review-table-tbody"></tbody>
+              </table>
+            </div>
           </div>
-          <div class="ts-review-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+          <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-review-cancel-btn">Cancel</button>
             <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-apply-to-editor-btn">✓ Apply to Page</button>
           </div>
@@ -516,9 +810,17 @@
       document.getElementById('ts-review-modal-close').addEventListener('click', closeModal);
       document.getElementById('ts-review-cancel-btn').addEventListener('click', closeModal);
 
+      // Search filter listener
+      const searchInput = document.getElementById('ts-review-search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          this.renderReviewTableRows(e.target.value);
+        });
+      }
+
       // Re-translate button
-      document.getElementById('ts-retranslate-btn').addEventListener('click', () => {
-        this.performBatchTranslation();
+      document.getElementById('ts-retranslate-btn').addEventListener('click', async () => {
+        await this.performBatchTranslation();
       });
 
       // Apply to editor button
@@ -530,37 +832,111 @@
       this.renderReviewTableRows();
     }
 
-    renderReviewTableRows() {
+    /**
+     * Render review table rows with optional search filtering and live character counter.
+     */
+    renderReviewTableRows(filterQuery = '') {
       const tbody = document.getElementById('ts-review-table-tbody');
       if (!tbody) return;
 
-      tbody.innerHTML = this.strings.map((item, idx) => `
-        <tr data-idx="${idx}">
-          <td>
-            <div class="ts-source-text">${item.value || ''}</div>
-            <div class="ts-widget-tag">${item.name || 'block'} &rarr; ${item.key || 'text'}</div>
-          </td>
-          <td>
-            <span class="ts-status-tag ${(item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '')}">
-              ${item.status || 'Pending'}
-            </span>
-          </td>
-          <td>
-            <input type="text" class="ts-trans-input" data-idx="${idx}" value="${(item.translated || '').replace(/"/g, '&quot;')}" placeholder="Enter translation..." />
-          </td>
-        </tr>
-      `).join('');
+      const q = (filterQuery || '').toLowerCase().trim();
+      const filtered = this.strings
+        .map((item, idx) => ({ ...item, originalIndex: idx }))
+        .filter((item) => {
+          if (!q) return true;
+          const src = String(item.value || item.source || '').toLowerCase();
+          const trans = String(item.translated || '').toLowerCase();
+          const name = String(item.name || '').toLowerCase();
+          const key = String(item.key || '').toLowerCase();
+          return src.includes(q) || trans.includes(q) || name.includes(q) || key.includes(q);
+        });
 
-      // Input changes listener
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; padding: 36px 20px; color: #64748b;">
+              <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
+              <div>No matching strings found for "<strong>${this.escapeHtml(filterQuery)}</strong>".</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((item) => {
+        const idx = item.originalIndex;
+        const sourceVal = item.value || item.source || '';
+        const transVal = item.translated || '';
+        const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
+
+        return `
+          <tr data-idx="${idx}">
+            <td>
+              <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
+              <div class="ts-widget-tag">
+                <span>🧩</span>
+                <span>${this.escapeHtml(item.name || 'block')} &rarr; ${this.escapeHtml(item.key || 'text')}</span>
+                <span style="margin-left: 4px; opacity: 0.85;">(${sourceVal.length} chars)</span>
+              </div>
+            </td>
+            <td>
+              <span class="ts-status-tag ${statusClass}">
+                ${item.status || 'Pending'}
+              </span>
+            </td>
+            <td>
+              <div class="ts-input-wrap">
+                <textarea class="ts-trans-input" data-idx="${idx}" placeholder="Enter translation...">${this.escapeHtml(transVal)}</textarea>
+                <span class="ts-row-char-count" id="ts-char-count-${idx}">${transVal.length} chars</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Input changes listener & dynamic character counter
       tbody.querySelectorAll('.ts-trans-input').forEach((input) => {
         input.addEventListener('input', (e) => {
           const idx = parseInt(e.target.getAttribute('data-idx'), 10);
+          const val = e.target.value;
           if (this.strings[idx]) {
-            this.strings[idx].translated = e.target.value;
+            this.strings[idx].translated = val;
             this.strings[idx].status = 'Custom';
+
+            // Update row status badge if needed
+            const row = e.target.closest('tr');
+            if (row) {
+              const badge = row.querySelector('.ts-status-tag');
+              if (badge) {
+                badge.className = 'ts-status-tag custom';
+                badge.textContent = 'Custom';
+              }
+            }
+
+            // Update character count
+            const counter = document.getElementById(`ts-char-count-${idx}`);
+            if (counter) {
+              counter.textContent = `${val.length} chars`;
+            }
+
+            // Dynamically recompute header Translated Chars count based on original source characters
+            this.updateStatsHeader();
           }
         });
       });
+    }
+
+    /**
+     * Escape HTML special characters for safe DOM insertion.
+     */
+    escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     updateReviewTableStatus(text) {
@@ -612,3 +988,4 @@
 
   initTranslateSenseEditor();
 })(window, document);
+
