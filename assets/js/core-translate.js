@@ -407,13 +407,83 @@
     }
 
     /**
-     * Helper: Translate text preserving exact HTML tags and structure (even unclosed tags).
-     * Splits sourceText into HTML tags/comments and plain text segments, executes translateCallback
-     * on each clean text segment, and returns the reconstructed string.
+     * Mask inline URLs, email addresses, and protocols with unique protected placeholder tokens.
+     * Prevents translation engines from translating or corrupting links embedded inside text.
+     * 
+     * @param {string} text Plain text segment.
+     * @returns {{ maskedText: string, tokenMap: Object }}
+     */
+    maskUrlsAndEmails(text) {
+      if (!text || typeof text !== 'string') {
+        return { maskedText: text || '', tokenMap: {} };
+      }
+
+      const tokenMap = {};
+      let counter = 0;
+
+      // Regex matching:
+      // 1. Full URLs: http(s)://..., ftp://...
+      // 2. www-prefixed domains: www.example.com/...
+      // 3. Email addresses: user@domain.com
+      // 4. mailto: or tel: links
+      const pattern = /(https?:\/\/[^\s<>"'`]+|ftp:\/\/[^\s<>"'`]+|www\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"'`]*|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|mailto:[^\s<>"'`]+|tel:\+?[0-9\s-]{6,})/gi;
+
+      const maskedText = text.replace(pattern, (match) => {
+        // Strip trailing sentence punctuation if captured (e.g. "https://domain.com/us," -> "," is stripped)
+        let cleanMatch = match;
+        let trailingPunctuation = '';
+
+        while (cleanMatch.length > 0 && /[.,;:!?)\],>]$/.test(cleanMatch)) {
+          trailingPunctuation = cleanMatch.slice(-1) + trailingPunctuation;
+          cleanMatch = cleanMatch.slice(0, -1);
+        }
+
+        if (!cleanMatch) {
+          return match;
+        }
+
+        const token = `__TS_LINK_${counter}__`;
+        tokenMap[token] = cleanMatch;
+        counter++;
+
+        return token + trailingPunctuation;
+      });
+
+      return { maskedText, tokenMap };
+    }
+
+    /**
+     * Restore masked URL and email placeholder tokens with their original values.
+     * 
+     * @param {string} text Translated text containing placeholder tokens.
+     * @param {Object} tokenMap Map of token => original string.
+     * @returns {string} Text with original URLs and emails restored.
+     */
+    unmaskUrlsAndEmails(text, tokenMap) {
+      if (!text || typeof text !== 'string' || !tokenMap || typeof tokenMap !== 'object') {
+        return text || '';
+      }
+
+      let restored = text;
+
+      for (const [token, originalVal] of Object.entries(tokenMap)) {
+        // Match token even if translation provider slightly altered casing or spacing
+        const innerToken = token.replace(/^__+|__+$/g, '');
+        const tokenRegex = new RegExp(`__\\s*${innerToken}\\s*__`, 'gi');
+        restored = restored.replace(tokenRegex, originalVal);
+      }
+
+      return restored;
+    }
+
+    /**
+     * Helper: Translate text preserving exact HTML tags, structure, and inline URLs/emails.
+     * Splits sourceText into HTML tags/comments and plain text segments, masks inline URLs/emails,
+     * executes translateCallback on clean text segments, and returns the reconstructed string.
      *
-     * @param {string} sourceText Source string potentially containing HTML tags/comments.
+     * @param {string} sourceText Source string potentially containing HTML tags/comments and inline URLs.
      * @param {Function} translateCallback Async or sync callback: async (cleanText: string) => translatedText
-     * @returns {Promise<string>} Translated string with exact HTML tags and spacing preserved.
+     * @returns {Promise<string>} Translated string with exact HTML tags, spacing, and URLs preserved.
      */
     async translateTextPreservingHtml(sourceText, translateCallback) {
       if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
@@ -447,12 +517,21 @@
           const cleanText = part.trim();
 
           if (cleanText) {
-            // Check if clean text is an email address or URL
+            // If the entire text segment is just a URL or email, preserve it directly
             if (this.isEmailOrUrl(cleanText)) {
               result += leadingSpace + cleanText + trailingSpace;
             } else {
-              const translated = await translateCallback(cleanText);
-              result += leadingSpace + (translated !== undefined && translated !== null ? translated : cleanText) + trailingSpace;
+              // Mask inline URLs and email addresses so they are not altered by translation
+              const { maskedText, tokenMap } = this.maskUrlsAndEmails(cleanText);
+              let translated = await translateCallback(maskedText);
+
+              if (translated !== undefined && translated !== null) {
+                translated = this.unmaskUrlsAndEmails(translated, tokenMap);
+              } else {
+                translated = cleanText;
+              }
+
+              result += leadingSpace + translated + trailingSpace;
             }
           } else {
             result += part;
