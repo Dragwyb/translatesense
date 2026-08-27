@@ -89,16 +89,6 @@
         <gutenberg-block name="tadv/classic-paragraph">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="cp-timeline/content-timeline-child">
-            <key name="t_date" />
-            <key name="time_desc" />
-            <key name="time_heading" />
-        </gutenberg-block>
-        <gutenberg-block name="cp-timeline/content-timeline-block-child">
-            <key name="t_date" />
-            <key name="time_desc" />
-            <key name="time_heading" />
-        </gutenberg-block>
         <gutenberg-block name="uagb/advanced-heading">
             <key name="headingTitle" />
             <key name="headingDesc" />
