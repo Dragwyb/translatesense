@@ -52,6 +52,11 @@ abstract class Base_Builder {
 			return array();
 		}
 
+		// Skip email addresses, URLs, and file path references
+		if ( $this->is_email_or_url( (string) $filtered_value ) || $this->is_email_or_url( $value ) ) {
+			return array();
+		}
+
 		$builder_slug = ! empty( $builder ) ? $builder : $this->get_builder_slug();
 		$hash         = Hashing_Db::generate_hash( $name, $filtered_value );
 
@@ -70,6 +75,56 @@ abstract class Base_Builder {
 
 		$extracted[] = $item;
 		return $item;
+	}
+
+	/**
+	 * Check if a string is an email address, URL, or URL-related value.
+	 *
+	 * @param string $str
+	 * @return bool
+	 */
+	public function is_email_or_url( string $str ): bool {
+		$trimmed = trim( strip_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
+
+		if ( '' === $trimmed ) {
+			return false;
+		}
+
+		// 1. Email validation or mailto: links
+		if ( filter_var( $trimmed, FILTER_VALIDATE_EMAIL ) ) {
+			return true;
+		}
+		if ( 0 === stripos( $trimmed, 'mailto:' ) ) {
+			return true;
+		}
+		if ( preg_match( '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $trimmed ) ) {
+			return true;
+		}
+
+		// 2. Direct URL validation
+		if ( filter_var( $trimmed, FILTER_VALIDATE_URL ) ) {
+			return true;
+		}
+
+		// 3. Common URL protocols & schemas (http, https, ftp, //, www, tel, sms, javascript, etc.)
+		if ( preg_match( '/^(https?:\/\/|ftp:\/\/|\/\/|www\.)/i', $trimmed ) ) {
+			return true;
+		}
+		if ( preg_match( '/^(tel:|sms:|javascript:|callto:|whatsapp:)/i', $trimmed ) ) {
+			return true;
+		}
+
+		// 4. Common media / asset file URLs or paths
+		if ( preg_match( '/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i', $trimmed ) ) {
+			return true;
+		}
+
+		// 5. Domain-like strings (e.g. domain.com/path)
+		if ( preg_match( '/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i', $trimmed ) ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

@@ -22,7 +22,7 @@ class Translator {
 	 * @return array array( 'translated' => string, 'cached' => bool, 'hash' => string )
 	 */
 	public static function translate_string( $source_string, $source_lang, $target_lang, $widget_id = 'generic', $post_id = 0, $custom_options = array() ) {
-		if ( empty( trim( $source_string ) ) || $source_lang === $target_lang ) {
+		if ( empty( trim( $source_string ) ) || $source_lang === $target_lang || self::is_email_or_url( $source_string ) ) {
 			return array(
 				'translated' => $source_string,
 				'cached'     => true,
@@ -68,6 +68,41 @@ class Translator {
 	}
 
 	/**
+	 * Check if a string is an email, URL, or asset path.
+	 *
+	 * @param string $str
+	 * @return bool
+	 */
+	public static function is_email_or_url( string $str ): bool {
+		$trimmed = trim( strip_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
+
+		if ( '' === $trimmed ) {
+			return false;
+		}
+
+		if ( filter_var( $trimmed, FILTER_VALIDATE_EMAIL ) || 0 === stripos( $trimmed, 'mailto:' ) ) {
+			return true;
+		}
+		if ( preg_match( '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $trimmed ) ) {
+			return true;
+		}
+		if ( filter_var( $trimmed, FILTER_VALIDATE_URL ) ) {
+			return true;
+		}
+		if ( preg_match( '/^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i', $trimmed ) ) {
+			return true;
+		}
+		if ( preg_match( '/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i', $trimmed ) ) {
+			return true;
+		}
+		if ( preg_match( '/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i', $trimmed ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Translate a batch of strings.
 	 */
 	public static function translate_batch( $strings_array, $source_lang, $target_lang, $widget_ids = array(), $post_id = 0, $custom_options = array() ) {
@@ -85,7 +120,13 @@ class Translator {
 		$to_translate = array();
 		foreach ( $strings_array as $idx => $str ) {
 			$h = $hashes[ $idx ];
-			if ( isset( $cached_map[ $h ] ) ) {
+			if ( self::is_email_or_url( (string) $str ) ) {
+				$results[ $idx ] = array(
+					'translated' => $str,
+					'cached'     => true,
+					'hash'       => $h,
+				);
+			} elseif ( isset( $cached_map[ $h ] ) ) {
 				$results[ $idx ] = array(
 					'translated' => $cached_map[ $h ],
 					'cached'     => true,

@@ -382,6 +382,31 @@
     }
 
     /**
+     * Check if a string represents an email address, URL, or URL-related file path.
+     * @param {string} str
+     * @returns {boolean}
+     */
+    isEmailOrUrl(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim();
+      if (!clean) return false;
+
+      // 1. Email or mailto:
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) || /^mailto:/i.test(clean)) return true;
+
+      // 2. Protocols and schemes
+      if (/^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i.test(clean)) return true;
+
+      // 3. Media or asset paths
+      if (/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i.test(clean)) return true;
+
+      // 4. Domain-like strings
+      if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i.test(clean)) return true;
+
+      return false;
+    }
+
+    /**
      * Execute translation using the registered provider.
      * 
      * @param {string} providerId Provider ID to use
@@ -398,8 +423,33 @@
 
       const safeCallback = typeof onProgressCallback === 'function' ? onProgressCallback : () => { };
 
+      // Filter out items that are email addresses or URLs
+      const translatableItems = [];
+      const skippedResults = [];
+
+      (params.items || []).forEach((item) => {
+        const text = item.content || item.source || '';
+        if (this.isEmailOrUrl(text)) {
+          const res = {
+            hash: item.hash,
+            source: text,
+            translated: text,
+            status: 'Completed',
+          };
+          skippedResults.push(res);
+          safeCallback(res);
+        } else {
+          translatableItems.push(item);
+        }
+      });
+
+      if (translatableItems.length === 0) {
+        return skippedResults;
+      }
+
       try {
-        return await provider.translate(params, safeCallback);
+        const results = await provider.translate({ ...params, items: translatableItems }, safeCallback);
+        return [...skippedResults, ...(Array.isArray(results) ? results : [])];
       } catch (error) {
         console.error(`[TranslateSense] Error translating with provider "${providerId}":`, error);
         throw error;
