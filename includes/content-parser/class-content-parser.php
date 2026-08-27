@@ -46,6 +46,9 @@ class Content_Parser {
 		// Hook into post save lifecycle to parse and hash content automatically
 		add_action( 'save_post', array( __CLASS__, 'handle_save_post' ), 25, 2 );
 
+		// Hook into elementor post save lifecycle to parse the hash content automatically
+		add_action( 'elementor/document/before_save', array( __CLASS__, 'handle_elementor_save_post' ), 10, 2 );
+
 		// Hook into permanent post deletion lifecycle to purge package data
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_delete_post' ), 10, 1 );
 	}
@@ -191,6 +194,65 @@ class Content_Parser {
 		}
 
 		return self::parse( $post->post_content, $post_id, $lang, $builder );
+	}
+
+	/**
+	 * Handle Elementor document save action.
+	 * Removes old package records for the post and re-parses new strings into packages.
+	 *
+	 * @param \Elementor\Core\DocumentTypes\Page $document Elementor document
+	 * @param array                              $data     Post data
+	 */
+	public static function handle_elementor_save_post( $ele_doc, array $ele_data ): void {
+
+		if ( ! isset( $ele_data ) || ! is_array( $ele_data ) || count( $ele_data ) === 0 ) {
+			return;
+		}
+
+		if ( ! $ele_doc || ! $ele_doc instanceof \Elementor\Core\DocumentTypes\Page ) {
+			return;
+		}
+
+		$post_id = (int) $ele_doc->get_id();
+
+		if ( ! $post_id ) {
+			return;
+		}
+
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
+			return;
+		}
+
+		// Detect source language
+		$lang = '';
+		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) ) {
+			$lang = Polylang_Bridge::get_post_language( $post_id );
+		}
+
+		// Detect editor type / builder
+		$builder = self::detect_builder( $post->post_content, $post_id );
+
+		// Remove old package records for this post before storing new parsed strings
+		if ( class_exists( Hashing_Db::class ) ) {
+			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		}
+
+		// Parse updated post content and store new string packages
+		self::parse( $post->post_content, $post_id, $lang, $builder );
 	}
 
 	/**
