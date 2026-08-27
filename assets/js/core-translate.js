@@ -407,6 +407,63 @@
     }
 
     /**
+     * Helper: Translate text preserving exact HTML tags and structure (even unclosed tags).
+     * Splits sourceText into HTML tags/comments and plain text segments, executes translateCallback
+     * on each clean text segment, and returns the reconstructed string.
+     *
+     * @param {string} sourceText Source string potentially containing HTML tags/comments.
+     * @param {Function} translateCallback Async or sync callback: async (cleanText: string) => translatedText
+     * @returns {Promise<string>} Translated string with exact HTML tags and spacing preserved.
+     */
+    async translateTextPreservingHtml(sourceText, translateCallback) {
+      if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
+        return sourceText || '';
+      }
+
+      if (typeof translateCallback !== 'function') {
+        return sourceText;
+      }
+
+      // Split string into HTML tags/comments and text segments
+      // Matches HTML tags (<...>) and comments (<!--...-->)
+      const tagRegex = /(<!--[\s\S]*?-->|<[^>]+>)/g;
+      const parts = sourceText.split(tagRegex);
+
+      let result = '';
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part) continue;
+
+        // If this part is an HTML tag or comment, keep it exactly as-is without adding/closing tags
+        if (part.startsWith('<') && part.endsWith('>')) {
+          result += part;
+        } else {
+          // Plain text segment: preserve leading & trailing whitespace
+          const leadingMatch = part.match(/^\s*/);
+          const trailingMatch = part.match(/\s*$/);
+          const leadingSpace = leadingMatch ? leadingMatch[0] : '';
+          const trailingSpace = trailingMatch ? trailingMatch[0] : '';
+          const cleanText = part.trim();
+
+          if (cleanText) {
+            // Check if clean text is an email address or URL
+            if (this.isEmailOrUrl(cleanText)) {
+              result += leadingSpace + cleanText + trailingSpace;
+            } else {
+              const translated = await translateCallback(cleanText);
+              result += leadingSpace + (translated !== undefined && translated !== null ? translated : cleanText) + trailingSpace;
+            }
+          } else {
+            result += part;
+          }
+        }
+      }
+
+      return result;
+    }
+
+    /**
      * Execute translation using the registered provider.
      * 
      * @param {string} providerId Provider ID to use

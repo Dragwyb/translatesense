@@ -159,40 +159,13 @@
    * Helper: Translate text preserving exact HTML tags and structure (even unclosed tags).
    */
   async function translateTextPreservingHtml(sourceText, sourceLang, targetLang) {
-    if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
-      return sourceText;
+    if (window.TranslateSenseCore && typeof window.TranslateSenseCore.translateTextPreservingHtml === 'function') {
+      return await window.TranslateSenseCore.translateTextPreservingHtml(sourceText, async (cleanText) => {
+        return await translateSingleWithChromeAi(cleanText, sourceLang, targetLang);
+      });
     }
 
-    // Split string into HTML tags/comments and text segments
-    // Matches HTML tags (<...>) and comments (<!--...-->)
-    const tagRegex = /(<!--[\s\S]*?-->|<[^>]+>)/g;
-    const parts = sourceText.split(tagRegex);
-
-    let result = '';
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!part) continue;
-
-      // If this part is an HTML tag or comment, keep it exactly as-is without adding/closing tags
-      if (part.startsWith('<') && part.endsWith('>')) {
-        result += part;
-      } else {
-        // This is a plain text segment
-        const leadingSpace = part.match(/^\s*/)[0];
-        const trailingSpace = part.match(/\s*$/)[0];
-        const cleanText = part.trim();
-
-        if (cleanText) {
-          const translated = await translateSingleWithChromeAi(cleanText, sourceLang, targetLang);
-          result += leadingSpace + translated + trailingSpace;
-        } else {
-          result += part;
-        }
-      }
-    }
-
-    return result;
+    return await translateSingleWithChromeAi(sourceText, sourceLang, targetLang);
   }
 
   // Register provider on TranslateSenseCore
