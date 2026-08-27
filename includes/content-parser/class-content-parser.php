@@ -11,6 +11,7 @@ use TranslateSense\Includes\Content_Parser\Builders\Divi_Builder;
 use TranslateSense\Includes\Content_Parser\Builders\Classic_Builder;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Polylang_Bridge;
+use TranslateSense\Includes\Hashing_Db;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -44,6 +45,9 @@ class Content_Parser {
 
 		// Hook into post save lifecycle to parse and hash content automatically
 		add_action( 'save_post', array( __CLASS__, 'handle_save_post' ), 25, 2 );
+
+		// Hook into permanent post deletion lifecycle to purge package data
+		add_action( 'before_delete_post', array( __CLASS__, 'handle_delete_post' ), 10, 1 );
 	}
 
 	/**
@@ -191,6 +195,7 @@ class Content_Parser {
 
 	/**
 	 * Handle WordPress save_post action.
+	 * Removes old package records for the post and re-parses new strings into packages.
 	 *
 	 * @param int           $post_id Post ID
 	 * @param \WP_Post|null $post    Post object
@@ -208,7 +213,49 @@ class Content_Parser {
 			return;
 		}
 
-		// Parse post content and record packages/hashes
-		self::parse_post( $post_id );
+		if ( ! $post ) {
+			$post = get_post( $post_id );
+		}
+
+		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
+			return;
+		}
+
+		// Detect source language
+		$lang = '';
+		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) ) {
+			$lang = Polylang_Bridge::get_post_language( $post_id );
+		}
+
+		// Detect editor type / builder
+		$builder = self::detect_builder( $post->post_content, $post_id );
+
+		// Remove old package records for this post before storing new parsed strings
+		if ( class_exists( Hashing_Db::class ) ) {
+			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		}
+
+		// Parse updated post content and store new string packages
+		self::parse( $post->post_content, $post_id, $lang, $builder );
+	}
+
+	/**
+	 * Handle permanent post deletion.
+	 * Removes all stored package records associated with the deleted post.
+	 *
+	 * @param int $post_id Post ID being permanently deleted.
+	 */
+	public static function handle_delete_post( int $post_id ): void {
+		if ( $post_id <= 0 ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+
+		if ( class_exists( 'TranslateSense\Includes\Hashing_Db' ) ) {
+			Hashing_Db::delete_post_packages( $post_id );
+		}
 	}
 }

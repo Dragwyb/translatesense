@@ -14,7 +14,8 @@ class Hashing_Db {
 	 * Initialize.
 	 */
 	public static function init() {
-		// Hook into any required lifecycle actions
+		// Automatically clean up package entries when a post is permanently deleted
+		add_action( 'before_delete_post', array( __CLASS__, 'delete_post_packages' ), 10, 1 );
 	}
 
 	/**
@@ -157,6 +158,39 @@ class Hashing_Db {
 		);
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Delete existing translation package data for a post (and optionally language and editor type).
+	 *
+	 * @param int         $post_id     Post ID
+	 * @param string|null $lang        Language code filter (optional)
+	 * @param string|null $editor_type Editor type filter (optional)
+	 * @return int Number of deleted package rows
+	 */
+	public static function delete_post_packages( int $post_id, ?string $lang = null, ?string $editor_type = null ): int {
+		global $wpdb;
+		$packages_table = self::get_packages_table();
+
+		if ( $post_id <= 0 ) {
+			return 0;
+		}
+
+		$where  = array( 'post_id' => $post_id );
+		$format = array( '%d' );
+
+		if ( ! empty( $lang ) ) {
+			$where['language'] = $lang;
+			$format[]          = '%s';
+		}
+
+		if ( ! empty( $editor_type ) ) {
+			$where['editor_type'] = $editor_type;
+			$format[]             = '%s';
+		}
+
+		$deleted = $wpdb->delete( $packages_table, $where, $format );
+		return false !== $deleted ? (int) $deleted : 0;
 	}
 
 	/**
