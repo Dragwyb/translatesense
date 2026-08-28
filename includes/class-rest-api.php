@@ -8,6 +8,7 @@ use WP_REST_Server;
 use WP_REST_Request;
 use WP_Error;
 use TranslateSense\Includes\Content_Parser\Content_Parser;
+use TranslateSense\Includes\Xml_Engine\Xml_Engine;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace TranslateSense\Includes\Content_Parser\Builders;
 
-use TranslateSense\Includes\Xml_Engine;
+use TranslateSense\Includes\Xml_Engine\Xml_Engine;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

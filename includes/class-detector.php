@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace TranslateSense\Includes;
 
+use TranslateSense\Includes\Xml_Engine\Xml_Engine;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

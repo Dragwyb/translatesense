@@ -19,7 +19,7 @@ namespace TranslateSense;
 use TranslateSense\Includes\Activator;
 use TranslateSense\Includes\Deactivator;
 use TranslateSense\Includes\Polylang_Bridge;
-use TranslateSense\Includes\Xml_Engine;
+use TranslateSense\Includes\Xml_Engine\Xml_Engine;
 use TranslateSense\Includes\Hashing_Db;
 use TranslateSense\Includes\Detector;
 use TranslateSense\Includes\Rest_Api;
