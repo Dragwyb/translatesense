@@ -644,33 +644,8 @@ class Rest_Api {
 		$params  = $request->get_json_params();
 		$builder = isset( $params['builder'] ) ? sanitize_key( $params['builder'] ) : 'gutenberg';
 
-		// Find existing or create draft sandbox post
-		$existing_sandbox = get_posts(
-			array(
-				'post_type'      => 'page',
-				'post_status'    => 'draft',
-				'meta_key'       => '_translatesense_sandbox',
-				'meta_value'     => $builder,
-				'posts_per_page' => 1,
-			)
-		);
-
-		if ( ! empty( $existing_sandbox ) ) {
-			$sandbox_id = $existing_sandbox[0]->ID;
-		} else {
-			$sandbox_id = wp_insert_post(
-				array(
-					'post_title'   => sprintf( 'TranslateSense Mapping Sandbox (%s)', ucfirst( $builder ) ),
-					'post_type'    => 'page',
-					'post_status'  => 'draft',
-					'post_content' => '<!-- wp:paragraph --><p>Translate This Content</p><!-- /wp:paragraph -->',
-				)
-			);
-			update_post_meta( $sandbox_id, '_translatesense_sandbox', $builder );
-			update_post_meta( $sandbox_id, '_translatesense_mapping_mode', '1' );
-		}
-
-		$edit_url = get_edit_post_link( $sandbox_id, 'raw' );
+		$sandbox_id = Detector::get_or_create_config_post( $builder );
+		$edit_url   = get_edit_post_link( $sandbox_id, 'raw' );
 
 		// If Elementor builder requested
 		if ( 'elementor' === $builder && class_exists( '\Elementor\Plugin' ) ) {

@@ -16,41 +16,141 @@ class Detector {
 	public static $dummy_text = 'Translate This Content';
 
 	/**
-	 * Secondary alternative dummy markers.
+	 * Custom Post Type for Config Sandbox.
 	 */
-	private static $alt_dummy_markers = array(
-		'translate this content',
-		'translate_me_dummy_text',
-		'translatethiscontent',
-	);
+	const POST_TYPE = 'ts_config_post';
 
 	/**
 	 * Initialize hooks.
 	 */
 	public static function init() {
+		// Register internal config post type
+		add_action( 'init', array( __CLASS__, 'register_post_type' ) );
+
 		// Hook Gutenberg / Classic Post Saves (Step 2.1)
 		add_action( 'save_post', array( __CLASS__, 'handle_save_post' ), 20, 2 );
 
 		// Hook Elementor Document Saves (Step 2.1)
-		add_action( 'elementor/document/save/data', array( __CLASS__, 'handle_elementor_save' ), 20, 2 );
-		add_action( 'elementor/editor/after_save', array( __CLASS__, 'handle_elementor_after_save' ), 20, 2 );
+		add_action( 'elementor/document/before_save', array( __CLASS__, 'handle_elementor_save' ), 20, 2 );
 	}
 
 	/**
-	 * Check if Config Mapping Mode is active (Step 2.2).
+	 * Register the custom post type for configuration mapping sandboxes.
+	 * Excluded from search, archives, menus, and admin menu list.
 	 */
-	public static function is_mapping_mode_active( $post_id = 0 ) {
-		$settings    = get_option( 'translatesense_settings', array() );
-		$global_mode = ! empty( $settings['mapping_mode'] );
+	public static function register_post_type() {
+		$args = array(
+			'labels'              => array(
+				'name'          => __( 'TranslateSense Config Posts', 'translatesense' ),
+				'singular_name' => __( 'TranslateSense Config Post', 'translatesense' ),
+			),
+			'public'              => false,
+			'publicly_queryable'  => false,
+			'show_ui'             => true,
+			'show_in_menu'        => false,
+			'show_in_nav_menus'   => false,
+			'show_in_admin_bar'   => false,
+			'exclude_from_search' => true,
+			'has_archive'         => false,
+			'query_var'           => false,
+			'rewrite'             => false,
+			'show_in_rest'        => true,
+			'supports'            => array( 'title', 'editor', 'custom-fields', 'elementor' ),
+		);
 
+		register_post_type( self::POST_TYPE, $args );
+
+		if ( did_action( 'elementor/loaded' ) || class_exists( '\Elementor\Plugin' ) ) {
+			add_post_type_support( self::POST_TYPE, 'elementor' );
+		}
+	}
+
+	/**
+	 * Check if Config Mapping Mode is active for a given post.
+	 */
+	public static function is_translatesense_config_post( int $post_id = 0 ) {
 		if ( $post_id ) {
-			$post_mode = get_post_meta( $post_id, '_translatesense_mapping_mode', true );
-			if ( '1' === $post_mode || 'yes' === $post_mode ) {
-				return true;
+			$post_type = get_post_type( $post_id );
+
+			if ( self::POST_TYPE !== $post_type ) {
+				return false;
+			}
+
+			$config_builder = get_post_meta( $post_id, '_translatesense_config_post', true );
+
+			if ( ! empty( $config_builder ) ) {
+				$config_post_id = self::get_config_post_id( $config_builder );
+
+				if ( $config_post_id && $config_post_id === $post_id ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	final public static function get_config_post_id( string $builder ) {
+		$builder_ids = get_option( 'translatesense_config_posts', array() );
+		if ( ! empty( $builder_ids[ $builder ] ) ) {
+			$post = get_post( (int) $builder_ids[ $builder ] );
+
+			if ( $post && self::POST_TYPE === $post->post_type && 'trash' !== $post->post_status ) {
+
+				return (int) $post->ID;
 			}
 		}
 
-		return $global_mode;
+		return 0;
+	}
+
+	/**
+	 * Get or create a config sandbox post ID for the specified builder.
+	 *
+	 * @param string $builder Builder identifier ('gutenberg', 'elementor', 'divi', 'classic')
+	 * @return int Post ID of the config sandbox post
+	 */
+	public static function get_or_create_config_post( string $builder = 'gutenberg' ): int {
+		$builder = sanitize_key( $builder );
+
+		// Check cached option first
+		$builder_ids = get_option( 'translatesense_config_posts', array() );
+		if ( ! empty( $builder_ids[ $builder ] ) ) {
+			$post = get_post( (int) $builder_ids[ $builder ] );
+			if ( $post && self::POST_TYPE === $post->post_type && 'trash' !== $post->post_status ) {
+				return (int) $post->ID;
+			}
+		}
+
+		// Find existing draft sandbox post via query
+		$existing_sandbox = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'draft',
+				'meta_key'       => '_translatesense_config_post',
+				'meta_value'     => $builder,
+				'posts_per_page' => 1,
+			)
+		);
+
+		if ( ! empty( $existing_sandbox ) ) {
+			$sandbox_id = (int) $existing_sandbox[0]->ID;
+		} else {
+			$sandbox_id = (int) wp_insert_post(
+				array(
+					'post_title'   => sprintf( 'TranslateSense Config Sandbox (%s)', ucfirst( $builder ) ),
+					'post_type'    => self::POST_TYPE,
+					'post_status'  => 'draft',
+					'post_content' => '<!-- wp:paragraph --><p>Translate This Content</p><!-- /wp:paragraph -->',
+				)
+			);
+
+			update_post_meta( $sandbox_id, '_translatesense_config_post', $builder );
+
+			$builder_ids[ $builder ] = $sandbox_id;
+			update_option( 'translatesense_config_posts', $builder_ids );
+		}
+
+		return (int) $sandbox_id;
 	}
 
 	/**
@@ -67,7 +167,7 @@ class Detector {
 			return;
 		}
 
-		if ( ! self::is_mapping_mode_active( $post_id ) ) {
+		if ( ! self::is_translatesense_config_post( $post_id ) ) {
 			return;
 		}
 
@@ -127,7 +227,7 @@ class Detector {
 	 */
 	public static function handle_elementor_save( $data, $document ) {
 		$post_id = $document->get_main_id();
-		if ( ! self::is_mapping_mode_active( $post_id ) ) {
+		if ( ! self::is_translatesense_config_post( $post_id ) ) {
 			return $data;
 		}
 
@@ -137,19 +237,6 @@ class Detector {
 		}
 
 		return $data;
-	}
-
-	/**
-	 * Handle Elementor editor after save action.
-	 */
-	public static function handle_elementor_after_save( $post_id, $editor_data ) {
-		if ( ! self::is_mapping_mode_active( $post_id ) ) {
-			return;
-		}
-
-		if ( is_array( $editor_data ) ) {
-			self::scan_elementor_elements( $editor_data );
-		}
 	}
 
 	/**
