@@ -215,7 +215,6 @@ class Editor_Integration {
 				'languages'        => Polylang_Bridge::get_languages(),
 				'defaultProvider'  => $settings['provider'] ?? 'openai',
 				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
-				'mappingMode'      => Detector::is_mapping_mode_active( $post_id ),
 			),
 			$localize_data
 		);

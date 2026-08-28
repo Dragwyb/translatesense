@@ -91,7 +91,6 @@ class Activator {
 			'openai_model'        => 'gpt-4o-mini',
 			'gemini_api_key'      => '',
 			'gemini_model'        => 'gemini-1.5-flash',
-			'mapping_mode'        => false,
 			'auto_translate_save' => false,
 			'batch_size'          => 5,
 		);
