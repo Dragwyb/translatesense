@@ -267,6 +267,7 @@ class Elementor_Builder extends Base_Builder {
 							if ( isset( $rules['elementor'][ $name ]['fields'][ $field_path ] ) ) {
 								unset( $rules['elementor'][ $name ]['fields'][ $field_path ] );
 							}
+							$rules['elementor'][ $name ]['no_translate'][ $field_path ] = true;
 							continue;
 						}
 						$rules['elementor'][ $name ]['fields'][ $field_path ] = array(

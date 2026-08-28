@@ -72,12 +72,17 @@ class Gutenberg_Builder extends Base_Builder {
 				continue;
 			}
 
+			$no_translate = $gutenberg_rules[ $name ]['no_translate'] ?? array();
+
 			// Match XML configured keys for the block
-			if ( isset( $gutenberg_rules[ $name ]['keys'] ) ) {
+			if ( isset( $gutenberg_rules[ $name ]['keys'] ) && ! empty( $gutenberg_rules[ $name ]['keys'] ) ) {
 				$keys = $gutenberg_rules[ $name ]['keys'];
 
 				$found_strings = array();
 				foreach ( $keys as $k_name => $k_info ) {
+					if ( isset( $no_translate[ $k_name ] ) ) {
+						continue;
+					}
 					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
 						$val             = $block['attrs'][ $k_name ];
 						$found_strings[] = $val;
@@ -85,7 +90,7 @@ class Gutenberg_Builder extends Base_Builder {
 					}
 				}
 
-				if ( empty( $found_strings ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+				if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
 					foreach ( $block['innerContent'] as $inner_content ) {
 						$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
 					}

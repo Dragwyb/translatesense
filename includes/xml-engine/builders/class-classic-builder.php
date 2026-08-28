@@ -134,10 +134,11 @@ class Classic_Builder extends Base_Builder {
 			foreach ( $xml->{$this->section_name}->{'custom-field'} as $cf ) {
 				$field_name      = trim( (string) $cf );
 				$is_no_translate = isset( $cf['noTranslate'] ) && in_array( strtolower( (string) $cf['noTranslate'] ), array( 'true', '1', 'yes' ), true );
-				if ( $is_no_translate ) {
+				if ( $is_no_translate || 'ignore' === $action ) {
 					if ( isset( $rules['custom_fields'][ $field_name ] ) ) {
 						unset( $rules['custom_fields'][ $field_name ] );
 					}
+					$rules['custom_fields_no_translate'][ $field_name ] = true;
 					continue;
 				}
 				$rules['custom_fields'][ $field_name ] = array(

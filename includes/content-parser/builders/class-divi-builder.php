@@ -62,11 +62,16 @@ class Divi_Builder extends Base_Builder {
 				$raw_attrs   = $match[2];
 				$inner_body  = $match[3] ?? '';
 
+				$no_translate = $divi_rules[ $module_name ]['no_translate'] ?? array();
+
 				// Parse shortcode attributes
 				if ( function_exists( 'shortcode_parse_atts' ) ) {
 					$attrs = shortcode_parse_atts( $raw_attrs );
 					if ( is_array( $attrs ) && isset( $divi_rules[ $module_name ]['fields'] ) ) {
 						foreach ( $divi_rules[ $module_name ]['fields'] as $field_key => $f_info ) {
+							if ( isset( $no_translate[ $field_key ] ) ) {
+								continue;
+							}
 							if ( isset( $attrs[ $field_key ] ) && is_string( $attrs[ $field_key ] ) && '' !== trim( $attrs[ $field_key ] ) ) {
 								$val = $attrs[ $field_key ];
 								$this->record_extracted_string( $post_id, $lang, $module_name, $field_key, $val, $extracted );
@@ -78,7 +83,7 @@ class Divi_Builder extends Base_Builder {
 				// Check inner body text for content modules
 				if ( ! empty( $inner_body ) && false === strpos( $inner_body, '[et_pb_' ) ) {
 					$clean_body = trim( $inner_body );
-					if ( ! empty( $clean_body ) ) {
+					if ( ! empty( $clean_body ) && ! isset( $no_translate['content'] ) ) {
 						$this->record_extracted_string( $post_id, $lang, $module_name, 'content', $clean_body, $extracted );
 					}
 				} elseif ( ! empty( $inner_body ) ) {

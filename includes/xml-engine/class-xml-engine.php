@@ -556,10 +556,11 @@ class Xml_Engine {
 		}
 
 		$rules = array(
-			'gutenberg'     => array(),
-			'elementor'     => array(),
-			'divi'          => array(),
-			'custom_fields' => array(),
+			'gutenberg'                  => array(),
+			'elementor'                  => array(),
+			'divi'                       => array(),
+			'custom_fields'              => array(),
+			'custom_fields_no_translate' => array(),
 		);
 
 		// 1. Parse unified / core config from option table (or master XML)

@@ -214,6 +214,7 @@ class Divi_Builder extends Base_Builder {
 							if ( isset( $rules['divi'][ $name ]['fields'][ $field_name ] ) ) {
 								unset( $rules['divi'][ $name ]['fields'][ $field_name ] );
 							}
+							$rules['divi'][ $name ]['no_translate'][ $field_name ] = true;
 							continue;
 						}
 						$rules['divi'][ $name ]['fields'][ $field_name ] = array(

@@ -520,22 +520,29 @@ class Rest_Api {
 			}
 		}
 
+		$all_engine_rules = Xml_Engine::get_all_rules( 'all' );
+		$no_translate_cfs = $all_engine_rules['custom_fields_no_translate'] ?? array();
+
 		$result = array();
 		foreach ( $fields as $key => $info ) {
-			$is_supported = isset( $rules[ $key ] ) || in_array( $key, array( 'post_title', 'post_content', 'post_excerpt' ), true );
-			$result[]     = array(
+			$is_no_translate = isset( $no_translate_cfs[ $key ] );
+			$is_supported    = ! $is_no_translate && ( isset( $rules[ $key ] ) || in_array( $key, array( 'post_title', 'post_content', 'post_excerpt' ), true ) );
+			$field_count     = $is_supported ? 1 : 0;
+			$field_data      = $is_supported ? array(
+				$key => array(
+					'name' => $key,
+					'type' => 'text',
+				),
+			) : array();
+
+			$result[] = array(
 				'id'          => $key,
 				'name'        => $info['title'],
 				'category'    => $info['category'],
 				'status'      => $is_supported ? 'supported' : 'unsupported',
 				'source'      => isset( $rules[ $key ] ) ? ( $rules[ $key ]['source'] ?? 'core' ) : 'core',
-				'field_count' => 1,
-				'fields'      => array(
-					$key => array(
-						'name' => $key,
-						'type' => 'text',
-					),
-				),
+				'field_count' => $field_count,
+				'fields'      => $field_data,
 				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'classic', $key ),
 			);
 		}

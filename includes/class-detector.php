@@ -196,6 +196,8 @@ class Detector {
 
 			$attrs         = $block['attrs'] ?? array();
 			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['keys'] ) : array();
+			$no_translate  = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
+			$ignore_keys   = array_merge( $existing_keys, $no_translate );
 
 			$new_fields = array();
 
@@ -203,11 +205,13 @@ class Detector {
 			foreach ( $attrs as $attr_key => $attr_val ) {
 				if ( is_string( $attr_val ) && ! empty( trim( $attr_val ) ) ) {
 					// If attribute is not yet in XML config or contains dummy text
-					if ( ! in_array( $attr_key, $existing_keys, true ) || false !== stripos( $attr_val, self::$dummy_text ) ) {
-						$new_fields[ $attr_key ] = array(
-							'type'        => ( strlen( $attr_val ) > 60 ) ? 'text' : 'title',
-							'editor_type' => ( strlen( $attr_val ) > 60 || false !== strpos( $attr_val, '<' ) ) ? 'VISUAL' : 'LINE',
-						);
+					if ( ! in_array( $attr_key, $ignore_keys, true ) || false !== stripos( $attr_val, self::$dummy_text ) ) {
+						if ( ! in_array( $attr_key, $no_translate, true ) ) {
+							$new_fields[ $attr_key ] = array(
+								'type'        => ( strlen( $attr_val ) > 60 ) ? 'text' : 'title',
+								'editor_type' => ( strlen( $attr_val ) > 60 || false !== strpos( $attr_val, '<' ) ) ? 'VISUAL' : 'LINE',
+							);
+						}
 					}
 				}
 			}
@@ -255,9 +259,11 @@ class Detector {
 			if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
 				$settings        = $element['settings'] ?? array();
 				$existing_fields = isset( $elementor_rules[ $widget_type ] ) ? array_keys( $elementor_rules[ $widget_type ]['fields'] ) : array();
+				$no_translate    = isset( $elementor_rules[ $widget_type ]['no_translate'] ) ? array_keys( $elementor_rules[ $widget_type ]['no_translate'] ) : array();
+				$ignore_fields   = array_merge( $existing_fields, $no_translate );
 
 				$new_fields = array();
-				self::find_elementor_text_settings( $settings, '', $existing_fields, $new_fields );
+				self::find_elementor_text_settings( $settings, '', $ignore_fields, $new_fields );
 
 				if ( ! empty( $new_fields ) ) {
 					Xml_Engine::append_custom_rule(

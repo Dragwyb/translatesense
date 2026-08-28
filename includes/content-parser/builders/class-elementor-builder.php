@@ -155,13 +155,22 @@ class Elementor_Builder extends Base_Builder {
 			$widget_name = $element_node['widgetType'] ?? ( 'widget' === $node_type ? ( $element_node['name'] ?? '' ) : '' );
 
 			if ( 'widget' === $node_type && ! empty( $widget_name ) ) {
-				$widget_settings   = $element_node['settings'] ?? array();
-				$configured_fields = $elementor_rules[ $widget_name ]['fields'] ?? array();
-				$mapped_rule_paths = array();
+				$widget_settings     = $element_node['settings'] ?? array();
+				$configured_fields   = $elementor_rules[ $widget_name ]['fields'] ?? array();
+				$no_translate_fields = $elementor_rules[ $widget_name ]['no_translate'] ?? array();
+				$mapped_rule_paths   = array();
 
-				// 1. Extract strings according to pre-existing XML rules
+				// Pre-register all noTranslate ghost fields to prevent extraction and discovery
+				foreach ( $no_translate_fields as $blocked_path => $is_blocked ) {
+					$mapped_rule_paths[ (string) $blocked_path ] = true;
+				}
+
+				// 1. Extract strings according to pre-existing XML rules (skipping noTranslate)
 				if ( ! empty( $configured_fields ) && is_array( $widget_settings ) ) {
 					foreach ( $configured_fields as $field_path => $field_spec ) {
+						if ( isset( $no_translate_fields[ (string) $field_path ] ) ) {
+							continue;
+						}
 						$resolved_values = $this->resolve_field_path_values( $widget_settings, (string) $field_path );
 						foreach ( $resolved_values as $string_val ) {
 							if ( is_string( $string_val ) && '' !== trim( $string_val ) ) {

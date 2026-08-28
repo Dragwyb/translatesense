@@ -210,6 +210,7 @@ class Gutenberg_Builder extends Base_Builder {
 							if ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
 								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
 							}
+							$rules['gutenberg'][ $name ]['no_translate'][ $key_name ] = true;
 							continue;
 						}
 						$rules['gutenberg'][ $name ]['keys'][ $key_name ] = self::parse_key_node( $key_node );
