@@ -209,60 +209,7 @@ class Rest_Api {
 	 * Scan registered Gutenberg blocks and match with rules.
 	 */
 	private static function get_gutenberg_widgets_list( $rules ) {
-		$standard_blocks = array(
-			'core/paragraph'  => array(
-				'title'    => 'Paragraph',
-				'category' => 'core',
-			),
-			'core/heading'    => array(
-				'title'    => 'Heading',
-				'category' => 'core',
-			),
-			'core/button'     => array(
-				'title'    => 'Button',
-				'category' => 'core',
-			),
-			'core/list-item'  => array(
-				'title'    => 'List Item',
-				'category' => 'core',
-			),
-			'core/quote'      => array(
-				'title'    => 'Quote',
-				'category' => 'core',
-			),
-			'core/pullquote'  => array(
-				'title'    => 'Pullquote',
-				'category' => 'core',
-			),
-			'core/cover'      => array(
-				'title'    => 'Cover',
-				'category' => 'core',
-			),
-			'core/image'      => array(
-				'title'    => 'Image',
-				'category' => 'core',
-			),
-			'core/media-text' => array(
-				'title'    => 'Media & Text',
-				'category' => 'core',
-			),
-			'core/columns'    => array(
-				'title'    => 'Columns',
-				'category' => 'core',
-			),
-			'core/group'      => array(
-				'title'    => 'Group',
-				'category' => 'core',
-			),
-			'core/table'      => array(
-				'title'    => 'Table',
-				'category' => 'core',
-			),
-			'core/code'       => array(
-				'title'    => 'Code',
-				'category' => 'core',
-			),
-		);
+		$standard_blocks = array();
 
 		// Merge all blocks present in rules (from core-config.xml or custom)
 		foreach ( $rules as $block_name => $block_data ) {
@@ -315,60 +262,7 @@ class Rest_Api {
 	 * Scan registered Elementor widgets and match with rules.
 	 */
 	private static function get_elementor_widgets_list( $rules ) {
-		$standard_widgets = array(
-			'heading'        => array(
-				'title'    => 'Heading',
-				'category' => 'basic',
-			),
-			'text-editor'    => array(
-				'title'    => 'Text Editor',
-				'category' => 'basic',
-			),
-			'button'         => array(
-				'title'    => 'Button',
-				'category' => 'basic',
-			),
-			'icon-box'       => array(
-				'title'    => 'Icon Box',
-				'category' => 'general',
-			),
-			'image-box'      => array(
-				'title'    => 'Image Box',
-				'category' => 'general',
-			),
-			'call-to-action' => array(
-				'title'    => 'Call to Action',
-				'category' => 'general',
-			),
-			'testimonial'    => array(
-				'title'    => 'Testimonial',
-				'category' => 'general',
-			),
-			'alert'          => array(
-				'title'    => 'Alert Box',
-				'category' => 'general',
-			),
-			'counter'        => array(
-				'title'    => 'Counter',
-				'category' => 'general',
-			),
-			'progress'       => array(
-				'title'    => 'Progress Bar',
-				'category' => 'general',
-			),
-			'tabs'           => array(
-				'title'    => 'Tabs',
-				'category' => 'general',
-			),
-			'accordion'      => array(
-				'title'    => 'Accordion',
-				'category' => 'general',
-			),
-			'toggle'         => array(
-				'title'    => 'Toggle',
-				'category' => 'general',
-			),
-		);
+		$standard_widgets = array();
 
 		// Merge any widgets present in rules
 		foreach ( $rules as $widget_name => $widget_data ) {
@@ -421,28 +315,7 @@ class Rest_Api {
 	 * Scan Divi modules and match with rules.
 	 */
 	private static function get_divi_widgets_list( $rules ) {
-		$standard_modules = array(
-			'et_pb_text'   => array(
-				'title'    => 'Divi Text',
-				'category' => 'content',
-			),
-			'et_pb_header' => array(
-				'title'    => 'Divi Fullwidth Header',
-				'category' => 'header',
-			),
-			'et_pb_blurb'  => array(
-				'title'    => 'Divi Blurb',
-				'category' => 'content',
-			),
-			'et_pb_cta'    => array(
-				'title'    => 'Divi Call To Action',
-				'category' => 'content',
-			),
-			'et_pb_button' => array(
-				'title'    => 'Divi Button',
-				'category' => 'content',
-			),
-		);
+		$standard_modules = array();
 
 		// Merge any modules present in rules
 		foreach ( $rules as $module_name => $module_data ) {
