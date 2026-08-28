@@ -239,19 +239,24 @@ class Rest_Api {
 
 		$result = array();
 		foreach ( $standard_blocks as $name => $info ) {
-			$is_supported = isset( $rules[ $name ] );
-			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$keys         = $is_supported ? $rules[ $name ]['keys'] : array();
+			$is_supported       = isset( $rules[ $name ] );
+			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$keys               = $is_supported ? ( $rules[ $name ]['keys'] ?? array() ) : array();
+			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
+			$field_count        = count( $keys );
+			$no_translate_count = count( $no_translate );
+			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 
 			$result[] = array(
-				'id'          => $name,
-				'name'        => $info['title'],
-				'category'    => $info['category'],
-				'status'      => $is_supported ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported',
-				'source'      => $source,
-				'field_count' => count( $keys ),
-				'fields'      => $keys,
-				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'gutenberg', $name ),
+				'id'                 => $name,
+				'name'               => $info['title'],
+				'category'           => $info['category'],
+				'status'             => $status,
+				'source'             => $source,
+				'field_count'        => $field_count,
+				'no_translate_count' => $no_translate_count,
+				'fields'             => $keys,
+				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'gutenberg', $name ),
 			);
 		}
 
@@ -292,19 +297,24 @@ class Rest_Api {
 
 		$result = array();
 		foreach ( $standard_widgets as $name => $info ) {
-			$is_supported = isset( $rules[ $name ] );
-			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields       = $is_supported ? $rules[ $name ]['fields'] : array();
+			$is_supported       = isset( $rules[ $name ] );
+			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
+			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
+			$field_count        = count( $fields );
+			$no_translate_count = count( $no_translate );
+			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 
 			$result[] = array(
-				'id'          => $name,
-				'name'        => $info['title'],
-				'category'    => $info['category'],
-				'status'      => $is_supported ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported',
-				'source'      => $source,
-				'field_count' => count( $fields ),
-				'fields'      => $fields,
-				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
+				'id'                 => $name,
+				'name'               => $info['title'],
+				'category'           => $info['category'],
+				'status'             => $status,
+				'source'             => $source,
+				'field_count'        => $field_count,
+				'no_translate_count' => $no_translate_count,
+				'fields'             => $fields,
+				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
 			);
 		}
 
@@ -329,19 +339,24 @@ class Rest_Api {
 
 		$result = array();
 		foreach ( $standard_modules as $name => $info ) {
-			$is_supported = isset( $rules[ $name ] );
-			$source       = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields       = $is_supported ? $rules[ $name ]['fields'] : array();
+			$is_supported       = isset( $rules[ $name ] );
+			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
+			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
+			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
+			$field_count        = count( $fields );
+			$no_translate_count = count( $no_translate );
+			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 
 			$result[] = array(
-				'id'          => $name,
-				'name'        => $info['title'],
-				'category'    => $info['category'],
-				'status'      => $is_supported ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported',
-				'source'      => $source,
-				'field_count' => count( $fields ),
-				'fields'      => $fields,
-				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
+				'id'                 => $name,
+				'name'               => $info['title'],
+				'category'           => $info['category'],
+				'status'             => $status,
+				'source'             => $source,
+				'field_count'        => $field_count,
+				'no_translate_count' => $no_translate_count,
+				'fields'             => $fields,
+				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
 			);
 		}
 
@@ -398,10 +413,11 @@ class Rest_Api {
 
 		$result = array();
 		foreach ( $fields as $key => $info ) {
-			$is_no_translate = isset( $no_translate_cfs[ $key ] );
-			$is_supported    = ! $is_no_translate && ( isset( $rules[ $key ] ) || in_array( $key, array( 'post_title', 'post_content', 'post_excerpt' ), true ) );
-			$field_count     = $is_supported ? 1 : 0;
-			$field_data      = $is_supported ? array(
+			$is_no_translate    = isset( $no_translate_cfs[ $key ] );
+			$is_supported       = ! $is_no_translate && ( isset( $rules[ $key ] ) || in_array( $key, array( 'post_title', 'post_content', 'post_excerpt' ), true ) );
+			$field_count        = $is_supported ? 1 : 0;
+			$no_translate_count = $is_no_translate ? 1 : 0;
+			$field_data         = $is_supported ? array(
 				$key => array(
 					'name' => $key,
 					'type' => 'text',
@@ -409,14 +425,15 @@ class Rest_Api {
 			) : array();
 
 			$result[] = array(
-				'id'          => $key,
-				'name'        => $info['title'],
-				'category'    => $info['category'],
-				'status'      => $is_supported ? 'supported' : 'unsupported',
-				'source'      => isset( $rules[ $key ] ) ? ( $rules[ $key ]['source'] ?? 'core' ) : 'core',
-				'field_count' => $field_count,
-				'fields'      => $field_data,
-				'xml_snippet' => Xml_Engine::get_widget_xml_snippet( 'classic', $key ),
+				'id'                 => $key,
+				'name'               => $info['title'],
+				'category'           => $info['category'],
+				'status'             => ( $is_supported || $is_no_translate ) ? 'supported' : 'unsupported',
+				'source'             => isset( $rules[ $key ] ) ? ( $rules[ $key ]['source'] ?? 'core' ) : 'core',
+				'field_count'        => $field_count,
+				'no_translate_count' => $no_translate_count,
+				'fields'             => $field_data,
+				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'classic', $key ),
 			);
 		}
 

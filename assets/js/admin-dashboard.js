@@ -487,7 +487,17 @@
         { className: 'ts-card-meta' },
         el('span', null, `Category: ${widget.category || 'Standard'}`),
         el('span', null, '•'),
-        el('span', null, `${widget.field_count || 0} Fields Mapped`)
+        el(
+          'span',
+          { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
+          `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'Field' : 'Fields'}`
+        ),
+        widget.no_translate_count > 0 &&
+          el(
+            'span',
+            { className: 'ts-badge ts-badge-no-translate' },
+            `🚫 ${widget.no_translate_count} No Translate`
+          )
       ),
       el(
         'div',
@@ -535,7 +545,25 @@
         )
       ),
       el('td', null, widget.category || 'Standard'),
-      el('td', null, `${widget.field_count || 0} fields`),
+      el(
+        'td',
+        null,
+        el(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
+          el(
+            'span',
+            { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
+            `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'field' : 'fields'}`
+          ),
+          widget.no_translate_count > 0 &&
+            el(
+              'span',
+              { className: 'ts-badge ts-badge-no-translate' },
+              `🚫 ${widget.no_translate_count} No Translate`
+            )
+        )
+      ),
       el(
         'td',
         null,
