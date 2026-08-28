@@ -7,6 +7,8 @@ namespace TranslateSense\Includes;
 use WP_Error;
 use SimpleXMLElement;
 use DOMDocument;
+use DOMElement;
+use DOMNode;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -445,6 +447,7 @@ class Xml_Engine {
 
 		libxml_use_internal_errors( true );
 		$snippet_doc = simplexml_load_string( $snippet_xml );
+
 		if ( ! $snippet_doc ) {
 			libxml_clear_errors();
 			return new WP_Error( 'invalid_snippet', __( 'Invalid XML snippet.', 'translatesense' ) );
@@ -488,10 +491,12 @@ class Xml_Engine {
 			return self::save_builder_xml( $target_builder, $snippet_xml );
 		}
 
-		// Remove existing node with same name if present in custom XML
 		$dom_target = dom_import_simplexml( $xml->{$section_name} );
-		$dom_nodes  = $dom_target->childNodes;
-		for ( $i = $dom_nodes->length - 1; $i >= 0; $i-- ) {
+
+		// Find existing child with matching name in current custom XML
+		$existing_child = null;
+		$dom_nodes      = $dom_target->childNodes;
+		for ( $i = 0; $i < $dom_nodes->length; $i++ ) {
 			$child = $dom_nodes->item( $i );
 			if ( XML_ELEMENT_NODE === $child->nodeType ) {
 				$child_name = $child->getAttribute( 'name' );
@@ -499,16 +504,290 @@ class Xml_Engine {
 					$child_name = trim( $child->textContent );
 				}
 				if ( $child_name === $name ) {
-					$dom_target->removeChild( $child );
+					$existing_child = $child;
+					break;
 				}
 			}
 		}
 
-		// Append new node
-		$new_dom = dom_import_simplexml( $new_node );
-		$dom_target->appendChild( $dom_target->ownerDocument->importNode( $new_dom, true ) );
+		// If not found in custom XML, check if base rule exists in core/all XML to seed existing child
+		if ( ! $existing_child ) {
+			$base_snippet_raw = self::get_widget_xml_snippet( $target_builder, $name );
+			if ( ! empty( $base_snippet_raw ) ) {
+				$base_doc = simplexml_load_string( $base_snippet_raw );
+				if ( $base_doc ) {
+					$base_node = null;
+					if ( 'gutenberg' === $target_builder && isset( $base_doc->{'gutenberg-blocks'}->{'gutenberg-block'} ) ) {
+						$base_node = $base_doc->{'gutenberg-blocks'}->{'gutenberg-block'}[0];
+					} elseif ( 'elementor' === $target_builder && isset( $base_doc->{'elementor-widgets'}->widget ) ) {
+						$base_node = $base_doc->{'elementor-widgets'}->widget[0];
+					} elseif ( 'divi' === $target_builder && isset( $base_doc->{'divi-modules'}->module ) ) {
+						$base_node = $base_doc->{'divi-modules'}->module[0];
+					} elseif ( 'classic' === $target_builder && isset( $base_doc->{'custom-fields'}->{'custom-field'} ) ) {
+						$base_node = $base_doc->{'custom-fields'}->{'custom-field'}[0];
+					}
+					if ( $base_node ) {
+						$base_dom       = dom_import_simplexml( $base_node );
+						$existing_child = $dom_target->appendChild( $dom_target->ownerDocument->importNode( $base_dom, true ) );
+					}
+				}
+			}
+		}
 
-		return self::save_builder_xml( $target_builder, $xml->asXML() );
+		if ( $existing_child ) {
+			// Update existing child in place: preserve keys, mark removed with noTranslate="true", add new keys
+			if ( 'gutenberg' === $target_builder ) {
+				self::sync_gutenberg_keys( $existing_child, $new_node );
+			} elseif ( 'elementor' === $target_builder ) {
+				self::sync_elementor_fields( $existing_child, $new_node );
+			} elseif ( 'divi' === $target_builder ) {
+				self::sync_divi_fields( $existing_child, $new_node );
+			} elseif ( 'classic' === $target_builder ) {
+				self::sync_classic_field( $existing_child, $new_node );
+			}
+		} else {
+			// Append new node if it did not exist
+			$new_dom = dom_import_simplexml( $new_node );
+			$dom_target->appendChild( $dom_target->ownerDocument->importNode( $new_dom, true ) );
+		}
+
+		$dom                     = new DOMDocument( '1.0' );
+		$dom->preserveWhiteSpace = false;
+		$dom->formatOutput       = true;
+		$dom->loadXML( $xml->asXML() );
+		$formatted_xml = $dom->saveXML();
+
+		return self::save_builder_xml( $target_builder, $formatted_xml );
+	}
+
+	/**
+	 * Sync Gutenberg block keys: mark removed keys with noTranslate="true" and append newly added keys.
+	 */
+	private static function sync_gutenberg_keys( DOMElement $existing_block, SimpleXMLElement $new_block ) {
+		$owner_doc = $existing_block->ownerDocument;
+
+		// Map new keys
+		$new_keys = array();
+		if ( isset( $new_block->key ) ) {
+			foreach ( $new_block->key as $k_node ) {
+				$k_name              = (string) $k_node['name'];
+				$new_keys[ $k_name ] = $k_node;
+			}
+		}
+
+		// Find existing key elements
+		$existing_keys = array();
+		$child_nodes   = $existing_block->childNodes;
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'key' === $child->nodeName ) {
+				$k_name                   = $child->getAttribute( 'name' );
+				$existing_keys[ $k_name ] = $child;
+			}
+		}
+
+		// Update or mark noTranslate on existing keys
+		foreach ( $existing_keys as $k_name => $dom_key ) {
+			if ( isset( $new_keys[ $k_name ] ) ) {
+				$new_k = $new_keys[ $k_name ];
+				if ( isset( $new_k['type'] ) ) {
+					$dom_key->setAttribute( 'type', (string) $new_k['type'] );
+				}
+				if ( isset( $new_k['editor_type'] ) ) {
+					$dom_key->setAttribute( 'editor_type', (string) $new_k['editor_type'] );
+				}
+				if ( isset( $new_k['noTranslate'] ) && in_array( strtolower( (string) $new_k['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+					$dom_key->setAttribute( 'noTranslate', 'true' );
+				} else {
+					$dom_key->removeAttribute( 'noTranslate' );
+				}
+			} else {
+				// Key was removed: do not delete, mark with noTranslate="true"
+				$dom_key->setAttribute( 'noTranslate', 'true' );
+			}
+		}
+
+		// Add newly added keys
+		foreach ( $new_keys as $k_name => $new_k ) {
+			if ( ! isset( $existing_keys[ $k_name ] ) ) {
+				$k_dom = dom_import_simplexml( $new_k );
+				$existing_block->appendChild( $owner_doc->importNode( $k_dom, true ) );
+			}
+		}
+	}
+
+	/**
+	 * Sync Elementor widget fields: mark removed fields with noTranslate="true" and append newly added fields.
+	 */
+	private static function sync_elementor_fields( DOMElement $existing_widget, SimpleXMLElement $new_widget ) {
+		$owner_doc = $existing_widget->ownerDocument;
+
+		// Sync conditions if present
+		if ( isset( $new_widget->conditions ) ) {
+			$conditions_elem = null;
+			$child_nodes     = $existing_widget->childNodes;
+			for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+				$child = $child_nodes->item( $i );
+				if ( XML_ELEMENT_NODE === $child->nodeType && 'conditions' === $child->nodeName ) {
+					$conditions_elem = $child;
+					break;
+				}
+			}
+			$new_cond_dom = dom_import_simplexml( $new_widget->conditions );
+			$imported     = $owner_doc->importNode( $new_cond_dom, true );
+			if ( $conditions_elem ) {
+				$existing_widget->replaceChild( $imported, $conditions_elem );
+			} else {
+				$existing_widget->insertBefore( $imported, $existing_widget->firstChild );
+			}
+		}
+
+		// Find or create <fields> element
+		$fields_elem = null;
+		$child_nodes = $existing_widget->childNodes;
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'fields' === $child->nodeName ) {
+				$fields_elem = $child;
+				break;
+			}
+		}
+		if ( ! $fields_elem ) {
+			$fields_elem = $existing_widget->appendChild( $owner_doc->createElement( 'fields' ) );
+		}
+
+		// Map new fields
+		$new_fields = array();
+		if ( isset( $new_widget->fields->field ) ) {
+			foreach ( $new_widget->fields->field as $f_node ) {
+				$path                = trim( (string) $f_node );
+				$new_fields[ $path ] = $f_node;
+			}
+		}
+
+		// Find existing fields
+		$existing_fields = array();
+		$f_nodes         = $fields_elem->childNodes;
+		for ( $i = 0; $i < $f_nodes->length; $i++ ) {
+			$child = $f_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'field' === $child->nodeName ) {
+				$path                     = trim( $child->textContent );
+				$existing_fields[ $path ] = $child;
+			}
+		}
+
+		// Update or mark noTranslate on existing fields
+		foreach ( $existing_fields as $path => $dom_fld ) {
+			if ( isset( $new_fields[ $path ] ) ) {
+				$new_f = $new_fields[ $path ];
+				if ( isset( $new_f['type'] ) ) {
+					$dom_fld->setAttribute( 'type', (string) $new_f['type'] );
+				}
+				if ( isset( $new_f['editor_type'] ) ) {
+					$dom_fld->setAttribute( 'editor_type', (string) $new_f['editor_type'] );
+				}
+				if ( isset( $new_f['noTranslate'] ) && in_array( strtolower( (string) $new_f['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+					$dom_fld->setAttribute( 'noTranslate', 'true' );
+				} else {
+					$dom_fld->removeAttribute( 'noTranslate' );
+				}
+			} else {
+				// Field was removed: do not delete, mark with noTranslate="true"
+				$dom_fld->setAttribute( 'noTranslate', 'true' );
+			}
+		}
+
+		// Add newly added fields
+		foreach ( $new_fields as $path => $new_f ) {
+			if ( ! isset( $existing_fields[ $path ] ) ) {
+				$f_dom = dom_import_simplexml( $new_f );
+				$fields_elem->appendChild( $owner_doc->importNode( $f_dom, true ) );
+			}
+		}
+	}
+
+	/**
+	 * Sync Divi module fields: mark removed fields with noTranslate="true" and append newly added fields.
+	 */
+	private static function sync_divi_fields( DOMElement $existing_module, SimpleXMLElement $new_module ) {
+		$owner_doc = $existing_module->ownerDocument;
+
+		// Find or create <fields> element
+		$fields_elem = null;
+		$child_nodes = $existing_module->childNodes;
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'fields' === $child->nodeName ) {
+				$fields_elem = $child;
+				break;
+			}
+		}
+		if ( ! $fields_elem ) {
+			$fields_elem = $existing_module->appendChild( $owner_doc->createElement( 'fields' ) );
+		}
+
+		// Map new fields
+		$new_fields = array();
+		if ( isset( $new_module->fields->field ) ) {
+			foreach ( $new_module->fields->field as $f_node ) {
+				$name                = trim( (string) $f_node );
+				$new_fields[ $name ] = $f_node;
+			}
+		}
+
+		// Find existing fields
+		$existing_fields = array();
+		$f_nodes         = $fields_elem->childNodes;
+		for ( $i = 0; $i < $f_nodes->length; $i++ ) {
+			$child = $f_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'field' === $child->nodeName ) {
+				$name                     = trim( $child->textContent );
+				$existing_fields[ $name ] = $child;
+			}
+		}
+
+		// Update or mark noTranslate on existing fields
+		foreach ( $existing_fields as $name => $dom_fld ) {
+			if ( isset( $new_fields[ $name ] ) ) {
+				$new_f = $new_fields[ $name ];
+				if ( isset( $new_f['type'] ) ) {
+					$dom_fld->setAttribute( 'type', (string) $new_f['type'] );
+				}
+				if ( isset( $new_f['editor_type'] ) ) {
+					$dom_fld->setAttribute( 'editor_type', (string) $new_f['editor_type'] );
+				}
+				if ( isset( $new_f['noTranslate'] ) && in_array( strtolower( (string) $new_f['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+					$dom_fld->setAttribute( 'noTranslate', 'true' );
+				} else {
+					$dom_fld->removeAttribute( 'noTranslate' );
+				}
+			} else {
+				// Field was removed: mark noTranslate
+				$dom_fld->setAttribute( 'noTranslate', 'true' );
+			}
+		}
+
+		// Add newly added fields
+		foreach ( $new_fields as $name => $new_f ) {
+			if ( ! isset( $existing_fields[ $name ] ) ) {
+				$f_dom = dom_import_simplexml( $new_f );
+				$fields_elem->appendChild( $owner_doc->importNode( $f_dom, true ) );
+			}
+		}
+	}
+
+	/**
+	 * Sync Classic custom field: mark with noTranslate="true" or update action.
+	 */
+	private static function sync_classic_field( DOMElement $existing_cf, SimpleXMLElement $new_cf ) {
+		if ( isset( $new_cf['action'] ) ) {
+			$existing_cf->setAttribute( 'action', (string) $new_cf['action'] );
+		}
+		if ( isset( $new_cf['noTranslate'] ) && in_array( strtolower( (string) $new_cf['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+			$existing_cf->setAttribute( 'noTranslate', 'true' );
+		} else {
+			$existing_cf->removeAttribute( 'noTranslate' );
+		}
 	}
 
 	/**
@@ -619,7 +898,14 @@ class Xml_Engine {
 				}
 				if ( isset( $block->key ) ) {
 					foreach ( $block->key as $key_node ) {
-						$key_name = (string) $key_node['name'];
+						$key_name        = (string) $key_node['name'];
+						$is_no_translate = isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+						if ( $is_no_translate ) {
+							if ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
+								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
+							}
+							continue;
+						}
 						$rules['gutenberg'][ $name ]['keys'][ $key_name ] = self::parse_gutenberg_key_node( $key_node );
 					}
 				}
@@ -647,7 +933,14 @@ class Xml_Engine {
 
 				if ( isset( $widget->fields->field ) ) {
 					foreach ( $widget->fields->field as $fld ) {
-						$field_path = trim( (string) $fld );
+						$field_path      = trim( (string) $fld );
+						$is_no_translate = isset( $fld['noTranslate'] ) && in_array( strtolower( (string) $fld['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+						if ( $is_no_translate ) {
+							if ( isset( $rules['elementor'][ $name ]['fields'][ $field_path ] ) ) {
+								unset( $rules['elementor'][ $name ]['fields'][ $field_path ] );
+							}
+							continue;
+						}
 						$rules['elementor'][ $name ]['fields'][ $field_path ] = array(
 							'path'        => $field_path,
 							'type'        => (string) ( $fld['type'] ?? 'title' ),
@@ -671,7 +964,14 @@ class Xml_Engine {
 				}
 				if ( isset( $module->fields->field ) ) {
 					foreach ( $module->fields->field as $fld ) {
-						$field_name                                      = trim( (string) $fld );
+						$field_name      = trim( (string) $fld );
+						$is_no_translate = isset( $fld['noTranslate'] ) && in_array( strtolower( (string) $fld['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+						if ( $is_no_translate ) {
+							if ( isset( $rules['divi'][ $name ]['fields'][ $field_name ] ) ) {
+								unset( $rules['divi'][ $name ]['fields'][ $field_name ] );
+							}
+							continue;
+						}
 						$rules['divi'][ $name ]['fields'][ $field_name ] = array(
 							'field'       => $field_name,
 							'type'        => (string) ( $fld['type'] ?? 'content' ),
@@ -685,7 +985,14 @@ class Xml_Engine {
 		// Custom fields
 		if ( isset( $xml->{'custom-fields'}->{'custom-field'} ) ) {
 			foreach ( $xml->{'custom-fields'}->{'custom-field'} as $cf ) {
-				$field_name                            = trim( (string) $cf );
+				$field_name      = trim( (string) $cf );
+				$is_no_translate = isset( $cf['noTranslate'] ) && in_array( strtolower( (string) $cf['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+				if ( $is_no_translate ) {
+					if ( isset( $rules['custom_fields'][ $field_name ] ) ) {
+						unset( $rules['custom_fields'][ $field_name ] );
+					}
+					continue;
+				}
 				$rules['custom_fields'][ $field_name ] = array(
 					'name'   => $field_name,
 					'action' => (string) ( $cf['action'] ?? 'translate' ),
