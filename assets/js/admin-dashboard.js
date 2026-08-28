@@ -25,7 +25,6 @@
       gemini_api_key: '',
       gemini_model: 'gemini-1.5-flash',
       enabled_providers: ['chrome_ai', 'openai', 'gemini'],
-      mapping_mode: false,
       batch_size: 5,
     });
     const [languages, setLanguages] = useState([]);
@@ -493,32 +492,35 @@
       el(
         'div',
         { className: 'ts-card-actions' },
-        el(
-          'button',
-          {
-            className: 'ts-btn ts-btn-primary',
-            style: { flex: 1 },
-            onClick: () => onGenerate(widget),
-            title: "Open editor with 'Translate This Content' for this item",
-          },
-          '⚡ Generate'
-        ),
-        el(
-          'button',
-          {
-            className: 'ts-btn ts-btn-secondary',
-            style: { flex: 1 },
-            onClick: () => onEdit(widget),
-            title: 'Edit XML rule directly',
-          },
-          '📝 Edit Config'
-        )
+        isSupported
+          ? el(
+            'button',
+            {
+              className: 'ts-btn ts-btn-secondary',
+              style: { flex: 1 },
+              onClick: () => onEdit(widget),
+              title: 'Edit XML rule directly',
+            },
+            '📝 Edit Config'
+          )
+          : el(
+            'button',
+            {
+              className: 'ts-btn ts-btn-primary',
+              style: { flex: 1 },
+              onClick: () => onGenerate(widget),
+              title: "Open editor with 'Translate This Content' for this item",
+            },
+            '⚡ Generate'
+          )
       )
     );
   }
 
   // Widget Table Row Component (List / Table View)
   function WidgetTableRow({ widget, onEdit, onGenerate }) {
+    const isSupported = widget.status !== 'unsupported';
+
     return el(
       'tr',
       null,
@@ -549,24 +551,27 @@
         el(
           'div',
           { className: 'ts-table-actions', style: { justifyContent: 'flex-end' } },
-          el(
-            'button',
-            {
-              className: 'ts-btn ts-btn-primary',
-              style: { padding: '6px 12px', fontSize: '12px' },
-              onClick: () => onGenerate(widget),
-            },
-            '⚡ Generate'
-          ),
-          el(
-            'button',
-            {
-              className: 'ts-btn ts-btn-secondary',
-              style: { padding: '6px 12px', fontSize: '12px' },
-              onClick: () => onEdit(widget),
-            },
-            '📝 Edit Config'
-          )
+          isSupported
+            ? el(
+              'button',
+              {
+                className: 'ts-btn ts-btn-secondary',
+                style: { padding: '6px 12px', fontSize: '12px' },
+                onClick: () => onEdit(widget),
+                title: 'Edit XML rule directly',
+              },
+              '📝 Edit Config'
+            )
+            : el(
+              'button',
+              {
+                className: 'ts-btn ts-btn-primary',
+                style: { padding: '6px 12px', fontSize: '12px' },
+                onClick: () => onGenerate(widget),
+                title: 'Generate XML configuration rule',
+              },
+              '⚡ Generate'
+            )
         )
       )
     );
@@ -715,35 +720,9 @@
       'form',
       { className: 'ts-settings-panel', onSubmit: onSave, style: { maxWidth: '850px' } },
       el('h2', { style: { marginTop: 0, marginBottom: '8px' } }, 'TranslateSense Settings'),
-      el('p', { style: { color: '#64748b', fontSize: '13px', marginBottom: '24px' } }, 'Configure active translation engines, API keys, and auto-mapping preferences.'),
+      el('p', { style: { color: '#64748b', fontSize: '13px', marginBottom: '24px' } }, 'Configure active translation engines and API keys.'),
 
-      // 1. Config Mapping Mode Toggle
-      el(
-        'div',
-        { className: 'ts-form-group', style: { background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' } },
-        el(
-          'label',
-          { className: 'ts-switch-label' },
-          el(
-            'div',
-            { className: 'ts-switch' },
-            el('input', {
-              type: 'checkbox',
-              checked: !!settings.mapping_mode,
-              onChange: (e) => setSettings({ ...settings, mapping_mode: e.target.checked }),
-            }),
-            el('span', { className: 'ts-slider' })
-          ),
-          el(
-            'div',
-            null,
-            el('strong', { style: { color: '#1e293b' } }, 'Enable Config Mapping Mode'),
-            el('div', { className: 'ts-form-desc', style: { margin: '2px 0 0 0' } }, "When active, saving any post in Gutenberg/Elementor automatically scans for 'Translate This Content' and creates XML rules.")
-          )
-        )
-      ),
-
-      // 2. Active Translation Providers Section
+      // 1. Active Translation Providers Section
       el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' } }, '🌐 Active Translation Providers'),
       el('p', { style: { color: '#64748b', fontSize: '13px', marginTop: 0, marginBottom: '16px' } }, 'Enable or disable providers to control what choices appear in the Editor Panel and Bulk Translation wizard.'),
 

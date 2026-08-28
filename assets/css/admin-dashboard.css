@@ -199,7 +199,7 @@
 
 .ts-search-input {
   width: 100%;
-  padding: 10px 14px 10px 36px;
+  padding: 10px 14px 10px 36px !important;
   border: 1px solid var(--ts-gray-200);
   border-radius: 8px;
   background: var(--ts-white);
