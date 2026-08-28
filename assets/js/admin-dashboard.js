@@ -9,7 +9,7 @@
   function TranslateSenseApp() {
     const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false, divi: false, classic: false });
     const [activeTab, setActiveTab] = useState('gutenberg');
-    const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+    const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
     const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [], divi: [], classic: [] });
     const [xmlConfigs, setXmlConfigs] = useState({
       all: '',
@@ -211,69 +211,69 @@
 
       // Notification Banner
       notice &&
-        el(
-          'div',
-          {
-            style: {
-              padding: '12px 20px',
-              borderRadius: '8px',
-              marginBottom: '16px',
-              fontWeight: '600',
-              background: notice.type === 'error' ? '#fee2e2' : '#dcfce7',
-              color: notice.type === 'error' ? '#991b1b' : '#166534',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            },
+      el(
+        'div',
+        {
+          style: {
+            padding: '12px 20px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontWeight: '600',
+            background: notice.type === 'error' ? '#fee2e2' : '#dcfce7',
+            color: notice.type === 'error' ? '#991b1b' : '#166534',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           },
-          el('span', null, notice.text),
-          el('button', { onClick: () => setNotice(null), style: { background: 'none', border: 'none', cursor: 'pointer' } }, '✕')
-        ),
+        },
+        el('span', null, notice.text),
+        el('button', { onClick: () => setNotice(null), style: { background: 'none', border: 'none', cursor: 'pointer' } }, '✕')
+      ),
 
       // Tabs Navigation with Editor Activation Filter
       el(
         'div',
         { className: 'ts-nav-tabs' },
         activeBuilders.gutenberg &&
-          el(
-            'button',
-            {
-              className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
-              onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); },
-            },
-            'Gutenberg Blocks',
-            el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
-          ),
+        el(
+          'button',
+          {
+            className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
+            onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); },
+          },
+          'Gutenberg Blocks',
+          el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
+        ),
         activeBuilders.elementor &&
-          el(
-            'button',
-            {
-              className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
-              onClick: () => { setActiveTab('elementor'); setSearchQuery(''); },
-            },
-            'Elementor Widgets',
-            el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
-          ),
+        el(
+          'button',
+          {
+            className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
+            onClick: () => { setActiveTab('elementor'); setSearchQuery(''); },
+          },
+          'Elementor Widgets',
+          el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
+        ),
         activeBuilders.divi &&
-          el(
-            'button',
-            {
-              className: `ts-tab-btn ${activeTab === 'divi' ? 'active' : ''}`,
-              onClick: () => { setActiveTab('divi'); setSearchQuery(''); },
-            },
-            'Divi Modules',
-            el('span', { className: 'ts-tab-count' }, widgetsData.divi ? widgetsData.divi.length : 0)
-          ),
+        el(
+          'button',
+          {
+            className: `ts-tab-btn ${activeTab === 'divi' ? 'active' : ''}`,
+            onClick: () => { setActiveTab('divi'); setSearchQuery(''); },
+          },
+          'Divi Modules',
+          el('span', { className: 'ts-tab-count' }, widgetsData.divi ? widgetsData.divi.length : 0)
+        ),
         activeBuilders.classic &&
-          el(
-            'button',
-            {
-              className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
-              onClick: () => { setActiveTab('classic'); setSearchQuery(''); },
-            },
-            'Classic / Custom Fields',
-            el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
-          ),
+        el(
+          'button',
+          {
+            className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
+            onClick: () => { setActiveTab('classic'); setSearchQuery(''); },
+          },
+          'Classic / Custom Fields',
+          el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
+        ),
         el(
           'button',
           {
@@ -295,14 +295,14 @@
       // Tab Content View
       activeTab === 'settings'
         ? el(SettingsPanel, {
-            settings,
-            setSettings,
-            onSave: handleSaveSettings,
-            languages,
-          })
+          settings,
+          setSettings,
+          onSave: handleSaveSettings,
+          languages,
+        })
         : activeTab === 'xml_editor'
-        ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
-        : el(
+          ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
+          : el(
             'div',
             null,
             // Controls Bar
@@ -382,14 +382,55 @@
             // Content: Grid View or List / Table View
             viewMode === 'grid'
               ? el(
-                  'div',
-                  { className: 'ts-widget-grid' },
-                  filteredWidgets.length > 0
-                    ? filteredWidgets.map((widget) =>
-                        el(WidgetCard, {
+                'div',
+                { className: 'ts-widget-grid' },
+                filteredWidgets.length > 0
+                  ? filteredWidgets.map((widget) =>
+                    el(WidgetCard, {
+                      key: widget.id,
+                      widget,
+                      activeTab,
+                      onEdit: (w) => {
+                        setSelectedWidget(w);
+                        setModalTargetBuilder(activeTab);
+                        setIsXmlModalOpen(true);
+                      },
+                      onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                    })
+                  )
+                  : el(
+                    'div',
+                    { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
+                    'No items found matching your search.'
+                  )
+              )
+              : el(
+                'div',
+                { className: 'ts-table-container' },
+                el(
+                  'table',
+                  { className: 'ts-list-table' },
+                  el(
+                    'thead',
+                    null,
+                    el(
+                      'tr',
+                      null,
+                      el('th', { style: { width: '35%' } }, 'Block / Widget Name'),
+                      el('th', { style: { width: '15%' } }, 'Category'),
+                      el('th', { style: { width: '15%' } }, 'Mapped Fields'),
+                      el('th', { style: { width: '15%' } }, 'Status'),
+                      el('th', { style: { width: '20%', textAlign: 'right' } }, 'Actions')
+                    )
+                  ),
+                  el(
+                    'tbody',
+                    null,
+                    filteredWidgets.length > 0
+                      ? filteredWidgets.map((widget) =>
+                        el(WidgetTableRow, {
                           key: widget.id,
                           widget,
-                          activeTab,
                           onEdit: (w) => {
                             setSelectedWidget(w);
                             setModalTargetBuilder(activeTab);
@@ -398,66 +439,25 @@
                           onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
                         })
                       )
-                    : el(
-                        'div',
-                        { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
-                        'No items found matching your search.'
-                      )
-                )
-              : el(
-                  'div',
-                  { className: 'ts-table-container' },
-                  el(
-                    'table',
-                    { className: 'ts-list-table' },
-                    el(
-                      'thead',
-                      null,
-                      el(
+                      : el(
                         'tr',
                         null,
-                        el('th', { style: { width: '35%' } }, 'Block / Widget Name'),
-                        el('th', { style: { width: '15%' } }, 'Category'),
-                        el('th', { style: { width: '15%' } }, 'Mapped Fields'),
-                        el('th', { style: { width: '15%' } }, 'Status'),
-                        el('th', { style: { width: '20%', textAlign: 'right' } }, 'Actions')
+                        el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
                       )
-                    ),
-                    el(
-                      'tbody',
-                      null,
-                      filteredWidgets.length > 0
-                        ? filteredWidgets.map((widget) =>
-                            el(WidgetTableRow, {
-                              key: widget.id,
-                              widget,
-                              onEdit: (w) => {
-                                setSelectedWidget(w);
-                                setModalTargetBuilder(activeTab);
-                                setIsXmlModalOpen(true);
-                              },
-                              onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
-                            })
-                          )
-                        : el(
-                            'tr',
-                            null,
-                            el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
-                          )
-                    )
                   )
                 )
+              )
           ),
 
       // XML Config Modal
       isXmlModalOpen &&
-        el(XmlConfigModal, {
-          widget: selectedWidget,
-          builder: modalTargetBuilder,
-          xmlCode: selectedWidget ? (selectedWidget.xml_snippet || '') : (xmlConfigs[modalTargetBuilder] || ''),
-          onClose: () => setIsXmlModalOpen(false),
-          onSave: (code) => handleSaveXml(code, modalTargetBuilder, selectedWidget ? selectedWidget.id : ''),
-        })
+      el(XmlConfigModal, {
+        widget: selectedWidget,
+        builder: modalTargetBuilder,
+        xmlCode: selectedWidget ? (selectedWidget.xml_snippet || '') : (xmlConfigs[modalTargetBuilder] || ''),
+        onClose: () => setIsXmlModalOpen(false),
+        onSave: (code) => handleSaveXml(code, modalTargetBuilder, selectedWidget ? selectedWidget.id : ''),
+      })
     );
   }
 
