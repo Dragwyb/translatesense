@@ -221,7 +221,7 @@ class Content_Parser {
 
 		$post = get_post( $post_id );
 
-		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
+		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status || 'ts_config_post' === $post->post_type ) {
 			return false;
 		}
 
