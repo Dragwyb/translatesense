@@ -235,17 +235,17 @@ class Content_Parser {
 	 * @param \Elementor\Core\DocumentTypes\Page $document Elementor document
 	 * @param array                              $data     Post data
 	 */
-	public static function handle_elementor_save_post( $ele_doc, array $ele_data ): void {
+	public static function handle_elementor_save_post( $document, $data ): void {
 
-		if ( ! isset( $ele_data ) || ! is_array( $ele_data ) || count( $ele_data ) === 0 ) {
+		if ( ! isset( $data ) || ! is_array( $data ) || count( $data ) === 0 ) {
 			return;
 		}
 
-		if ( ! $ele_doc || ! $ele_doc instanceof \Elementor\Core\DocumentTypes\Page ) {
+		if ( ! $document || ! $document instanceof \Elementor\Core\DocumentTypes\Page ) {
 			return;
 		}
 
-		$post_id = (int) $ele_doc->get_id();
+		$post_id = (int) $document->get_id();
 
 		if ( ! self::is_save_package( $post_id ) ) {
 			return;

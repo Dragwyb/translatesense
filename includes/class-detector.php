@@ -227,8 +227,8 @@ class Detector {
 	/**
 	 * Handle Elementor document save data.
 	 */
-	public static function handle_elementor_save( $data, $document ) {
-		$post_id = $document->get_main_id();
+	public static function handle_elementor_save( $document, $data ) {
+		$post_id = $document->get_id();
 		if ( ! self::is_translatesense_config_post( $post_id ) ) {
 			return $data;
 		}
