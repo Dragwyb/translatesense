@@ -171,6 +171,39 @@ class Rest_Api {
 				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
 			)
 		);
+
+		// 9. Bulk translation batch start endpoint
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-start',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_start' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
+
+		// 10. Bulk translation batch status polling endpoint
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-status',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'bulk_status' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
+
+		// 11. Bulk translation update job endpoint (used by Chrome Local AI frontend)
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-update-job',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_update_job' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
 	}
 
 	/**
@@ -750,15 +783,21 @@ class Rest_Api {
 			);
 		}
 
-		$target_lang        = $params['target_lang'] ?? 'es';
-		$target_editor_type = $params['builder'] ?? 'core';
 		$source_editor_type = Editor_Integration::get_post_editor_type( $post_id );
+		$target_lang        = $params['target_lang'] ?? 'es';
+		$target_editor_type = ! empty( $params['builder'] ) ? sanitize_key( $params['builder'] ) : $source_editor_type;
 
-		if ( $target_editor_type !== $source_editor_type ) {
+		if ( 'core' === $target_editor_type ) {
+			$target_editor_type = 'gutenberg';
+		}
+		$normalized_source = ( 'core' === $source_editor_type ) ? 'gutenberg' : $source_editor_type;
+
+		if ( $target_editor_type !== $normalized_source && $target_editor_type !== $source_editor_type ) {
 			return rest_ensure_response(
 				array(
-					'success' => false,
-					'message' => sprintf( __( 'Source editor type (%1$s) must be same as Current Post editor type (%2$s).', 'translatesense' ), $source_editor_type, $target_editor_type ),
+					'success'     => false,
+					'editor_type' => $source_editor_type,
+					'message'     => sprintf( __( 'Source editor type (%1$s) must be same as Current Post editor type (%2$s).', 'translatesense' ), $source_editor_type, $target_editor_type ),
 				)
 			);
 		}
@@ -770,7 +809,13 @@ class Rest_Api {
 			$package_strings = Content_Parser::parse( '', $post_id, $source_language, $source_editor_type );
 		}
 
-		return rest_ensure_response( array( 'strings' => $package_strings ) );
+		return rest_ensure_response(
+			array(
+				'success'     => true,
+				'editor_type' => $source_editor_type,
+				'strings'     => $package_strings,
+			)
+		);
 	}
 
 	/**
@@ -813,10 +858,11 @@ class Rest_Api {
 	 * Translate complete post endpoint (Step 4.1 & 4.2).
 	 */
 	public static function translate_post( WP_REST_Request $request ) {
-		$params      = $request->get_json_params();
-		$post_id     = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
-		$target_lang = $params['target_lang'] ?? '';
-		$provider    = $params['provider'] ?? null;
+		$params                 = $request->get_json_params();
+		$post_id                = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+		$target_lang            = $params['target_lang'] ?? '';
+		$provider               = $params['provider'] ?? null;
+		$in_memory_translations = $params['in_memory_translations'] ?? array();
 
 		if ( ! $post_id || ! $target_lang ) {
 			return new WP_Error( 'invalid_params', __( 'Post ID and Target Language are required.', 'translatesense' ), array( 'status' => 400 ) );
@@ -828,7 +874,13 @@ class Rest_Api {
 		}
 
 		$source_lang = Polylang_Bridge::get_post_language( $post_id );
-		$custom_opts = $provider ? array( 'provider' => $provider ) : array();
+		$custom_opts = array();
+		if ( $provider ) {
+			$custom_opts['provider'] = $provider;
+		}
+		if ( ! empty( $in_memory_translations ) && is_array( $in_memory_translations ) ) {
+			$custom_opts['in_memory_translations'] = $in_memory_translations;
+		}
 
 		// 1. Translate Title
 		$title_res        = Translator::translate_string(
@@ -899,9 +951,89 @@ class Rest_Api {
 	}
 
 	/**
+	 * Start Bulk Translation Batch Endpoint.
+	 */
+	public static function bulk_start( WP_REST_Request $request ) {
+		$params           = $request->get_json_params();
+		$post_ids         = $params['post_ids'] ?? array();
+		$target_languages = $params['target_languages'] ?? array();
+		$provider         = $params['provider'] ?? 'openai';
+
+		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
+			return new WP_Error( 'invalid_posts', __( 'Post IDs array is required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		if ( empty( $target_languages ) || ! is_array( $target_languages ) ) {
+			return new WP_Error( 'invalid_languages', __( 'Target languages array is required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		$result = Bulk_Process::create_batch( $post_ids, $target_languages, (string) $provider );
+
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Bulk Translation Status Polling Endpoint (every 5 seconds).
+	 */
+	public static function bulk_status( WP_REST_Request $request ) {
+		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
+		$post_id  = (int) $request->get_param( 'post_id' );
+
+		$status = Bulk_Process::get_batch_status( $batch_id, $post_id );
+
+		return rest_ensure_response( $status );
+	}
+
+	/**
+	 * Bulk Translation Update Job Endpoint (used by Chrome Local AI frontend).
+	 */
+	public static function bulk_update_job( WP_REST_Request $request ) {
+		$params  = $request->get_json_params();
+		$job_id  = isset( $params['job_id'] ) ? (int) $params['job_id'] : 0;
+		$updates = $params['data'] ?? array();
+
+		if ( ! $job_id || empty( $updates ) || ! is_array( $updates ) ) {
+			return new WP_Error( 'invalid_params', __( 'Job ID and update data are required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		// Filter allowed update columns
+		$allowed = array(
+			'status',
+			'progress_status',
+			'total_strings',
+			'completed_strings',
+			'sent_ai_request_data',
+			'received_ai_request_data',
+			'error_message',
+			'target_post_id',
+		);
+
+		$clean_data = array();
+		foreach ( $allowed as $col ) {
+			if ( isset( $updates[ $col ] ) ) {
+				$val = $updates[ $col ];
+				if ( is_array( $val ) ) {
+					$clean_data[ $col ] = wp_json_encode( $val );
+				} else {
+					$clean_data[ $col ] = $val;
+				}
+			}
+		}
+
+		$updated = Bulk_Process::update_job( $job_id, $clean_data );
+
+		return rest_ensure_response(
+			array(
+				'success' => $updated,
+				'job_id'  => $job_id,
+			)
+		);
+	}
+
+	/**
 	 * Translate Gutenberg blocks tree.
 	 */
-	private static function translate_gutenberg_blocks_tree( &$blocks, $rules, $source_lang, $target_lang, $post_id, $custom_opts ) {
+	public static function translate_gutenberg_blocks_tree( &$blocks, $rules, $source_lang, $target_lang, $post_id, $custom_opts ) {
 		foreach ( $blocks as &$block ) {
 			$name = $block['blockName'];
 			if ( empty( $name ) ) {
@@ -925,25 +1057,6 @@ class Rest_Api {
 				}
 			}
 
-			// Translate paragraph text if present
-			if ( 'core/paragraph' === $name && ! empty( $block['innerHTML'] ) ) {
-				$plain = strip_tags( $block['innerHTML'] );
-				if ( ! empty( trim( $plain ) ) ) {
-					$res                = Translator::translate_string(
-						$plain,
-						$source_lang,
-						$target_lang,
-						'core/paragraph',
-						$post_id,
-						$custom_opts
-					);
-					$block['innerHTML'] = '<p>' . esc_html( $res['translated'] ) . '</p>';
-					if ( isset( $block['innerContent'][0] ) ) {
-						$block['innerContent'][0] = $block['innerHTML'];
-					}
-				}
-			}
-
 			if ( ! empty( $block['innerBlocks'] ) ) {
 				self::translate_gutenberg_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts );
 			}
@@ -953,7 +1066,7 @@ class Rest_Api {
 	/**
 	 * Translate Elementor elements tree.
 	 */
-	private static function translate_elementor_elements_tree( &$elements, $rules, $source_lang, $target_lang, $post_id, $custom_opts ) {
+	public static function translate_elementor_elements_tree( &$elements, $rules, $source_lang, $target_lang, $post_id, $custom_opts ) {
 		foreach ( $elements as &$element ) {
 			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? '';
@@ -974,7 +1087,7 @@ class Rest_Api {
 	/**
 	 * Helper to translate and set nested setting in Elementor widget.
 	 */
-	private static function translate_nested_elementor_setting( &$settings, $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts ) {
+	public static function translate_nested_elementor_setting( &$settings, $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts ) {
 		$keys = explode( '>', $path );
 		$ref  = &$settings;
 
