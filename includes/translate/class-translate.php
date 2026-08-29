@@ -12,6 +12,7 @@ use TranslateSense\Includes\Translate\Builders\Divi_Builder;
 use TranslateSense\Includes\Translate\Builders\Classic_Builder;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Content_Parser\Content_Parser;
+use TranslateSense\Includes\Content_Parser\Dom_Filter;
 use TranslateSense\Includes\Hashing_Db;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -145,20 +146,40 @@ class Translate {
 			);
 		}
 
-		$hash = Hashing_Db::generate_hash( (string) $widget_id, (string) $source_string );
+		// Filter DOM content to extract translatable substring (matching Content_Parser extraction)
+		$filtered_string = Dom_Filter::filter_dom_content( (string) $source_string );
+		if ( false === $filtered_string || '' === trim( (string) $filtered_string ) ) {
+			return array(
+				'translated' => $source_string,
+				'cached'     => true,
+				'hash'       => md5( (string) $widget_id . '_' . (string) $source_string ),
+			);
+		}
+
+		$hash = Hashing_Db::generate_hash( (string) $widget_id, (string) $filtered_string );
 
 		// Step 3.2b: Check in-memory translations (Chrome Local AI / custom maps)
 		if ( ! empty( $custom_options['in_memory_translations'] ) && is_array( $custom_options['in_memory_translations'] ) ) {
 			if ( isset( $custom_options['in_memory_translations'][ $hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $hash ] ) ) {
+				$translated_text = (string) $custom_options['in_memory_translations'][ $hash ];
 				return array(
-					'translated' => (string) $custom_options['in_memory_translations'][ $hash ],
+					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
+					'cached'     => false,
+					'hash'       => $hash,
+				);
+			}
+			if ( isset( $custom_options['in_memory_translations'][ $filtered_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_string ] ) ) {
+				$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_string ];
+				return array(
+					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
 					'cached'     => false,
 					'hash'       => $hash,
 				);
 			}
 			if ( isset( $custom_options['in_memory_translations'][ $source_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $source_string ] ) ) {
+				$translated_text = (string) $custom_options['in_memory_translations'][ $source_string ];
 				return array(
-					'translated' => (string) $custom_options['in_memory_translations'][ $source_string ],
+					'translated' => $translated_text,
 					'cached'     => false,
 					'hash'       => $hash,
 				);
@@ -169,7 +190,7 @@ class Translate {
 		$cached = Hashing_Db::get_cached_translation( $hash, $target_lang );
 		if ( null !== $cached ) {
 			return array(
-				'translated' => $cached,
+				'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $cached ),
 				'cached'     => true,
 				'hash'       => $hash,
 			);
@@ -179,17 +200,19 @@ class Translate {
 		$settings = get_option( 'translatesense_settings', array() );
 		$provider = $custom_options['provider'] ?? ( $settings['provider'] ?? 'openai' );
 
-		$translated_text = self::execute_provider_translation( (string) $source_string, $source_lang, $target_lang, $provider, $settings );
+		$translated_text = self::execute_provider_translation( (string) $filtered_string, $source_lang, $target_lang, $provider, $settings );
 
 		// Save to cache ONLY for AI/Backend providers (exclude client-side Chrome AI)
 		if ( ! empty( $translated_text ) && self::should_cache_provider( $provider ) ) {
 			Hashing_Db::save_translation_result( $hash, $target_lang, $translated_text );
 		} elseif ( empty( $translated_text ) ) {
-			$translated_text = $source_string; // fallback
+			$translated_text = $filtered_string; // fallback
 		}
 
+		$final_translated = Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text );
+
 		return array(
-			'translated' => $translated_text,
+			'translated' => $final_translated,
 			'cached'     => false,
 			'hash'       => $hash,
 		);
