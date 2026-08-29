@@ -37,7 +37,7 @@
   background: #ffffff;
   color: #1e293b;
   outline: none;
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
 }
 
 .ts-editor-select:focus {
@@ -56,7 +56,7 @@
   font-size: 13px;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(79, 70, 229, 0.25);
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -117,7 +117,7 @@
 
 /* Modal Header */
 .ts-review-header {
-  padding: 16px 24px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
@@ -128,15 +128,60 @@
 .ts-review-header-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+
+.ts-header-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f46e5;
+  font-size: 20px;
+  flex-shrink: 0;
+  border: 1px solid #c7d2fe;
+  box-shadow: 0 2px 5px rgba(79, 70, 229, 0.1);
+}
+
+.ts-header-icon-box .dashicons {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
 }
 
 .ts-review-header h3 {
-  margin: 0;
-  font-size: 17px;
+  margin: 0 0 2px 0;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.01em;
+}
+
+.ts-header-subtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.ts-lang-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid #c7d2fe;
 }
 
 .ts-bulk-close {
@@ -145,19 +190,20 @@
   border-radius: 8px;
   background: #f1f5f9;
   border: none;
-  font-size: 16px;
+  font-size: 15px;
   color: #64748b;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.18s ease;
+  transition: all 0.6s ease;
   line-height: 1;
 }
 
 .ts-bulk-close:hover {
   background: #e2e8f0;
   color: #0f172a;
+  transform: rotate(90deg);
 }
 
 /* Modal Body */
@@ -205,7 +251,7 @@
   align-items: center;
   gap: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
 }
 
 .ts-stat-card:hover {
@@ -284,7 +330,7 @@
   background: #ffffff;
   color: #1e293b;
   box-sizing: border-box;
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
@@ -450,7 +496,7 @@
   background-color: #ffffff;
   color: #0f172a;
   box-sizing: border-box;
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
   line-height: 1.4;
   min-height: 40px;
   resize: vertical;
@@ -684,70 +730,156 @@
 }
 
 /* ==========================================================================
-   Provider Selection Cards Modal
+   Provider Selection Modal & Stacked List
    ========================================================================== */
-.ts-provider-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 16px 0 20px 0;
+.ts-provider-modal-container {
+  max-width: 580px !important;
 }
 
-@media (max-width: 600px) {
-  .ts-provider-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.ts-provider-card {
+.ts-provider-list {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 6px 0;
 }
 
-.ts-provider-card:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  transform: translateY(-1px);
-}
-
-.ts-provider-card.selected {
-  border-color: #4f46e5;
-  background: #f5f3ff;
-  box-shadow: 0 0 0 1px #4f46e5;
-}
-
-.ts-provider-radio {
-  margin-top: 3px !important;
-  accent-color: #4f46e5;
-}
-
-.ts-provider-info {
-  flex: 1;
-}
-
-.ts-provider-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1e293b;
+.ts-provider-row {
   display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ts-provider-row:hover {
+  border-color: #a5b4fc;
+  background: #fbfbfe;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 14px -3px rgba(79, 70, 229, 0.1);
+}
+
+.ts-provider-row.selected {
+  border-color: #4f46e5;
+  background: linear-gradient(135deg, #fbfcfe 0%, #eef2ff 100%);
+  box-shadow: 0 0 0 1px #4f46e5, 0 6px 16px -3px rgba(79, 70, 229, 0.15);
+}
+
+/* Custom Radio Indicator */
+.ts-provider-radio-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ts-provider-radio-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0 !important;
+}
+
+.ts-provider-custom-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.6s ease;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+
+.ts-provider-row.selected .ts-provider-custom-radio {
+  border-color: #4f46e5;
+  background: #4f46e5;
+}
+
+.ts-provider-row.selected .ts-provider-custom-radio::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+/* Provider Icon Avatar */
+.ts-provider-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  transition: all 0.6s ease;
+}
+
+.ts-provider-row.selected .ts-provider-icon-box {
+  background: #ffffff;
+  border-color: #c7d2fe;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+}
+
+/* Main Text & Title */
+.ts-provider-main-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-provider-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 3px;
 }
 
-.ts-provider-desc {
+.ts-provider-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.ts-provider-caption {
   font-size: 12px;
   color: #64748b;
   margin: 0;
   line-height: 1.45;
+}
+
+/* On-Device Badge */
+.ts-provider-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2.5px 9px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.ts-provider-badge.on-device {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 1px 2px rgba(4, 120, 87, 0.08);
 }
 
 /* ==========================================================================
@@ -770,7 +902,7 @@
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.2s ease;
+  transition: all 0.6s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -794,11 +926,83 @@
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
   color: #ffffff;
   border-color: #3730a3;
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ts-bulk-btn-primary:hover {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border-color: #4338ca;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45);
+  transform: translateY(-1.5px);
+}
+
+.ts-bulk-btn-primary:active {
   background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%);
-  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   Universal Editor Translate Trigger Buttons (Classic, Elementor, Divi, Gutenberg)
+   ========================================================================== */
+.ts-open-translate-btn,
+#ts-media-translate-btn,
+#ts-elementor-translate-btn,
+#ts-divi-translate-btn,
+#ts-classic-translate-btn,
+#ts-metabox-translate-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  border: 1px solid #3730a3 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none !important;
+  position: relative !important;
+}
+
+.ts-open-translate-btn:hover,
+#ts-media-translate-btn:hover,
+#ts-elementor-translate-btn:hover,
+#ts-divi-translate-btn:hover,
+#ts-classic-translate-btn:hover,
+#ts-metabox-translate-btn:hover {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  border-color: #4338ca !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45), 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.ts-open-translate-btn:active,
+#ts-media-translate-btn:active,
+#ts-elementor-translate-btn:active,
+#ts-divi-translate-btn:active,
+#ts-classic-translate-btn:active,
+#ts-metabox-translate-btn:active {
+  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%) !important;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25) !important;
+  transform: translateY(0) !important;
+}
+
+.ts-open-translate-btn .dashicons,
+#ts-media-translate-btn .dashicons {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+  color: #ffffff !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.ts-open-translate-btn:hover .dashicons,
+#ts-media-translate-btn:hover .dashicons {
+  transform: rotate(20deg) scale(1.18) !important;
 }

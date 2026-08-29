@@ -277,46 +277,68 @@
       modalContainer.id = 'ts-universal-provider-modal';
       modalContainer.className = 'ts-strings-review-modal';
       modalContainer.innerHTML = `
-        <div class="ts-review-container" style="max-width: 640px;" onclick="event.stopPropagation()">
+        <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
           <div class="ts-review-header">
-            <h3>🌐 Choose Translation Provider</h3>
-            <button class="ts-bulk-close" id="ts-provider-modal-close">✕</button>
+            <div class="ts-review-header-title">
+              <div class="ts-header-icon-box">
+                <span class="dashicons dashicons-translation"></span>
+              </div>
+              <div>
+                <h3>Choose Translation Provider</h3>
+                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">🌐 ${this.targetLang.toUpperCase()}</span></p>
+              </div>
+            </div>
+            <button class="ts-bulk-close" id="ts-provider-modal-close" title="Close">✕</button>
           </div>
           <div class="ts-review-body">
-            <p style="font-size: 13px; color: #64748b; margin: 0 0 14px 0;">
-              Translating content for page language: <strong style="color: #4f46e5;">🌐 ${this.targetLang.toUpperCase()}</strong>
-            </p>
-            <div class="ts-provider-grid">
-              ${providersList.map((p, idx) => `
-                <div class="ts-provider-card ${p.id === this.selectedProvider ? 'selected' : (idx === 0 ? 'selected' : '')}" data-provider="${p.id}">
-                  <input type="radio" name="ts_provider_choice" value="${p.id}" ${p.id === this.selectedProvider ? 'checked' : (idx === 0 ? 'checked' : '')} class="ts-provider-radio" />
-                  <div class="ts-provider-info">
-                    <div class="ts-provider-title">
-                      <span>${p.icon} ${p.title}</span>
+            <div class="ts-provider-list">
+              ${providersList.map((p, idx) => {
+                const isSelected = p.id === this.selectedProvider || (!this.selectedProvider && idx === 0);
+                const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+                const badgeHtml = isFrontend
+                  ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+                  : '';
+
+                return `
+                  <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                    <div class="ts-provider-radio-wrap">
+                      <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                      <span class="ts-provider-custom-radio"></span>
                     </div>
-                    <p class="ts-provider-desc">${p.desc}</p>
+                    <div class="ts-provider-icon-box">
+                      <span class="ts-provider-emoji">${p.icon}</span>
+                    </div>
+                    <div class="ts-provider-main-info">
+                      <div class="ts-provider-title-row">
+                        <span class="ts-provider-name">${p.title}</span>
+                        ${badgeHtml}
+                      </div>
+                      <p class="ts-provider-caption">${p.desc}</p>
+                    </div>
                   </div>
-                </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
           </div>
-          <div class="ts-review-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+          <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-provider-modal-cancel">Cancel</button>
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-provider-modal-start">🚀 Start Translation</button>
+            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-provider-modal-start">
+              <span>🚀</span> Start Translation
+            </button>
           </div>
         </div>
       `;
 
       document.body.appendChild(modalContainer);
 
-      // Card Selection
-      modalContainer.querySelectorAll('.ts-provider-card').forEach((card) => {
-        card.addEventListener('click', () => {
-          modalContainer.querySelectorAll('.ts-provider-card').forEach((c) => c.classList.remove('selected'));
-          card.classList.add('selected');
-          const radio = card.querySelector('input[type="radio"]');
+      // Row Selection
+      modalContainer.querySelectorAll('.ts-provider-row').forEach((row) => {
+        row.addEventListener('click', () => {
+          modalContainer.querySelectorAll('.ts-provider-row').forEach((r) => r.classList.remove('selected'));
+          row.classList.add('selected');
+          const radio = row.querySelector('input[type="radio"]');
           if (radio) radio.checked = true;
-          this.selectedProvider = card.getAttribute('data-provider');
+          this.selectedProvider = row.getAttribute('data-provider');
         });
       });
 

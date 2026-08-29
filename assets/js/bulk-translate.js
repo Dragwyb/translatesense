@@ -32,8 +32,7 @@
       btn.type = 'button';
       btn.id = 'ts-quick-filter-translate-btn';
       btn.className = 'button button-primary ts-filter-action-btn';
-      btn.style.cssText = 'margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);';
-      btn.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1;"></span> Translate Selected';
+      btn.innerHTML = '<span class="dashicons dashicons-translation"></span> Translate Selected';
       postQuerySubmit.insertAdjacentElement('afterend', btn);
     }
 
@@ -43,8 +42,7 @@
       btnBottom.type = 'button';
       btnBottom.id = 'ts-quick-filter-translate-btn-bottom';
       btnBottom.className = 'button button-primary ts-filter-action-btn';
-      btnBottom.style.cssText = 'margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);';
-      btnBottom.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1;"></span> Translate Selected';
+      btnBottom.innerHTML = '<span class="dashicons dashicons-translation"></span> Translate Selected';
       doAction2.insertAdjacentElement('afterend', btnBottom);
     }
 
@@ -180,29 +178,36 @@
                 <div class="ts-summary-box" id="ts-summary-box-content"></div>
 
                 <div class="ts-bulk-field">
-                  <label>Choose Translation Engine</label>
-                  <div class="ts-provider-grid">
+                  <label style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Choose Translation Engine</label>
+                  <div class="ts-provider-list">
                     ${providers.map(
-            (p) => {
-              const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-              const badgeHtml = isLocalFrontend
-                ? '<span class="ts-provider-badge frontend">Frontend</span>'
-                : '<span class="ts-provider-badge backend">Backend</span>';
+                      (p) => {
+                        const isSelected = p.id === selectedProviderId;
+                        const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+                        const badgeHtml = isLocalFrontend
+                          ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+                          : '';
 
-              return `
-                          <div class="ts-provider-card ${p.id === selectedProviderId ? 'selected' : ''}" data-provider="${p.id}">
-                            ${badgeHtml}
-                            <input type="radio" name="ts_bulk_provider" value="${p.id}" ${p.id === selectedProviderId ? 'checked' : ''} class="ts-provider-radio" />
-                            <div class="ts-provider-info">
-                              <div class="ts-provider-title">
-                                <span>${p.icon} ${p.title}</span>
+                        return `
+                          <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                            <div class="ts-provider-radio-wrap">
+                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                              <span class="ts-provider-custom-radio"></span>
+                            </div>
+                            <div class="ts-provider-icon-box">
+                              <span class="ts-provider-emoji">${p.icon}</span>
+                            </div>
+                            <div class="ts-provider-main-info">
+                              <div class="ts-provider-title-row">
+                                <span class="ts-provider-name">${p.title}</span>
+                                ${badgeHtml}
                               </div>
-                              <p class="ts-provider-desc">${p.desc}</p>
+                              <p class="ts-provider-caption">${p.desc}</p>
                             </div>
                           </div>
                         `;
-            }
-          ).join('')}
+                      }
+                    ).join('')}
                   </div>
                 </div>
               </div>
@@ -399,16 +404,16 @@
         });
       }
 
-      // Provider Selection Card Click
-      document.querySelectorAll('.ts-provider-card').forEach(function (card) {
-        card.addEventListener('click', function () {
-          document.querySelectorAll('.ts-provider-card').forEach(function (c) {
+      // Provider Selection Row Click
+      document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (row) {
+        row.addEventListener('click', function () {
+          document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (c) {
             c.classList.remove('selected');
           });
-          card.classList.add('selected');
-          const radio = card.querySelector('input[type="radio"]');
+          row.classList.add('selected');
+          const radio = row.querySelector('input[type="radio"]');
           if (radio) radio.checked = true;
-          selectedProviderId = card.getAttribute('data-provider');
+          selectedProviderId = row.getAttribute('data-provider');
         });
       });
 
