@@ -147,14 +147,7 @@ class Translate {
 		}
 
 		// Filter DOM content to extract translatable substring (matching Content_Parser extraction)
-		$filtered_string = Dom_Filter::filter_dom_content( (string) $source_string );
-		if ( false === $filtered_string || '' === trim( (string) $filtered_string ) ) {
-			return array(
-				'translated' => $source_string,
-				'cached'     => true,
-				'hash'       => md5( (string) $widget_id . '_' . (string) $source_string ),
-			);
-		}
+		$filtered_string = $source_string;
 
 		$hash = Hashing_Db::generate_hash( (string) $widget_id, (string) $filtered_string );
 
@@ -168,6 +161,22 @@ class Translate {
 					'hash'       => $hash,
 				);
 			}
+
+			$filtered_string = Dom_Filter::filter_dom_content( (string) $source_string );
+
+			if ( ! empty( $filtered_string ) && $filtered_string !== $source_string ) {
+				$filtered_hash = Hashing_Db::generate_hash( (string) $widget_id, (string) $filtered_string );
+
+				if ( isset( $custom_options['in_memory_translations'][ $filtered_hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_hash ] ) ) {
+					$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_hash ];
+					return array(
+						'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
+						'cached'     => false,
+						'hash'       => $filtered_hash,
+					);
+				}
+			}
+
 			if ( isset( $custom_options['in_memory_translations'][ $filtered_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_string ] ) ) {
 				$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_string ];
 				return array(
@@ -196,23 +205,23 @@ class Translate {
 			);
 		}
 
-		// Translate via configured provider
-		$settings = get_option( 'translatesense_settings', array() );
-		$provider = $custom_options['provider'] ?? ( $settings['provider'] ?? 'openai' );
+		if ( $filtered_string === $source_string ) {
+			$filtered_string = Dom_Filter::filter_dom_content( (string) $source_string );
+			$filtered_hash   = Hashing_Db::generate_hash( (string) $widget_id, (string) $filtered_string );
 
-		$translated_text = self::execute_provider_translation( (string) $filtered_string, $source_lang, $target_lang, $provider, $settings );
-
-		// Save to cache ONLY for AI/Backend providers (exclude client-side Chrome AI)
-		if ( ! empty( $translated_text ) && self::should_cache_provider( $provider ) ) {
-			Hashing_Db::save_translation_result( $hash, $target_lang, $translated_text );
-		} elseif ( empty( $translated_text ) ) {
-			$translated_text = $filtered_string; // fallback
+			// Step 3.3: Check DB Cache
+			$cached = Hashing_Db::get_cached_translation( $filtered_hash, $target_lang );
+			if ( null !== $cached ) {
+				return array(
+					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $cached ),
+					'cached'     => true,
+					'hash'       => $filtered_hash,
+				);
+			}
 		}
 
-		$final_translated = Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text );
-
 		return array(
-			'translated' => $final_translated,
+			'translated' => $source_string,
 			'cached'     => false,
 			'hash'       => $hash,
 		);
