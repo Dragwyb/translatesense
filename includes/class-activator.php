@@ -64,9 +64,35 @@ class Activator {
 			INDEX language_index (language)
 		) {$charset_collate};";
 
+		// Custom bulk translations workflow queue table
+		$table_bulk = $wpdb->prefix . 'translatesense_bulk_translations';
+		$sql_bulk   = "CREATE TABLE {$table_bulk} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			batch_id varchar(64) NOT NULL,
+			post_id bigint(20) unsigned NOT NULL,
+			target_language varchar(20) NOT NULL,
+			provider varchar(50) NOT NULL DEFAULT 'openai',
+			status varchar(30) NOT NULL DEFAULT 'pending',
+			progress_status varchar(100) DEFAULT '',
+			total_strings int(11) NOT NULL DEFAULT 0,
+			completed_strings int(11) NOT NULL DEFAULT 0,
+			sent_ai_request_data longtext DEFAULT NULL,
+			received_ai_request_data longtext DEFAULT NULL,
+			error_message text DEFAULT NULL,
+			target_post_id bigint(20) unsigned DEFAULT 0,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY batch_index (batch_id),
+			KEY post_index (post_id),
+			KEY status_index (status),
+			KEY target_lang_index (target_language)
+		) {$charset_collate};";
+
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql_packages );
 		dbDelta( $sql_translations );
+		dbDelta( $sql_bulk );
 	}
 
 	/**
