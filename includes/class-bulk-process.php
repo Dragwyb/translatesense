@@ -6,6 +6,7 @@ namespace TranslateSense\Includes;
 
 use WP_Error;
 use TranslateSense\Includes\Content_Parser\Content_Parser;
+use TranslateSense\Includes\Translate\Translate;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -290,7 +291,7 @@ class Bulk_Process {
 	}
 
 	/**
-	 * Synchronously translate a complete post using backend provider.
+	 * Synchronously translate a complete post (Title, Content, Elementor/Gutenberg data) and create Polylang linked post.
 	 *
 	 * @param int    $post_id
 	 * @param string $target_lang
@@ -299,79 +300,7 @@ class Bulk_Process {
 	 * @return array|WP_Error
 	 */
 	public static function execute_post_translation_sync( int $post_id, string $target_lang, string $provider, array $in_memory_translations = array() ) {
-		$source_post = get_post( $post_id );
-		if ( ! $source_post ) {
-			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ) );
-		}
-
-		$source_lang = Polylang_Bridge::get_post_language( $post_id );
-		$custom_opts = array(
-			'provider'               => $provider,
-			'in_memory_translations' => $in_memory_translations,
-		);
-
-		// 1. Translate Title
-		$title_res        = Translator::translate_string(
-			$source_post->post_title,
-			$source_lang,
-			$target_lang,
-			'post_title',
-			$post_id,
-			$custom_opts
-		);
-		$translated_title = $title_res['translated'];
-
-		// 2. Check if Elementor or Gutenberg or Classic
-		$is_elementor       = ( 'builder' === get_post_meta( $post_id, '_elementor_edit_mode', true ) );
-		$new_elementor_data = null;
-		$translated_content = $source_post->post_content;
-
-		if ( $is_elementor ) {
-			$elementor_data_raw = get_post_meta( $post_id, '_elementor_data', true );
-			$elements           = is_string( $elementor_data_raw ) ? json_decode( $elementor_data_raw, true ) : $elementor_data_raw;
-			if ( is_array( $elements ) ) {
-				$rules = Xml_Engine::get_all_rules();
-				Rest_Api::translate_elementor_elements_tree( $elements, $rules['elementor'], $source_lang, $target_lang, $post_id, $custom_opts );
-				$new_elementor_data = $elements;
-			}
-		} elseif ( function_exists( 'has_blocks' ) && has_blocks( $source_post->post_content ) ) {
-			$blocks = parse_blocks( $source_post->post_content );
-			$rules  = Xml_Engine::get_all_rules();
-			Rest_Api::translate_gutenberg_blocks_tree( $blocks, $rules['gutenberg'], $source_lang, $target_lang, $post_id, $custom_opts );
-			$translated_content = serialize_blocks( $blocks );
-		} else {
-			$content_res        = Translator::translate_string(
-				$source_post->post_content,
-				$source_lang,
-				$target_lang,
-				'post_content',
-				$post_id,
-				$custom_opts
-			);
-			$translated_content = $content_res['translated'];
-		}
-
-		// 3. Create or update Polylang translated post
-		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
-			$post_id,
-			$target_lang,
-			$translated_title,
-			$translated_content,
-			$new_elementor_data
-		);
-
-		if ( is_wp_error( $created_post_id ) ) {
-			return $created_post_id;
-		}
-
-		return array(
-			'success'          => true,
-			'source_post_id'   => $post_id,
-			'target_post_id'   => $created_post_id,
-			'target_language'  => $target_lang,
-			'translated_title' => $translated_title,
-			'edit_url'         => get_edit_post_link( $created_post_id, 'raw' ),
-		);
+		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
 	}
 
 	/**

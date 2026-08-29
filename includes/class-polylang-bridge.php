@@ -166,13 +166,13 @@ class Polylang_Bridge {
 	/**
 	 * Create or update a translated version of a post.
 	 */
-	public static function create_or_update_translated_post( $source_post_id, $target_lang, $translated_title, $translated_content, $elementor_data = null ) {
+	public static function create_or_update_translated_post( $source_post_id, $target_lang, $translated_title, $translated_content ) {
 		$source_post = get_post( $source_post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ) );
 		}
 
-		$translations = self::get_post_translations( $source_post_id );
+		$translations   = self::get_post_translations( $source_post_id );
 		$target_post_id = $translations[ $target_lang ] ?? 0;
 
 		$post_data = array(
@@ -206,20 +206,13 @@ class Polylang_Bridge {
 
 		// Update translation group
 		$translations[ $target_lang ] = $target_post_id;
-		$source_lang = self::get_post_language( $source_post_id );
+		$source_lang                  = self::get_post_language( $source_post_id );
 		if ( $source_lang ) {
 			$translations[ $source_lang ] = $source_post_id;
 		}
 		self::save_post_translations( $translations );
 
-		// Copy post meta and Elementor meta
-		if ( null !== $elementor_data ) {
-			update_post_meta( $target_post_id, '_elementor_edit_mode', 'builder' );
-			update_post_meta( $target_post_id, '_elementor_data', wp_slash( is_string( $elementor_data ) ? $elementor_data : wp_json_encode( $elementor_data ) ) );
-			update_post_meta( $target_post_id, '_elementor_template_type', get_post_meta( $source_post_id, '_elementor_template_type', true ) );
-		}
-
-		// Copy thumbnail
+		// Copy thumbnail if present
 		$thumbnail_id = get_post_thumbnail_id( $source_post_id );
 		if ( $thumbnail_id ) {
 			set_post_thumbnail( $target_post_id, $thumbnail_id );
