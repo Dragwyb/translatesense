@@ -877,52 +877,34 @@
     <!-- Elementor Widgets Mapping -->
     <elementor-widgets>
         <widget name="heading">
-            <conditions>
-                <condition key="widgetType">heading</condition>
-            </conditions>
             <fields>
                 <field type="title" editor_type="LINE">title</field>
             </fields>
         </widget>
         <widget name="text-editor">
-            <conditions>
-                <condition key="widgetType">text-editor</condition>
-            </conditions>
             <fields>
                 <field type="editor" editor_type="VISUAL">editor</field>
             </fields>
         </widget>
         <widget name="button">
-            <conditions>
-                <condition key="widgetType">button</condition>
-            </conditions>
             <fields>
                 <field type="text" editor_type="LINE">text</field>
                 <field type="link" editor_type="LINE">link>url</field>
             </fields>
         </widget>
         <widget name="icon-box">
-            <conditions>
-                <condition key="widgetType">icon-box</condition>
-            </conditions>
             <fields>
                 <field type="title_text" editor_type="LINE">title_text</field>
                 <field type="description_text" editor_type="VISUAL">description_text</field>
             </fields>
         </widget>
         <widget name="image-box">
-            <conditions>
-                <condition key="widgetType">image-box</condition>
-            </conditions>
             <fields>
                 <field type="title_text" editor_type="LINE">title_text</field>
                 <field type="description_text" editor_type="VISUAL">description_text</field>
             </fields>
         </widget>
         <widget name="call-to-action">
-            <conditions>
-                <condition key="widgetType">call-to-action</condition>
-            </conditions>
             <fields>
                 <field type="title" editor_type="LINE">title</field>
                 <field type="description" editor_type="VISUAL">description</field>
@@ -930,9 +912,6 @@
             </fields>
         </widget>
         <widget name="testimonial">
-            <conditions>
-                <condition key="widgetType">testimonial</condition>
-            </conditions>
             <fields>
                 <field type="testimonial_content" editor_type="VISUAL">testimonial_content</field>
                 <field type="testimonial_name" editor_type="LINE">testimonial_name</field>
@@ -940,9 +919,6 @@
             </fields>
         </widget>
         <widget name="alert">
-            <conditions>
-                <condition key="widgetType">alert</condition>
-            </conditions>
             <fields>
                 <field type="alert_title" editor_type="LINE">alert_title</field>
                 <field type="alert_description" editor_type="AREA">alert_description</field>

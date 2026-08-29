@@ -379,7 +379,6 @@ class Detector {
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <elementor-widgets>\n";
 		foreach ( $found_items as $w_name => $fields ) {
 			$generated_xml .= '        <widget name="' . esc_attr( $w_name ) . "\">\n";
-			$generated_xml .= "            <conditions>\n                <condition key=\"widgetType\">" . esc_html( $w_name ) . "</condition>\n            </conditions>\n";
 			$generated_xml .= "            <fields>\n";
 			foreach ( $fields as $f_path => $f_info ) {
 				$generated_xml .= '                <field type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . '">' . esc_html( $f_path ) . "</field>\n";

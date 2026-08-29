@@ -615,7 +615,7 @@
         } else if ('gutenberg' === builder) {
           setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <gutenberg-blocks>\n        <gutenberg-block name="${widget.id}">\n            <key name="content" type="text" editor_type="VISUAL" />\n        </gutenberg-block>\n    </gutenberg-blocks>\n</wpml-config>`);
         } else if ('elementor' === builder) {
-          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <elementor-widgets>\n        <widget name="${widget.id}">\n            <conditions>\n                <condition key="widgetType">${widget.id}</condition>\n            </conditions>\n            <fields>\n                <field type="title" editor_type="LINE">title</field>\n            </fields>\n        </widget>\n    </elementor-widgets>\n</wpml-config>`);
+          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <elementor-widgets>\n        <widget name="${widget.id}">\n            <fields>\n                <field type="title" editor_type="LINE">title</field>\n            </fields>\n        </widget>\n    </elementor-widgets>\n</wpml-config>`);
         } else if ('divi' === builder) {
           setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <divi-modules>\n        <module name="${widget.id}">\n            <fields>\n                <field type="content" editor_type="VISUAL">content</field>\n            </fields>\n        </module>\n    </divi-modules>\n</wpml-config>`);
         } else {

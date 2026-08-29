@@ -205,12 +205,6 @@ class Elementor_Builder extends Base_Builder {
 		$widget  = $dom->createElement( 'widget' );
 		$widget->setAttribute( 'name', $name );
 
-		$conditions = $dom->createElement( 'conditions' );
-		$cond       = $dom->createElement( 'condition', $name );
-		$cond->setAttribute( 'key', 'widgetType' );
-		$conditions->appendChild( $cond );
-		$widget->appendChild( $conditions );
-
 		$fields = $dom->createElement( 'fields' );
 		$tree   = $this->build_fields_tree( $field_details );
 		$this->append_tree_to_dom( $dom, $fields, $tree );
@@ -231,26 +225,6 @@ class Elementor_Builder extends Base_Builder {
 	 */
 	public function sync_node( DOMElement $existing_widget, SimpleXMLElement $new_widget ): void {
 		$owner_doc = $existing_widget->ownerDocument;
-
-		// Sync conditions if present
-		if ( isset( $new_widget->conditions ) ) {
-			$conditions_elem = null;
-			$child_nodes     = $existing_widget->childNodes;
-			for ( $i = 0; $i < $child_nodes->length; $i++ ) {
-				$child = $child_nodes->item( $i );
-				if ( XML_ELEMENT_NODE === $child->nodeType && 'conditions' === $child->nodeName ) {
-					$conditions_elem = $child;
-					break;
-				}
-			}
-			$new_cond_dom = dom_import_simplexml( $new_widget->conditions );
-			$imported     = $owner_doc->importNode( $new_cond_dom, true );
-			if ( $conditions_elem ) {
-				$existing_widget->replaceChild( $imported, $conditions_elem );
-			} else {
-				$existing_widget->insertBefore( $imported, $existing_widget->firstChild );
-			}
-		}
 
 		// Find or create <fields> element
 		$fields_elem = null;
@@ -321,10 +295,6 @@ class Elementor_Builder extends Base_Builder {
 		if ( ! $found_widget ) {
 			$found_widget = $xml->{$this->section_name}->addChild( 'widget' );
 			$found_widget->addAttribute( 'name', $name );
-
-			$conds_node = $found_widget->addChild( 'conditions' );
-			$c_node     = $conds_node->addChild( 'condition', $conditions['widgetType'] ?? $name );
-			$c_node->addAttribute( 'key', 'widgetType' );
 		}
 
 		if ( ! isset( $found_widget->fields ) ) {
