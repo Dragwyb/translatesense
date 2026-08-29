@@ -88,26 +88,66 @@ class Elementor_Builder extends Base_Builder {
 	 * @param array  $custom_opts
 	 */
 	public static function translate_nested_setting( array &$settings, string $path, string $widget_type, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
-		$keys = explode( '>', $path );
-		$ref  = &$settings;
+		$delimiter = false !== strpos( $path, '>' ) ? '>' : ( false !== strpos( $path, '.' ) ? '.' : '' );
+		$segments  = empty( $delimiter ) ? array( $path ) : explode( $delimiter, $path );
 
-		foreach ( $keys as $k ) {
-			if ( ! isset( $ref[ $k ] ) ) {
-				return;
-			}
-			$ref = &$ref[ $k ];
+		self::translate_path_recursive( $settings, $segments, 0, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+	}
+
+	/**
+	 * Recursively navigate settings path (handling associative keys, repeaters, and inner arrays) and translate target string values.
+	 *
+	 * @param mixed  $data
+	 * @param array  $segments
+	 * @param int    $index
+	 * @param string $widget_type
+	 * @param string $source_lang
+	 * @param string $target_lang
+	 * @param int    $post_id
+	 * @param array  $custom_opts
+	 */
+	public static function translate_path_recursive( &$data, array $segments, int $index, string $widget_type, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+		if ( ! is_array( $data ) || ! isset( $segments[ $index ] ) ) {
+			return;
 		}
 
-		if ( is_string( $ref ) && '' !== trim( $ref ) ) {
-			$res = Translate::translate_string(
-				$ref,
-				$source_lang,
-				$target_lang,
-				$widget_type,
-				$post_id,
-				$custom_opts
-			);
-			$ref = $res['translated'];
+		$current_key = $segments[ $index ];
+		$is_last     = ( $index === count( $segments ) - 1 );
+
+		// Case 1: Sequential list / repeater items collection ([ 0 => [...], 1 => [...] ])
+		if ( array_keys( $data ) === range( 0, count( $data ) - 1 ) ) {
+			foreach ( $data as &$item ) {
+				self::translate_path_recursive( $item, $segments, $index, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+			}
+			unset( $item );
+			return;
+		}
+
+		// Case 2: Associative key exists
+		if ( array_key_exists( $current_key, $data ) ) {
+			if ( $is_last ) {
+				if ( is_string( $data[ $current_key ] ) && '' !== trim( $data[ $current_key ] ) ) {
+					$res                  = Translate::translate_string(
+						$data[ $current_key ],
+						$source_lang,
+						$target_lang,
+						$widget_type,
+						$post_id,
+						$custom_opts
+					);
+					$data[ $current_key ] = $res['translated'];
+				}
+			} elseif ( is_array( $data[ $current_key ] ) ) {
+					// Check if $data[$current_key] is a repeater collection
+				if ( array_keys( $data[ $current_key ] ) === range( 0, count( $data[ $current_key ] ) - 1 ) ) {
+					foreach ( $data[ $current_key ] as &$sub_item ) {
+						self::translate_path_recursive( $sub_item, $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+					}
+					unset( $sub_item );
+				} else {
+					self::translate_path_recursive( $data[ $current_key ], $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+				}
+			}
 		}
 	}
 
