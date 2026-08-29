@@ -843,7 +843,7 @@ class Rest_Api {
 			$custom_opts['provider'] = $provider;
 		}
 
-		$results = Translator::translate_batch(
+		$results = Translate::translate_batch(
 			$strings,
 			$source_lang,
 			$target_lang,
