@@ -56,6 +56,139 @@ class Elementor_Builder extends Base_Builder {
 	}
 
 	/**
+	 * Convert flat path list into nested tree.
+	 *
+	 * @param array $field_details
+	 * @return array
+	 */
+	public function build_fields_tree( array $field_details ): array {
+		$tree = array();
+		foreach ( $field_details as $path => $info ) {
+			$delimiter = false !== strpos( (string) $path, '>' ) ? '>' : ( false !== strpos( (string) $path, '.' ) ? '.' : '' );
+			$segments  = empty( $delimiter ) ? array( (string) $path ) : explode( $delimiter, (string) $path );
+			$cursor    = &$tree;
+			$len       = count( $segments );
+			foreach ( $segments as $i => $segment ) {
+				$segment = trim( $segment );
+				if ( '' === $segment ) {
+					continue;
+				}
+				if ( $i === $len - 1 ) {
+					if ( ! isset( $cursor[ $segment ] ) || ! is_array( $cursor[ $segment ] ) ) {
+						$cursor[ $segment ] = array();
+					}
+					$cursor[ $segment ]['__leaf__'] = $info;
+				} else {
+					if ( ! isset( $cursor[ $segment ] ) || ! is_array( $cursor[ $segment ] ) ) {
+						$cursor[ $segment ] = array();
+					}
+					$cursor = &$cursor[ $segment ];
+				}
+			}
+		}
+		return $tree;
+	}
+
+	/**
+	 * Recursively append tree nodes into DOMElement.
+	 *
+	 * @param DOMDocument $dom
+	 * @param DOMElement  $parent_element
+	 * @param array       $tree
+	 */
+	private function append_tree_to_dom( DOMDocument $dom, DOMElement $parent_element, array $tree ): void {
+		foreach ( $tree as $key => $sub_tree ) {
+			$f_node = $dom->createElement( 'field' );
+			$f_node->setAttribute( 'key', (string) $key );
+
+			if ( isset( $sub_tree['__leaf__'] ) ) {
+				$info = $sub_tree['__leaf__'];
+				$f_node->setAttribute( 'type', $info['type'] ?? 'title' );
+				$f_node->setAttribute( 'editor_type', $info['editor_type'] ?? 'LINE' );
+				if ( ! empty( $info['noTranslate'] ) ) {
+					$f_node->setAttribute( 'noTranslate', 'true' );
+				}
+			}
+
+			$has_children = false;
+			foreach ( $sub_tree as $child_key => $child_val ) {
+				if ( '__leaf__' !== $child_key ) {
+					$has_children = true;
+					break;
+				}
+			}
+
+			if ( $has_children ) {
+				$child_tree = array_filter(
+					$sub_tree,
+					function ( $k ) {
+						return '__leaf__' !== $k;
+					},
+					ARRAY_FILTER_USE_KEY
+				);
+				$this->append_tree_to_dom( $dom, $f_node, $child_tree );
+			}
+
+			$parent_element->appendChild( $f_node );
+		}
+	}
+
+	/**
+	 * Recursively append tree nodes into SimpleXMLElement.
+	 *
+	 * @param SimpleXMLElement $parent_node
+	 * @param array            $tree
+	 */
+	private function append_tree_to_simplexml( SimpleXMLElement $parent_node, array $tree ): void {
+		foreach ( $tree as $key => $sub_tree ) {
+			$target_node = null;
+			if ( isset( $parent_node->field ) ) {
+				foreach ( $parent_node->field as $fld ) {
+					$fld_key = isset( $fld['key'] ) ? (string) $fld['key'] : trim( (string) $fld );
+					if ( $fld_key === (string) $key ) {
+						$target_node = $fld;
+						break;
+					}
+				}
+			}
+
+			if ( ! $target_node ) {
+				$target_node = $parent_node->addChild( 'field' );
+				$target_node->addAttribute( 'key', (string) $key );
+			}
+
+			if ( isset( $sub_tree['__leaf__'] ) ) {
+				$info = $sub_tree['__leaf__'];
+				if ( ! isset( $target_node['type'] ) ) {
+					$target_node->addAttribute( 'type', $info['type'] ?? 'title' );
+				}
+				if ( ! isset( $target_node['editor_type'] ) ) {
+					$target_node->addAttribute( 'editor_type', $info['editor_type'] ?? 'LINE' );
+				}
+			}
+
+			$has_children = false;
+			foreach ( $sub_tree as $child_key => $child_val ) {
+				if ( '__leaf__' !== $child_key ) {
+					$has_children = true;
+					break;
+				}
+			}
+
+			if ( $has_children ) {
+				$child_tree = array_filter(
+					$sub_tree,
+					function ( $k ) {
+						return '__leaf__' !== $k;
+					},
+					ARRAY_FILTER_USE_KEY
+				);
+				$this->append_tree_to_simplexml( $target_node, $child_tree );
+			}
+		}
+	}
+
+	/**
 	 * Generate snippet XML.
 	 *
 	 * @param string $name
@@ -79,12 +212,9 @@ class Elementor_Builder extends Base_Builder {
 		$widget->appendChild( $conditions );
 
 		$fields = $dom->createElement( 'fields' );
-		foreach ( $field_details as $path => $info ) {
-			$f_node = $dom->createElement( 'field', htmlspecialchars( (string) $path ) );
-			$f_node->setAttribute( 'type', $info['type'] ?? 'title' );
-			$f_node->setAttribute( 'editor_type', $info['editor_type'] ?? 'LINE' );
-			$fields->appendChild( $f_node );
-		}
+		$tree   = $this->build_fields_tree( $field_details );
+		$this->append_tree_to_dom( $dom, $fields, $tree );
+
 		$widget->appendChild( $fields );
 		$section->appendChild( $widget );
 		$root->appendChild( $section );
@@ -136,49 +266,36 @@ class Elementor_Builder extends Base_Builder {
 			$fields_elem = $existing_widget->appendChild( $owner_doc->createElement( 'fields' ) );
 		}
 
-		$new_fields = array();
+		// Extract fields map from new_widget
+		$new_fields_map   = array();
+		$new_no_translate = array();
 		if ( isset( $new_widget->fields->field ) ) {
 			foreach ( $new_widget->fields->field as $f_node ) {
-				$path                = trim( (string) $f_node );
-				$new_fields[ $path ] = $f_node;
+				$this->parse_field_node_recursive( $f_node, '', $new_fields_map, $new_no_translate );
 			}
 		}
 
-		$existing_fields = array();
-		$f_nodes         = $fields_elem->childNodes;
-		for ( $i = 0; $i < $f_nodes->length; $i++ ) {
-			$child = $f_nodes->item( $i );
-			if ( XML_ELEMENT_NODE === $child->nodeType && 'field' === $child->nodeName ) {
-				$path                     = trim( $child->textContent );
-				$existing_fields[ $path ] = $child;
-			}
+		// Rebuild fields DOM from new fields map and no-translate fields
+		while ( $fields_elem->firstChild ) {
+			$fields_elem->removeChild( $fields_elem->firstChild );
 		}
 
-		foreach ( $existing_fields as $path => $dom_fld ) {
-			if ( isset( $new_fields[ $path ] ) ) {
-				$new_f = $new_fields[ $path ];
-				if ( isset( $new_f['type'] ) ) {
-					$dom_fld->setAttribute( 'type', (string) $new_f['type'] );
-				}
-				if ( isset( $new_f['editor_type'] ) ) {
-					$dom_fld->setAttribute( 'editor_type', (string) $new_f['editor_type'] );
-				}
-				if ( isset( $new_f['noTranslate'] ) && in_array( strtolower( (string) $new_f['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
-					$dom_fld->setAttribute( 'noTranslate', 'true' );
-				} else {
-					$dom_fld->removeAttribute( 'noTranslate' );
-				}
+		$all_specs = $new_fields_map;
+		foreach ( $new_no_translate as $no_tr_path => $val ) {
+			if ( ! isset( $all_specs[ $no_tr_path ] ) ) {
+				$all_specs[ $no_tr_path ] = array(
+					'path'        => $no_tr_path,
+					'type'        => 'title',
+					'editor_type' => 'LINE',
+					'noTranslate' => true,
+				);
 			} else {
-				$dom_fld->setAttribute( 'noTranslate', 'true' );
+				$all_specs[ $no_tr_path ]['noTranslate'] = true;
 			}
 		}
 
-		foreach ( $new_fields as $path => $new_f ) {
-			if ( ! isset( $existing_fields[ $path ] ) ) {
-				$f_dom = dom_import_simplexml( $new_f );
-				$fields_elem->appendChild( $owner_doc->importNode( $f_dom, true ) );
-			}
-		}
+		$tree = $this->build_fields_tree( $all_specs );
+		$this->append_tree_to_dom( $owner_doc, $fields_elem, $tree );
 	}
 
 	/**
@@ -214,21 +331,52 @@ class Elementor_Builder extends Base_Builder {
 			$found_widget->addChild( 'fields' );
 		}
 
-		foreach ( $field_details as $f_path => $f_info ) {
-			$field_exists = false;
-			if ( isset( $found_widget->fields->field ) ) {
-				foreach ( $found_widget->fields->field as $fld ) {
-					if ( trim( (string) $fld ) === $f_path ) {
-						$field_exists = true;
-						break;
-					}
+		$tree = $this->build_fields_tree( $field_details );
+		$this->append_tree_to_simplexml( $found_widget->fields, $tree );
+	}
+
+	/**
+	 * Recursively parse <field> XML nodes into path-mapped rule arrays.
+	 *
+	 * @param SimpleXMLElement $field_node
+	 * @param string           $prefix
+	 * @param array            $fields_out
+	 * @param array            $no_translate_out
+	 */
+	public function parse_field_node_recursive( SimpleXMLElement $field_node, string $prefix, array &$fields_out, array &$no_translate_out ): void {
+		$key = '';
+		if ( isset( $field_node['key'] ) ) {
+			$key = trim( (string) $field_node['key'] );
+		}
+		if ( empty( $key ) ) {
+			$key = trim( (string) $field_node );
+		}
+
+		$current_path = ( '' !== $prefix ) ? ( $prefix . '>' . $key ) : $key;
+
+		if ( isset( $field_node->field ) && count( $field_node->field ) > 0 ) {
+			foreach ( $field_node->field as $child_field ) {
+				$this->parse_field_node_recursive( $child_field, $current_path, $fields_out, $no_translate_out );
+			}
+		} else {
+			if ( empty( $current_path ) ) {
+				return;
+			}
+
+			$is_no_translate = isset( $field_node['noTranslate'] ) && in_array( strtolower( (string) $field_node['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+			if ( $is_no_translate ) {
+				if ( isset( $fields_out[ $current_path ] ) ) {
+					unset( $fields_out[ $current_path ] );
 				}
+				$no_translate_out[ $current_path ] = true;
+				return;
 			}
-			if ( ! $field_exists ) {
-				$fld_node = $found_widget->fields->addChild( 'field', htmlspecialchars( $f_path ) );
-				$fld_node->addAttribute( 'type', $f_info['type'] ?? 'title' );
-				$fld_node->addAttribute( 'editor_type', $f_info['editor_type'] ?? 'LINE' );
-			}
+
+			$fields_out[ $current_path ] = array(
+				'path'        => $current_path,
+				'type'        => (string) ( $field_node['type'] ?? 'title' ),
+				'editor_type' => (string) ( $field_node['editor_type'] ?? 'LINE' ),
+			);
 		}
 	}
 
@@ -260,21 +408,12 @@ class Elementor_Builder extends Base_Builder {
 				}
 
 				if ( isset( $widget->fields->field ) ) {
+					$no_translate = array();
 					foreach ( $widget->fields->field as $fld ) {
-						$field_path      = trim( (string) $fld );
-						$is_no_translate = isset( $fld['noTranslate'] ) && in_array( strtolower( (string) $fld['noTranslate'] ), array( 'true', '1', 'yes' ), true );
-						if ( $is_no_translate ) {
-							if ( isset( $rules['elementor'][ $name ]['fields'][ $field_path ] ) ) {
-								unset( $rules['elementor'][ $name ]['fields'][ $field_path ] );
-							}
-							$rules['elementor'][ $name ]['no_translate'][ $field_path ] = true;
-							continue;
-						}
-						$rules['elementor'][ $name ]['fields'][ $field_path ] = array(
-							'path'        => $field_path,
-							'type'        => (string) ( $fld['type'] ?? 'title' ),
-							'editor_type' => (string) ( $fld['editor_type'] ?? 'LINE' ),
-						);
+						$this->parse_field_node_recursive( $fld, '', $rules['elementor'][ $name ]['fields'], $no_translate );
+					}
+					if ( ! empty( $no_translate ) ) {
+						$rules['elementor'][ $name ]['no_translate'] = $no_translate;
 					}
 				}
 			}

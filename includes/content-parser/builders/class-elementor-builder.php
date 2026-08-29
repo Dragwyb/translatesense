@@ -241,68 +241,87 @@ class Elementor_Builder extends Base_Builder {
 				continue;
 			}
 
-			// Skip if already covered by an existing XML rule
-			if ( isset( $mapped_rule_paths[ $attr_key ] ) ) {
-				continue;
-			}
+			// Discover translatable strings and rules recursively (including repeaters & inner childs)
+			$this->discover_nested_settings_recursive(
+				$attr_payload,
+				$attr_key,
+				$widget_name,
+				$mapped_rule_paths,
+				$post_id,
+				$lang,
+				$extracted,
+				$discovered_rules
+			);
+		}
+	}
 
-			// Case A: Standard scalar string attribute
-			if ( is_string( $attr_payload ) ) {
-				if ( $this->is_translatable_attribute_key( $attr_key ) && '' !== trim( $attr_payload ) ) {
-					$this->record_extracted_string( $post_id, $lang, $widget_name, $attr_key, $attr_payload, $extracted );
-					$discovered_rules[ $attr_key ] = $this->infer_field_xml_schema( $attr_key, $attr_payload );
+	/**
+	 * Recursively discover translatable fields within complex settings, repeaters, and inner child objects.
+	 *
+	 * @param mixed  $data              Setting value or array node
+	 * @param string $path_prefix       Current path prefix
+	 * @param string $widget_name       Widget identifier
+	 * @param array  $mapped_rule_paths Already mapped paths to skip
+	 * @param int    $post_id           Post ID
+	 * @param string $lang              Language code
+	 * @param array  $extracted         Extracted output accumulator
+	 * @param array  $discovered_rules  Discovered XML rule fields accumulator
+	 */
+	protected function discover_nested_settings_recursive( $data, string $path_prefix, string $widget_name, array $mapped_rule_paths, int $post_id, string $lang, array &$extracted, array &$discovered_rules ): void {
+		if ( is_string( $data ) ) {
+			$last_segment = substr( strrchr( '>' . $path_prefix, '>' ), 1 );
+			if ( $this->is_translatable_attribute_key( $last_segment ) && '' !== trim( $data ) ) {
+				if ( ! isset( $mapped_rule_paths[ $path_prefix ] ) ) {
+					$this->record_extracted_string( $post_id, $lang, $widget_name, $path_prefix, $data, $extracted );
+					$discovered_rules[ $path_prefix ] = $this->infer_field_xml_schema( $path_prefix, $data );
 				}
-				continue;
 			}
+			return;
+		}
 
-			// Case B: Elementor Atomic control payload ($$type schema)
-			if ( is_array( $attr_payload ) && isset( $attr_payload['$$type'] ) ) {
-				$atomic_items = $this->resolve_atomic_control_strings( $attr_payload, $attr_key, $attr_key );
-				foreach ( $atomic_items as $sub_path => $atomic_text ) {
-					if ( ! isset( $mapped_rule_paths[ $sub_path ] ) ) {
-						$this->record_extracted_string( $post_id, $lang, $widget_name, $sub_path, $atomic_text, $extracted );
-						$discovered_rules[ $sub_path ] = $this->infer_field_xml_schema( $sub_path, $atomic_text );
-					}
+		if ( ! is_array( $data ) || empty( $data ) ) {
+			return;
+		}
+
+		// Case: Atomic control payload ($$type schema)
+		if ( isset( $data['$$type'] ) ) {
+			$atomic_items = $this->resolve_atomic_control_strings( $data, $path_prefix, $path_prefix );
+			foreach ( $atomic_items as $sub_path => $atomic_text ) {
+				if ( ! isset( $mapped_rule_paths[ $sub_path ] ) ) {
+					$this->record_extracted_string( $post_id, $lang, $widget_name, $sub_path, $atomic_text, $extracted );
+					$discovered_rules[ $sub_path ] = $this->infer_field_xml_schema( $sub_path, $atomic_text );
 				}
-				continue;
 			}
+			return;
+		}
 
-			// Case C: Repeater item collection
-			if ( is_array( $attr_payload ) && ! empty( $attr_payload ) && array_keys( $attr_payload ) === range( 0, count( $attr_payload ) - 1 ) ) {
-				foreach ( $attr_payload as $repeater_row ) {
-					if ( ! is_array( $repeater_row ) ) {
-						continue;
-					}
-
-					foreach ( $repeater_row as $row_prop => $row_val ) {
-						$row_key = (string) $row_prop;
-
-						if ( $this->is_style_attribute( $row_key ) ) {
+		// Case: Sequential list / repeater collection ([ 0 => [...], 1 => [...] ])
+		if ( array_keys( $data ) === range( 0, count( $data ) - 1 ) ) {
+			foreach ( $data as $item ) {
+				if ( is_array( $item ) ) {
+					foreach ( $item as $prop_name => $prop_val ) {
+						$prop_key = (string) $prop_name;
+						if ( $this->is_style_attribute( $prop_key ) ) {
 							continue;
 						}
-
-						$composite_path = $attr_key . '>' . $row_key;
-						if ( isset( $mapped_rule_paths[ $composite_path ] ) ) {
-							continue;
-						}
-
-						if ( is_string( $row_val ) ) {
-							if ( $this->is_translatable_attribute_key( $row_key ) && '' !== trim( $row_val ) ) {
-								$this->record_extracted_string( $post_id, $lang, $widget_name, $composite_path, $row_val, $extracted );
-								$discovered_rules[ $composite_path ] = $this->infer_field_xml_schema( $composite_path, $row_val );
-							}
-						} elseif ( is_array( $row_val ) && isset( $row_val['$$type'] ) ) {
-							$row_atomic_items = $this->resolve_atomic_control_strings( $row_val, $row_key, $composite_path );
-							foreach ( $row_atomic_items as $sub_path => $atomic_text ) {
-								if ( ! isset( $mapped_rule_paths[ $sub_path ] ) ) {
-									$this->record_extracted_string( $post_id, $lang, $widget_name, $sub_path, $atomic_text, $extracted );
-									$discovered_rules[ $sub_path ] = $this->infer_field_xml_schema( $sub_path, $atomic_text );
-								}
-							}
-						}
+						$sub_path = $path_prefix . '>' . $prop_key;
+						$this->discover_nested_settings_recursive( $prop_val, $sub_path, $widget_name, $mapped_rule_paths, $post_id, $lang, $extracted, $discovered_rules );
 					}
+				} elseif ( is_string( $item ) ) {
+					$this->discover_nested_settings_recursive( $item, $path_prefix, $widget_name, $mapped_rule_paths, $post_id, $lang, $extracted, $discovered_rules );
 				}
 			}
+			return;
+		}
+
+		// Case: Associative dictionary / nested inner child object ([ 'tab_title' => '...', 'link' => [ 'url' => '...' ] ])
+		foreach ( $data as $prop_name => $prop_val ) {
+			$prop_key = (string) $prop_name;
+			if ( $this->is_style_attribute( $prop_key ) ) {
+				continue;
+			}
+			$sub_path = ( '' !== $path_prefix ) ? ( $path_prefix . '>' . $prop_key ) : $prop_key;
+			$this->discover_nested_settings_recursive( $prop_val, $sub_path, $widget_name, $mapped_rule_paths, $post_id, $lang, $extracted, $discovered_rules );
 		}
 	}
 
