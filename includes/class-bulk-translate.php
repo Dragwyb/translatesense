@@ -17,19 +17,6 @@ class Bulk_Translate {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_bulk_assets' ) );
 		add_action( 'manage_posts_extra_tablenav', array( __CLASS__, 'render_filter_translate_button' ), 20, 1 );
 		add_action( 'admin_footer-edit.php', array( __CLASS__, 'render_bulk_modal_container' ) );
-
-		// Register bulk action dynamically on all Polylang-supported post types
-		add_action( 'admin_init', array( __CLASS__, 'register_bulk_actions_for_supported_types' ) );
-	}
-
-	/**
-	 * Register bulk actions for all post types translated by Polylang.
-	 */
-	public static function register_bulk_actions_for_supported_types() {
-		$supported_types = Polylang_Bridge::get_translated_post_types();
-		foreach ( $supported_types as $post_type ) {
-			add_filter( "bulk_actions-edit-{$post_type}", array( __CLASS__, 'register_bulk_action' ) );
-		}
 	}
 
 	/**
@@ -50,31 +37,21 @@ class Bulk_Translate {
 	}
 
 	/**
-	 * Render quick Translate button directly next to the Filter button (only on Polylang translated post types).
+	 * Render quick Translate button in top and bottom tablenav (only on Polylang translated post types).
 	 */
 	public static function render_filter_translate_button( $which ) {
-		if ( 'top' !== $which ) {
-			return;
-		}
-
 		$post_type = self::get_current_screen_post_type();
 		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
 			return;
 		}
+
+		$btn_id = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
 		?>
-		<button type="button" id="ts-quick-filter-translate-btn" class="button button-primary ts-filter-action-btn" style="margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);">
+		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn" style="margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);">
 			<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1;"></span>
 			<?php esc_html_e( 'Translate Selected', 'translatesense' ); ?>
 		</button>
 		<?php
-	}
-
-	/**
-	 * Register bulk action in dropdown.
-	 */
-	public static function register_bulk_action( $bulk_actions ) {
-		$bulk_actions['translatesense_bulk_translate'] = __( '⚡ Translate with TranslateSense', 'translatesense' );
-		return $bulk_actions;
 	}
 
 	/**

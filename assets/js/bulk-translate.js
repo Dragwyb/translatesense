@@ -25,7 +25,7 @@
   function initBulkTranslate() {
     const config = window.TranslateSenseBulkData || {};
 
-    // Ensure button is inserted next to Filter submit if not rendered by hook
+    // Ensure button is inserted next to Filter submit or Apply button if not rendered by hook
     const postQuerySubmit = document.getElementById('post-query-submit');
     if (!document.getElementById('ts-quick-filter-translate-btn') && postQuerySubmit) {
       const btn = document.createElement('button');
@@ -35,6 +35,17 @@
       btn.style.cssText = 'margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);';
       btn.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1;"></span> Translate Selected';
       postQuerySubmit.insertAdjacentElement('afterend', btn);
+    }
+
+    const doAction2 = document.getElementById('doaction2');
+    if (!document.getElementById('ts-quick-filter-translate-btn-bottom') && doAction2) {
+      const btnBottom = document.createElement('button');
+      btnBottom.type = 'button';
+      btnBottom.id = 'ts-quick-filter-translate-btn-bottom';
+      btnBottom.className = 'button button-primary ts-filter-action-btn';
+      btnBottom.style.cssText = 'margin-left: 6px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(79,70,229,0.35);';
+      btnBottom.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1;"></span> Translate Selected';
+      doAction2.insertAdjacentElement('afterend', btnBottom);
     }
 
     // Get selected post IDs from table checkboxes
@@ -47,9 +58,9 @@
       return ids;
     }
 
-    // Direct click on "Translate Selected" button (next to Filter button)
+    // Direct click on "Translate Selected" button (top or bottom)
     document.addEventListener('click', function (e) {
-      const target = e.target.closest('#ts-quick-filter-translate-btn');
+      const target = e.target.closest('.ts-filter-action-btn');
       if (target) {
         e.preventDefault();
         const selectedPosts = getSelectedPostIds();
@@ -59,27 +70,6 @@
         }
         openBulkTranslateWizard(selectedPosts);
       }
-    });
-
-    // Intercept Bulk Action Dropdown
-    const doAction1 = document.getElementById('doaction');
-    const doAction2 = document.getElementById('doaction2');
-
-    [doAction1, doAction2].forEach(function (btn) {
-      if (!btn) return;
-      btn.addEventListener('click', function (e) {
-        const selectName = btn.id === 'doaction' ? 'action' : 'action2';
-        const selectEl = document.querySelector(`select[name="${selectName}"]`);
-        if (selectEl && selectEl.value === 'translatesense_bulk_translate') {
-          e.preventDefault();
-          const selectedPosts = getSelectedPostIds();
-          if (selectedPosts.length === 0) {
-            alert('Please select posts first.');
-            return false;
-          }
-          openBulkTranslateWizard(selectedPosts);
-        }
-      });
     });
 
     // Helper: Check if string is email or URL
@@ -159,17 +149,17 @@
 
                 <div class="ts-lang-grid" id="ts-lang-grid">
                   ${allLanguages
-                    .map((lang) => {
-                      const isChecked = selectedTargetLangs.includes(lang.slug);
-                      return `
+          .map((lang) => {
+            const isChecked = selectedTargetLangs.includes(lang.slug);
+            return `
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
                           <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
                           <span class="ts-lang-name">${lang.name}</span>
                           <span class="ts-lang-code">${lang.slug.toUpperCase()}</span>
                         </div>
                       `;
-                    })
-                    .join('')}
+          })
+          .join('')}
                 </div>
               </div>
 
@@ -193,13 +183,13 @@
                   <label>Choose Translation Engine</label>
                   <div class="ts-provider-grid">
                     ${providers.map(
-                      (p) => {
-                        const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-                        const badgeHtml = isLocalFrontend
-                          ? '<span class="ts-provider-badge frontend">Frontend</span>'
-                          : '<span class="ts-provider-badge backend">Backend</span>';
+            (p) => {
+              const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+              const badgeHtml = isLocalFrontend
+                ? '<span class="ts-provider-badge frontend">Frontend</span>'
+                : '<span class="ts-provider-badge backend">Backend</span>';
 
-                        return `
+              return `
                           <div class="ts-provider-card ${p.id === selectedProviderId ? 'selected' : ''}" data-provider="${p.id}">
                             ${badgeHtml}
                             <input type="radio" name="ts_bulk_provider" value="${p.id}" ${p.id === selectedProviderId ? 'checked' : ''} class="ts-provider-radio" />
@@ -211,8 +201,8 @@
                             </div>
                           </div>
                         `;
-                      }
-                    ).join('')}
+            }
+          ).join('')}
                   </div>
                 </div>
               </div>
