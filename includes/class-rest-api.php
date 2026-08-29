@@ -337,7 +337,7 @@ class Rest_Api {
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
 			$field_count        = count( $fields );
 			$no_translate_count = count( $no_translate );
-			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
+			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'supported' ) : 'unsupported';
 
 			$result[] = array(
 				'id'                 => $name,
