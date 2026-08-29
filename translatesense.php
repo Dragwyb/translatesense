@@ -25,6 +25,7 @@ use TranslateSense\Includes\Detector;
 use TranslateSense\Includes\Rest_Api;
 use TranslateSense\Includes\Admin_Menu;
 use TranslateSense\Includes\Bulk_Translate;
+use TranslateSense\Includes\Bulk_Process;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Cron;
 use TranslateSense\Includes\Content_Parser\Content_Parser;
@@ -120,6 +121,7 @@ class Plugin {
 		Rest_Api::init();
 		Admin_Menu::init();
 		Bulk_Translate::init();
+		Bulk_Process::init();
 		Editor_Integration::init();
 		Content_Parser::init();
 		Cron::init();

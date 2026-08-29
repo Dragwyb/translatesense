@@ -82,6 +82,18 @@
       });
     });
 
+    // Helper: Check if string is email or URL
+    function isEmailOrUrl(str) {
+      if (!str || typeof str !== 'string') return false;
+      const clean = str.trim();
+      if (!clean) return false;
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) || /^mailto:/i.test(clean)) return true;
+      if (/^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i.test(clean)) return true;
+      if (/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i.test(clean)) return true;
+      if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i.test(clean)) return true;
+      return false;
+    }
+
     // Multi-Step Bulk Translation Wizard (Pure Vanilla JS)
     function openBulkTranslateWizard(postIds) {
       const allLanguages = config.languages || [];
@@ -95,7 +107,7 @@
         selectedTargetLangs = [allLanguages[0].slug];
       }
 
-      let selectedProviderId = 'openai';
+      let selectedProviderId = config.defaultProvider || 'openai';
 
       // Ensure root container exists
       let root = document.getElementById('translatesense-bulk-modal-root');
@@ -107,7 +119,7 @@
 
       const providers = getRegisteredProviders();
 
-      // Render Modal Skeleton Once (prevents blinking)
+      // Render Modal Skeleton with 3 distinct views: Languages -> Provider -> Live Progress
       root.innerHTML = `
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal">
@@ -181,31 +193,69 @@
                   <label>Choose Translation Engine</label>
                   <div class="ts-provider-grid">
                     ${providers.map(
-                      (p) => `
-                      <div class="ts-provider-card ${p.id === selectedProviderId ? 'selected' : ''}" data-provider="${p.id}">
-                        <input type="radio" name="ts_bulk_provider" value="${p.id}" ${p.id === selectedProviderId ? 'checked' : ''} class="ts-provider-radio" />
-                        <div class="ts-provider-info">
-                          <div class="ts-provider-title">
-                            <span>${p.icon} ${p.title}</span>
+                      (p) => {
+                        const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+                        const badgeHtml = isLocalFrontend
+                          ? '<span class="ts-provider-badge frontend">Frontend</span>'
+                          : '<span class="ts-provider-badge backend">Backend</span>';
+
+                        return `
+                          <div class="ts-provider-card ${p.id === selectedProviderId ? 'selected' : ''}" data-provider="${p.id}">
+                            ${badgeHtml}
+                            <input type="radio" name="ts_bulk_provider" value="${p.id}" ${p.id === selectedProviderId ? 'checked' : ''} class="ts-provider-radio" />
+                            <div class="ts-provider-info">
+                              <div class="ts-provider-title">
+                                <span>${p.icon} ${p.title}</span>
+                              </div>
+                              <p class="ts-provider-desc">${p.desc}</p>
+                            </div>
                           </div>
-                          <p class="ts-provider-desc">${p.desc}</p>
-                        </div>
-                      </div>
-                    `
+                        `;
+                      }
                     ).join('')}
                   </div>
                 </div>
+              </div>
 
-                <!-- Live Progress -->
-                <div class="ts-progress-wrap" id="ts-progress-wrap" style="display: none;">
+              <!-- Step 3 View: Dedicated Live Progress View (Hides Provider View) -->
+              <div id="ts-view-progress" style="display: none;">
+                <div class="ts-step-bar">
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">✓</span>
+                    <span>Languages</span>
+                  </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">✓</span>
+                    <span id="ts-progress-provider-label">Provider</span>
+                  </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item active">
+                    <span class="ts-step-number">3</span>
+                    <span>Translation Progress</span>
+                  </div>
+                </div>
+
+                <div id="ts-progress-notice-banner" class="ts-modal-notice-banner" style="margin-top: 14px;"></div>
+
+                <div class="ts-progress-wrap" style="margin-top: 14px;">
                   <div class="ts-progress-bar-bg">
                     <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
                   </div>
                   <div class="ts-progress-text">
-                    <span id="ts-progress-status">Starting batch translation...</span>
+                    <span id="ts-progress-status">Starting bulk translation...</span>
                     <span id="ts-progress-percent">0%</span>
                   </div>
-                  <div class="ts-progress-logs" id="ts-progress-logs"></div>
+                  
+                  <div class="ts-bulk-stats-row" id="ts-bulk-stats-row" style="display: flex; gap: 12px; margin-top: 10px; font-size: 12px; color: #475569;">
+                    <span id="ts-stat-completed-strings"><strong>0</strong> Completed Strings</span>
+                    <span>•</span>
+                    <span id="ts-stat-pending-strings"><strong>0</strong> Pending Strings</span>
+                    <span>•</span>
+                    <span id="ts-stat-status-badge" style="font-weight: 600; color: #4f46e5;">Pending</span>
+                  </div>
+
+                  <div class="ts-progress-logs" id="ts-progress-logs" style="margin-top: 14px; max-height: 180px;"></div>
                 </div>
               </div>
             </div>
@@ -221,19 +271,28 @@
               <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-wizard-back-btn">&larr; Back</button>
               <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-start-btn">🚀 Start Bulk Translation</button>
             </div>
+
+            <div class="ts-bulk-footer" id="ts-footer-progress" style="display: none; justify-content: flex-end;">
+              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-done-btn" disabled>
+                ⏳ Translation In Progress...
+              </button>
+            </div>
           </div>
         </div>
       `;
+
+      let pollingTimer = null;
 
       // Close modal handler
       const closeBtn = document.getElementById('ts-bulk-close-btn');
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
+          if (pollingTimer) clearInterval(pollingTimer);
           root.innerHTML = '';
         });
       }
 
-      // Update UI state for language selection smoothly without DOM rebuild
+      // Update UI state for language selection
       function updateLanguageSelectionState() {
         const count = selectedTargetLangs.length;
         const counterEl = document.getElementById('ts-lang-counter');
@@ -251,7 +310,7 @@
         });
       }
 
-      // 1. Language Card Click Listeners
+      // Language Card Click Listeners
       document.querySelectorAll('.ts-lang-card').forEach(function (card) {
         card.addEventListener('click', function (e) {
           const slug = card.getAttribute('data-lang');
@@ -294,7 +353,7 @@
         });
       }
 
-      // 2. Step 1 -> Step 2 Navigation
+      // Step 1 -> Step 2 Navigation
       const nextBtn = document.getElementById('ts-wizard-next-btn');
       if (nextBtn) {
         nextBtn.addEventListener('click', function () {
@@ -322,7 +381,6 @@
             `;
           }
 
-          // Smooth view transition
           const view1 = document.getElementById('ts-view-step-1');
           const footer1 = document.getElementById('ts-footer-step-1');
           const view2 = document.getElementById('ts-view-step-2');
@@ -364,98 +422,374 @@
         });
       });
 
-      // 3. Execution Engine via Pure Vanilla Fetch API
+      // Execution Engine
       const startBtn = document.getElementById('ts-bulk-start-btn');
       if (startBtn) {
         startBtn.addEventListener('click', async function () {
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
           const selectedProvider = checkedRadio ? checkedRadio.value : selectedProviderId;
+          const isChromeAi = (selectedProvider === 'chrome_ai' || selectedProvider === 'chrome_local_ai');
 
-          startBtn.disabled = true;
-          startBtn.textContent = 'Processing...';
-          const backBtnEl = document.getElementById('ts-wizard-back-btn');
-          const progressWrap = document.getElementById('ts-progress-wrap');
+          // Switch UI view: Hide provider view, show dedicated progress view
+          const view2 = document.getElementById('ts-view-step-2');
+          const footer2 = document.getElementById('ts-footer-step-2');
+          const viewProgress = document.getElementById('ts-view-progress');
+          const footerProgress = document.getElementById('ts-footer-progress');
+          const doneBtn = document.getElementById('ts-bulk-done-btn');
+          const providerLabel = document.getElementById('ts-progress-provider-label');
 
-          if (backBtnEl) backBtnEl.style.display = 'none';
-          if (progressWrap) progressWrap.style.display = 'block';
+          if (view2) view2.style.display = 'none';
+          if (footer2) footer2.style.display = 'none';
+          if (viewProgress) viewProgress.style.display = 'block';
+          if (footerProgress) footerProgress.style.display = 'flex';
+
+          const matchingProvider = providers.find((p) => p.id === selectedProvider);
+          if (providerLabel && matchingProvider) {
+            providerLabel.textContent = matchingProvider.title;
+          }
 
           const logs = document.getElementById('ts-progress-logs');
           const barFill = document.getElementById('ts-progress-bar-fill');
           const statusText = document.getElementById('ts-progress-status');
           const percentText = document.getElementById('ts-progress-percent');
+          const completedStringsEl = document.getElementById('ts-stat-completed-strings');
+          const pendingStringsEl = document.getElementById('ts-stat-pending-strings');
+          const statusBadgeEl = document.getElementById('ts-stat-status-badge');
 
-          let completed = 0;
-          const totalTasks = postIds.length * selectedTargetLangs.length;
+          const noticeBanner = document.getElementById('ts-progress-notice-banner');
+          if (noticeBanner) {
+            if (isChromeAi) {
+              noticeBanner.className = 'ts-modal-notice-banner warning';
+              noticeBanner.style.display = 'flex';
+              noticeBanner.innerHTML = `
+                <span class="ts-notice-icon">⚠️</span>
+                <div class="ts-notice-text">
+                  <div class="ts-notice-title">Please Keep This Window Open</div>
+                  <div>Chrome Local AI runs on-device directly in your browser. If you close this tab or window, your local translation workflow will stop.</div>
+                </div>
+              `;
+            } else {
+              noticeBanner.className = 'ts-modal-notice-banner info';
+              noticeBanner.style.display = 'flex';
+              noticeBanner.innerHTML = `
+                <span class="ts-notice-icon">ℹ️</span>
+                <div class="ts-notice-text">
+                  <div class="ts-notice-title">Background Cron Translation Running</div>
+                  <div>Your translations are being processed on the server via background cron. You can safely close this modal or navigate away—the process will continue running smoothly.</div>
+                </div>
+              `;
+            }
+          }
+
           const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
           const nonce = config.nonce || '';
 
-          for (let i = 0; i < postIds.length; i++) {
-            const postId = postIds[i];
+          // 1. Start batch in bulk translations table
+          let batchData = null;
+          try {
+            const startResponse = await fetch(restUrl + 'bulk-start', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': nonce,
+              },
+              body: JSON.stringify({
+                post_ids: postIds,
+                target_languages: selectedTargetLangs,
+                provider: selectedProvider,
+              }),
+            });
 
-            for (let j = 0; j < selectedTargetLangs.length; j++) {
-              const targetLang = selectedTargetLangs[j];
-              if (statusText) {
-                statusText.textContent = `Translating post ID #${postId} to ${targetLang.toUpperCase()} (${completed + 1}/${totalTasks})...`;
-              }
+            batchData = await startResponse.json();
+            if (!startResponse.ok || !batchData.batch_id) {
+              throw new Error(batchData.message || `Failed to start bulk job`);
+            }
+          } catch (initErr) {
+            if (statusText) statusText.textContent = `Initialization Error: ${initErr.message}`;
+            if (doneBtn) {
+              doneBtn.disabled = false;
+              doneBtn.textContent = 'Retry';
+              doneBtn.onclick = function () {
+                window.location.reload();
+              };
+            }
+            return;
+          }
 
+          const batchId = batchData.batch_id;
+          const jobsList = batchData.jobs || [];
+
+          // =========================================================================
+          // WORKFLOW A: Backend AI Providers (OpenAI, Gemini) via Cron + 5s Polling
+          // =========================================================================
+          if (!isChromeAi) {
+            if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
+            if (statusBadgeEl) {
+              statusBadgeEl.textContent = 'Running';
+              statusBadgeEl.style.color = '#0284c7';
+            }
+
+            const pollStatus = async () => {
               try {
-                const response = await fetch(restUrl + 'translate-post', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': nonce,
-                  },
-                  body: JSON.stringify({
-                    post_id: postId,
-                    target_lang: targetLang,
-                    provider: selectedProvider,
-                  }),
+                const statusRes = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(batchId)}`, {
+                  headers: { 'X-WP-Nonce': nonce },
                 });
 
-                const res = await response.json();
+                if (!statusRes.ok) return;
 
-                if (!response.ok) {
-                  throw new Error(res.message || `HTTP ${response.status}`);
-                }
+                const data = await statusRes.json();
+                const pct = data.progress_percent || 0;
 
-                completed++;
-                const pct = Math.round((completed / totalTasks) * 100);
                 if (barFill) barFill.style.width = pct + '%';
                 if (percentText) percentText.textContent = pct + '%';
+                if (statusText) statusText.textContent = data.current_status || `Processing... (${pct}%)`;
 
-                if (logs) {
-                  const logItem = document.createElement('div');
-                  logItem.className = 'ts-log-item success';
-                  logItem.textContent = `✓ Post #${postId} → Created/Updated #${res.target_post_id} (${targetLang.toUpperCase()})`;
-                  logs.appendChild(logItem);
+                if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${data.completed_strings || 0}</strong> Completed Strings`;
+                if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${data.pending_strings || 0}</strong> Pending Strings`;
+                if (statusBadgeEl) {
+                  statusBadgeEl.textContent = (data.overall_status || 'running').toUpperCase();
+                  statusBadgeEl.style.color = (data.overall_status === 'completed') ? '#16a34a' : ((data.overall_status === 'failed') ? '#dc2626' : '#0284c7');
+                }
+
+                // Render Logs
+                if (logs && Array.isArray(data.items)) {
+                  logs.innerHTML = '';
+                  data.items.forEach((item) => {
+                    const logItem = document.createElement('div');
+                    const isDone = item.status === 'completed';
+                    const isFail = item.status === 'failed';
+                    logItem.className = `ts-log-item ${isDone ? 'success' : (isFail ? 'error' : 'info')}`;
+
+                    if (isDone) {
+                      logItem.innerHTML = `✓ <strong>${item.post_title}</strong> (#${item.post_id}) &rarr; Created #${item.target_post_id} (${item.target_language.toUpperCase()}) [${item.completed_strings} strings]`;
+                    } else if (isFail) {
+                      logItem.innerHTML = `✕ <strong>${item.post_title}</strong> (#${item.post_id}) [${item.target_language.toUpperCase()}]: ${item.error_message || 'Failed'}`;
+                    } else {
+                      logItem.innerHTML = `⏳ <strong>${item.post_title}</strong> (#${item.post_id}) &rarr; ${item.target_language.toUpperCase()}: ${item.progress_status || 'Queued'}`;
+                    }
+                    logs.appendChild(logItem);
+                  });
                   logs.scrollTop = logs.scrollHeight;
                 }
-              } catch (err) {
-                completed++;
-                const pct = Math.round((completed / totalTasks) * 100);
-                if (barFill) barFill.style.width = pct + '%';
-                if (percentText) percentText.textContent = pct + '%';
 
-                if (logs) {
-                  const logItem = document.createElement('div');
-                  logItem.className = 'ts-log-item error';
-                  logItem.textContent = `✕ Post #${postId} (${targetLang.toUpperCase()}) failed: ${err.message || 'Error'}`;
-                  logs.appendChild(logItem);
-                  logs.scrollTop = logs.scrollHeight;
+                // Check Completion
+                if (data.overall_status === 'completed' || data.overall_status === 'failed') {
+                  clearInterval(pollingTimer);
+                  pollingTimer = null;
+
+                  if (statusText) {
+                    statusText.textContent = (data.overall_status === 'completed')
+                      ? `🎉 Bulk Translation Complete! (${data.completed_jobs}/${data.total_jobs} posts translated)`
+                      : `Batch translation completed with issues (${data.failed_jobs} failed).`;
+                  }
+
+                  if (doneBtn) {
+                    doneBtn.disabled = false;
+                    doneBtn.textContent = '✓ Done (Reload Page)';
+                    doneBtn.onclick = function () {
+                      window.location.reload();
+                    };
+                  }
                 }
+              } catch (pollErr) {
+                console.warn('[TranslateSense] Polling error:', pollErr);
+              }
+            };
+
+            // First poll immediately, then every 5 seconds
+            pollStatus();
+            pollingTimer = setInterval(pollStatus, 5000);
+            return;
+          }
+
+          // =========================================================================
+          // WORKFLOW B: Chrome Local AI In-Memory String Translation Workflow
+          // =========================================================================
+          let totalBatchStrings = 0;
+          let completedBatchStrings = 0;
+          let completedJobsCount = 0;
+          const totalJobsCount = jobsList.length;
+
+          if (statusBadgeEl) {
+            statusBadgeEl.textContent = 'Local AI Running';
+            statusBadgeEl.style.color = '#4f46e5';
+          }
+
+          for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
+            const job = jobsList[jobIndex];
+            const postId = job.post_id;
+            const targetLang = job.target_language;
+            const jobId = job.id;
+            const postEditorType = job.editor_type || 'core';
+
+            if (statusText) {
+              statusText.textContent = `Extracting strings for Post #${postId} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
+            }
+
+            try {
+              // 1. Extract strings for this post one by one passing editor_type
+              const extractRes = await fetch(restUrl + 'extract-strings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-WP-Nonce': nonce,
+                },
+                body: JSON.stringify({
+                  post_id: postId,
+                  target_lang: targetLang,
+                  builder: postEditorType,
+                }),
+              });
+
+              const extractData = await extractRes.json();
+              let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
+              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || s.source || ''));
+
+              totalBatchStrings += rawStrings.length;
+              if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
+
+              // Local in-memory dictionary for pre-translated strings
+              const inMemoryTranslations = {};
+
+              if (rawStrings.length > 0) {
+                if (statusText) {
+                  statusText.textContent = `Translating ${rawStrings.length} strings on-device with Chrome Local AI for Post #${postId} (${targetLang.toUpperCase()})...`;
+                }
+
+                const itemsToTranslate = rawStrings.map((s) => ({
+                  hash: s.hash,
+                  widget_id: s.name,
+                  field: s.key,
+                  source: s.source || s.value,
+                  content: s.value,
+                }));
+
+                const onStringProgress = (resItem) => {
+                  if (resItem && resItem.translated) {
+                    if (resItem.hash) inMemoryTranslations[resItem.hash] = resItem.translated;
+                    if (resItem.source) inMemoryTranslations[resItem.source] = resItem.translated;
+                  }
+                  completedBatchStrings++;
+                  const strPct = totalBatchStrings > 0 ? Math.round((completedBatchStrings / totalBatchStrings) * 100) : 0;
+                  if (barFill) barFill.style.width = strPct + '%';
+                  if (percentText) percentText.textContent = strPct + '%';
+                  if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
+                  if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
+                };
+
+                // Run client-side Chrome AI translation (stores results in inMemoryTranslations variable, NOT in DB translations cache)
+                await window.TranslateSenseCore.translate(
+                  'chrome_ai',
+                  {
+                    items: itemsToTranslate,
+                    sourceLang: 'en',
+                    targetLang: targetLang,
+                    postId: postId,
+                  },
+                  onStringProgress
+                );
+              }
+
+              // 2. Directly create translated post passing in_memory_translations map
+              if (statusText) {
+                statusText.textContent = `Saving translated Post #${postId} (${targetLang.toUpperCase()})...`;
+              }
+
+              const postResponse = await fetch(restUrl + 'translate-post', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-WP-Nonce': nonce,
+                },
+                body: JSON.stringify({
+                  post_id: postId,
+                  target_lang: targetLang,
+                  provider: 'chrome_ai',
+                  in_memory_translations: inMemoryTranslations,
+                }),
+              });
+
+              const postRes = await postResponse.json();
+              if (!postResponse.ok || !postRes.target_post_id) {
+                throw new Error(postRes.message || `Post translation save failed`);
+              }
+
+              // 3. Update bulk job record in DB
+              await fetch(restUrl + 'bulk-update-job', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-WP-Nonce': nonce,
+                },
+                body: JSON.stringify({
+                  job_id: jobId,
+                  data: {
+                    status: 'completed',
+                    progress_status: 'Completed successfully',
+                    total_strings: rawStrings.length,
+                    completed_strings: rawStrings.length,
+                    target_post_id: postRes.target_post_id,
+                    sent_ai_request_data: rawStrings,
+                    received_ai_request_data: inMemoryTranslations,
+                  },
+                }),
+              });
+
+              completedJobsCount++;
+
+              if (logs) {
+                const logItem = document.createElement('div');
+                logItem.className = 'ts-log-item success';
+                logItem.innerHTML = `✓ Post #${postId} &rarr; Created/Updated #${postRes.target_post_id} (${targetLang.toUpperCase()}) [${rawStrings.length} strings]`;
+                logs.appendChild(logItem);
+                logs.scrollTop = logs.scrollHeight;
+              }
+            } catch (err) {
+              console.error(`[TranslateSense] Chrome AI error for post #${postId}:`, err);
+
+              await fetch(restUrl + 'bulk-update-job', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-WP-Nonce': nonce,
+                },
+                body: JSON.stringify({
+                  job_id: jobId,
+                  data: {
+                    status: 'failed',
+                    progress_status: `Failed: ${err.message}`,
+                    error_message: err.message,
+                  },
+                }),
+              });
+
+              if (logs) {
+                const logItem = document.createElement('div');
+                logItem.className = 'ts-log-item error';
+                logItem.innerHTML = `✕ Post #${postId} (${targetLang.toUpperCase()}) failed: ${err.message || 'Error'}`;
+                logs.appendChild(logItem);
+                logs.scrollTop = logs.scrollHeight;
               }
             }
           }
 
+          if (barFill) barFill.style.width = '100%';
+          if (percentText) percentText.textContent = '100%';
           if (statusText) {
-            statusText.textContent = `Bulk Translation Complete! (${completed}/${totalTasks} jobs processed)`;
+            statusText.textContent = `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`;
+          }
+          if (statusBadgeEl) {
+            statusBadgeEl.textContent = 'COMPLETED';
+            statusBadgeEl.style.color = '#16a34a';
           }
 
-          startBtn.disabled = false;
-          startBtn.textContent = 'Done (Reload Page)';
-          startBtn.onclick = function () {
-            window.location.reload();
-          };
+          if (doneBtn) {
+            doneBtn.disabled = false;
+            doneBtn.textContent = '✓ Done (Reload Page)';
+            doneBtn.onclick = function () {
+              window.location.reload();
+            };
+          }
         });
       }
     }

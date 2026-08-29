@@ -14,6 +14,7 @@ class Cron {
 	 * Initialize cron hooks.
 	 */
 	public static function init() {
+		Bulk_Process::init();
 		add_action( 'translatesense_cache_cleanup', array( __CLASS__, 'run_cache_cleanup' ) );
 		add_action( 'dragwyb_trans_cache_cleanup', array( __CLASS__, 'run_cache_cleanup' ) );
 	}

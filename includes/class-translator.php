@@ -32,7 +32,25 @@ class Translator {
 
 		$hash = Hashing_Db::generate_hash( $widget_id, $source_string );
 
-		// Step 3.3: Check DB Cache first
+		// Step 3.2b: Check in-memory translations (used by Chrome Local AI and frontend-provided translation maps)
+		if ( ! empty( $custom_options['in_memory_translations'] ) && is_array( $custom_options['in_memory_translations'] ) ) {
+			if ( isset( $custom_options['in_memory_translations'][ $hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $hash ] ) ) {
+				return array(
+					'translated' => (string) $custom_options['in_memory_translations'][ $hash ],
+					'cached'     => false,
+					'hash'       => $hash,
+				);
+			}
+			if ( isset( $custom_options['in_memory_translations'][ $source_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $source_string ] ) ) {
+				return array(
+					'translated' => (string) $custom_options['in_memory_translations'][ $source_string ],
+					'cached'     => false,
+					'hash'       => $hash,
+				);
+			}
+		}
+
+		// Step 3.3: Check DB Cache
 		$cached = Hashing_Db::get_cached_translation( $hash, $target_lang );
 		if ( null !== $cached ) {
 			return array(
@@ -40,11 +58,6 @@ class Translator {
 				'cached'     => true,
 				'hash'       => $hash,
 			);
-		}
-
-		// Save package in DB
-		if ( $post_id ) {
-			Hashing_Db::record_package( $post_id, $target_lang, $hash, $source_string );
 		}
 
 		// Translate via configured provider
@@ -107,18 +120,50 @@ class Translator {
 	 */
 	public static function translate_batch( $strings_array, $source_lang, $target_lang, $widget_ids = array(), $post_id = 0, $custom_options = array() ) {
 		$results = array();
-		$hashes = array();
+		$hashes  = array();
 
 		foreach ( $strings_array as $idx => $str ) {
-			$w_id = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
+			$w_id           = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
 			$hashes[ $idx ] = Hashing_Db::generate_hash( $w_id, $str );
 		}
 
-		// Step 3.3: Batch Cache Lookup
-		$cached_map = Hashing_Db::get_cached_translations_batch( array_values( $hashes ), $target_lang );
+		// Step 3.2b: Check in-memory translations batch
+		if ( ! empty( $custom_options['in_memory_translations'] ) && is_array( $custom_options['in_memory_translations'] ) ) {
+			$in_memory = $custom_options['in_memory_translations'];
+			foreach ( $strings_array as $idx => $str ) {
+				$h = $hashes[ $idx ];
+				if ( isset( $in_memory[ $h ] ) && '' !== trim( (string) $in_memory[ $h ] ) ) {
+					$results[ $idx ] = array(
+						'translated' => (string) $in_memory[ $h ],
+						'cached'     => false,
+						'hash'       => $h,
+					);
+				} elseif ( isset( $in_memory[ $str ] ) && '' !== trim( (string) $in_memory[ $str ] ) ) {
+					$results[ $idx ] = array(
+						'translated' => (string) $in_memory[ $str ],
+						'cached'     => false,
+						'hash'       => $h,
+					);
+				}
+			}
+		}
+
+		// Step 3.3: Batch Cache Lookup for remaining uncached strings
+		$remaining_hashes = array();
+		foreach ( $hashes as $idx => $h ) {
+			if ( ! isset( $results[ $idx ] ) ) {
+				$remaining_hashes[ $idx ] = $h;
+			}
+		}
+
+		$cached_map = ! empty( $remaining_hashes ) ? Hashing_Db::get_cached_translations_batch( array_values( $remaining_hashes ), $target_lang ) : array();
 
 		$to_translate = array();
 		foreach ( $strings_array as $idx => $str ) {
+			if ( isset( $results[ $idx ] ) ) {
+				continue;
+			}
+
 			$h = $hashes[ $idx ];
 			if ( self::is_email_or_url( (string) $str ) ) {
 				$results[ $idx ] = array(
@@ -138,20 +183,16 @@ class Translator {
 		}
 
 		if ( empty( $to_translate ) ) {
+			ksort( $results );
 			return $results;
 		}
 
-		// Translate uncached strings
+		// Translate uncached strings via backend AI provider
 		$settings = get_option( 'translatesense_settings', array() );
 		$provider = $custom_options['provider'] ?? ( $settings['provider'] ?? 'client_google' );
 
 		foreach ( $to_translate as $idx => $str ) {
-			$w_id = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
 			$h = $hashes[ $idx ];
-
-			if ( $post_id ) {
-				Hashing_Db::record_package( $post_id, $target_lang, $h, $str );
-			}
 
 			$trans = self::execute_provider_translation( $str, $source_lang, $target_lang, $provider, $settings );
 			if ( ! empty( $trans ) ) {
@@ -185,7 +226,7 @@ class Translator {
 	 * @return bool
 	 */
 	public static function should_cache_provider( $provider ) {
-		$no_cache_providers = array( 'chrome_ai' );
+		$no_cache_providers = array( 'chrome_ai', 'chrome_local_ai' );
 		return ! in_array( $provider, $no_cache_providers, true );
 	}
 
@@ -215,7 +256,7 @@ class Translator {
 			return self::translate_public_engine( $text, $source_lang, $target_lang );
 		}
 
-		$url = 'https://api.openai.com/v1/chat/completions';
+		$url      = 'https://api.openai.com/v1/chat/completions';
 		$messages = array(
 			array(
 				'role'    => 'system',
@@ -266,12 +307,12 @@ class Translator {
 		}
 
 		$model_name = ! empty( $model ) ? $model : 'gemini-1.5-flash';
-		$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
+		$url        = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
 
 		$prompt = sprintf( "You are a professional translator. Translate the following text from %s to %s. Preserve all HTML tags, placeholders, and formatting. Output ONLY the translated content without any extra text:\n\n%s", $source_lang, $target_lang, $text );
 
 		$body = array(
-			'contents' => array(
+			'contents'         => array(
 				array(
 					'parts' => array(
 						array( 'text' => $prompt ),
