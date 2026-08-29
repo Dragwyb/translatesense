@@ -723,9 +723,6 @@ class Rest_Api {
 		if ( empty( $settings['enabled_providers'] ) ) {
 			$settings['enabled_providers'] = array( 'chrome_ai', 'openai', 'gemini' );
 		}
-		if ( empty( $settings['provider'] ) ) {
-			$settings['provider'] = 'openai';
-		}
 		$languages       = Polylang_Bridge::get_languages();
 		$polylang_active = Polylang_Bridge::is_polylang_active();
 

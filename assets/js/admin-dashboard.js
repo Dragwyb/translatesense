@@ -19,7 +19,6 @@
       classic: '',
     });
     const [settings, setSettings] = useState({
-      provider: 'openai',
       openai_api_key: '',
       openai_model: 'gpt-4o-mini',
       gemini_api_key: '',
@@ -493,11 +492,11 @@
           `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'Field' : 'Fields'}`
         ),
         widget.no_translate_count > 0 &&
-          el(
-            'span',
-            { className: 'ts-badge ts-badge-no-translate' },
-            `🚫 ${widget.no_translate_count} No Translate`
-          )
+        el(
+          'span',
+          { className: 'ts-badge ts-badge-no-translate' },
+          `🚫 ${widget.no_translate_count} No Translate`
+        )
       ),
       el(
         'div',
@@ -557,11 +556,11 @@
             `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'field' : 'fields'}`
           ),
           widget.no_translate_count > 0 &&
-            el(
-              'span',
-              { className: 'ts-badge ts-badge-no-translate' },
-              `🚫 ${widget.no_translate_count} No Translate`
-            )
+          el(
+            'span',
+            { className: 'ts-badge ts-badge-no-translate' },
+            `🚫 ${widget.no_translate_count} No Translate`
+          )
         )
       ),
       el(
@@ -789,26 +788,7 @@
         })
       ),
 
-      // 3. Default Provider
-      el(
-        'div',
-        { className: 'ts-form-group' },
-        el('label', { className: 'ts-form-label' }, 'Default Translation Provider'),
-        el('div', { className: 'ts-form-desc' }, 'The default provider pre-selected when starting a new translation.'),
-        el(
-          'select',
-          {
-            className: 'ts-form-select',
-            value: settings.provider || 'openai',
-            onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
-          },
-          providerList
-            .filter((p) => enabledProviders.includes(p.id))
-            .map((p) => el('option', { key: p.id, value: p.id }, `${p.icon} ${p.title}`))
-        )
-      ),
-
-      // 4. API Credentials Sub-Section
+      // 3. API Credentials Sub-Section
       el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginTop: '28px', marginBottom: '16px' } }, '🔑 API Credentials & Models'),
 
       // OpenAI Config
