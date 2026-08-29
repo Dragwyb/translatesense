@@ -203,15 +203,6 @@ class Elementor_Builder extends Base_Builder {
 							array( 'widgetType' => $widget_name )
 						);
 
-						if ( ! isset( $elementor_rules[ $widget_name ] ) ) {
-							$elementor_rules[ $widget_name ] = array(
-								'name'       => $widget_name,
-								'source'     => 'custom',
-								'conditions' => array( 'widgetType' => $widget_name ),
-								'fields'     => array(),
-							);
-						}
-
 						foreach ( $discovered_rules as $new_path => $schema_info ) {
 							$elementor_rules[ $widget_name ]['fields'][ $new_path ] = array(
 								'path'        => $new_path,
