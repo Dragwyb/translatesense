@@ -176,23 +176,6 @@ class Translate {
 					);
 				}
 			}
-
-			if ( isset( $custom_options['in_memory_translations'][ $filtered_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_string ] ) ) {
-				$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_string ];
-				return array(
-					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
-					'cached'     => false,
-					'hash'       => $hash,
-				);
-			}
-			if ( isset( $custom_options['in_memory_translations'][ $source_string ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $source_string ] ) ) {
-				$translated_text = (string) $custom_options['in_memory_translations'][ $source_string ];
-				return array(
-					'translated' => $translated_text,
-					'cached'     => false,
-					'hash'       => $hash,
-				);
-			}
 		}
 
 		// Step 3.3: Check DB Cache

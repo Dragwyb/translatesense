@@ -181,14 +181,14 @@
                   <label style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Choose Translation Engine</label>
                   <div class="ts-provider-list">
                     ${providers.map(
-                      (p) => {
-                        const isSelected = p.id === selectedProviderId;
-                        const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-                        const badgeHtml = isLocalFrontend
-                          ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-                          : '';
+            (p) => {
+              const isSelected = p.id === selectedProviderId;
+              const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+              const badgeHtml = isLocalFrontend
+                ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+                : '';
 
-                        return `
+              return `
                           <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
                             <div class="ts-provider-radio-wrap">
                               <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
@@ -206,8 +206,8 @@
                             </div>
                           </div>
                         `;
-                      }
-                    ).join('')}
+            }
+          ).join('')}
                   </div>
                 </div>
               </div>
@@ -662,7 +662,6 @@
                 const onStringProgress = (resItem) => {
                   if (resItem && resItem.translated) {
                     if (resItem.hash) inMemoryTranslations[resItem.hash] = resItem.translated;
-                    if (resItem.source) inMemoryTranslations[resItem.source] = resItem.translated;
                   }
                   completedBatchStrings++;
                   const strPct = totalBatchStrings > 0 ? Math.round((completedBatchStrings / totalBatchStrings) * 100) : 0;
