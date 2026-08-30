@@ -700,7 +700,7 @@
                         setTimeout(function () {
                           successSummary.style.display = 'none';
                         }, 500);
-                      }, 20000);
+                      }, 10000);
                     }
                   }, 500);
                 }
