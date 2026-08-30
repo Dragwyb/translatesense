@@ -680,6 +680,14 @@
                         successSummaryText.textContent = `Successfully processed and created translations for ${completedJobs || 1} of ${totalJobs || 1} post(s).`;
                       }
                       successSummary.style.display = 'flex';
+
+                      // Auto-hide success notice after 20 seconds
+                      setTimeout(function () {
+                        successSummary.classList.add('ts-progress-fade-out');
+                        setTimeout(function () {
+                          successSummary.style.display = 'none';
+                        }, 500);
+                      }, 20000);
                     }
                   }, 500);
                 }
@@ -770,7 +778,8 @@
           renderResultsUI();
 
           // =========================================================================
-          // WORKFLOW A: Backend AI Providers (OpenAI, Gemini) via Cron + 5s Polling
+          // WORKFLOW A: Backend AI Providers (OpenAI, Gemini, etc.) -> Backend Cron & 5s Polling
+          // Frontend does NOT translate strings or call AI providers in JS.
           // =========================================================================
           if (!isChromeAi) {
             if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
@@ -781,6 +790,7 @@
               statusLabelEl.textContent = 'RUNNING';
             }
 
+            let pollingTimer = null;
             const pollStatus = async () => {
               try {
                 const statusRes = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(batchId)}`, {
@@ -857,6 +867,7 @@
 
           // =========================================================================
           // WORKFLOW B: Chrome Local AI In-Memory String Translation Workflow
+          // Runs on-device inside browser, creates translated post and sets strings in backend.
           // =========================================================================
           let totalBatchStrings = 0;
           let completedBatchStrings = 0;
@@ -945,7 +956,7 @@
                   if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
                 };
 
-                // Run client-side Chrome AI translation (stores results in inMemoryTranslations variable, NOT in DB translations cache)
+                // Run client-side Chrome AI translation
                 await window.TranslateSenseCore.translate(
                   'chrome_ai',
                   {
@@ -982,6 +993,13 @@
                 throw new Error(postRes.message || `Post translation save failed`);
               }
 
+              const indexedStrings = rawStrings.map((s) => (typeof s === 'object' ? s.content || s.source || s.value || '' : String(s)));
+              const indexedTranslated = rawStrings.map((s) => {
+                const h = typeof s === 'object' ? s.hash : '';
+                const src = typeof s === 'object' ? s.content || s.source || s.value || '' : String(s);
+                return inMemoryTranslations[h] || inMemoryTranslations[src] || src;
+              });
+
               // 3. Update bulk job record in DB
               await fetch(restUrl + 'bulk-update-job', {
                 method: 'POST',
@@ -997,8 +1015,8 @@
                     total_strings: rawStrings.length,
                     completed_strings: rawStrings.length,
                     target_post_id: postRes.target_post_id,
-                    sent_ai_request_data: rawStrings,
-                    received_ai_request_data: inMemoryTranslations,
+                    sent_ai_request_data: indexedStrings,
+                    received_ai_request_data: indexedTranslated,
                   },
                 }),
               });

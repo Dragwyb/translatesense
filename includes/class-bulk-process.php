@@ -106,10 +106,9 @@ class Bulk_Process {
 			}
 		}
 
-		// If backend provider, schedule cron and trigger immediate processing
+		// If backend provider (OpenAI, Gemini, etc.), schedule cron and trigger immediate background processing
 		if ( ! $is_chrome_ai && ! empty( $created_jobs ) ) {
 			self::schedule_cron_if_needed();
-			// Attempt to spawn cron or run immediate non-blocking tick
 			self::trigger_async_cron();
 		}
 
@@ -225,34 +224,88 @@ class Bulk_Process {
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
-			$extracted = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
+			// 1. Extract packages array (contains hash, strings, widget info)
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
 
-			if ( empty( $package_strings ) ) {
-				$extracted = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
+			if ( empty( $packages ) ) {
+				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
 			}
 
-			$total_str = count( $extracted );
+			$packages = array_values( (array) $packages );
 
+			// Extract pure strings indexed by array index
+			$strings_to_send = array();
+			$widgets_by_idx  = array();
+
+			foreach ( $packages as $idx => $pkg ) {
+				if ( isset( $pkg['value'] ) && isset( $pkg['widget_name'] ) && ! empty( $pkg['value'] ) ) {
+					$str  = (string) $pkg['value'];
+					$w_id = (string) $pkg['widget_name'];
+
+					$strings_to_send[ $idx ] = $str;
+					$widgets_by_idx[ $idx ]  = $w_id;
+				}
+			}
+
+			$total_str = count( $strings_to_send );
+
+			// Save AI request data with clean source strings array
 			self::update_job(
 				$job_id,
 				array(
 					'total_strings'        => $total_str,
 					'progress_status'      => sprintf( 'Translating strings (%d found)...', $total_str ),
-					'sent_ai_request_data' => wp_json_encode(
-						array(
-							'post_id'     => $post_id,
-							'title'       => $source_post->post_title,
-							'source_lang' => $source_lang,
-							'target_lang' => $target_lang,
-							'strings'     => $extracted,
-						)
-					),
+					'sent_ai_request_data' => wp_json_encode( $strings_to_send ),
 					'updated_at'           => current_time( 'mysql' ),
 				)
 			);
 
-			// 2. Execute post translation
-			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider );
+			// 2. Send indexed string array to AI
+			$ai_response = Translate::translate_batch(
+				$strings_to_send,
+				$source_lang,
+				$target_lang,
+				$widgets_by_idx,
+				$post_id,
+				array( 'provider' => $provider )
+			);
+
+			$translated_content     = array();
+			$in_memory_translations = array();
+
+			// 3. Match AI response by index in packages array and set translated value to hash
+			foreach ( $strings_to_send as $idx => $orig_str ) {
+				$translated_str = isset( $ai_response[ $idx ]['translated'] ) ? (string) $ai_response[ $idx ]['translated'] : (string) $orig_str;
+
+				// Save translated content in smart indexed format
+				$translated_content[ $idx ] = $translated_str;
+
+				// Match index with packages array to resolve hash
+				if ( isset( $packages[ $idx ] ) ) {
+					$pkg  = $packages[ $idx ];
+					$hash = is_array( $pkg ) ? ( $pkg['hash'] ?? ( $pkg['package_hash'] ?? '' ) ) : '';
+
+					if ( empty( $hash ) && '' !== $orig_str ) {
+						$w_id = is_array( $pkg ) ? ( $pkg['widget_name'] ?? ( $pkg['widget_id'] ?? 'generic' ) ) : 'generic';
+						$hash = Hashing_Db::generate_hash( (string) $w_id, (string) $orig_str );
+					}
+
+					if ( ! empty( $hash ) ) {
+						// Set translated value to hash in DB
+						if ( Translate::should_cache_provider( $provider ) ) {
+							Hashing_Db::save_translation_result( $hash, $target_lang, $translated_str );
+						}
+						$in_memory_translations[ $hash ] = $translated_str;
+					}
+				}
+
+				if ( ! empty( $orig_str ) ) {
+					$in_memory_translations[ $orig_str ] = $translated_str;
+				}
+			}
+
+			// 4. Execute post translation
+			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider, $in_memory_translations );
 
 			if ( is_wp_error( $result ) ) {
 				throw new \Exception( $result->get_error_message() );
@@ -260,7 +313,7 @@ class Bulk_Process {
 
 			$target_post_id = $result['target_post_id'] ?? 0;
 
-			// 3. Mark as completed
+			// 5. Mark as completed and save translated strings array
 			self::update_job(
 				$job_id,
 				array(
@@ -268,7 +321,7 @@ class Bulk_Process {
 					'progress_status'          => 'Completed successfully',
 					'completed_strings'        => $total_str,
 					'target_post_id'           => $target_post_id,
-					'received_ai_request_data' => wp_json_encode( $result ),
+					'received_ai_request_data' => wp_json_encode( $translated_content ),
 					'error_message'            => null,
 					'updated_at'               => current_time( 'mysql' ),
 				)
