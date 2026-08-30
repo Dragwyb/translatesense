@@ -739,7 +739,6 @@ class Rest_Api {
 		}
 
 		$source_editor_type = Editor_Integration::get_post_editor_type( $post_id );
-		$target_lang        = $params['target_lang'] ?? 'es';
 		$target_editor_type = ! empty( $params['builder'] ) ? sanitize_key( $params['builder'] ) : $source_editor_type;
 
 		if ( 'core' === $target_editor_type ) {
