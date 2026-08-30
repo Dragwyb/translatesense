@@ -42,6 +42,7 @@ class Editor_Integration {
 			$from_post_id = (int) $_GET['from_post']; // phpcs:ignore
 			if ( $from_post_id > 0 ) {
 				update_post_meta( $post_id, '_translatesense_source_id', $from_post_id );
+				update_post_meta( $post_id, '_show_initial_prompt_modal', '1' );
 			}
 		}
 	}
@@ -205,27 +206,29 @@ class Editor_Integration {
 			true
 		);
 
-		$settings = get_option( 'translatesense_settings', array() );
+		$settings                  = get_option( 'translatesense_settings', array() );
+		$show_initial_prompt_modal = get_post_meta( $post_id, '_show_initial_prompt_modal', true );
 
 		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
 		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
 
 		$localize_data = array_merge(
 			array(
-				'postId'           => $post_id,
-				'editorType'       => $editor_type,
-				'sourcePostId'     => $source_post_id,
-				'sourceLanguage'   => $source_language,
-				'sourceEditorType' => $source_editor_type,
+				'postId'                 => $post_id,
+				'editorType'             => $editor_type,
+				'sourcePostId'           => $source_post_id,
+				'sourceLanguage'         => $source_language,
+				'sourceEditorType'       => $source_editor_type,
 				'fromPost'         => isset( $_GET['from_post'] ) ? (int) $_GET['from_post'] : 0, // phpcs:ignore
-				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'            => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
-				'currentLanguage'  => Polylang_Bridge::get_post_language( $post_id ),
-				'languages'        => Polylang_Bridge::get_languages(),
-				'defaultProvider'  => $settings['provider'] ?? '',
-				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
-				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
+				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'                  => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'         => Polylang_Bridge::is_polylang_active(),
+				'currentLanguage'        => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'              => Polylang_Bridge::get_languages(),
+				'defaultProvider'        => $settings['provider'] ?? '',
+				'enabledProviders'       => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
+				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
 			),
 			$localize_data
 		);

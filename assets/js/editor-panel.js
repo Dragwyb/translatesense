@@ -146,25 +146,20 @@
      * @param {boolean} isPageLoad Whether this was triggered automatically on page load.
      */
     showSourceEditorPromptModal(isPageLoad = false) {
+
+      if (!window.TranslateSenseEditorData.showInitialPromptModal) {
+        return;
+      }
+
       const existing = document.getElementById('ts-source-editor-guidance-modal');
       if (existing) existing.remove();
-
-      const sourceEditorName = this.getEditorDisplayName(this.sourceEditorType);
-      const isElementor = this.sourceEditorType === 'elementor';
 
       let modalTitle = '⚡ Translate Page Content';
       let modalMessage = '';
       let actionBtnText = '🚀 Continue to Translation';
-
-      if (this.editorType !== 'elementor' && isElementor) {
-        modalTitle = `🌐 Source Post: ${sourceEditorName} Editor Detected`;
-        modalMessage = `Original post created with <strong>${sourceEditorName}</strong> editor.<br><br>If you want to translate this post in same editor then Click on <strong>Translate with ${sourceEditorName}</strong> button, or click the close icon to close this modal.`;
-        actionBtnText = `⚡ Translate with ${sourceEditorName}`;
-      } else {
-        const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
-        modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
-        actionBtnText = '🚀 Continue to Translation';
-      }
+      const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
+      modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
+      actionBtnText = '🚀 Continue to Translation';
 
       const modalContainer = document.createElement('div');
       modalContainer.id = 'ts-source-editor-guidance-modal';
@@ -203,8 +198,10 @@
      * Gutenberg Block Editor Integration.
      */
     initGutenberg() {
-      // Gutenberg metabox is rendered via WordPress add_meta_box natively.
-      // Trigger bindings are handled globally by bindUniversalTriggers().
+      if (this.sourceEditorType === 'gutenberg') {
+        // Check and show Page Load Auto-Translate Prompt Modal
+        this.initPageLoadPrompt();
+      }
     }
 
     /**
@@ -215,13 +212,7 @@
         const trigger = e.target.closest('.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-classic-translate-btn');
         if (trigger) {
           e.preventDefault();
-
-          // If source post was built in Elementor, show editor-specific prompt modal first
-          if (this.editorType !== 'elementor' && this.sourceEditorType === 'elementor') {
-            this.showSourceEditorPromptModal(false);
-          } else {
-            this.openProviderModal();
-          }
+          this.openProviderModal();
         }
       });
     }
@@ -318,20 +309,20 @@
           <div class="ts-review-body">
             <div class="ts-provider-list">
               ${(() => {
-                const defaultProv = this.config.defaultProvider || '';
-                const currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider))
-                  ? this.selectedProvider
-                  : (defaultProv && providersList.some((p) => p.id === defaultProv) ? defaultProv : '');
-                this.selectedProvider = currentSelected;
+          const defaultProv = this.config.defaultProvider || '';
+          const currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider))
+            ? this.selectedProvider
+            : (defaultProv && providersList.some((p) => p.id === defaultProv) ? defaultProv : '');
+          this.selectedProvider = currentSelected;
 
-                return providersList.map((p) => {
-                  const isSelected = Boolean(currentSelected && p.id === currentSelected);
-                  const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-                  const badgeHtml = isFrontend
-                    ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-                    : '';
+          return providersList.map((p) => {
+            const isSelected = Boolean(currentSelected && p.id === currentSelected);
+            const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+            const badgeHtml = isFrontend
+              ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+              : '';
 
-                  return `
+            return `
                     <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
                       <div class="ts-provider-radio-wrap">
                         <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
@@ -349,8 +340,8 @@
                       </div>
                     </div>
                   `;
-                }).join('');
-              })()}
+          }).join('');
+        })()}
             </div>
           </div>
           <div class="ts-review-footer">
