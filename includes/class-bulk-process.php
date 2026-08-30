@@ -225,8 +225,12 @@ class Bulk_Process {
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
-			// 1. Extract translatable strings
-			$extracted = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
+			$extracted = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
+
+			if ( empty( $package_strings ) ) {
+				$extracted = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
+			}
+
 			$total_str = count( $extracted );
 
 			self::update_job(
