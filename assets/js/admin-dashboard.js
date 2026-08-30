@@ -7,15 +7,14 @@
   const { createElement: el, useState, useEffect, useMemo } = window.wp.element;
 
   function TranslateSenseApp() {
-    const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false, divi: false, classic: false });
+    const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false, classic: false });
     const [activeTab, setActiveTab] = useState('gutenberg');
     const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
-    const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [], divi: [], classic: [] });
+    const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [], classic: [] });
     const [xmlConfigs, setXmlConfigs] = useState({
       all: '',
       gutenberg: '',
       elementor: '',
-      divi: '',
       classic: '',
     });
     const [settings, setSettings] = useState({
@@ -55,7 +54,6 @@
           all: xmlRes.custom_xml || '',
           gutenberg: xmlRes.gutenberg_xml || '',
           elementor: xmlRes.elementor_xml || '',
-          divi: xmlRes.divi_xml || '',
           classic: xmlRes.classic_xml || '',
         });
 
@@ -251,16 +249,6 @@
           },
           'Elementor Widgets',
           el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
-        ),
-        activeBuilders.divi &&
-        el(
-          'button',
-          {
-            className: `ts-tab-btn ${activeTab === 'divi' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('divi'); setSearchQuery(''); },
-          },
-          'Divi Modules',
-          el('span', { className: 'ts-tab-count' }, widgetsData.divi ? widgetsData.divi.length : 0)
         ),
         activeBuilders.classic &&
         el(
@@ -616,8 +604,6 @@
           setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <gutenberg-blocks>\n        <gutenberg-block name="${widget.id}">\n            <key name="content" type="text" editor_type="VISUAL" />\n        </gutenberg-block>\n    </gutenberg-blocks>\n</wpml-config>`);
         } else if ('elementor' === builder) {
           setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <elementor-widgets>\n        <widget name="${widget.id}">\n            <fields>\n                <field type="title" editor_type="LINE">title</field>\n            </fields>\n        </widget>\n    </elementor-widgets>\n</wpml-config>`);
-        } else if ('divi' === builder) {
-          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <divi-modules>\n        <module name="${widget.id}">\n            <fields>\n                <field type="content" editor_type="VISUAL">content</field>\n            </fields>\n        </module>\n    </divi-modules>\n</wpml-config>`);
         } else {
           setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <custom-fields>\n        <custom-field action="translate">${widget.id}</custom-field>\n    </custom-fields>\n</wpml-config>`);
         }
@@ -686,13 +672,13 @@
       el(
         'p',
         { style: { color: '#64748b', fontSize: '13px' } },
-        'TranslateSense maintains isolated XML files for each editor (Gutenberg, Elementor, Divi, Classic). Select an editor below to inspect or edit its custom XML.'
+        'TranslateSense maintains isolated XML files for each editor (Gutenberg, Elementor, Classic). Select an editor below to inspect or edit its custom XML.'
       ),
 
       el(
         'div',
         { style: { display: 'flex', gap: '10px', marginBottom: '16px' } },
-        ['gutenberg', 'elementor', 'divi', 'classic'].map((ed) =>
+        ['gutenberg', 'elementor', 'classic'].map((ed) =>
           el(
             'button',
             {

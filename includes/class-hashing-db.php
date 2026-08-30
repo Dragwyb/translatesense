@@ -88,10 +88,11 @@ class Hashing_Db {
 		$table        = self::get_translations_table();
 		$placeholders = implode( ',', array_fill( 0, count( $hashes ), '%s' ) );
 
-		$query = $wpdb->prepare(
-			"SELECT package_hash, translated_strings FROM {$table} 
-			 WHERE package_hash IN ($placeholders) AND translated_strings != ''",
-			$hashes
+		$params = array_merge( $hashes, array( $target_lang ) );
+		$query  = $wpdb->prepare(
+			"SELECT package_hash, translated_string FROM {$table} 
+			 WHERE package_hash IN ($placeholders) AND language = %s",
+			$params
 		);
 
 		$rows      = $wpdb->get_results( $query, ARRAY_A );
@@ -99,12 +100,8 @@ class Hashing_Db {
 
 		if ( ! empty( $rows ) ) {
 			foreach ( $rows as $row ) {
-				if ( empty( $row['translated_strings'] ) ) {
-					continue;
-				}
-				$strings = json_decode( $row['translated_strings'], true );
-				if ( is_array( $strings ) && isset( $strings[ $target_lang ] ) && '' !== $strings[ $target_lang ] ) {
-					$cache_map[ $row['package_hash'] ] = $strings[ $target_lang ];
+				if ( ! empty( $row['translated_string'] ) ) {
+					$cache_map[ $row['package_hash'] ] = $row['translated_string'];
 				}
 			}
 		}
@@ -218,7 +215,6 @@ class Hashing_Db {
 
 	/**
 	 * Save translated string result into translations cache table.
-	 * Stores languages array and translated_strings map with updated_at timestamp.
 	 *
 	 * @param string $hash
 	 * @param string $target_lang
@@ -229,54 +225,35 @@ class Hashing_Db {
 		global $wpdb;
 		$table = self::get_translations_table();
 
-		$existing = $wpdb->get_row(
+		$existing_id = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT id, language, translated_string FROM {$table} WHERE package_hash = %s AND language = %s LIMIT 1",
+				"SELECT id FROM {$table} WHERE package_hash = %s AND language = %s LIMIT 1",
 				$hash,
-				$translated_string
-			),
-			ARRAY_A
+				$target_lang
+			)
 		);
 
-		if ( $existing ) {
-			$languages = json_decode( $existing['languages'], true );
-			if ( ! is_array( $languages ) ) {
-				$languages = array();
-			}
-			if ( ! in_array( $target_lang, $languages, true ) ) {
-				$languages[] = $target_lang;
-			}
-
-			$strings = json_decode( $existing['translated_strings'], true );
-			if ( ! is_array( $strings ) ) {
-				$strings = array();
-			}
-			$strings[ $target_lang ] = $translated_string;
-
+		if ( $existing_id ) {
 			return (bool) $wpdb->update(
 				$table,
 				array(
-					'languages'          => wp_json_encode( array_values( $languages ) ),
-					'translated_strings' => wp_json_encode( $strings ),
-					'updated_at'         => current_time( 'mysql' ),
+					'translated_string' => $translated_string,
+					'updated_at'        => current_time( 'mysql' ),
 				),
-				array( 'id' => (int) $existing['id'] ),
-				array( '%s', '%s', '%s' ),
+				array( 'id' => (int) $existing_id ),
+				array( '%s', '%s' ),
 				array( '%d' )
 			);
 		}
 
-		$languages = array( $target_lang );
-		$strings   = array( $target_lang => $translated_string );
-
 		return (bool) $wpdb->insert(
 			$table,
 			array(
-				'package_hash'       => sanitize_text_field( $hash ),
-				'languages'          => wp_json_encode( $languages ),
-				'translated_strings' => wp_json_encode( $strings ),
-				'created_at'         => current_time( 'mysql' ),
-				'updated_at'         => current_time( 'mysql' ),
+				'package_hash'      => sanitize_text_field( $hash ),
+				'language'          => sanitize_text_field( $target_lang ),
+				'translated_string' => $translated_string,
+				'created_at'        => current_time( 'mysql' ),
+				'updated_at'        => current_time( 'mysql' ),
 			),
 			array( '%s', '%s', '%s', '%s', '%s' )
 		);

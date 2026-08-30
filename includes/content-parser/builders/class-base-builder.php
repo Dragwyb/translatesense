@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 abstract class Base_Builder {
 
 	/**
-	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'classic').
 	 *
 	 * @return string
 	 */

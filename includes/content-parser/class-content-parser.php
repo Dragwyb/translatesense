@@ -7,7 +7,6 @@ namespace TranslateSense\Includes\Content_Parser;
 use TranslateSense\Includes\Content_Parser\Builders\Base_Builder;
 use TranslateSense\Includes\Content_Parser\Builders\Gutenberg_Builder;
 use TranslateSense\Includes\Content_Parser\Builders\Elementor_Builder;
-use TranslateSense\Includes\Content_Parser\Builders\Divi_Builder;
 use TranslateSense\Includes\Content_Parser\Builders\Classic_Builder;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Polylang_Bridge;
@@ -19,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Core Content Parser Class.
- * Coordinates parsing post content for strings across Gutenberg, Elementor, Divi, and Classic builders.
+ * Coordinates parsing post content for strings across Gutenberg, Elementor, and Classic builders.
  */
 class Content_Parser {
 
@@ -63,7 +62,6 @@ class Content_Parser {
 
 		self::register_builder( 'gutenberg', new Gutenberg_Builder() );
 		self::register_builder( 'elementor', new Elementor_Builder() );
-		self::register_builder( 'divi', new Divi_Builder() );
 		self::register_builder( 'classic', new Classic_Builder() );
 
 		self::$initialized = true;
@@ -96,7 +94,7 @@ class Content_Parser {
 	 *
 	 * @param mixed $content
 	 * @param int   $post_id
-	 * @return string 'gutenberg' | 'elementor' | 'divi' | 'classic'
+	 * @return string 'gutenberg' | 'elementor' | 'classic'
 	 */
 	public static function detect_builder( $content = '', int $post_id = 0 ): string {
 		if ( $post_id > 0 && class_exists( 'TranslateSense\Includes\Editor_Integration' ) ) {
@@ -109,15 +107,6 @@ class Content_Parser {
 		// Check Elementor edit mode post meta
 		if ( $post_id > 0 && 'builder' === get_post_meta( $post_id, '_elementor_edit_mode', true ) ) {
 			return 'elementor';
-		}
-
-		// Check Divi builder post meta or shortcodes
-		if ( $post_id > 0 && 'on' === get_post_meta( $post_id, '_et_pb_use_builder', true ) ) {
-			return 'divi';
-		}
-
-		if ( is_string( $content ) && false !== strpos( $content, '[et_pb_' ) ) {
-			return 'divi';
 		}
 
 		// Check Gutenberg blocks

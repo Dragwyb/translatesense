@@ -30,7 +30,7 @@
     /**
      * Generate MD5 hash for a string and widget/block name using SparkMD5 or internal fallback.
      * 
-     * @param {string} widgetOrBlockName Block name, Elementor widget type, or Divi module name
+     * @param {string} widgetOrBlockName Block name or Elementor widget type
      * @param {string} stringValue Source string value
      * @returns {string} 32-character hexadecimal MD5 hash
      */
@@ -592,7 +592,7 @@
       }
     }
     /**
-     * Register a Page Editor live updater (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+     * Register a Page Editor live updater (e.g. 'gutenberg', 'elementor', 'classic').
      * 
      * @param {string} id Unique editor ID
      * @param {Object} options
@@ -667,7 +667,7 @@
     /**
      * Apply translated strings live to the specified or automatically detected page editor.
      * 
-     * @param {string} [editorId] Optional specific editor ID ('gutenberg', 'elementor', 'divi', 'classic')
+     * @param {string} [editorId] Optional specific editor ID ('gutenberg', 'elementor', 'classic')
      * @param {Object} options
      * @param {Array<Object>} options.strings Array of { field, widget_id, source, translated, hash }
      * @returns {Promise<Object>} Status object { success: boolean, editor: string, count: number }

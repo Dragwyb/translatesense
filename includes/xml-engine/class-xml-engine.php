@@ -12,7 +12,6 @@ use DOMNode;
 use TranslateSense\Includes\Xml_Engine\Builders\Base_Builder;
 use TranslateSense\Includes\Xml_Engine\Builders\Gutenberg_Builder;
 use TranslateSense\Includes\Xml_Engine\Builders\Elementor_Builder;
-use TranslateSense\Includes\Xml_Engine\Builders\Divi_Builder;
 use TranslateSense\Includes\Xml_Engine\Builders\Classic_Builder;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,7 +23,7 @@ class Xml_Engine {
 	/**
 	 * Supported builders.
 	 */
-	const BUILDERS = array( 'gutenberg', 'elementor', 'divi', 'classic' );
+	const BUILDERS = array( 'gutenberg', 'elementor', 'classic' );
 
 	/**
 	 * Canonical option key for unified 'all' editor configuration.
@@ -67,7 +66,6 @@ class Xml_Engine {
 			self::$builder_instances = array(
 				'gutenberg' => new Gutenberg_Builder(),
 				'elementor' => new Elementor_Builder(),
-				'divi'      => new Divi_Builder(),
 				'classic'   => new Classic_Builder(),
 			);
 		}
@@ -91,7 +89,7 @@ class Xml_Engine {
 	/**
 	 * Get custom XML file path for a specific builder.
 	 *
-	 * @param string $builder 'gutenberg', 'elementor', 'divi', 'classic', 'all', or 'core'
+	 * @param string $builder 'gutenberg', 'elementor', 'classic', 'all', or 'core'
 	 * @return string
 	 */
 	public static function get_builder_xml_path( $builder = 'all' ) {
@@ -124,7 +122,7 @@ class Xml_Engine {
 	 * Get XML configuration for a specific editor or all editors combined.
 	 * Always retrieves configuration from the WordPress options table.
 	 *
-	 * @param string $editor 'all', 'gutenberg', 'elementor', 'divi', 'classic', or 'core'
+	 * @param string $editor 'all', 'gutenberg', 'elementor', 'classic', or 'core'
 	 * @return string
 	 */
 	public static function get_config( $editor = 'all' ) {
@@ -153,7 +151,7 @@ class Xml_Engine {
 			return self::get_default_builder_skeleton( 'all' );
 		}
 
-		// 2. Specific builder configuration (gutenberg, elementor, divi, classic)
+		// 2. Specific builder configuration (gutenberg, elementor, classic)
 		$option_key = 'translatesense_' . $editor . '_xml';
 		$saved      = get_option( $option_key, '' );
 		if ( ! empty( $saved ) ) {
@@ -188,7 +186,7 @@ class Xml_Engine {
 	/**
 	 * Get raw XML string for a specific builder (Backward Compatibility Alias).
 	 *
-	 * @param string $builder 'gutenberg', 'elementor', 'divi', 'classic', 'all', or 'core'
+	 * @param string $builder 'gutenberg', 'elementor', 'classic', 'all', or 'core'
 	 * @return string
 	 */
 	public static function get_builder_xml_raw( $builder = 'all' ) {
@@ -225,7 +223,7 @@ class Xml_Engine {
 			return $builder_obj->get_default_skeleton();
 		}
 
-		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n    </gutenberg-blocks>\n    <elementor-widgets>\n    </elementor-widgets>\n    <divi-modules>\n    </divi-modules>\n    <custom-fields>\n    </custom-fields>\n</wpml-config>";
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n    </gutenberg-blocks>\n    <elementor-widgets>\n    </elementor-widgets>\n    <custom-fields>\n    </custom-fields>\n</wpml-config>";
 	}
 
 	/**
@@ -259,7 +257,7 @@ class Xml_Engine {
 	 * Save XML configuration for a specific editor or all editors.
 	 * Always persists to the database options table.
 	 *
-	 * @param string $editor 'all', 'gutenberg', 'elementor', 'divi', 'classic', or 'core'
+	 * @param string $editor 'all', 'gutenberg', 'elementor', 'classic', or 'core'
 	 * @param string $xml_string
 	 * @return bool|WP_Error
 	 */
@@ -347,7 +345,7 @@ class Xml_Engine {
 	 * Get exact dynamic XML snippet for a specific block/widget/module.
 	 * Searches active XML configuration (custom and all in option table).
 	 *
-	 * @param string $builder 'gutenberg', 'elementor', 'divi', or 'classic'
+	 * @param string $builder 'gutenberg', 'elementor', or 'classic'
 	 * @param string $name Name/ID of the block/widget
 	 * @return string Formatted XML snippet
 	 */
@@ -400,15 +398,6 @@ class Xml_Engine {
 				),
 			);
 			return self::generate_xml_snippet( 'elementor', (string) $name, $fields );
-		} elseif ( 'divi' === $builder ) {
-			$module_rules = $rules['divi'][ $name ] ?? null;
-			$fields       = ( $module_rules && ! empty( $module_rules['fields'] ) ) ? $module_rules['fields'] : array(
-				'content' => array(
-					'type'        => 'content',
-					'editor_type' => 'VISUAL',
-				),
-			);
-			return self::generate_xml_snippet( 'divi', (string) $name, $fields );
 		}
 
 		return self::get_default_builder_skeleton( (string) $builder );
@@ -418,7 +407,7 @@ class Xml_Engine {
 	 * Save dynamic XML snippet for a specific block or widget.
 	 * Updates existing child in place (marking removed keys with noTranslate="true") and adding new keys.
 	 *
-	 * @param string $builder 'gutenberg', 'elementor', 'divi', or 'classic'
+	 * @param string $builder 'gutenberg', 'elementor', or 'classic'
 	 * @param string $name
 	 * @param string $snippet_xml
 	 * @return bool|WP_Error
@@ -459,8 +448,6 @@ class Xml_Engine {
 			$new_node = $snippet_doc->{'gutenberg-blocks'}->{'gutenberg-block'}[0];
 		} elseif ( 'elementor' === $target_builder && isset( $snippet_doc->{'elementor-widgets'}->widget ) ) {
 			$new_node = $snippet_doc->{'elementor-widgets'}->widget[0];
-		} elseif ( 'divi' === $target_builder && isset( $snippet_doc->{'divi-modules'}->module ) ) {
-			$new_node = $snippet_doc->{'divi-modules'}->module[0];
 		} elseif ( 'classic' === $target_builder && isset( $snippet_doc->{'custom-fields'}->{'custom-field'} ) ) {
 			$new_node = $snippet_doc->{'custom-fields'}->{'custom-field'}[0];
 		}
@@ -499,8 +486,6 @@ class Xml_Engine {
 						$base_node = $base_doc->{'gutenberg-blocks'}->{'gutenberg-block'}[0];
 					} elseif ( 'elementor' === $target_builder && isset( $base_doc->{'elementor-widgets'}->widget ) ) {
 						$base_node = $base_doc->{'elementor-widgets'}->widget[0];
-					} elseif ( 'divi' === $target_builder && isset( $base_doc->{'divi-modules'}->module ) ) {
-						$base_node = $base_doc->{'divi-modules'}->module[0];
 					} elseif ( 'classic' === $target_builder && isset( $base_doc->{'custom-fields'}->{'custom-field'} ) ) {
 						$base_node = $base_doc->{'custom-fields'}->{'custom-field'}[0];
 					}
@@ -533,7 +518,7 @@ class Xml_Engine {
 	/**
 	 * Get unified parsed rules for all builders or a specific builder.
 	 *
-	 * @param string|bool $editor 'all', 'gutenberg', 'elementor', 'divi', 'classic', or boolean $force_reload
+	 * @param string|bool $editor 'all', 'gutenberg', 'elementor', 'classic', or boolean $force_reload
 	 * @param bool        $force_reload Whether to force reload parsed cache
 	 * @return array
 	 */
@@ -558,7 +543,6 @@ class Xml_Engine {
 		$rules = array(
 			'gutenberg'                  => array(),
 			'elementor'                  => array(),
-			'divi'                       => array(),
 			'custom_fields'              => array(),
 			'custom_fields_no_translate' => array(),
 		);

@@ -8,7 +8,6 @@ use WP_Error;
 use TranslateSense\Includes\Translate\Builders\Base_Builder;
 use TranslateSense\Includes\Translate\Builders\Gutenberg_Builder;
 use TranslateSense\Includes\Translate\Builders\Elementor_Builder;
-use TranslateSense\Includes\Translate\Builders\Divi_Builder;
 use TranslateSense\Includes\Translate\Builders\Classic_Builder;
 use TranslateSense\Includes\Editor_Integration;
 use TranslateSense\Includes\Content_Parser\Content_Parser;
@@ -49,7 +48,6 @@ class Translate {
 
 		self::register_builder( 'gutenberg', new Gutenberg_Builder() );
 		self::register_builder( 'elementor', new Elementor_Builder() );
-		self::register_builder( 'divi', new Divi_Builder() );
 		self::register_builder( 'classic', new Classic_Builder() );
 
 		self::$initialized = true;

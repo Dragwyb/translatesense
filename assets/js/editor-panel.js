@@ -4,7 +4,7 @@
  * 100% Pure Vanilla JavaScript (NO React, NO wp.element, NO useState).
  * Features:
  * 1. Source Post / Parent Post detection via _translatesense_source_id & from_post query parameter
- * 2. Editor-type detection for source post (Elementor, Divi, Gutenberg, Classic)
+ * 2. Editor-type detection for source post (Elementor, Gutenberg, Classic)
  * 3. Page load auto-translate prompt modal with editor-specific guidance
  * 4. Context-aware Translate button triggers across all editors
  */
@@ -57,9 +57,6 @@
         case 'elementor':
           jQuery(window).on('elementor:init', () => elementor.on('document:loaded', () => this.initElementor()));
           break;
-        case 'divi':
-          this.initDivi();
-          break;
         case 'classic':
         default:
           window.addEventListener('load', () => this.initClassicEditorMediaButton())
@@ -74,8 +71,6 @@
       switch (type) {
         case 'elementor':
           return 'Elementor';
-        case 'divi':
-          return 'Divi';
         case 'gutenberg':
           return 'Gutenberg';
         case 'classic':
@@ -106,13 +101,13 @@
       if (existing) existing.remove();
 
       const sourceEditorName = this.getEditorDisplayName(this.sourceEditorType);
-      const isElementorOrDivi = this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi';
+      const isElementor = this.sourceEditorType === 'elementor';
 
       let modalTitle = '⚡ Translate Page Content';
       let modalMessage = '';
       let actionBtnText = '🚀 Continue to Translation';
 
-      if (!['elementor', 'divi'].includes(this.editorType) && isElementorOrDivi) {
+      if (this.editorType !== 'elementor' && isElementor) {
         modalTitle = `🌐 Source Post: ${sourceEditorName} Editor Detected`;
         modalMessage = `Original post created with <strong>${sourceEditorName}</strong> editor.<br><br>If you want to translate this post in same editor then Click on <strong>Translate with ${sourceEditorName}</strong> button, or click the close icon to close this modal.`;
         actionBtnText = `⚡ Translate with ${sourceEditorName}`;
@@ -164,16 +159,16 @@
     }
 
     /**
-     * Bind generic trigger buttons anywhere in the DOM (Metaboxes, Media button, Divi, Elementor).
+     * Bind generic trigger buttons anywhere in the DOM (Metaboxes, Media button, Elementor).
      */
     bindUniversalTriggers() {
       document.addEventListener('click', (e) => {
-        const trigger = e.target.closest('.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-divi-translate-btn, #ts-classic-translate-btn');
+        const trigger = e.target.closest('.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-classic-translate-btn');
         if (trigger) {
           e.preventDefault();
 
-          // If source post was built in Elementor or Divi, show editor-specific prompt modal first
-          if (!['elementor', 'divi'].includes(this.editorType) && (this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi')) {
+          // If source post was built in Elementor, show editor-specific prompt modal first
+          if (this.editorType !== 'elementor' && this.sourceEditorType === 'elementor') {
             this.showSourceEditorPromptModal(false);
           } else {
             this.openProviderModal();
@@ -241,26 +236,7 @@
       this.initPageLoadPrompt();
     }
 
-    /**
-     * Divi Visual Builder: Insert translate button into Divi Builder.
-     */
-    initDivi() {
-      const checkDivi = () => {
-        const diviBar = document.querySelector('.et-fb-page-settings-bar') || document.getElementById('et-fb-app') || document.getElementById('et-main-area');
-        if (diviBar && !document.getElementById('ts-divi-translate-btn')) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.id = 'ts-divi-translate-btn';
-          btn.className = 'ts-open-translate-btn et-fb-button';
-          btn.style.cssText = 'position: fixed; bottom: 85px; right: 25px; z-index: 999999; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #fff; border: none; padding: 10px 18px; border-radius: 50px; font-weight: 700; font-size: 13px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;';
-          btn.innerHTML = '⚡ Translate Page';
-          document.body.appendChild(btn);
-        }
-      };
 
-      checkDivi();
-      setInterval(checkDivi, 1500);
-    }
 
     /**
      * Open Pure Vanilla JS Provider Selection Modal (Grid View).
@@ -970,7 +946,7 @@
     }
 
     /**
-     * Apply translated strings back to the active editor (Gutenberg, Elementor, Divi, Classic).
+     * Apply translated strings back to the active editor (Gutenberg, Elementor, Classic).
      */
     async applyTranslationsToEditor() {
       // Ensure sourcePageData is fetched if not present

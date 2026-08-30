@@ -108,7 +108,7 @@ class Detector {
 	/**
 	 * Get or create a config sandbox post ID for the specified builder.
 	 *
-	 * @param string $builder Builder identifier ('gutenberg', 'elementor', 'divi', 'classic')
+	 * @param string $builder Builder identifier ('gutenberg', 'elementor', 'classic')
 	 * @return int Post ID of the config sandbox post
 	 */
 	public static function get_or_create_config_post( string $builder = 'gutenberg' ): int {

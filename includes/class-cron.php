@@ -14,9 +14,7 @@ class Cron {
 	 * Initialize cron hooks.
 	 */
 	public static function init() {
-		Bulk_Process::init();
 		add_action( 'translatesense_cache_cleanup', array( __CLASS__, 'run_cache_cleanup' ) );
-		add_action( 'dragwyb_trans_cache_cleanup', array( __CLASS__, 'run_cache_cleanup' ) );
 	}
 
 	/**
@@ -30,8 +28,7 @@ class Cron {
 
 		// Clean cached strings after 5 days
 		$wpdb->query(
-			"UPDATE {$table_translations} 
-			 SET translated_strings = '{}', languages = '[]' 
+			"DELETE FROM {$table_translations} 
 			 WHERE updated_at < DATE_SUB(NOW(), INTERVAL 5 DAY)"
 		);
 
@@ -48,6 +45,6 @@ class Cron {
 	public static function purge_all_cache() {
 		global $wpdb;
 		$table_translations = Hashing_Db::get_translations_table();
-		return $wpdb->query( "UPDATE {$table_translations} SET translated_strings = '{}', languages = '[]'" );
+		return $wpdb->query( "TRUNCATE TABLE {$table_translations}" );
 	}
 }

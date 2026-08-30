@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name:       TranslateSense - Automatic Translation Addon for Polylang
+ * Plugin Name:       Translate Sense
  * Plugin URI:        https://translatesense.local
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
- * Version:           1.0.0
- * Author:            TranslateSense
+ * Version:           0.0.0
+ * Author:            aniketji007
  * Author URI:        https://translatesense.local
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
@@ -34,7 +34,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'TRANSLATESENSE_VERSION', '1.0.0' );
+define( 'TRANSLATESENSE_VERSION', '0.0.0' );
 define( 'TRANSLATESENSE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

@@ -41,7 +41,7 @@ class Rest_Api {
 			)
 		);
 
-		// 2. Read XML configuration (supports ?builder=gutenberg/elementor/divi/classic)
+		// 2. Read XML configuration (supports ?builder=gutenberg/elementor/classic)
 		register_rest_route(
 			self::NAMESPACE,
 			'/xml-config',
@@ -229,7 +229,6 @@ class Rest_Api {
 		$response = array(
 			'gutenberg' => self::get_gutenberg_widgets_list( $rules['gutenberg'] ),
 			'elementor' => self::get_elementor_widgets_list( $rules['elementor'] ),
-			'divi'      => self::get_divi_widgets_list( $rules['divi'] ),
 			'classic'   => self::get_classic_widgets_list( $rules['custom_fields'] ),
 		);
 
@@ -355,47 +354,7 @@ class Rest_Api {
 		return $result;
 	}
 
-	/**
-	 * Scan Divi modules and match with rules.
-	 */
-	private static function get_divi_widgets_list( $rules ) {
-		$standard_modules = array();
 
-		// Merge any modules present in rules
-		foreach ( $rules as $module_name => $module_data ) {
-			if ( ! isset( $standard_modules[ $module_name ] ) ) {
-				$standard_modules[ $module_name ] = array(
-					'title'    => ucwords( str_replace( array( 'et_pb_', '-', '_' ), ' ', $module_name ) ),
-					'category' => 'content',
-				);
-			}
-		}
-
-		$result = array();
-		foreach ( $standard_modules as $name => $info ) {
-			$is_supported       = isset( $rules[ $name ] );
-			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
-			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
-			$field_count        = count( $fields );
-			$no_translate_count = count( $no_translate );
-			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
-
-			$result[] = array(
-				'id'                 => $name,
-				'name'               => $info['title'],
-				'category'           => $info['category'],
-				'status'             => $status,
-				'source'             => $source,
-				'field_count'        => $field_count,
-				'no_translate_count' => $no_translate_count,
-				'fields'             => $fields,
-				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
-			);
-		}
-
-		return $result;
-	}
 
 	/**
 	 * Scan Classic & Custom fields list.
@@ -490,7 +449,6 @@ class Rest_Api {
 			'custom_xml'    => Xml_Engine::get_config( $builder ),
 			'gutenberg_xml' => Xml_Engine::get_config( 'gutenberg' ),
 			'elementor_xml' => Xml_Engine::get_config( 'elementor' ),
-			'divi_xml'      => Xml_Engine::get_config( 'divi' ),
 			'classic_xml'   => Xml_Engine::get_config( 'classic' ),
 			'rules'         => Xml_Engine::get_all_rules( $builder ),
 			'all_rules'     => Xml_Engine::get_all_rules( 'all' ),
@@ -618,7 +576,7 @@ class Rest_Api {
 
 	/**
 	 * Get specific editor XML configuration and parsed rules.
-	 * Accepts editor parameter (gutenberg, elementor, divi, classic) and excludes 'all'.
+	 * Accepts editor parameter (gutenberg, elementor, classic) and excludes 'all'.
 	 */
 	public static function get_editor_xml_config( WP_REST_Request $request ) {
 		$editor = sanitize_key( (string) ( $request->get_param( 'editor' ) ?: $request->get_param( 'builder' ) ?: '' ) );
@@ -626,7 +584,7 @@ class Rest_Api {
 		if ( empty( $editor ) || 'all' === $editor || ! in_array( $editor, Xml_Engine::BUILDERS, true ) ) {
 			return new WP_Error(
 				'invalid_editor',
-				__( 'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, divi, classic).', 'translatesense' ),
+				__( 'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, classic).', 'translatesense' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -642,7 +600,6 @@ class Rest_Api {
 				'rules'        => $rules,
 				'block_rules'  => ( 'gutenberg' === $editor ) ? $rules : array(),
 				'widget_rules' => ( 'elementor' === $editor ) ? $rules : array(),
-				'module_rules' => ( 'divi' === $editor ) ? $rules : array(),
 				'field_rules'  => ( 'classic' === $editor ) ? $rules : array(),
 			)
 		);
@@ -729,7 +686,7 @@ class Rest_Api {
 		// Stats
 		$table_translations = Hashing_Db::get_translations_table();
 		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" );
-		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_strings != '' AND translated_strings != '{}' AND translated_strings != '[]'" );
+		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" );
 
 		return rest_ensure_response(
 			array(

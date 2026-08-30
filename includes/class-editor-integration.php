@@ -32,10 +32,6 @@ class Editor_Integration {
 
 		// Elementor Editor Hooks
 		add_action( 'elementor/editor/after_enqueue_scripts', array( __CLASS__, 'enqueue_elementor_editor_assets' ) );
-
-		// Divi Visual Builder Hooks
-		add_action( 'et_builder_ready', array( __CLASS__, 'enqueue_divi_editor_assets' ) );
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_builder_assets' ) );
 	}
 
 	/**
@@ -54,7 +50,7 @@ class Editor_Integration {
 	 * Detect editor type for a given post ID.
 	 *
 	 * @param int $post_id
-	 * @return string 'elementor' | 'divi' | 'gutenberg' | 'classic'
+	 * @return string 'elementor' | 'gutenberg' | 'classic'
 	 */
 	public static function get_post_editor_type( $post_id ) {
 		if ( ! $post_id ) {
@@ -67,13 +63,7 @@ class Editor_Integration {
 			return 'elementor';
 		}
 
-		// 2. Check Divi Builder
-		$et_pb_use_builder = get_post_meta( $post_id, '_et_pb_use_builder', true );
-		if ( 'on' === $et_pb_use_builder ) {
-			return 'divi';
-		}
-
-		// 3. Check Gutenberg (has blocks)
+		// 2. Check Gutenberg (has blocks)
 		$post = get_post( $post_id );
 		if ( $post && function_exists( 'has_blocks' ) && has_blocks( $post->post_content ) ) {
 			return 'gutenberg';
@@ -83,7 +73,7 @@ class Editor_Integration {
 	}
 
 	/**
-	 * Get appropriate edit link based on post editor type (Elementor, Divi, Gutenberg, Classic).
+	 * Get appropriate edit link based on post editor type (Elementor, Gutenberg, Classic).
 	 *
 	 * @param int $post_id
 	 * @return string
@@ -169,7 +159,7 @@ class Editor_Integration {
 			true
 		);
 
-		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Divi, Classic)
+		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Classic)
 		wp_enqueue_script(
 			'translatesense-live-meta-fields-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/meta-fields.js',
@@ -192,13 +182,6 @@ class Editor_Integration {
 			true
 		);
 		wp_enqueue_script(
-			'translatesense-live-divi-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/divi.js',
-			array( 'translatesense-live-meta-fields-js' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-		wp_enqueue_script(
 			'translatesense-live-classic-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/classic.js',
 			array( 'translatesense-live-meta-fields-js' ),
@@ -208,7 +191,7 @@ class Editor_Integration {
 		wp_enqueue_script(
 			'translatesense-page-editor-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/index.js',
-			array( 'translatesense-live-meta-fields-js', 'translatesense-live-gutenberg-js', 'translatesense-live-elementor-js', 'translatesense-live-divi-js', 'translatesense-live-classic-js' ),
+			array( 'translatesense-live-meta-fields-js', 'translatesense-live-gutenberg-js', 'translatesense-live-elementor-js', 'translatesense-live-classic-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -298,36 +281,6 @@ class Editor_Integration {
 		}
 
 		self::enqueue_universal_editor_assets( $post_id, 'elementor' );
-	}
-
-	/**
-	 * Enqueue Divi builder scripts (only for Polylang translated post types).
-	 */
-	public static function enqueue_divi_editor_assets() {
-		$post_id   = (int) get_the_ID();
-		$post_type = get_post_type( $post_id );
-
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
-			return;
-		}
-
-		self::enqueue_universal_editor_assets( $post_id, 'divi' );
-	}
-
-	/**
-	 * Enqueue frontend builder assets (only for Polylang translated post types).
-	 */
-	public static function enqueue_frontend_builder_assets() {
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
-			$post_id   = (int) get_the_ID();
-			$post_type = get_post_type( $post_id );
-
-			if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
-				return;
-			}
-
-			self::enqueue_universal_editor_assets( $post_id, 'divi' );
-		}
 	}
 
 	private static function get_source_post_id( $post_id ) {
