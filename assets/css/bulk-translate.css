@@ -969,6 +969,12 @@
   border-color: #a7f3d0;
 }
 
+.ts-trans-lang-badge.already-exists {
+  color: #0369a1;
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
 .ts-trans-lang-badge.failed {
   color: #b91c1c;
   background: #fef2f2;
@@ -1011,6 +1017,12 @@
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.ts-trans-status-pill.already-exists {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
 .ts-trans-status-pill.success {

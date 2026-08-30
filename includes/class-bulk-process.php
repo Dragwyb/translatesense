@@ -46,6 +46,50 @@ class Bulk_Process {
 	}
 
 	/**
+	 * Check if a translated post already exists for a post and target language.
+	 *
+	 * @param int    $post_id
+	 * @param string $target_lang
+	 * @return int Target post ID if exists, or 0 if not
+	 */
+	public static function get_existing_translation_post_id( int $post_id, string $target_lang ): int {
+		if ( $post_id <= 0 || empty( $target_lang ) ) {
+			return 0;
+		}
+
+		// 1. Check Polylang translations if active
+		if ( Polylang_Bridge::is_polylang_active() ) {
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+			if ( ! empty( $translations[ $target_lang ] ) ) {
+				$trans_id = (int) $translations[ $target_lang ];
+				if ( $trans_id > 0 && $trans_id !== $post_id && get_post( $trans_id ) && 'trash' !== get_post_status( $trans_id ) ) {
+					return $trans_id;
+				}
+			}
+		}
+
+		// 2. Fallback check: look for post with _translatesense_source_id meta
+		global $wpdb;
+		$found_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT p.ID FROM {$wpdb->posts} p
+				 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+				 WHERE pm.meta_key = '_translatesense_source_id' AND pm.meta_value = %d
+				 AND p.post_status NOT IN ('trash', 'auto-draft')
+				 AND p.post_name LIKE %s
+				 LIMIT 1",
+				$post_id,
+				'%-' . $wpdb->esc_like( $target_lang )
+			)
+		);
+		if ( $found_id > 0 && $found_id !== $post_id && get_post( $found_id ) ) {
+			return $found_id;
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Create a new bulk translation batch.
 	 *
 	 * @param array  $post_ids
@@ -75,19 +119,27 @@ class Bulk_Process {
 					continue;
 				}
 
+				// Check if translation already exists for this post & target language
+				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
+				$already_exists    = ( $existing_trans_id > 0 );
+
+				$job_status      = $already_exists ? 'already_exists' : 'pending';
+				$progress_status = $already_exists ? 'Already Exists' : 'Queued';
+				$target_post_id  = $already_exists ? $existing_trans_id : 0;
+
 				$insert_data = array(
 					'batch_id'                 => $batch_id,
 					'post_id'                  => $post_id,
 					'target_language'          => $target_lang,
 					'provider'                 => $provider,
-					'status'                   => 'pending',
-					'progress_status'          => 'Queued',
+					'status'                   => $job_status,
+					'progress_status'          => $progress_status,
 					'total_strings'            => 0,
 					'completed_strings'        => 0,
 					'sent_ai_request_data'     => null,
 					'received_ai_request_data' => null,
 					'error_message'            => null,
-					'target_post_id'           => 0,
+					'target_post_id'           => $target_post_id,
 					'created_at'               => current_time( 'mysql' ),
 					'updated_at'               => current_time( 'mysql' ),
 				);
@@ -98,16 +150,19 @@ class Bulk_Process {
 					array( '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' )
 				);
 
-				$job_id                     = (int) $wpdb->insert_id;
-				$insert_data['id']          = $job_id;
-				$insert_data['editor_type'] = Editor_Integration::get_post_editor_type( $post_id );
-				$insert_data['post_title']  = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
-				$created_jobs[]             = $insert_data;
+				$job_id                           = (int) $wpdb->insert_id;
+				$insert_data['id']                = $job_id;
+				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $already_exists ? $target_post_id : $post_id );
+				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
+				$insert_data['target_post_title'] = $already_exists ? ( get_the_title( $target_post_id ) ?: '' ) : '';
+				$insert_data['view_url']          = $already_exists ? get_permalink( $target_post_id ) : '';
+				$insert_data['edit_url']          = ''; // For existing translations, do NOT return edit link
+				$created_jobs[]                   = $insert_data;
 			}
 		}
 
-		// If backend provider (OpenAI, Gemini, etc.), schedule cron and trigger immediate background processing
-		if ( ! $is_chrome_ai && ! empty( $created_jobs ) ) {
+		// If backend provider (OpenAI, Gemini, etc.), schedule cron and trigger immediate background processing if there are pending jobs
+		if ( ! $is_chrome_ai && ! empty( $created_jobs ) && self::has_pending_or_running_jobs() ) {
 			self::schedule_cron_if_needed();
 			self::trigger_async_cron();
 		}
@@ -414,11 +469,12 @@ class Bulk_Process {
 			);
 		}
 
-		$total_jobs     = count( $rows );
-		$completed_jobs = 0;
-		$failed_jobs    = 0;
-		$running_jobs   = 0;
-		$pending_jobs   = 0;
+		$total_jobs          = count( $rows );
+		$completed_jobs      = 0;
+		$already_exists_jobs = 0;
+		$failed_jobs         = 0;
+		$running_jobs        = 0;
+		$pending_jobs        = 0;
 
 		$total_strings     = 0;
 		$completed_strings = 0;
@@ -429,6 +485,8 @@ class Bulk_Process {
 			$status = $row['status'];
 			if ( 'completed' === $status ) {
 				++$completed_jobs;
+			} elseif ( 'already_exists' === $status ) {
+				++$already_exists_jobs;
 			} elseif ( 'failed' === $status ) {
 				++$failed_jobs;
 			} elseif ( 'running' === $status ) {
@@ -446,19 +504,25 @@ class Bulk_Process {
 			$post       = get_post( (int) $row['post_id'] );
 			$post_title = $post ? $post->post_title : sprintf( '#%d', (int) $row['post_id'] );
 
-			$item_progress = 0;
-			if ( 'completed' === $status ) {
-				$item_progress = 100;
-			} elseif ( $t_str > 0 ) {
-				$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
-			}
-
 			$target_post_id    = (int) $row['target_post_id'];
 			$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
 			$target_post_title = $target_post ? $target_post->post_title : '';
 			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
-			$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-			$view_url          = $target_post_id ? get_permalink( $target_post_id ) : '';
+
+			if ( 'already_exists' === $status ) {
+				$item_progress = 100;
+				$view_url      = $target_post_id ? get_permalink( $target_post_id ) : '';
+				$edit_url      = ''; // Do NOT return edit link for existing translations
+			} else {
+				$item_progress = 0;
+				if ( 'completed' === $status ) {
+					$item_progress = 100;
+				} elseif ( $t_str > 0 ) {
+					$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
+				}
+				$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
+			}
 
 			$items[] = array(
 				'id'                => (int) $row['id'],
@@ -489,7 +553,7 @@ class Bulk_Process {
 		// Calculate overall batch progress percentage
 		$overall_progress = 0;
 		if ( $total_jobs > 0 ) {
-			$done_jobs = $completed_jobs + $failed_jobs;
+			$done_jobs = $completed_jobs + $already_exists_jobs + $failed_jobs;
 			if ( $done_jobs === $total_jobs ) {
 				$overall_progress = 100;
 			} else {
@@ -505,7 +569,8 @@ class Bulk_Process {
 		}
 
 		$overall_status = 'pending';
-		if ( $total_jobs > 0 && ( $completed_jobs + $failed_jobs ) === $total_jobs ) {
+		$done_jobs      = $completed_jobs + $already_exists_jobs + $failed_jobs;
+		if ( $total_jobs > 0 && $done_jobs === $total_jobs ) {
 			$overall_status = ( $failed_jobs === $total_jobs ) ? 'failed' : 'completed';
 		} elseif ( $running_jobs > 0 || $completed_jobs > 0 ) {
 			$overall_status = 'running';
@@ -513,28 +578,35 @@ class Bulk_Process {
 
 		$current_status = 'Queued';
 		if ( 'completed' === $overall_status ) {
-			$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
+			if ( $already_exists_jobs > 0 && $completed_jobs > 0 ) {
+				$current_status = sprintf( __( 'Completed! %1$d posts translated, %2$d already existed.', 'translatesense' ), $completed_jobs, $already_exists_jobs );
+			} elseif ( $already_exists_jobs > 0 && 0 === $completed_jobs ) {
+				$current_status = sprintf( __( 'All %d selected translations already exist.', 'translatesense' ), $already_exists_jobs );
+			} else {
+				$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
+			}
 		} elseif ( 'failed' === $overall_status ) {
 			$current_status = __( 'Batch translation failed.', 'translatesense' );
 		} elseif ( $running_jobs > 0 ) {
-			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + 1, $total_jobs );
+			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + $already_exists_jobs + 1, $total_jobs );
 		}
 
 		return array(
-			'success'           => true,
-			'batch_id'          => $batch_id,
-			'overall_status'    => $overall_status,
-			'progress_percent'  => $overall_progress,
-			'current_status'    => $current_status,
-			'total_jobs'        => $total_jobs,
-			'completed_jobs'    => $completed_jobs,
-			'failed_jobs'       => $failed_jobs,
-			'running_jobs'      => $running_jobs,
-			'pending_jobs'      => $pending_jobs,
-			'total_strings'     => $total_strings,
-			'completed_strings' => $completed_strings,
-			'pending_strings'   => $pending_strings,
-			'items'             => $items,
+			'success'             => true,
+			'batch_id'            => $batch_id,
+			'overall_status'      => $overall_status,
+			'progress_percent'    => $overall_progress,
+			'current_status'      => $current_status,
+			'total_jobs'          => $total_jobs,
+			'completed_jobs'      => $completed_jobs,
+			'already_exists_jobs' => $already_exists_jobs,
+			'failed_jobs'         => $failed_jobs,
+			'running_jobs'        => $running_jobs,
+			'pending_jobs'        => $pending_jobs,
+			'total_strings'       => $total_strings,
+			'completed_strings'   => $completed_strings,
+			'pending_strings'     => $pending_strings,
+			'items'               => $items,
 		);
 	}
 }
