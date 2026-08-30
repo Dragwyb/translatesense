@@ -119,8 +119,13 @@ class Activator {
 			'openai_model'        => 'gpt-4o-mini',
 			'gemini_api_key'      => '',
 			'gemini_model'        => 'gemini-1.5-flash',
+			'enabled_providers'   => array( 'chrome_ai', 'openai', 'gemini' ),
 			'auto_translate_save' => false,
-			'batch_size'          => 5,
+			'batch_size'          => 25,
+			'response_timeout'    => 30,
+			'max_tokens'          => 4096,
+			'temperature'         => 0.2,
+			'custom_prompt'       => '',
 		);
 
 		if ( ! get_option( 'translatesense_settings' ) ) {

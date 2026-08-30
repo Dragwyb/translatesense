@@ -115,6 +115,7 @@ class Admin_Menu {
 				'languages'       => Polylang_Bridge::get_languages(),
 				'activeBuilders'  => self::get_active_builders(),
 				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
+				'version'         => TRANSLATESENSE_VERSION,
 			)
 		);
 	}

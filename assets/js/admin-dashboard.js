@@ -177,13 +177,19 @@
           el(
             'div',
             null,
-            el('h1', null, 'TranslateSense Engine'),
+            el(
+              'h1',
+              null,
+              'TranslateSense Engine',
+              el('span', { className: 'ts-version-tag' }, 'v' + (window.TranslateSenseData?.version || '1.0.0'))
+            ),
             el(
               'p',
               null,
+              el('span', { className: 'ts-pulse-dot' }),
               TranslateSenseData.polylangActive
-                ? `⚡ Polylang Addon Active (${languages.length} Languages configured)`
-                : '⚠️ Polylang is inactive - Running in standalone demo mode'
+                ? `Polylang Connected (${languages.length} Languages active)`
+                : 'Polylang inactive - Standalone configuration mode'
             )
           )
         ),
@@ -193,13 +199,13 @@
           el(
             'div',
             { className: 'ts-stat-badge' },
-            el('div', { className: 'ts-stat-label' }, 'Cached Strings (5-Day)'),
-            el('div', { className: 'ts-stat-value' }, stats.cached_results.toLocaleString())
+            el('div', { className: 'ts-stat-label' }, 'Translation Cache'),
+            el('div', { className: 'ts-stat-value' }, stats.cached_results.toLocaleString() + ' Strings')
           ),
           el(
             'div',
             { className: 'ts-stat-badge' },
-            el('div', { className: 'ts-stat-label' }, 'Translation Packages'),
+            el('div', { className: 'ts-stat-label' }, 'Active Packages'),
             el('div', { className: 'ts-stat-value' }, stats.total_packages.toLocaleString())
           )
         )
@@ -209,21 +215,12 @@
       notice &&
       el(
         'div',
-        {
-          style: {
-            padding: '12px 20px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            fontWeight: '600',
-            background: notice.type === 'error' ? '#fee2e2' : '#dcfce7',
-            color: notice.type === 'error' ? '#991b1b' : '#166534',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          },
-        },
-        el('span', null, notice.text),
-        el('button', { onClick: () => setNotice(null), style: { background: 'none', border: 'none', cursor: 'pointer' } }, '✕')
+        { className: `ts-notice-banner ${notice.type}` },
+        el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          notice.type === 'error' ? '⚠️' : '✅',
+          el('span', null, notice.text)
+        ),
+        el('button', { className: 'ts-notice-close', onClick: () => setNotice(null) }, '✕')
       ),
 
       // Tabs Navigation with Editor Activation Filter
@@ -237,7 +234,7 @@
             className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
             onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); },
           },
-          'Gutenberg Blocks',
+          '🧱 Gutenberg Blocks',
           el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
         ),
         activeBuilders.elementor &&
@@ -247,7 +244,7 @@
             className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
             onClick: () => { setActiveTab('elementor'); setSearchQuery(''); },
           },
-          'Elementor Widgets',
+          '🎨 Elementor Widgets',
           el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
         ),
         activeBuilders.classic &&
@@ -257,7 +254,7 @@
             className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
             onClick: () => { setActiveTab('classic'); setSearchQuery(''); },
           },
-          'Classic / Custom Fields',
+          '📝 Classic / Custom Fields',
           el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
         ),
         el(
@@ -266,7 +263,7 @@
             className: `ts-tab-btn ${activeTab === 'xml_editor' ? 'active' : ''}`,
             onClick: () => setActiveTab('xml_editor'),
           },
-          '📝 All XML Configs'
+          '📋 XML Configs'
         ),
         el(
           'button',
@@ -285,6 +282,7 @@
           setSettings,
           onSave: handleSaveSettings,
           languages,
+          showNotice,
         })
         : activeTab === 'xml_editor'
           ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
@@ -667,12 +665,20 @@
 
     return el(
       'div',
-      { className: 'ts-settings-panel', style: { maxWidth: '1000px' } },
-      el('h2', { style: { marginTop: 0 } }, 'Editor-Specific XML Configurations'),
+      { className: 'ts-settings-card', style: { maxWidth: '1000px' } },
       el(
-        'p',
-        { style: { color: '#64748b', fontSize: '13px' } },
-        'TranslateSense maintains isolated XML files for each editor (Gutenberg, Elementor, Classic). Select an editor below to inspect or edit its custom XML.'
+        'div',
+        { className: 'ts-settings-card-header' },
+        el(
+          'div',
+          { className: 'ts-settings-card-title-group' },
+          el('h3', null, '📝 Editor-Specific XML Configurations'),
+          el(
+            'p',
+            null,
+            'TranslateSense maintains isolated XML configuration rules for each editor. Select an editor below to inspect or edit its custom XML mapping.'
+          )
+        )
       ),
 
       el(
@@ -709,13 +715,22 @@
     );
   }
 
-  // Settings Panel Component
-  function SettingsPanel({ settings, setSettings, onSave, languages }) {
+  // Modernized General Settings Panel Component
+  function SettingsPanel({ settings, setSettings, onSave, languages, showNotice }) {
+    const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+    const [showGeminiKey, setShowGeminiKey] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
     const enabledProviders = settings.enabled_providers || ['chrome_ai', 'openai', 'gemini'];
+    const currentDefaultProvider = settings.provider || 'openai';
 
     const toggleProvider = (providerId) => {
       let updated;
       if (enabledProviders.includes(providerId)) {
+        if (enabledProviders.length === 1) {
+          showNotice('At least one translation provider must remain enabled.', 'error');
+          return;
+        }
         updated = enabledProviders.filter((p) => p !== providerId);
       } else {
         updated = [...enabledProviders, providerId];
@@ -723,142 +738,630 @@
       setSettings({ ...settings, enabled_providers: updated });
     };
 
-    const providerList = [
-      { id: 'openai', title: 'OpenAI (ChatGPT)', desc: 'High-accuracy neural AI translation via OpenAI API.', icon: '🧠', requiresKey: true },
-      { id: 'gemini', title: 'Google Gemini AI', desc: 'Fast & fluent translations via Google Gemini models.', icon: '✨', requiresKey: true },
-      { id: 'chrome_ai', title: 'Chrome Built-in AI', desc: 'Private on-device local translation via Chrome 128+ models.', icon: '🤖', requiresKey: false },
-    ];
+    const handleFormSubmit = async (e) => {
+      if (e) e.preventDefault();
+      setIsSaving(true);
+      try {
+        await onSave(e);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    // Keyboard shortcut (Ctrl+S / Cmd+S) for rapid save
+    useEffect(() => {
+      const handleKeyDown = (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          handleFormSubmit();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [settings]);
+
+    // Insert tag token into textarea
+    const insertTag = (tag) => {
+      const textarea = document.getElementById('ts-custom-prompt-editor');
+      const currentVal = settings.custom_prompt !== undefined && settings.custom_prompt !== ''
+        ? settings.custom_prompt
+        : (settings.default_prompt || '');
+
+      if (!textarea) {
+        setSettings({ ...settings, custom_prompt: currentVal + ' ' + tag });
+        return;
+      }
+
+      const start = textarea.selectionStart || currentVal.length;
+      const end = textarea.selectionEnd || currentVal.length;
+      const newVal = currentVal.substring(0, start) + tag + currentVal.substring(end);
+      setSettings({ ...settings, custom_prompt: newVal });
+
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + tag.length, start + tag.length);
+      }, 50);
+    };
+
+    const copyPromptToClipboard = () => {
+      const val = settings.custom_prompt !== undefined && settings.custom_prompt !== ''
+        ? settings.custom_prompt
+        : (settings.default_prompt || '');
+      navigator.clipboard.writeText(val);
+      showNotice('Prompt template copied to clipboard!');
+    };
+
+    // Temperature helper text
+    const getTemperatureLabel = (temp) => {
+      const t = parseFloat(temp);
+      if (t <= 0.25) return '0.0 - 0.25: Highly Precise & Literal (Best for UI & Technical Terms)';
+      if (t <= 0.6) return '0.3 - 0.6: Balanced & Natural (Recommended)';
+      return '0.7 - 1.0: Creative & Fluid (More expressive variation)';
+    };
+
+    const currentPromptVal = settings.custom_prompt !== undefined && settings.custom_prompt !== ''
+      ? settings.custom_prompt
+      : (settings.default_prompt || '');
 
     return el(
       'form',
-      { className: 'ts-settings-panel', onSubmit: onSave, style: { maxWidth: '850px' } },
-      el('h2', { style: { marginTop: 0, marginBottom: '8px' } }, 'TranslateSense Settings'),
-      el('p', { style: { color: '#64748b', fontSize: '13px', marginBottom: '24px' } }, 'Configure active translation engines and API keys.'),
+      { className: 'ts-settings-container', onSubmit: handleFormSubmit },
 
-      // 1. Active Translation Providers Section
-      el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' } }, '🌐 Active Translation Providers'),
-      el('p', { style: { color: '#64748b', fontSize: '13px', marginTop: 0, marginBottom: '16px' } }, 'Enable or disable providers to control what choices appear in the Editor Panel and Bulk Translation wizard.'),
-
+      // 1. AI Translation Providers Card
       el(
         'div',
-        { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '24px' } },
-        providerList.map((p) => {
-          const isEnabled = enabledProviders.includes(p.id);
-          return el(
+        { className: 'ts-settings-card' },
+        el(
+          'div',
+          { className: 'ts-settings-card-header' },
+          el(
+            'div',
+            { className: 'ts-settings-card-title-group' },
+            el('h3', null, '🌐 AI Translation Engines & Models'),
+            el('p', null, 'Configure active translation engines, API authentication keys, and target neural models.')
+          ),
+          el(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            el('span', { style: { fontSize: '12px', fontWeight: '600', color: '#64748b' } }, 'Default Engine:'),
+            el(
+              'select',
+              {
+                className: 'ts-form-select',
+                style: { width: 'auto', padding: '6px 10px', fontSize: '13px', fontWeight: '600' },
+                value: currentDefaultProvider,
+                onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
+              },
+              el('option', { value: 'openai' }, '🧠 OpenAI (ChatGPT)'),
+              el('option', { value: 'gemini' }, '✨ Google Gemini AI'),
+              el('option', { value: 'chrome_ai' }, '🤖 Chrome Built-in AI')
+            )
+          )
+        ),
+
+        // Providers 3-Card Grid
+        el(
+          'div',
+          { className: 'ts-providers-grid' },
+
+          // --- OpenAI Card ---
+          el(
             'div',
             {
-              key: p.id,
-              onClick: () => toggleProvider(p.id),
-              style: {
-                padding: '14px',
-                borderRadius: '8px',
-                border: `1.5px solid ${isEnabled ? '#4f46e5' : '#e2e8f0'}`,
-                background: isEnabled ? '#f5f3ff' : '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              },
+              className: `ts-provider-card openai ${enabledProviders.includes('openai') ? 'enabled' : ''} ${currentDefaultProvider === 'openai' ? 'default-provider' : ''}`,
             },
             el(
               'div',
-              { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
-              el('span', { style: { fontWeight: '600', fontSize: '14px', color: '#1e293b' } }, `${p.icon} ${p.title}`),
-              el('input', {
-                type: 'checkbox',
-                checked: isEnabled,
-                onChange: () => toggleProvider(p.id),
-                onClick: (e) => e.stopPropagation(),
-              })
+              { className: 'ts-provider-card-top' },
+              el(
+                'div',
+                { className: 'ts-provider-info' },
+                el('div', { className: 'ts-provider-icon' }, '🧠'),
+                el(
+                  'div',
+                  null,
+                  el('h4', { className: 'ts-provider-name' }, 'OpenAI (ChatGPT)'),
+                  el(
+                    'span',
+                    {
+                      className: `ts-provider-tag ${!enabledProviders.includes('openai') ? 'offline' : settings.openai_api_key ? 'ready' : 'key-needed'}`,
+                    },
+                    !enabledProviders.includes('openai')
+                      ? 'Disabled'
+                      : settings.openai_api_key
+                        ? '✓ Configured'
+                        : '⚠️ API Key Needed'
+                  )
+                )
+              ),
+              el(
+                'label',
+                { className: 'ts-modern-switch', title: 'Enable/Disable OpenAI' },
+                el('input', {
+                  type: 'checkbox',
+                  checked: enabledProviders.includes('openai'),
+                  onChange: () => toggleProvider('openai'),
+                }),
+                el('span', { className: 'ts-modern-slider' })
+              )
             ),
-            el('p', { style: { margin: 0, fontSize: '12px', color: '#64748b', lineHeight: '1.4' } }, p.desc)
-          );
-        })
-      ),
+            el('p', { className: 'ts-provider-desc' }, 'Industry standard high-accuracy neural machine translation with strict HTML tags and attribute preservation.'),
+            el(
+              'div',
+              { className: 'ts-provider-body' },
+              el(
+                'div',
+                { className: 'ts-input-group' },
+                el(
+                  'label',
+                  null,
+                  el('span', null, 'OpenAI API Key'),
+                  el(
+                    'a',
+                    {
+                      href: 'https://platform.openai.com/api-keys',
+                      target: '_blank',
+                      rel: 'noopener noreferrer',
+                      className: 'ts-input-link',
+                    },
+                    'Get Key ↗'
+                  )
+                ),
+                el(
+                  'div',
+                  { className: 'ts-input-password-wrap' },
+                  el('input', {
+                    type: showOpenAiKey ? 'text' : 'password',
+                    className: 'ts-form-input',
+                    value: settings.openai_api_key || '',
+                    placeholder: 'sk-proj-...',
+                    disabled: !enabledProviders.includes('openai'),
+                    onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() }),
+                  }),
+                  el(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'ts-pw-toggle-btn',
+                      title: showOpenAiKey ? 'Hide key' : 'Show key',
+                      onClick: () => setShowOpenAiKey(!showOpenAiKey),
+                    },
+                    showOpenAiKey ? '🙈' : '👁️'
+                  )
+                )
+              ),
+              el(
+                'div',
+                { className: 'ts-input-group' },
+                el('label', null, el('span', null, 'Translation Model')),
+                el(
+                  'select',
+                  {
+                    className: 'ts-form-select',
+                    value: settings.openai_model || 'gpt-4o-mini',
+                    disabled: !enabledProviders.includes('openai'),
+                    onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
+                  },
+                  el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini (⚡ Fast & Cost-Effective) — Recommended'),
+                  el('option', { value: 'gpt-4o' }, 'gpt-4o (🧠 Flagship Reasoning)'),
+                  el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo (Legacy)')
+                )
+              )
+            )
+          ),
 
-      // 3. API Credentials Sub-Section
-      el('h3', { style: { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginTop: '28px', marginBottom: '16px' } }, '🔑 API Credentials & Models'),
-
-      // OpenAI Config
-      el(
-        'div',
-        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '14px' } },
-        el('label', { className: 'ts-form-label' }, '🧠 OpenAI API Key'),
-        el('input', {
-          type: 'password',
-          className: 'ts-form-input',
-          value: settings.openai_api_key || '',
-          placeholder: 'sk-proj-...',
-          onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value }),
-        }),
-        el(
-          'div',
-          { style: { display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' } },
-          el('span', { style: { fontSize: '12px', color: '#64748b' } }, 'Model:'),
+          // --- Google Gemini Card ---
           el(
-            'select',
+            'div',
             {
-              className: 'ts-form-select',
-              style: { maxWidth: '200px' },
-              value: settings.openai_model || 'gpt-4o-mini',
-              onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
+              className: `ts-provider-card gemini ${enabledProviders.includes('gemini') ? 'enabled' : ''} ${currentDefaultProvider === 'gemini' ? 'default-provider' : ''}`,
             },
-            el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini (Fast & Affordable)'),
-            el('option', { value: 'gpt-4o' }, 'gpt-4o (Highest Accuracy)'),
-            el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo')
+            el(
+              'div',
+              { className: 'ts-provider-card-top' },
+              el(
+                'div',
+                { className: 'ts-provider-info' },
+                el('div', { className: 'ts-provider-icon' }, '✨'),
+                el(
+                  'div',
+                  null,
+                  el('h4', { className: 'ts-provider-name' }, 'Google Gemini AI'),
+                  el(
+                    'span',
+                    {
+                      className: `ts-provider-tag ${!enabledProviders.includes('gemini') ? 'offline' : settings.gemini_api_key ? 'ready' : 'key-needed'}`,
+                    },
+                    !enabledProviders.includes('gemini')
+                      ? 'Disabled'
+                      : settings.gemini_api_key
+                        ? '✓ Configured'
+                        : '⚠️ API Key Needed'
+                  )
+                )
+              ),
+              el(
+                'label',
+                { className: 'ts-modern-switch', title: 'Enable/Disable Gemini' },
+                el('input', {
+                  type: 'checkbox',
+                  checked: enabledProviders.includes('gemini'),
+                  onChange: () => toggleProvider('gemini'),
+                }),
+                el('span', { className: 'ts-modern-slider' })
+              )
+            ),
+            el('p', { className: 'ts-provider-desc' }, 'Ultra-fast contextual multilingual models by Google with massive token windows and excellent localization fluency.'),
+            el(
+              'div',
+              { className: 'ts-provider-body' },
+              el(
+                'div',
+                { className: 'ts-input-group' },
+                el(
+                  'label',
+                  null,
+                  el('span', null, 'Gemini API Key'),
+                  el(
+                    'a',
+                    {
+                      href: 'https://aistudio.google.com/app/apikey',
+                      target: '_blank',
+                      rel: 'noopener noreferrer',
+                      className: 'ts-input-link',
+                    },
+                    'Get Key ↗'
+                  )
+                ),
+                el(
+                  'div',
+                  { className: 'ts-input-password-wrap' },
+                  el('input', {
+                    type: showGeminiKey ? 'text' : 'password',
+                    className: 'ts-form-input',
+                    value: settings.gemini_api_key || '',
+                    placeholder: 'AIzaSy...',
+                    disabled: !enabledProviders.includes('gemini'),
+                    onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() }),
+                  }),
+                  el(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'ts-pw-toggle-btn',
+                      title: showGeminiKey ? 'Hide key' : 'Show key',
+                      onClick: () => setShowGeminiKey(!showGeminiKey),
+                    },
+                    showGeminiKey ? '🙈' : '👁️'
+                  )
+                )
+              ),
+              el(
+                'div',
+                { className: 'ts-input-group' },
+                el('label', null, el('span', null, 'Translation Model')),
+                el(
+                  'select',
+                  {
+                    className: 'ts-form-select',
+                    value: settings.gemini_model || 'gemini-1.5-flash',
+                    disabled: !enabledProviders.includes('gemini'),
+                    onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
+                  },
+                  el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash (⚡ High Speed & Quota) — Recommended'),
+                  el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro (🧠 Advanced Multilingual)'),
+                  el('option', { value: 'gemini-2.0-flash' }, 'gemini-2.0-flash (🚀 Next-Gen Flash)')
+                )
+              )
+            )
+          ),
+
+          // --- Chrome Built-in AI Card ---
+          el(
+            'div',
+            {
+              className: `ts-provider-card chrome_ai ${enabledProviders.includes('chrome_ai') ? 'enabled' : ''} ${currentDefaultProvider === 'chrome_ai' ? 'default-provider' : ''}`,
+            },
+            el(
+              'div',
+              { className: 'ts-provider-card-top' },
+              el(
+                'div',
+                { className: 'ts-provider-info' },
+                el('div', { className: 'ts-provider-icon' }, '🤖'),
+                el(
+                  'div',
+                  null,
+                  el('h4', { className: 'ts-provider-name' }, 'Chrome Built-in AI'),
+                  el(
+                    'span',
+                    { className: 'ts-provider-tag local' },
+                    '⚡ Local & Free'
+                  )
+                )
+              ),
+              el(
+                'label',
+                { className: 'ts-modern-switch', title: 'Enable/Disable Chrome Built-in AI' },
+                el('input', {
+                  type: 'checkbox',
+                  checked: enabledProviders.includes('chrome_ai'),
+                  onChange: () => toggleProvider('chrome_ai'),
+                }),
+                el('span', { className: 'ts-modern-slider' })
+              )
+            ),
+            el('p', { className: 'ts-provider-desc' }, '100% private on-device local translation using Chrome 128+ built-in Translation API. Zero cloud latency and zero API cost.'),
+            el(
+              'div',
+              { className: 'ts-provider-body' },
+              el(
+                'div',
+                { style: { padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#475569' } },
+                el('div', { style: { fontWeight: '700', color: '#0f172a', marginBottom: '4px' } }, '🔒 On-Device Processing'),
+                'No API keys required. Operates directly in supporting browsers with automatic fallback to cloud engines.'
+              )
+            )
           )
         )
       ),
 
-      // Gemini Config
+      // 2. AI Request & Performance Engine Card
       el(
         'div',
-        { className: 'ts-form-group', style: { padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' } },
-        el('label', { className: 'ts-form-label' }, '✨ Google Gemini API Key'),
-        el('input', {
-          type: 'password',
-          className: 'ts-form-input',
-          value: settings.gemini_api_key || '',
-          placeholder: 'AIzaSy...',
-          onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value }),
-        }),
+        { className: 'ts-settings-card' },
         el(
           'div',
-          { style: { display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' } },
-          el('span', { style: { fontSize: '12px', color: '#64748b' } }, 'Model:'),
+          { className: 'ts-settings-card-header' },
           el(
-            'select',
-            {
-              className: 'ts-form-select',
-              style: { maxWidth: '220px' },
-              value: settings.gemini_model || 'gemini-1.5-flash',
-              onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
-            },
-            el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash (Fast & High Quota)'),
-            el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro (Advanced Reasoning)')
+            'div',
+            { className: 'ts-settings-card-title-group' },
+            el('h3', null, '⚡ AI Performance & Execution Controls'),
+            el('p', null, 'Tune batching concurrency, token allocation, timeouts, and translation creativity.')
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-params-grid' },
+
+          // Batch Size
+          el(
+            'div',
+            { className: 'ts-param-card' },
+            el(
+              'div',
+              { className: 'ts-param-header' },
+              el('span', { className: 'ts-param-title' }, '📦 Batch Size'),
+              el('span', { className: 'ts-param-badge' }, `${settings.batch_size || 25} items`)
+            ),
+            el('p', { className: 'ts-param-desc' }, 'Translatable strings packaged per single AI request.'),
+            el('input', {
+              type: 'range',
+              min: 1,
+              max: 50,
+              step: 1,
+              className: 'ts-param-slider',
+              value: settings.batch_size || 25,
+              onChange: (e) => setSettings({ ...settings, batch_size: parseInt(e.target.value, 10) }),
+            })
+          ),
+
+          // Response Timeout
+          el(
+            'div',
+            { className: 'ts-param-card' },
+            el(
+              'div',
+              { className: 'ts-param-header' },
+              el('span', { className: 'ts-param-title' }, '⏱️ Timeout Wait'),
+              el('span', { className: 'ts-param-badge' }, `${settings.response_timeout || 30}s`)
+            ),
+            el('p', { className: 'ts-param-desc' }, 'Maximum wait limit before retrying API translation.'),
+            el('input', {
+              type: 'range',
+              min: 5,
+              max: 120,
+              step: 5,
+              className: 'ts-param-slider',
+              value: settings.response_timeout || 30,
+              onChange: (e) => setSettings({ ...settings, response_timeout: parseInt(e.target.value, 10) }),
+            })
+          ),
+
+          // Max Tokens
+          el(
+            'div',
+            { className: 'ts-param-card' },
+            el(
+              'div',
+              { className: 'ts-param-header' },
+              el('span', { className: 'ts-param-title' }, '🪙 Max Tokens'),
+              el('span', { className: 'ts-param-badge' }, `${(settings.max_tokens || 4096).toLocaleString()}`)
+            ),
+            el('p', { className: 'ts-param-desc' }, 'Max output tokens allocated for JSON translated responses.'),
+            el('input', {
+              type: 'range',
+              min: 512,
+              max: 16384,
+              step: 512,
+              className: 'ts-param-slider',
+              value: settings.max_tokens || 4096,
+              onChange: (e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) }),
+            })
+          ),
+
+          // Temperature
+          el(
+            'div',
+            { className: 'ts-param-card' },
+            el(
+              'div',
+              { className: 'ts-param-header' },
+              el('span', { className: 'ts-param-title' }, '🎯 Temperature'),
+              el('span', { className: 'ts-param-badge' }, (settings.temperature !== undefined ? parseFloat(settings.temperature) : 0.2).toFixed(2))
+            ),
+            el('p', { className: 'ts-param-desc' }, getTemperatureLabel(settings.temperature !== undefined ? settings.temperature : 0.2)),
+            el('input', {
+              type: 'range',
+              min: 0,
+              max: 1,
+              step: 0.05,
+              className: 'ts-param-slider',
+              value: settings.temperature !== undefined ? settings.temperature : 0.2,
+              onChange: (e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) }),
+            })
           )
         )
       ),
 
-      // Batch size
+      // 3. Custom AI Prompt Engineering Studio Card
       el(
         'div',
-        { className: 'ts-form-group', style: { marginTop: '20px' } },
-        el('label', { className: 'ts-form-label' }, 'Batch Concurrency Size'),
-        el('div', { className: 'ts-form-desc' }, 'Number of parallel requests sent during bulk translation.'),
-        el('input', {
-          type: 'number',
-          min: 1,
-          max: 10,
-          className: 'ts-form-input',
-          style: { maxWidth: '120px' },
-          value: settings.batch_size || 5,
-          onChange: (e) => setSettings({ ...settings, batch_size: parseInt(e.target.value, 10) || 5 }),
-        })
+        { className: 'ts-settings-card' },
+        el(
+          'div',
+          { className: 'ts-settings-card-header' },
+          el(
+            'div',
+            { className: 'ts-settings-card-title-group' },
+            el('h3', null, '📝 AI Prompt Engineering Studio'),
+            el('p', null, 'Customize system instructions, tone, and HTML formatting constraints delivered to OpenAI and Gemini.')
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-prompt-studio' },
+          el(
+            'div',
+            { className: 'ts-chips-container' },
+            el('span', { className: 'ts-chips-title' }, 'Click to insert token:'),
+            ['{source_lang}', '{target_lang}', '{count}', '{json_strings}'].map((token) =>
+              el(
+                'button',
+                {
+                  key: token,
+                  type: 'button',
+                  className: 'ts-chip-btn',
+                  title: `Insert ${token} into prompt template`,
+                  onClick: () => insertTag(token),
+                },
+                `+ ${token}`
+              )
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-prompt-editor-wrap' },
+            el('textarea', {
+              id: 'ts-custom-prompt-editor',
+              className: 'ts-prompt-textarea',
+              value: currentPromptVal,
+              placeholder: 'Enter custom prompt instructions...',
+              onChange: (e) => setSettings({ ...settings, custom_prompt: e.target.value }),
+              spellCheck: 'false',
+            })
+          ),
+          el(
+            'div',
+            { className: 'ts-prompt-footer' },
+            el(
+              'span',
+              null,
+              `${currentPromptVal.length} characters • ${currentPromptVal.split('\n').length} lines`
+            ),
+            el(
+              'div',
+              { style: { display: 'flex', gap: '8px' } },
+              el(
+                'button',
+                {
+                  type: 'button',
+                  className: 'ts-btn ts-btn-secondary ts-btn-sm',
+                  onClick: copyPromptToClipboard,
+                },
+                '📋 Copy Prompt'
+              ),
+              el(
+                'button',
+                {
+                  type: 'button',
+                  className: 'ts-btn ts-btn-secondary ts-btn-sm',
+                  onClick: () => setSettings({ ...settings, custom_prompt: '' }),
+                },
+                '↺ Reset to Default'
+              )
+            )
+          )
+        )
       ),
 
+      // 4. Polylang System & Multilingual Overview Card
+      languages && languages.length > 0 &&
       el(
         'div',
-        { style: { marginTop: '30px' } },
-        el('button', { type: 'submit', className: 'ts-btn ts-btn-primary', style: { padding: '10px 24px', fontSize: '14px' } }, '💾 Save Settings')
+        { className: 'ts-settings-card' },
+        el(
+          'div',
+          { className: 'ts-settings-card-header' },
+          el(
+            'div',
+            { className: 'ts-settings-card-title-group' },
+            el('h3', null, '🌍 Multilingual Setup (Polylang)'),
+            el('p', null, 'Active languages detected from Polylang integration for full-site automatic and editor translations.')
+          ),
+          el(
+            'a',
+            {
+              href: 'admin.php?page=mlang',
+              className: 'ts-btn ts-btn-secondary ts-btn-sm',
+            },
+            'Manage Languages ↗'
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-lang-tags-container' },
+          languages.map((l) =>
+            el(
+              'div',
+              {
+                key: l.slug || l.code,
+                className: `ts-lang-tag ${l.is_default ? 'default' : ''}`,
+              },
+              el('img', { src: l.flag ? l.flag : '🌐' }),
+              el('span', null, l.name || l.slug),
+              el('span', { style: { opacity: 0.6, fontSize: '11px', fontFamily: 'monospace' } }, `(${l.slug || l.code})`),
+              l.is_default && el('span', { className: 'ts-lang-badge-default' }, 'DEFAULT')
+            )
+          )
+        )
+      ),
+
+      // 5. Sticky Bottom Save Bar
+      el(
+        'div',
+        { className: 'ts-save-bar' },
+        el(
+          'div',
+          { className: 'ts-save-status' },
+          '💡 Tip: Press ',
+          el('kbd', { style: { padding: '2px 6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '11px', fontWeight: '700' } }, 'Ctrl + S'),
+          ' anytime to save settings.'
+        ),
+        el(
+          'div',
+          { className: 'ts-save-actions' },
+          el(
+            'button',
+            {
+              type: 'submit',
+              disabled: isSaving,
+              className: 'ts-btn ts-btn-primary',
+              style: { padding: '10px 24px', fontSize: '14px' },
+            },
+            isSaving ? 'Saving...' : '💾 Save Settings'
+          )
+        )
       )
     );
   }
@@ -871,3 +1374,4 @@
     }
   });
 })();
+

@@ -362,6 +362,11 @@ class Translate {
 	}
 
 	/**
+	 * Default prompt template for AI batch translation.
+	 */
+	public const DEFAULT_PROMPT = "You are a professional HTML-safe translator. Translate the JSON array of strings from {source_lang} to {target_lang}.\nPreserve all HTML tags, placeholders, and formatting.\nOutput ONLY a valid JSON object matching this schema: {\"translations\": [\"...\", \"...\"]}\nLength of translations array MUST EXACTLY MATCH input array length ({count} items):\n\n{json_strings}";
+
+	/**
 	 * Provider batch translation dispatcher preserving array indices.
 	 *
 	 * @param array  $texts Array of string indexed by key/integer [ 0 => '...', 1 => '...' ]
@@ -376,40 +381,114 @@ class Translate {
 			return array();
 		}
 
-		switch ( $provider ) {
-			case 'openai':
-				return self::translate_openai_batch( $texts, $source_lang, $target_lang, $settings['openai_api_key'] ?? '', $settings['openai_model'] ?? 'gpt-4o-mini' );
+		$batch_size  = ! empty( $settings['batch_size'] ) ? max( 1, (int) $settings['batch_size'] ) : 25;
+		$chunks      = array_chunk( $texts, $batch_size, true );
+		$all_results = array();
 
-			case 'gemini':
-				return self::translate_gemini_batch( $texts, $source_lang, $target_lang, $settings['gemini_api_key'] ?? '', $settings['gemini_model'] ?? 'gemini-1.5-flash' );
+		foreach ( $chunks as $chunk ) {
+			switch ( $provider ) {
+				case 'openai':
+					$res = self::translate_openai_batch( $chunk, $source_lang, $target_lang, $settings );
+					break;
 
-			case 'chrome_ai':
-			case 'chrome_local_ai':
-			default:
-				$out = array();
-				foreach ( $texts as $idx => $text ) {
-					$out[ $idx ] = self::translate_public_engine( (string) $text, $source_lang, $target_lang );
-				}
-				return $out;
+				case 'gemini':
+					$res = self::translate_gemini_batch( $chunk, $source_lang, $target_lang, $settings );
+					break;
+
+				case 'chrome_ai':
+				case 'chrome_local_ai':
+				default:
+					$res = array();
+					foreach ( $chunk as $idx => $text ) {
+						$res[ $idx ] = self::translate_public_engine( (string) $text, $source_lang, $target_lang );
+					}
+					break;
+			}
+
+			foreach ( $res as $idx => $val ) {
+				$all_results[ $idx ] = $val;
+			}
 		}
+
+		return $all_results;
 	}
 
 	/**
-	 * Provider single translation dispatcher.
+	 * Build standardized prompt for batch string translation.
+	 *
+	 * @param string $source_lang
+	 * @param string $target_lang
+	 * @param array  $values_seq
+	 * @param array  $settings
+	 * @return string
 	 */
-	private static function execute_provider_translation( $text, $source_lang, $target_lang, $provider, $settings ) {
-		switch ( $provider ) {
-			case 'openai':
-				return self::translate_openai( $text, $source_lang, $target_lang, $settings['openai_api_key'] ?? '', $settings['openai_model'] ?? 'gpt-4o-mini' );
+	public static function build_batch_translation_prompt( string $source_lang, string $target_lang, array $values_seq, array $settings = array() ): string {
+		$template = ! empty( $settings['custom_prompt'] ) ? (string) $settings['custom_prompt'] : self::DEFAULT_PROMPT;
+		$json_str = wp_json_encode( array( 'strings' => $values_seq ) );
 
-			case 'gemini':
-				return self::translate_gemini( $text, $source_lang, $target_lang, $settings['gemini_api_key'] ?? '', $settings['gemini_model'] ?? 'gemini-1.5-flash' );
+		$replacements = array(
+			'{source_lang}'  => $source_lang,
+			'{target_lang}'  => $target_lang,
+			'{count}'        => count( $values_seq ),
+			'{json_strings}' => $json_str,
+		);
 
-			case 'chrome_ai':
-			case 'chrome_local_ai':
-			default:
-				return self::translate_public_engine( $text, $source_lang, $target_lang );
+		return str_replace( array_keys( $replacements ), array_values( $replacements ), $template );
+	}
+
+	/**
+	 * Parse batch AI response JSON and map back to original keys.
+	 *
+	 * @param string $raw_json
+	 * @param array  $keys
+	 * @return array|null
+	 */
+	public static function parse_batch_translation_json( string $raw_json, array $keys ): ?array {
+		$raw_json = trim( $raw_json );
+		// Strip markdown code fences if model returned them
+		if ( 0 === strpos( $raw_json, '```' ) ) {
+			$raw_json = preg_replace( '/^```(?:json)?\s*/i', '', $raw_json );
+			$raw_json = preg_replace( '/\s*```$/', '', $raw_json );
 		}
+
+		$parsed       = json_decode( trim( $raw_json ), true );
+		$translations = $parsed['translations'] ?? ( is_array( $parsed ) && isset( $parsed[0] ) ? $parsed : null );
+
+		if ( is_array( $translations ) && count( $translations ) === count( $keys ) ) {
+			$result = array();
+			foreach ( $keys as $seq_idx => $orig_key ) {
+				$result[ $orig_key ] = trim( (string) $translations[ $seq_idx ] );
+			}
+			return $result;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Common helper to dispatch AI POST requests with JSON payload.
+	 *
+	 * @param string $url
+	 * @param array  $body
+	 * @param array  $headers
+	 * @param int    $timeout
+	 * @return string|null
+	 */
+	public static function send_ai_http_request( string $url, array $body, array $headers = array(), int $timeout = 30 ): ?string {
+		$response = wp_remote_post(
+			$url,
+			array(
+				'body'    => wp_json_encode( $body ),
+				'headers' => array_merge( array( 'Content-Type' => 'application/json' ), $headers ),
+				'timeout' => $timeout,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		return wp_remote_retrieve_body( $response );
 	}
 
 	/**
@@ -418,11 +497,13 @@ class Translate {
 	 * @param array  $texts Array of strings [ 0 => '...', 1 => '...' ]
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param string $api_key
-	 * @param string $model
+	 * @param array  $settings
 	 * @return array Translated strings with same keys [ 0 => '...', 1 => '...' ]
 	 */
-	public static function translate_openai_batch( array $texts, string $source_lang, string $target_lang, string $api_key, string $model = 'gpt-4o-mini' ): array {
+	public static function translate_openai_batch( array $texts, string $source_lang, string $target_lang, array $settings = array() ): array {
+		$api_key = $settings['openai_api_key'] ?? '';
+		$model   = $settings['openai_model'] ?? 'gpt-4o-mini';
+
 		if ( empty( $api_key ) || empty( $texts ) ) {
 			$out = array();
 			foreach ( $texts as $idx => $t ) {
@@ -431,71 +512,48 @@ class Translate {
 			return $out;
 		}
 
-		$keys       = array_keys( $texts );
-		$values_seq = array_values( $texts );
-
-		$url      = 'https://api.openai.com/v1/chat/completions';
-		$prompt   = sprintf(
-			"You are a professional HTML-safe translator. Translate the JSON array of strings from %s to %s.\nPreserve all HTML tags, placeholders, and formatting.\nReturn a strict JSON object with format: {\"translations\": [\"...\", \"...\"]}\nLength of translations array MUST EXACTLY MATCH input array length (%d items).\n\nInput JSON:\n%s",
-			$source_lang,
-			$target_lang,
-			count( $values_seq ),
-			wp_json_encode( array( 'strings' => $values_seq ) )
-		);
-
-		$messages = array(
-			array(
-				'role'    => 'system',
-				'content' => 'You are a translation API. You output ONLY valid JSON matching {"translations": ["..."]}. Never add markdown fences or explanation.',
-			),
-			array(
-				'role'    => 'user',
-				'content' => $prompt,
-			),
-		);
+		$keys        = array_keys( $texts );
+		$values_seq  = array_values( $texts );
+		$url         = 'https://api.openai.com/v1/chat/completions';
+		$prompt      = self::build_batch_translation_prompt( $source_lang, $target_lang, $values_seq, $settings );
+		$timeout     = ! empty( $settings['response_timeout'] ) ? (int) $settings['response_timeout'] : 30;
+		$max_tokens  = ! empty( $settings['max_tokens'] ) ? (int) $settings['max_tokens'] : 4096;
+		$temperature = isset( $settings['temperature'] ) && '' !== $settings['temperature'] ? (float) $settings['temperature'] : 0.2;
 
 		$body = array(
 			'model'           => ! empty( $model ) ? $model : 'gpt-4o-mini',
-			'messages'        => $messages,
-			'temperature'     => 0.2,
+			'messages'        => array(
+				array(
+					'role'    => 'system',
+					'content' => 'You are a translation API. You output ONLY valid JSON matching {"translations": ["..."]}.',
+				),
+				array(
+					'role'    => 'user',
+					'content' => $prompt,
+				),
+			),
+			'temperature'     => $temperature,
+			'max_tokens'      => $max_tokens,
 			'response_format' => array( 'type' => 'json_object' ),
 		);
 
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $api_key,
-					'Content-Type'  => 'application/json',
-				),
-				'timeout' => 30,
-			)
-		);
-
-		if ( ! is_wp_error( $response ) ) {
-			$res_body = wp_remote_retrieve_body( $response );
-			$data     = json_decode( $res_body, true );
+		$res_body = self::send_ai_http_request( $url, $body, array( 'Authorization' => 'Bearer ' . $api_key ), $timeout );
+		if ( ! empty( $res_body ) ) {
+			$data = json_decode( $res_body, true );
 			if ( isset( $data['choices'][0]['message']['content'] ) ) {
-				$content_parsed = json_decode( trim( $data['choices'][0]['message']['content'] ), true );
-				$translations   = $content_parsed['translations'] ?? ( is_array( $content_parsed ) && isset( $content_parsed[0] ) ? $content_parsed : null );
-
-				if ( is_array( $translations ) && count( $translations ) === count( $values_seq ) ) {
-					$result = array();
-					foreach ( $keys as $seq_idx => $orig_key ) {
-						$result[ $orig_key ] = trim( (string) $translations[ $seq_idx ] );
-					}
-					return $result;
+				$parsed = self::parse_batch_translation_json( $data['choices'][0]['message']['content'], $keys );
+				if ( is_array( $parsed ) ) {
+					return $parsed;
 				}
 			}
 		}
 
-		// Fallback: translate individually if batch JSON fails
-		$result = array();
+		// Fallback: public engine if batch JSON parsing fails
+		$out = array();
 		foreach ( $texts as $idx => $t ) {
-			$result[ $idx ] = self::translate_openai( (string) $t, $source_lang, $target_lang, $api_key, $model );
+			$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
 		}
-		return $result;
+		return $out;
 	}
 
 	/**
@@ -504,11 +562,13 @@ class Translate {
 	 * @param array  $texts Array of strings [ 0 => '...', 1 => '...' ]
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param string $api_key
-	 * @param string $model
+	 * @param array  $settings
 	 * @return array Translated strings with same keys [ 0 => '...', 1 => '...' ]
 	 */
-	public static function translate_gemini_batch( array $texts, string $source_lang, string $target_lang, string $api_key, string $model = 'gemini-1.5-flash' ): array {
+	public static function translate_gemini_batch( array $texts, string $source_lang, string $target_lang, array $settings = array() ): array {
+		$api_key = $settings['gemini_api_key'] ?? '';
+		$model   = $settings['gemini_model'] ?? 'gemini-1.5-flash';
+
 		if ( empty( $api_key ) || empty( $texts ) ) {
 			$out = array();
 			foreach ( $texts as $idx => $t ) {
@@ -517,164 +577,43 @@ class Translate {
 			return $out;
 		}
 
-		$keys       = array_keys( $texts );
-		$values_seq = array_values( $texts );
-
-		$model_name = ! empty( $model ) ? $model : 'gemini-1.5-flash';
-		$url        = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
-
-		$prompt = sprintf(
-			"You are a professional HTML-safe translator. Translate the JSON array of strings from %s to %s.\nPreserve all HTML tags, placeholders, and formatting.\nOutput ONLY a valid JSON object matching this schema: {\"translations\": [\"...\", \"...\"]}\nLength of translations array MUST EXACTLY MATCH input array length (%d items):\n\n%s",
-			$source_lang,
-			$target_lang,
-			count( $values_seq ),
-			wp_json_encode( array( 'strings' => $values_seq ) )
-		);
+		$keys        = array_keys( $texts );
+		$values_seq  = array_values( $texts );
+		$model_name  = ! empty( $model ) ? $model : 'gemini-1.5-flash';
+		$url         = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
+		$prompt      = self::build_batch_translation_prompt( $source_lang, $target_lang, $values_seq, $settings );
+		$timeout     = ! empty( $settings['response_timeout'] ) ? (int) $settings['response_timeout'] : 30;
+		$max_tokens  = ! empty( $settings['max_tokens'] ) ? (int) $settings['max_tokens'] : 4096;
+		$temperature = isset( $settings['temperature'] ) && '' !== $settings['temperature'] ? (float) $settings['temperature'] : 0.2;
 
 		$body = array(
 			'contents'         => array(
-				array(
-					'parts' => array(
-						array( 'text' => $prompt ),
-					),
-				),
+				array( 'parts' => array( array( 'text' => $prompt ) ) ),
 			),
 			'generationConfig' => array(
-				'temperature'      => 0.2,
+				'temperature'      => $temperature,
+				'maxOutputTokens'  => $max_tokens,
 				'responseMimeType' => 'application/json',
 			),
 		);
 
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'timeout' => 30,
-			)
-		);
-
-		if ( ! is_wp_error( $response ) ) {
-			$res_body = wp_remote_retrieve_body( $response );
-			$data     = json_decode( $res_body, true );
+		$res_body = self::send_ai_http_request( $url, $body, array(), $timeout );
+		if ( ! empty( $res_body ) ) {
+			$data = json_decode( $res_body, true );
 			if ( isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
-				$raw_text       = trim( $data['candidates'][0]['content']['parts'][0]['text'] );
-				$content_parsed = json_decode( $raw_text, true );
-				$translations   = $content_parsed['translations'] ?? ( is_array( $content_parsed ) && isset( $content_parsed[0] ) ? $content_parsed : null );
-
-				if ( is_array( $translations ) && count( $translations ) === count( $values_seq ) ) {
-					$result = array();
-					foreach ( $keys as $seq_idx => $orig_key ) {
-						$result[ $orig_key ] = trim( (string) $translations[ $seq_idx ] );
-					}
-					return $result;
+				$parsed = self::parse_batch_translation_json( $data['candidates'][0]['content']['parts'][0]['text'], $keys );
+				if ( is_array( $parsed ) ) {
+					return $parsed;
 				}
 			}
 		}
 
-		// Fallback: translate individually if batch JSON fails
-		$result = array();
+		// Fallback: public engine if batch JSON parsing fails
+		$out = array();
 		foreach ( $texts as $idx => $t ) {
-			$result[ $idx ] = self::translate_gemini( (string) $t, $source_lang, $target_lang, $api_key, $model );
+			$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
 		}
-		return $result;
-	}
-
-	/**
-	 * OpenAI ChatGPT Single Translation API.
-	 */
-	private static function translate_openai( $text, $source_lang, $target_lang, $api_key, $model = 'gpt-4o-mini' ) {
-		if ( empty( $api_key ) ) {
-			return self::translate_public_engine( $text, $source_lang, $target_lang );
-		}
-
-		$url      = 'https://api.openai.com/v1/chat/completions';
-		$messages = array(
-			array(
-				'role'    => 'system',
-				'content' => sprintf( 'You are a professional HTML-safe translator. Translate the text accurately from %s to %s. Preserve all HTML tags, placeholders, and formatting. Return ONLY the translated string without quotes or commentary.', $source_lang, $target_lang ),
-			),
-			array(
-				'role'    => 'user',
-				'content' => $text,
-			),
-		);
-
-		$body = array(
-			'model'       => ! empty( $model ) ? $model : 'gpt-4o-mini',
-			'messages'    => $messages,
-			'temperature' => 0.2,
-		);
-
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $api_key,
-					'Content-Type'  => 'application/json',
-				),
-				'timeout' => 20,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( isset( $data['choices'][0]['message']['content'] ) ) {
-			return trim( $data['choices'][0]['message']['content'] );
-		}
-
-		return $text;
-	}
-
-	/**
-	 * Google Gemini AI Single Translation API.
-	 */
-	private static function translate_gemini( $text, $source_lang, $target_lang, $api_key, $model = 'gemini-1.5-flash' ) {
-		if ( empty( $api_key ) ) {
-			return self::translate_public_engine( $text, $source_lang, $target_lang );
-		}
-
-		$model_name = ! empty( $model ) ? $model : 'gemini-1.5-flash';
-		$url        = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
-
-		$prompt = sprintf( "You are a professional translator. Translate the following text from %s to %s. Preserve all HTML tags, placeholders, and formatting. Output ONLY the translated content without any extra text:\n\n%s", $source_lang, $target_lang, $text );
-
-		$body = array(
-			'contents'         => array(
-				array(
-					'parts' => array(
-						array( 'text' => $prompt ),
-					),
-				),
-			),
-			'generationConfig' => array(
-				'temperature' => 0.2,
-			),
-		);
-
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'timeout' => 20,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
-			return trim( $data['candidates'][0]['content']['parts'][0]['text'] );
-		}
-
-		return $text;
+		return $out;
 	}
 
 	/**

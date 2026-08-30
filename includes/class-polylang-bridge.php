@@ -46,7 +46,7 @@ class Polylang_Bridge {
 	 */
 	public static function get_translated_post_types() {
 		$public_types = get_post_types( array( 'public' => true ), 'names' );
-		$translated = array();
+		$translated   = array();
 
 		foreach ( $public_types as $post_type ) {
 			if ( self::is_translated_post_type( $post_type ) ) {
@@ -65,7 +65,7 @@ class Polylang_Bridge {
 		if ( ! self::is_polylang_active() ) {
 			// Fallback mock languages if Polylang isn't enabled yet
 			$site_lang = get_locale();
-			$slug = substr( $site_lang, 0, 2 );
+			$slug      = substr( $site_lang, 0, 2 );
 			return array(
 				array(
 					'slug'       => $slug,
@@ -94,7 +94,7 @@ class Polylang_Bridge {
 			);
 		}
 
-		$languages = pll_languages_list( array( 'fields' => array() ) );
+		$languages    = pll_languages_list( array( 'fields' => array() ) );
 		$default_lang = function_exists( 'pll_default_language' ) ? pll_default_language() : '';
 
 		$result = array();
@@ -104,7 +104,7 @@ class Polylang_Bridge {
 					'slug'       => $lang->slug,
 					'name'       => $lang->name,
 					'locale'     => $lang->locale,
-					'flag'       => $lang->flag ?? '',
+					'flag'       => $lang->flag_url ?? '',
 					'is_default' => ( $lang->slug === $default_lang ),
 				);
 			}
@@ -195,7 +195,7 @@ class Polylang_Bridge {
 				$source_post->post_type,
 				$source_post->post_parent
 			);
-			$target_post_id = wp_insert_post( $post_data );
+			$target_post_id         = wp_insert_post( $post_data );
 			if ( is_wp_error( $target_post_id ) ) {
 				return $target_post_id;
 			}

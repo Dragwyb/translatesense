@@ -677,9 +677,25 @@ class Rest_Api {
 	public static function get_settings( WP_REST_Request $request ) {
 		global $wpdb;
 		$settings = get_option( 'translatesense_settings', array() );
-		if ( empty( $settings['enabled_providers'] ) ) {
-			$settings['enabled_providers'] = array( 'chrome_ai', 'openai', 'gemini' );
+		$defaults = array(
+			'provider'          => 'openai',
+			'openai_api_key'    => '',
+			'openai_model'      => 'gpt-4o-mini',
+			'gemini_api_key'    => '',
+			'gemini_model'      => 'gemini-1.5-flash',
+			'enabled_providers' => array( 'chrome_ai', 'openai', 'gemini' ),
+			'batch_size'        => 25,
+			'response_timeout'  => 30,
+			'max_tokens'        => 4096,
+			'temperature'       => 0.2,
+			'custom_prompt'     => '',
+			'default_prompt'    => \TranslateSense\Includes\Translate\Translate::DEFAULT_PROMPT,
+		);
+		$settings = wp_parse_args( $settings, $defaults );
+		if ( empty( $settings['default_prompt'] ) ) {
+			$settings['default_prompt'] = \TranslateSense\Includes\Translate\Translate::DEFAULT_PROMPT;
 		}
+
 		$languages       = Polylang_Bridge::get_languages();
 		$polylang_active = Polylang_Bridge::is_polylang_active();
 
