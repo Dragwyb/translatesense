@@ -211,10 +211,17 @@
     }
   }
 
+  const getProviderLogo = (id) => {
+    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const base = data.pluginUrl || '';
+    return base ? `${base}assets/img/${id}.png` : '';
+  };
+
   // 1. Register OpenAI Provider
   window.TranslateSenseCore.registerProvider('openai', {
     title: 'OpenAI (GPT-4o)',
     icon: '🧠',
+    logo: getProviderLogo('openai'),
     desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
     category: 'ai',
     savesToDb: true,
@@ -234,6 +241,7 @@
   window.TranslateSenseCore.registerProvider('gemini', {
     title: 'Gemini AI',
     icon: '✨',
+    logo: getProviderLogo('gemini'),
     desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
     category: 'ai',
     savesToDb: true,

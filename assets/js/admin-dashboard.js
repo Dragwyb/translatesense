@@ -803,6 +803,11 @@
       ? settings.custom_prompt
       : (settings.default_prompt || '');
 
+    const getProviderLogo = (providerId) => {
+      const pluginUrl = window.TranslateSenseData?.pluginUrl || '';
+      return pluginUrl ? `${pluginUrl}assets/img/${providerId}.png` : '';
+    };
+
     return el(
       'form',
       { className: 'ts-settings-container', onSubmit: handleFormSubmit },
@@ -856,7 +861,19 @@
               el(
                 'div',
                 { className: 'ts-provider-info' },
-                el('div', { className: 'ts-provider-icon' }, '🧠'),
+                el(
+                  'div',
+                  { className: 'ts-provider-icon' },
+                  el('img', {
+                    src: getProviderLogo('openai'),
+                    alt: 'OpenAI',
+                    className: 'ts-provider-logo-img',
+                    onError: (e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.parentNode) e.target.parentNode.textContent = '🧠';
+                    },
+                  })
+                ),
                 el(
                   'div',
                   null,
@@ -962,7 +979,19 @@
               el(
                 'div',
                 { className: 'ts-provider-info' },
-                el('div', { className: 'ts-provider-icon' }, '✨'),
+                el(
+                  'div',
+                  { className: 'ts-provider-icon' },
+                  el('img', {
+                    src: getProviderLogo('gemini'),
+                    alt: 'Google Gemini AI',
+                    className: 'ts-provider-logo-img',
+                    onError: (e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.parentNode) e.target.parentNode.textContent = '✨';
+                    },
+                  })
+                ),
                 el(
                   'div',
                   null,
@@ -1068,7 +1097,19 @@
               el(
                 'div',
                 { className: 'ts-provider-info' },
-                el('div', { className: 'ts-provider-icon' }, '🤖'),
+                el(
+                  'div',
+                  { className: 'ts-provider-icon' },
+                  el('img', {
+                    src: getProviderLogo('chrome_ai'),
+                    alt: 'Chrome Built-in AI',
+                    className: 'ts-provider-logo-img',
+                    onError: (e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.parentNode) e.target.parentNode.textContent = '🤖';
+                    },
+                  })
+                ),
                 el(
                   'div',
                   null,

@@ -130,6 +130,7 @@ class Bulk_Translate {
 				'languages'        => Polylang_Bridge::get_languages(),
 				'defaultProvider'  => $settings['provider'] ?? 'openai',
 				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
 			)
 		);
 	}

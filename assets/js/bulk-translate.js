@@ -9,16 +9,29 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
+    const pluginUrl = window.TranslateSenseBulkData?.pluginUrl || window.TranslateSenseData?.pluginUrl || window.TranslateSenseEditorData?.pluginUrl || '';
+    const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
       const providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length > 0) return providers;
+      if (providers.length > 0) {
+        return providers.map((p) => ({
+          ...p,
+          logo: p.logo || getLogo(p.id),
+        }));
+      }
       const all = window.TranslateSenseCore.getProviders(false);
-      if (all.length > 0) return all;
+      if (all.length > 0) {
+        return all.map((p) => ({
+          ...p,
+          logo: p.logo || getLogo(p.id),
+        }));
+      }
     }
     return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
+      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+      { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
     ];
   }
 
@@ -195,7 +208,7 @@
                               <span class="ts-provider-custom-radio"></span>
                             </div>
                             <div class="ts-provider-icon-box">
-                              <span class="ts-provider-emoji">${p.icon}</span>
+                              <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                             </div>
                             <div class="ts-provider-main-info">
                               <div class="ts-provider-title-row">
