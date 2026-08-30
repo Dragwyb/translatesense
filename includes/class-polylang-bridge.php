@@ -100,11 +100,12 @@ class Polylang_Bridge {
 		$result = array();
 		if ( ! empty( $languages ) ) {
 			foreach ( $languages as $lang ) {
+				$flag_url = $lang->flag_url ?? ( $lang->flag ?? '' );
 				$result[] = array(
 					'slug'       => $lang->slug,
 					'name'       => $lang->name,
 					'locale'     => $lang->locale,
-					'flag'       => $lang->flag_url ?? '',
+					'flag'       => is_string( $flag_url ) ? $flag_url : '',
 					'is_default' => ( $lang->slug === $default_lang ),
 				);
 			}

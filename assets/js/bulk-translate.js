@@ -7,6 +7,40 @@
 (function (window, document) {
   'use strict';
 
+  function getLanguageFlagHtml(langInput, allLanguages = []) {
+    let slug = '';
+    let flagUrl = '';
+
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+      flagUrl = langInput.flag || '';
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+      const found = allLanguages.find((l) => (l.slug || '').toLowerCase() === slug);
+      if (found && found.flag) {
+        flagUrl = found.flag;
+      }
+    }
+
+    if (flagUrl && typeof flagUrl === 'string' && (flagUrl.startsWith('http://') || flagUrl.startsWith('https://') || flagUrl.startsWith('/') || flagUrl.startsWith('data:image/'))) {
+      return `<img src="${flagUrl}" class="ts-lang-flag-img" alt="${slug}" />`;
+    }
+
+    return '';
+  }
+
+  function getLanguageDisplay(langInput, allLanguages = []) {
+    let slug = '';
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+    }
+    const flagHtml = getLanguageFlagHtml(langInput, allLanguages);
+    const code = slug.toUpperCase();
+    return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
+  }
+
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
     const pluginUrl = window.TranslateSenseBulkData?.pluginUrl || window.TranslateSenseData?.pluginUrl || window.TranslateSenseEditorData?.pluginUrl || '';
@@ -166,7 +200,7 @@
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
                           <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
                           <span class="ts-lang-name">${lang.name}</span>
-                          <span class="ts-lang-code">${lang.slug.toUpperCase()}</span>
+                          <span class="ts-lang-code">${getLanguageDisplay(lang, allLanguages)}</span>
                         </div>
                       `;
           })
@@ -406,7 +440,7 @@
           const totalTranslations = postIds.length * selectedTargetLangs.length;
           const langTags = allLanguages
             .filter((l) => selectedTargetLangs.includes(l.slug))
-            .map((l) => `<span class="ts-summary-tag">${l.name} (${l.slug.toUpperCase()})</span>`)
+            .map((l) => `<span class="ts-summary-tag">${getLanguageFlagHtml(l, allLanguages)} ${l.name} (${l.slug.toUpperCase()})</span>`)
             .join(' ');
 
           const step1Label = document.getElementById('ts-summary-step1-label');
@@ -623,7 +657,7 @@
                 html += `
                   <div class="ts-translation-item ${trans.status}">
                     <div class="ts-trans-lang-col">
-                      <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${langUpper}</span>
+                      <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${getLanguageFlagHtml(langObj || langSlug, allLanguages)} (${langUpper})</span>
                     </div>
                     <div class="ts-trans-details-col">
                       <div class="ts-trans-title ${isFail ? 'error' : ''}">

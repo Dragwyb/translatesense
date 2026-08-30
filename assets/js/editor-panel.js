@@ -12,6 +12,40 @@
 (function (window, document) {
   'use strict';
 
+  function getLanguageFlagHtml(langInput, allLanguages = []) {
+    let slug = '';
+    let flagUrl = '';
+
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+      flagUrl = langInput.flag || '';
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+      const found = allLanguages.find((l) => (l.slug || '').toLowerCase() === slug);
+      if (found && found.flag) {
+        flagUrl = found.flag;
+      }
+    }
+
+    if (flagUrl && typeof flagUrl === 'string' && (flagUrl.startsWith('http://') || flagUrl.startsWith('https://') || flagUrl.startsWith('/') || flagUrl.startsWith('data:image/'))) {
+      return `<img src="${flagUrl}" class="ts-lang-flag-img" alt="${slug}" />`;
+    }
+
+    return '';
+  }
+
+  function getLanguageDisplay(langInput, allLanguages = []) {
+    let slug = '';
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+    }
+    const flagHtml = getLanguageFlagHtml(langInput, allLanguages);
+    const code = slug.toUpperCase();
+    return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
+  }
+
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
     const pluginUrl = window.TranslateSenseEditorData?.pluginUrl || window.TranslateSenseData?.pluginUrl || window.TranslateSenseBulkData?.pluginUrl || '';
@@ -125,8 +159,8 @@
         modalMessage = `Original post created with <strong>${sourceEditorName}</strong> editor.<br><br>If you want to translate this post in same editor then Click on <strong>Translate with ${sourceEditorName}</strong> button, or click the close icon to close this modal.`;
         actionBtnText = `⚡ Translate with ${sourceEditorName}`;
       } else {
-        const srcDisplay = this.sourceLanguage ? `from <strong>${this.sourceLanguage.toUpperCase()}</strong> ` : '';
-        modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${this.targetLang.toUpperCase()}</strong>, click to continue or close this modal.`;
+        const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
+        modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
         actionBtnText = '🚀 Continue to Translation';
       }
 
@@ -274,7 +308,7 @@
               </div>
               <div>
                 <h3>Choose Translation Provider</h3>
-                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">🌐 ${this.targetLang.toUpperCase()}</span></p>
+                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span></p>
               </div>
             </div>
             <button class="ts-bulk-close" id="ts-provider-modal-close" title="Close">✕</button>
@@ -399,7 +433,7 @@
           </div>
 
           <div class="ts-progress-header-badge">
-            <span>🌐 Translating to ${this.targetLang.toUpperCase()}</span>
+            <span>Translating to ${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
           </div>
 
           <h3 class="ts-progress-title">Translation in progress...</h3>
@@ -742,7 +776,7 @@
           <div class="ts-review-header">
             <div class="ts-review-header-title">
               <h3>⚡ Review Translations</h3>
-              <span class="ts-badge-pill">🌐 ${this.targetLang.toUpperCase()}</span>
+              <span class="ts-badge-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
               <span class="ts-badge-pill">${providerInfo.icon} ${providerInfo.title}</span>
             </div>
             <button class="ts-bulk-close" id="ts-review-modal-close" title="Close">✕</button>
