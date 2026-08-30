@@ -83,6 +83,33 @@ class Editor_Integration {
 	}
 
 	/**
+	 * Get appropriate edit link based on post editor type (Elementor, Divi, Gutenberg, Classic).
+	 *
+	 * @param int $post_id
+	 * @return string
+	 */
+	public static function get_post_edit_link( $post_id ): string {
+		if ( ! $post_id ) {
+			return '';
+		}
+
+		$editor_type = self::get_post_editor_type( (int) $post_id );
+
+		if ( 'elementor' === $editor_type ) {
+			if ( class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance->documents ) ) {
+				$doc = \Elementor\Plugin::$instance->documents->get( $post_id );
+				if ( $doc && method_exists( $doc, 'get_edit_url' ) ) {
+					return (string) $doc->get_edit_url();
+				}
+			}
+			return admin_url( 'post.php?post=' . (int) $post_id . '&action=elementor' );
+		}
+
+		$default_edit_link = get_edit_post_link( $post_id, 'raw' );
+		return $default_edit_link ? (string) $default_edit_link : admin_url( 'post.php?post=' . (int) $post_id . '&action=edit' );
+	}
+
+	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
 	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {

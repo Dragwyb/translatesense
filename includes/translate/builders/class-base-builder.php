@@ -8,6 +8,7 @@ use WP_Post;
 use WP_Error;
 use TranslateSense\Includes\Translate\Translate;
 use TranslateSense\Includes\Polylang_Bridge;
+use TranslateSense\Includes\Editor_Integration;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -173,14 +174,21 @@ abstract class Base_Builder {
 			);
 		}
 
+		$editor_type = Editor_Integration::get_post_editor_type( $created_post_id );
+		$edit_url    = Editor_Integration::get_post_edit_link( $created_post_id );
+
 		return array(
-			'success'          => true,
-			'source_post_id'   => $post_id,
-			'target_post_id'   => $created_post_id,
-			'target_language'  => $target_lang,
-			'translated_title' => $translated_title,
-			'builder'          => $this->get_builder_slug(),
-			'edit_url'         => get_edit_post_link( $created_post_id, 'raw' ),
+			'success'           => true,
+			'source_post_id'    => $post_id,
+			'source_post_title' => $source_post->post_title,
+			'target_post_id'    => $created_post_id,
+			'target_language'   => $target_lang,
+			'translated_title'  => $translated_title,
+			'target_post_title' => $translated_title,
+			'builder'           => $this->get_builder_slug(),
+			'editor_type'       => $editor_type,
+			'edit_url'          => $edit_url,
+			'view_url'          => get_permalink( $created_post_id ),
 		);
 	}
 

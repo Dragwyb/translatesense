@@ -101,6 +101,7 @@ class Bulk_Process {
 				$job_id                     = (int) $wpdb->insert_id;
 				$insert_data['id']          = $job_id;
 				$insert_data['editor_type'] = Editor_Integration::get_post_editor_type( $post_id );
+				$insert_data['post_title']  = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
 				$created_jobs[]             = $insert_data;
 			}
 		}
@@ -395,8 +396,12 @@ class Bulk_Process {
 				$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
 			}
 
-			$target_post_id = (int) $row['target_post_id'];
-			$edit_url       = $target_post_id ? get_edit_post_link( $target_post_id, 'raw' ) : '';
+			$target_post_id    = (int) $row['target_post_id'];
+			$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
+			$target_post_title = $target_post ? $target_post->post_title : '';
+			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
+			$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+			$view_url          = $target_post_id ? get_permalink( $target_post_id ) : '';
 
 			$items[] = array(
 				'id'                => (int) $row['id'],
@@ -405,6 +410,7 @@ class Bulk_Process {
 				'post_title'        => $post_title,
 				'target_language'   => $row['target_language'],
 				'provider'          => $row['provider'],
+				'editor_type'       => $editor_type,
 				'status'            => $status,
 				'progress_status'   => $row['progress_status'],
 				'progress_percent'  => $item_progress,
@@ -412,7 +418,9 @@ class Bulk_Process {
 				'completed_strings' => $c_str,
 				'pending_strings'   => max( 0, $t_str - $c_str ),
 				'target_post_id'    => $target_post_id,
+				'target_post_title' => $target_post_title,
 				'edit_url'          => $edit_url,
+				'view_url'          => $view_url,
 				'error_message'     => $row['error_message'],
 				'created_at'        => $row['created_at'],
 				'updated_at'        => $row['updated_at'],

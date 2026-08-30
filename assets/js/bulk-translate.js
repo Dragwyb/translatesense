@@ -233,24 +233,57 @@
 
                 <div id="ts-progress-notice-banner" class="ts-modal-notice-banner" style="margin-top: 14px;"></div>
 
-                <div class="ts-progress-wrap" style="margin-top: 14px;">
-                  <div class="ts-progress-bar-bg">
-                    <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
-                  </div>
-                  <div class="ts-progress-text">
-                    <span id="ts-progress-status">Starting bulk translation...</span>
-                    <span id="ts-progress-percent">0%</span>
-                  </div>
-                  
-                  <div class="ts-bulk-stats-row" id="ts-bulk-stats-row" style="display: flex; gap: 12px; margin-top: 10px; font-size: 12px; color: #475569;">
-                    <span id="ts-stat-completed-strings"><strong>0</strong> Completed Strings</span>
-                    <span>•</span>
-                    <span id="ts-stat-pending-strings"><strong>0</strong> Pending Strings</span>
-                    <span>•</span>
-                    <span id="ts-stat-status-badge" style="font-weight: 600; color: #4f46e5;">Pending</span>
+                <div class="ts-progress-wrap" id="ts-progress-wrap" style="margin-top: 14px;">
+                  <!-- Progress Bar Card -->
+                  <div class="ts-progress-card" id="ts-progress-card">
+                    <div class="ts-progress-header">
+                      <div class="ts-progress-status-wrap">
+                        <span class="ts-progress-spinner" id="ts-progress-spinner"></span>
+                        <span class="ts-progress-status" id="ts-progress-status">Starting bulk translation...</span>
+                      </div>
+                      <span class="ts-progress-percent-pill" id="ts-progress-percent">0%</span>
+                    </div>
+                    <div class="ts-progress-bar-bg" id="ts-progress-bar-bg">
+                      <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
+                    </div>
                   </div>
 
-                  <div class="ts-progress-logs" id="ts-progress-logs" style="margin-top: 14px; max-height: 180px;"></div>
+                  <!-- Single Success Celebration Box (Smoothly revealed after progress bar fades out) -->
+                  <div class="ts-success-summary-card" id="ts-success-summary-card" style="display: none;">
+                    <div style="font-size: 24px; line-height: 1;">🎉</div>
+                    <div style="flex: 1;">
+                      <div style="font-weight: 700; color: #065f46; font-size: 13.5px; margin-bottom: 2px;">Bulk Translation Completed!</div>
+                      <div style="font-size: 12.5px; color: #047857;" id="ts-success-summary-text">All translations finished successfully.</div>
+                    </div>
+                  </div>
+
+                  <!-- Modern Stats Badges Row -->
+                  <div class="ts-bulk-stats-row" id="ts-bulk-stats-row">
+                    <div class="ts-stat-badge ts-stat-badge-info" id="ts-stat-completed-wrap">
+                      <span>✓</span>
+                      <span id="ts-stat-completed-strings"><strong>0</strong> Completed Strings</span>
+                    </div>
+                    <div class="ts-stat-badge ts-stat-badge-muted" id="ts-stat-pending-wrap">
+                      <span>⏳</span>
+                      <span id="ts-stat-pending-strings"><strong>0</strong> Pending Strings</span>
+                    </div>
+                    <div class="ts-stat-badge ts-stat-badge-status running" id="ts-stat-status-badge">
+                      <span class="ts-badge-dot"></span>
+                      <span id="ts-stat-status-label">RUNNING</span>
+                    </div>
+                  </div>
+
+                  <!-- Grouped Post Translation Results & Activity -->
+                  <div class="ts-results-container" id="ts-results-container">
+                    <div class="ts-results-header">
+                      <div class="ts-results-title-wrap">
+                        <span class="ts-results-icon">📋</span>
+                        <span class="ts-results-title">Translation Results & Activity</span>
+                      </div>
+                      <span class="ts-results-counter" id="ts-results-counter">0 Translations</span>
+                    </div>
+                    <div class="ts-results-list" id="ts-results-list"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -443,15 +476,226 @@
             providerLabel.textContent = matchingProvider.title;
           }
 
-          const logs = document.getElementById('ts-progress-logs');
+          const resultsListEl = document.getElementById('ts-results-list');
+          const resultsCounterEl = document.getElementById('ts-results-counter');
           const barFill = document.getElementById('ts-progress-bar-fill');
           const statusText = document.getElementById('ts-progress-status');
           const percentText = document.getElementById('ts-progress-percent');
+          const spinnerEl = document.getElementById('ts-progress-spinner');
           const completedStringsEl = document.getElementById('ts-stat-completed-strings');
           const pendingStringsEl = document.getElementById('ts-stat-pending-strings');
           const statusBadgeEl = document.getElementById('ts-stat-status-badge');
-
+          const statusLabelEl = document.getElementById('ts-stat-status-label');
           const noticeBanner = document.getElementById('ts-progress-notice-banner');
+
+          // Helper: Escape HTML strings safely
+          function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+          }
+
+          // State tracking for grouped post results & activity
+          const postResultsMap = {};
+          postIds.forEach(function (pid) {
+            postResultsMap[pid] = {
+              postId: pid,
+              postTitle: `Post #${pid}`,
+              translations: {},
+            };
+            selectedTargetLangs.forEach(function (lang) {
+              postResultsMap[pid].translations[lang] = {
+                targetLang: lang,
+                targetPostId: null,
+                targetTitle: '',
+                status: 'pending',
+                completedStrings: 0,
+                totalStrings: 0,
+                editUrl: '',
+                viewUrl: '',
+                error: '',
+              };
+            });
+          });
+
+          // Function to render grouped post results
+          function renderResultsUI() {
+            if (!resultsListEl) return;
+
+            let totalTranslationsCount = 0;
+            let completedTranslationsCount = 0;
+            let html = '';
+
+            const postIdsList = Object.keys(postResultsMap);
+            postIdsList.forEach(function (pId) {
+              const postData = postResultsMap[pId];
+              const transKeys = Object.keys(postData.translations);
+              totalTranslationsCount += transKeys.length;
+
+              html += `
+                <div class="ts-post-group-card">
+                  <div class="ts-post-group-header">
+                    <div class="ts-post-source-info">
+                      <span class="ts-post-icon">📄</span>
+                      <div class="ts-post-source-title">
+                        <span class="ts-source-title-text">${escapeHtml(postData.postTitle || `Post #${pId}`)}</span>
+                        <span class="ts-post-id-tag">#${pId}</span>
+                      </div>
+                    </div>
+                    <span class="ts-post-group-badge">Source Post</span>
+                  </div>
+                  <div class="ts-post-translations-list">
+              `;
+
+              transKeys.forEach(function (langSlug) {
+                const trans = postData.translations[langSlug];
+                const isDone = trans.status === 'completed';
+                const isFail = trans.status === 'failed';
+                const isRunning = trans.status === 'running';
+
+                if (isDone) completedTranslationsCount++;
+
+                const langUpper = langSlug.toUpperCase();
+                const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
+                const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
+
+                let statusBadge = '';
+                if (isDone) {
+                  statusBadge = '<span class="ts-trans-status-pill success">✓ Completed</span>';
+                } else if (isFail) {
+                  statusBadge = '<span class="ts-trans-status-pill failed">✕ Failed</span>';
+                } else if (isRunning) {
+                  statusBadge = '<span class="ts-trans-status-pill running">⏳ In Progress</span>';
+                } else {
+                  statusBadge = '<span class="ts-trans-status-pill pending">Queued</span>';
+                }
+
+                let metaInfo = '';
+                if (isDone && trans.completedStrings) {
+                  metaInfo = `<span class="ts-trans-strings-count">${trans.completedStrings} strings</span>`;
+                } else if (isFail && trans.error) {
+                  metaInfo = `<span class="ts-trans-error-msg">${escapeHtml(trans.error)}</span>`;
+                } else if (trans.targetPostId) {
+                  metaInfo = `<span class="ts-trans-target-id">#${trans.targetPostId}</span>`;
+                }
+
+                let actionsHtml = '';
+                if (isDone) {
+                  const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
+                  const editLabel = '✏️ Edit';
+                  const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
+                  const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
+
+                  const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
+                  const editHref = trans.editUrl || defaultEditUrl;
+                  const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
+
+                  actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-action-link-btn view" title="View translated post on site">👁 View</a>`;
+                  actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
+                } else {
+                  actionsHtml += `<span class="ts-action-link-btn disabled">👁 View</span><span class="ts-action-link-btn disabled">✏️ Edit</span>`;
+                }
+
+                const displayTitle = trans.targetTitle || (isDone ? postData.postTitle : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`));
+
+                html += `
+                  <div class="ts-translation-item ${trans.status}">
+                    <div class="ts-trans-lang-col">
+                      <span class="ts-trans-lang-badge ${isDone ? 'success' : (isFail ? 'failed' : '')}">${langUpper}</span>
+                    </div>
+                    <div class="ts-trans-details-col">
+                      <div class="ts-trans-title ${isFail ? 'error' : ''}">
+                        ${escapeHtml(displayTitle)}
+                      </div>
+                      <div class="ts-trans-meta">
+                        ${statusBadge}
+                        ${metaInfo}
+                      </div>
+                    </div>
+                    <div class="ts-trans-actions-col">
+                      ${actionsHtml}
+                    </div>
+                  </div>
+                `;
+              });
+
+              html += `
+                  </div>
+                </div>
+              `;
+            });
+
+            resultsListEl.innerHTML = html;
+            if (resultsCounterEl) {
+              resultsCounterEl.textContent = `${completedTranslationsCount}/${totalTranslationsCount} Completed`;
+            }
+          }
+
+          // Initial render of results skeleton
+          renderResultsUI();
+
+          // Helper: Handle Bulk Translation Completion & Remove Progress Bar After a Few Seconds
+          function onBulkProgressComplete(isSuccess, summaryMsg, completedJobs, totalJobs) {
+            if (barFill) {
+              barFill.style.width = '100%';
+              barFill.classList.add('completed');
+            }
+            if (percentText) {
+              percentText.textContent = '100%';
+              percentText.classList.add('completed');
+            }
+            if (spinnerEl) {
+              spinnerEl.classList.add('completed');
+            }
+            if (statusText) {
+              statusText.textContent = summaryMsg;
+            }
+            if (statusBadgeEl) {
+              statusBadgeEl.className = isSuccess
+                ? 'ts-stat-badge ts-stat-badge-status completed'
+                : 'ts-stat-badge ts-stat-badge-status failed';
+            }
+            if (statusLabelEl) {
+              statusLabelEl.textContent = isSuccess ? 'COMPLETED' : 'FAILED';
+            }
+
+            // Hide the top warning/info notice banner completely on completion so there are NO multiple stacked notices
+            if (noticeBanner) {
+              noticeBanner.style.display = 'none';
+            }
+
+            // Remove progress bar after a few seconds (2.5s delay + smooth fade-out collapse)
+            if (isSuccess) {
+              setTimeout(function () {
+                const card = document.getElementById('ts-progress-card');
+                const successSummary = document.getElementById('ts-success-summary-card');
+                const successSummaryText = document.getElementById('ts-success-summary-text');
+                if (card) {
+                  card.classList.add('ts-progress-fade-out');
+                  setTimeout(function () {
+                    card.style.display = 'none';
+                    if (successSummary) {
+                      if (successSummaryText) {
+                        successSummaryText.textContent = `Successfully processed and created translations for ${completedJobs || 1} of ${totalJobs || 1} post(s).`;
+                      }
+                      successSummary.style.display = 'flex';
+                    }
+                  }, 500);
+                }
+              }, 2500);
+            }
+
+            if (doneBtn) {
+              doneBtn.disabled = false;
+              doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary ts-btn-success-pulse';
+              doneBtn.textContent = '✓ Done (Reload Page)';
+              doneBtn.onclick = function () {
+                window.location.reload();
+              };
+            }
+          }
+
           if (noticeBanner) {
             if (isChromeAi) {
               noticeBanner.className = 'ts-modal-notice-banner warning';
@@ -514,14 +758,27 @@
           const batchId = batchData.batch_id;
           const jobsList = batchData.jobs || [];
 
+          // Populate post titles & editor types from batch jobs
+          jobsList.forEach(function (job) {
+            if (postResultsMap[job.post_id]) {
+              if (job.post_title) postResultsMap[job.post_id].postTitle = job.post_title;
+              if (job.editor_type && postResultsMap[job.post_id].translations[job.target_language]) {
+                postResultsMap[job.post_id].translations[job.target_language].editorType = job.editor_type;
+              }
+            }
+          });
+          renderResultsUI();
+
           // =========================================================================
           // WORKFLOW A: Backend AI Providers (OpenAI, Gemini) via Cron + 5s Polling
           // =========================================================================
           if (!isChromeAi) {
             if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
             if (statusBadgeEl) {
-              statusBadgeEl.textContent = 'Running';
-              statusBadgeEl.style.color = '#0284c7';
+              statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
+            }
+            if (statusLabelEl) {
+              statusLabelEl.textContent = 'RUNNING';
             }
 
             const pollStatus = async () => {
@@ -542,49 +799,50 @@
                 if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${data.completed_strings || 0}</strong> Completed Strings`;
                 if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${data.pending_strings || 0}</strong> Pending Strings`;
                 if (statusBadgeEl) {
-                  statusBadgeEl.textContent = (data.overall_status || 'running').toUpperCase();
-                  statusBadgeEl.style.color = (data.overall_status === 'completed') ? '#16a34a' : ((data.overall_status === 'failed') ? '#dc2626' : '#0284c7');
+                  const isDone = data.overall_status === 'completed';
+                  const isFail = data.overall_status === 'failed';
+                  statusBadgeEl.className = `ts-stat-badge ts-stat-badge-status ${isDone ? 'completed' : (isFail ? 'failed' : 'running')}`;
+                }
+                if (statusLabelEl) {
+                  statusLabelEl.textContent = (data.overall_status || 'running').toUpperCase();
                 }
 
-                // Render Logs
-                if (logs && Array.isArray(data.items)) {
-                  logs.innerHTML = '';
-                  data.items.forEach((item) => {
-                    const logItem = document.createElement('div');
-                    const isDone = item.status === 'completed';
-                    const isFail = item.status === 'failed';
-                    logItem.className = `ts-log-item ${isDone ? 'success' : (isFail ? 'error' : 'info')}`;
-
-                    if (isDone) {
-                      logItem.innerHTML = `✓ <strong>${item.post_title}</strong> (#${item.post_id}) &rarr; Created #${item.target_post_id} (${item.target_language.toUpperCase()}) [${item.completed_strings} strings]`;
-                    } else if (isFail) {
-                      logItem.innerHTML = `✕ <strong>${item.post_title}</strong> (#${item.post_id}) [${item.target_language.toUpperCase()}]: ${item.error_message || 'Failed'}`;
-                    } else {
-                      logItem.innerHTML = `⏳ <strong>${item.post_title}</strong> (#${item.post_id}) &rarr; ${item.target_language.toUpperCase()}: ${item.progress_status || 'Queued'}`;
+                // Update Grouped Results Map from Polling Items
+                if (Array.isArray(data.items)) {
+                  data.items.forEach(function (item) {
+                    if (!postResultsMap[item.post_id]) {
+                      postResultsMap[item.post_id] = {
+                        postId: item.post_id,
+                        postTitle: item.post_title,
+                        translations: {},
+                      };
                     }
-                    logs.appendChild(logItem);
+                    if (item.post_title) postResultsMap[item.post_id].postTitle = item.post_title;
+                    postResultsMap[item.post_id].translations[item.target_language] = {
+                      targetLang: item.target_language,
+                      targetPostId: item.target_post_id,
+                      targetTitle: item.target_post_title || (item.status === 'completed' ? item.post_title : (item.progress_status || 'Processing...')),
+                      editorType: item.editor_type,
+                      status: item.status,
+                      completedStrings: item.completed_strings,
+                      totalStrings: item.total_strings,
+                      editUrl: item.edit_url,
+                      viewUrl: item.view_url,
+                      error: item.error_message,
+                    };
                   });
-                  logs.scrollTop = logs.scrollHeight;
+                  renderResultsUI();
                 }
 
                 // Check Completion
                 if (data.overall_status === 'completed' || data.overall_status === 'failed') {
                   clearInterval(pollingTimer);
                   pollingTimer = null;
-
-                  if (statusText) {
-                    statusText.textContent = (data.overall_status === 'completed')
-                      ? `🎉 Bulk Translation Complete! (${data.completed_jobs}/${data.total_jobs} posts translated)`
-                      : `Batch translation completed with issues (${data.failed_jobs} failed).`;
-                  }
-
-                  if (doneBtn) {
-                    doneBtn.disabled = false;
-                    doneBtn.textContent = '✓ Done (Reload Page)';
-                    doneBtn.onclick = function () {
-                      window.location.reload();
-                    };
-                  }
+                  const isDone = data.overall_status === 'completed';
+                  const msg = isDone
+                    ? `🎉 Bulk Translation Complete! (${data.completed_jobs}/${data.total_jobs} posts translated)`
+                    : `Batch translation completed with issues (${data.failed_jobs} failed).`;
+                  onBulkProgressComplete(isDone, msg, data.completed_jobs, data.total_jobs);
                 }
               } catch (pollErr) {
                 console.warn('[TranslateSense] Polling error:', pollErr);
@@ -606,8 +864,10 @@
           const totalJobsCount = jobsList.length;
 
           if (statusBadgeEl) {
-            statusBadgeEl.textContent = 'Local AI Running';
-            statusBadgeEl.style.color = '#4f46e5';
+            statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
+          }
+          if (statusLabelEl) {
+            statusLabelEl.textContent = 'LOCAL AI RUNNING';
           }
 
           for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
@@ -616,9 +876,18 @@
             const targetLang = job.target_language;
             const jobId = job.id;
             const postEditorType = job.editor_type || 'core';
+            const postTitle = job.post_title || `Post #${postId}`;
+
+            if (postResultsMap[postId]) {
+              postResultsMap[postId].postTitle = postTitle;
+              if (postResultsMap[postId].translations[targetLang]) {
+                postResultsMap[postId].translations[targetLang].status = 'running';
+                renderResultsUI();
+              }
+            }
 
             if (statusText) {
-              statusText.textContent = `Extracting strings for Post #${postId} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
+              statusText.textContent = `Extracting strings for ${postTitle} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
             }
 
             try {
@@ -643,12 +912,17 @@
               totalBatchStrings += rawStrings.length;
               if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
 
+              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
+                postResultsMap[postId].translations[targetLang].totalStrings = rawStrings.length;
+                renderResultsUI();
+              }
+
               // Local in-memory dictionary for pre-translated strings
               const inMemoryTranslations = {};
 
               if (rawStrings.length > 0) {
                 if (statusText) {
-                  statusText.textContent = `Translating ${rawStrings.length} strings on-device with Chrome Local AI for Post #${postId} (${targetLang.toUpperCase()})...`;
+                  statusText.textContent = `Translating ${rawStrings.length} strings on-device with Chrome Local AI for ${postTitle} (${targetLang.toUpperCase()})...`;
                 }
 
                 const itemsToTranslate = rawStrings.map((s) => ({
@@ -731,12 +1005,17 @@
 
               completedJobsCount++;
 
-              if (logs) {
-                const logItem = document.createElement('div');
-                logItem.className = 'ts-log-item success';
-                logItem.innerHTML = `✓ Post #${postId} &rarr; Created/Updated #${postRes.target_post_id} (${targetLang.toUpperCase()}) [${rawStrings.length} strings]`;
-                logs.appendChild(logItem);
-                logs.scrollTop = logs.scrollHeight;
+              // Update Result Item
+              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
+                const transObj = postResultsMap[postId].translations[targetLang];
+                transObj.status = 'completed';
+                transObj.targetPostId = postRes.target_post_id;
+                transObj.targetTitle = postRes.translated_title || postRes.target_post_title || postTitle;
+                transObj.editorType = postRes.editor_type || postEditorType;
+                transObj.editUrl = postRes.edit_url || (transObj.editorType === 'elementor' ? `post.php?post=${postRes.target_post_id}&action=elementor` : `post.php?post=${postRes.target_post_id}&action=edit`);
+                transObj.viewUrl = postRes.view_url || '';
+                transObj.completedStrings = rawStrings.length;
+                renderResultsUI();
               }
             } catch (err) {
               console.error(`[TranslateSense] Chrome AI error for post #${postId}:`, err);
@@ -757,33 +1036,21 @@
                 }),
               });
 
-              if (logs) {
-                const logItem = document.createElement('div');
-                logItem.className = 'ts-log-item error';
-                logItem.innerHTML = `✕ Post #${postId} (${targetLang.toUpperCase()}) failed: ${err.message || 'Error'}`;
-                logs.appendChild(logItem);
-                logs.scrollTop = logs.scrollHeight;
+              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
+                const transObj = postResultsMap[postId].translations[targetLang];
+                transObj.status = 'failed';
+                transObj.error = err.message || 'Error';
+                renderResultsUI();
               }
             }
           }
 
-          if (barFill) barFill.style.width = '100%';
-          if (percentText) percentText.textContent = '100%';
-          if (statusText) {
-            statusText.textContent = `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`;
-          }
-          if (statusBadgeEl) {
-            statusBadgeEl.textContent = 'COMPLETED';
-            statusBadgeEl.style.color = '#16a34a';
-          }
-
-          if (doneBtn) {
-            doneBtn.disabled = false;
-            doneBtn.textContent = '✓ Done (Reload Page)';
-            doneBtn.onclick = function () {
-              window.location.reload();
-            };
-          }
+          onBulkProgressComplete(
+            true,
+            `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`,
+            completedJobsCount,
+            totalJobsCount
+          );
         });
       }
     }
