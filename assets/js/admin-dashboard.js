@@ -722,7 +722,7 @@
     const [isSaving, setIsSaving] = useState(false);
 
     const enabledProviders = settings.enabled_providers || ['chrome_ai', 'openai', 'gemini'];
-    const currentDefaultProvider = settings.provider || 'openai';
+    const currentDefaultProvider = settings.provider || '';
 
     const toggleProvider = (providerId) => {
       let updated;
@@ -837,6 +837,7 @@
                 value: currentDefaultProvider,
                 onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
               },
+              el('option', { value: '' }, '— None (Select in modal) —'),
               el('option', { value: 'openai' }, '🧠 OpenAI (ChatGPT)'),
               el('option', { value: 'gemini' }, '✨ Google Gemini AI'),
               el('option', { value: 'chrome_ai' }, '🤖 Chrome Built-in AI')

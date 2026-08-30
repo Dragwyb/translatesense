@@ -43,30 +43,30 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
-    const pluginUrl = window.TranslateSenseBulkData?.pluginUrl || window.TranslateSenseData?.pluginUrl || window.TranslateSenseEditorData?.pluginUrl || '';
+    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
+    const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
 
+    let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      const providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length > 0) {
-        return providers.map((p) => ({
-          ...p,
-          logo: p.logo || getLogo(p.id),
-        }));
-      }
-      const all = window.TranslateSenseCore.getProviders(false);
-      if (all.length > 0) {
-        return all.map((p) => ({
-          ...p,
-          logo: p.logo || getLogo(p.id),
-        }));
+      providers = window.TranslateSenseCore.getProviders(true);
+      if (providers.length === 0 && enabledProviders.length === 0) {
+        providers = window.TranslateSenseCore.getProviders(false);
       }
     }
-    return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-    ];
+    if (!providers || providers.length === 0) {
+      const defaultList = [
+        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
+      ];
+      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+    }
+    return providers.map((p) => ({
+      ...p,
+      logo: p.logo || getLogo(p.id),
+    }));
   }
 
   function initBulkTranslate() {
@@ -142,7 +142,9 @@
         selectedTargetLangs = [allLanguages[0].slug];
       }
 
-      let selectedProviderId = config.defaultProvider || 'openai';
+      const providers = getRegisteredProviders();
+      const defaultProv = config.defaultProvider || '';
+      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv)) ? defaultProv : '';
 
       // Ensure root container exists
       let root = document.getElementById('translatesense-bulk-modal-root');
@@ -151,8 +153,6 @@
         root.id = 'translatesense-bulk-modal-root';
         document.body.appendChild(root);
       }
-
-      const providers = getRegisteredProviders();
 
       // Render Modal Skeleton with 3 distinct views: Languages -> Provider -> Live Progress
       root.innerHTML = `
@@ -175,6 +175,11 @@
                   <div class="ts-step-item">
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
+                  </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">3</span>
+                    <span>Translation Progress</span>
                   </div>
                 </div>
 
@@ -219,6 +224,11 @@
                   <div class="ts-step-item active">
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
+                  </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">3</span>
+                    <span>Translation Progress</span>
                   </div>
                 </div>
 
@@ -503,6 +513,12 @@
         startBtn.addEventListener('click', async function () {
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
           const selectedProvider = checkedRadio ? checkedRadio.value : selectedProviderId;
+
+          if (!selectedProvider) {
+            alert('Please choose a translation engine before starting.');
+            return;
+          }
+
           const isChromeAi = (selectedProvider === 'chrome_ai' || selectedProvider === 'chrome_local_ai');
 
           // Switch UI view: Hide provider view, show dedicated progress view
@@ -742,7 +758,7 @@
                         setTimeout(function () {
                           successSummary.style.display = 'none';
                         }, 500);
-                      }, 10000);
+                      }, 7000);
                     }
                   }, 500);
                 }

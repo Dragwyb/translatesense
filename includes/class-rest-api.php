@@ -678,7 +678,7 @@ class Rest_Api {
 		global $wpdb;
 		$settings = get_option( 'translatesense_settings', array() );
 		$defaults = array(
-			'provider'          => 'openai',
+			'provider'          => '',
 			'openai_api_key'    => '',
 			'openai_model'      => 'gpt-4o-mini',
 			'gemini_api_key'    => '',

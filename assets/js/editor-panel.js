@@ -48,30 +48,30 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
-    const pluginUrl = window.TranslateSenseEditorData?.pluginUrl || window.TranslateSenseData?.pluginUrl || window.TranslateSenseBulkData?.pluginUrl || '';
+    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
 
+    let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      const providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length > 0) {
-        return providers.map((p) => ({
-          ...p,
-          logo: p.logo || getLogo(p.id),
-        }));
-      }
-      const all = window.TranslateSenseCore.getProviders(false);
-      if (all.length > 0) {
-        return all.map((p) => ({
-          ...p,
-          logo: p.logo || getLogo(p.id),
-        }));
+      providers = window.TranslateSenseCore.getProviders(true);
+      if (providers.length === 0 && enabledProviders.length === 0) {
+        providers = window.TranslateSenseCore.getProviders(false);
       }
     }
-    return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-    ];
+    if (!providers || providers.length === 0) {
+      const defaultList = [
+        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
+      ];
+      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+    }
+    return providers.map((p) => ({
+      ...p,
+      logo: p.logo || getLogo(p.id),
+    }));
   }
 
   // Universal TranslateSense Editor Controller (Pure Vanilla JS)
@@ -85,7 +85,9 @@
       this.sourceEditorType = this.config.sourceEditorType || '';
       this.fromPost = this.config.fromPost || 0;
       this.targetLang = this.config.currentLanguage || 'en';
-      this.selectedProvider = this.config.defaultProvider || 'openai';
+      const defaultProv = this.config.defaultProvider || '';
+      const enabledProviders = Array.isArray(this.config.enabledProviders) ? this.config.enabledProviders : [];
+      this.selectedProvider = (defaultProv && (enabledProviders.length === 0 || enabledProviders.includes(defaultProv))) ? defaultProv : '';
       this.strings = [];
       this.isExtracting = false;
       this.isTranslating = false;
@@ -315,32 +317,40 @@
           </div>
           <div class="ts-review-body">
             <div class="ts-provider-list">
-              ${providersList.map((p, idx) => {
-        const isSelected = p.id === this.selectedProvider || (!this.selectedProvider && idx === 0);
-        const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-        const badgeHtml = isFrontend
-          ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-          : '';
+              ${(() => {
+                const defaultProv = this.config.defaultProvider || '';
+                const currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider))
+                  ? this.selectedProvider
+                  : (defaultProv && providersList.some((p) => p.id === defaultProv) ? defaultProv : '');
+                this.selectedProvider = currentSelected;
 
-        return `
-                  <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
-                    <div class="ts-provider-radio-wrap">
-                      <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
-                      <span class="ts-provider-custom-radio"></span>
-                    </div>
-                    <div class="ts-provider-icon-box">
-                      <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                    </div>
-                    <div class="ts-provider-main-info">
-                      <div class="ts-provider-title-row">
-                        <span class="ts-provider-name">${p.title}</span>
-                        ${badgeHtml}
+                return providersList.map((p) => {
+                  const isSelected = Boolean(currentSelected && p.id === currentSelected);
+                  const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+                  const badgeHtml = isFrontend
+                    ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+                    : '';
+
+                  return `
+                    <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                      <div class="ts-provider-radio-wrap">
+                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                        <span class="ts-provider-custom-radio"></span>
                       </div>
-                      <p class="ts-provider-caption">${p.desc}</p>
+                      <div class="ts-provider-icon-box">
+                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
+                      </div>
+                      <div class="ts-provider-main-info">
+                        <div class="ts-provider-title-row">
+                          <span class="ts-provider-name">${p.title}</span>
+                          ${badgeHtml}
+                        </div>
+                        <p class="ts-provider-caption">${p.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                `;
-      }).join('')}
+                  `;
+                }).join('');
+              })()}
             </div>
           </div>
           <div class="ts-review-footer">
@@ -374,6 +384,11 @@
       document.getElementById('ts-provider-modal-start').addEventListener('click', async () => {
         const checked = modalContainer.querySelector('input[name="ts_provider_choice"]:checked');
         if (checked) this.selectedProvider = checked.value;
+
+        if (!this.selectedProvider) {
+          alert('Please choose a translation provider before starting.');
+          return;
+        }
 
         closeModal();
         await this.extractAndTranslate();

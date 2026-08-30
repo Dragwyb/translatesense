@@ -20,7 +20,7 @@
       this.sourceStrings = new Map();
       this.translatedStrings = new Map();
       this.activeControllers = new Set();
-      this.defaultProvider = 'openai';
+      this.defaultProvider = '';
       this.enabledProviders = ['chrome_ai', 'openai', 'gemini'];
 
       // Initialize enabled providers from localized data if available

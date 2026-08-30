@@ -223,7 +223,7 @@ class Editor_Integration {
 				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
 				'currentLanguage'  => Polylang_Bridge::get_post_language( $post_id ),
 				'languages'        => Polylang_Bridge::get_languages(),
-				'defaultProvider'  => $settings['provider'] ?? 'openai',
+				'defaultProvider'  => $settings['provider'] ?? '',
 				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
 				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
 			),
