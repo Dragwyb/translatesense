@@ -31,65 +31,80 @@ class Activator {
 
 		$charset_collate = $wpdb->get_charset_collate();
 
-		// Custom translation packages table (Step 3)
+		// 1. Central Strings Table (Translation Memory)
+		$table_strings = $wpdb->prefix . 'translatesense_strings';
+		$sql_strings   = "CREATE TABLE {$table_strings} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            string_hash varchar(32) NOT NULL,
+            source_string longtext NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY string_hash_unique (string_hash)
+        ) {$charset_collate};";
+
+		// 2. Custom translation packages table (Context & Mapping)
 		$table_packages = $wpdb->prefix . 'translatesense_packages';
 		$sql_packages   = "CREATE TABLE {$table_packages} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			post_id bigint(20) unsigned NOT NULL,
-			language varchar(10) NOT NULL,
-			package_hash varchar(32) NOT NULL,
-			source_string text NOT NULL,
-			filter_string text NOT NULL,
-			editor_type text NOT NULL,
-			widget_name text NOT NULL,
-			widget_key	text NOT NULL,
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			KEY hash_index (package_hash),
-			KEY post_index (post_id)
-		) {$charset_collate};";
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            post_id bigint(20) unsigned NOT NULL,
+            string_id bigint(20) unsigned NOT NULL,
+            language varchar(10) NOT NULL,
+            package_hash varchar(32) NOT NULL,
+            filter_string varchar(255) NOT NULL,
+            editor_type varchar(50) NOT NULL,
+            widget_name varchar(100) NOT NULL,
+            widget_key varchar(100) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY package_hash_unique (package_hash),
+            KEY post_index (post_id),
+            KEY string_index (string_id)
+        ) {$charset_collate};";
 
-		// Custom translations table storing languages array and translated_strings map
+		// 3. Custom translations table (Linked directly to strings)
 		$table_translations = $wpdb->prefix . 'translatesense_translations';
 		$sql_translations   = "CREATE TABLE {$table_translations} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			package_hash varchar(32) NOT NULL,
-			language varchar(20) NOT NULL,
-			translated_string longtext NOT NULL,
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
-			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			UNIQUE INDEX hash_lang_unique (package_hash, language),
-			INDEX package_hash_index (package_hash),
-			INDEX language_index (language)
-		) {$charset_collate};";
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            string_id bigint(20) unsigned NOT NULL,
+            language varchar(10) NOT NULL,
+            translated_string longtext NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY string_lang_unique (string_id, language),
+            KEY string_index (string_id),
+            KEY language_index (language)
+        ) {$charset_collate};";
 
-		// Custom bulk translations workflow queue table
+		// 4. Custom bulk translations workflow queue table
 		$table_bulk = $wpdb->prefix . 'translatesense_bulk_translations';
 		$sql_bulk   = "CREATE TABLE {$table_bulk} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			batch_id varchar(64) NOT NULL,
-			post_id bigint(20) unsigned NOT NULL,
-			target_language varchar(20) NOT NULL,
-			provider varchar(50) NOT NULL DEFAULT 'openai',
-			status varchar(30) NOT NULL DEFAULT 'pending',
-			progress_status varchar(100) DEFAULT '',
-			total_strings int(11) NOT NULL DEFAULT 0,
-			completed_strings int(11) NOT NULL DEFAULT 0,
-			sent_ai_request_data longtext DEFAULT NULL,
-			received_ai_request_data longtext DEFAULT NULL,
-			error_message text DEFAULT NULL,
-			target_post_id bigint(20) unsigned DEFAULT 0,
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
-			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			KEY batch_index (batch_id),
-			KEY post_index (post_id),
-			KEY status_index (status),
-			KEY target_lang_index (target_language)
-		) {$charset_collate};";
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            batch_id varchar(64) NOT NULL,
+            post_id bigint(20) unsigned NOT NULL,
+            target_language varchar(20) NOT NULL,
+            provider varchar(50) NOT NULL DEFAULT 'openai',
+            status varchar(30) NOT NULL DEFAULT 'pending',
+            progress_status varchar(100) DEFAULT '',
+            total_strings int(11) NOT NULL DEFAULT 0,
+            completed_strings int(11) NOT NULL DEFAULT 0,
+            sent_ai_request_data longtext DEFAULT NULL,
+            received_ai_request_data longtext DEFAULT NULL,
+            error_message text DEFAULT NULL,
+            target_post_id bigint(20) unsigned DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY batch_index (batch_id),
+            KEY post_index (post_id),
+            KEY status_index (status),
+            KEY target_lang_index (target_language)
+        ) {$charset_collate};";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		// dbDelta must be called individually for each table string
+		dbDelta( $sql_strings );
 		dbDelta( $sql_packages );
 		dbDelta( $sql_translations );
 		dbDelta( $sql_bulk );
