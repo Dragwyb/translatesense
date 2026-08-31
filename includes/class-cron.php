@@ -37,6 +37,9 @@ class Cron {
 			"DELETE FROM {$table_packages} 
 			 WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
 		);
+
+		// Clean orphaned strings in translatesense_strings
+		Hashing_Db::cleanup_unused_strings();
 	}
 
 	/**
