@@ -62,7 +62,7 @@ abstract class Base_Builder {
 		$hash         = Hashing_Db::generate_hash( $name, $filtered_value );
 
 		if ( $post_id > 0 && ! empty( $lang ) ) {
-			Hashing_Db::record_package( $post_id, $lang, $hash, $value, $builder_slug, $name, $key, $filtered_value );
+			Hashing_Db::record_package( $post_id, $lang, $hash, $builder_slug, $name, $key, $value, $filtered_value );
 		}
 
 		$item = array(

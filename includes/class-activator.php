@@ -37,6 +37,7 @@ class Activator {
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             string_hash varchar(32) NOT NULL,
             source_string longtext NOT NULL,
+            filter_string longtext NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             UNIQUE KEY string_hash_unique (string_hash)
@@ -50,7 +51,6 @@ class Activator {
             string_id bigint(20) unsigned NOT NULL,
             language varchar(10) NOT NULL,
             package_hash varchar(32) NOT NULL,
-            filter_string varchar(255) NOT NULL,
             editor_type varchar(50) NOT NULL,
             widget_name varchar(100) NOT NULL,
             widget_key varchar(100) NOT NULL,

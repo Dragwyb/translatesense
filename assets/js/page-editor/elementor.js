@@ -123,9 +123,9 @@
         const src = s.value || '';
         const trans = s.translated || '';
         if (src) {
-          window.TranslateSenseCore.saveSourceString(s.field || wId, src, wId);
+          window.TranslateSenseCore.saveSourceString(s.field || wId, src, src, wId);
           if (trans) {
-            window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, trans, s.provider || 'default', wId);
+            window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, src, trans, s.provider || 'default', wId);
           }
         }
       });

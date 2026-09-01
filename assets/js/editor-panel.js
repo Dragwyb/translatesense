@@ -588,7 +588,7 @@
         let rawStrings = Array.isArray(data.strings) ? data.strings : [];
 
         // Exclude email addresses, URLs, and asset paths from translation
-        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || s.source || ''));
+        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
 
         if (!rawStrings || rawStrings.length === 0) {
           const serverRes = await this.processServerPostTranslation();
@@ -636,12 +636,13 @@
 
         const onProgress = (result) => {
           this.strings = this.strings.map((item) => {
-            if (item.source === result.source || (result.hash && item.hash === result.hash)) {
+            if (item.value === result.source || (result.hash && item.hash === result.hash)) {
               if (window.TranslateSenseCore) {
-                window.TranslateSenseCore.saveSourceString(item.field || item.widget_id, item.source, item.widget_id);
+                window.TranslateSenseCore.saveSourceString(item.field || item.widget_id, item.value, item.widget_id);
                 window.TranslateSenseCore.saveTranslatedString(
                   item.field || item.widget_id,
                   item.source,
+                  item.value,
                   result.translated,
                   this.selectedProvider,
                   item.widget_id
@@ -688,14 +689,14 @@
           : `${elapsedSec}s`;
 
         const totalSourceChars = this.strings.reduce((sum, s) => {
-          const val = String(s.value || s.source || '');
+          const val = String(s.value || '');
           return sum + val.length;
         }, 0);
 
         const totalTransChars = this.strings.reduce((sum, s) => {
           const isTranslated = s.translated && String(s.translated).trim() !== '';
           if (isTranslated) {
-            const originalVal = String(s.value || s.source || '');
+            const originalVal = String(s.value || '');
             return sum + originalVal.length;
           }
           return sum;
@@ -735,10 +736,10 @@
      * Update stats cards in review modal header dynamically based on original characters.
      */
     updateStatsHeader() {
-      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
       const totalTransChars = this.strings.reduce((sum, s) => {
         const isTranslated = s.translated && String(s.translated).trim() !== '';
-        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+        return sum + (isTranslated ? String(s.value || '').length : 0);
       }, 0);
 
       const timeEl = document.querySelector('#ts-universal-review-modal .ts-stat-time .ts-stat-value');
@@ -759,10 +760,10 @@
       let modalContainer = document.getElementById('ts-universal-review-modal');
       if (modalContainer) return; // Keep existing if already opened
 
-      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
       const totalTransChars = this.strings.reduce((sum, s) => {
         const isTranslated = s.translated && String(s.translated).trim() !== '';
-        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+        return sum + (isTranslated ? String(s.value || '').length : 0);
       }, 0);
 
       const stats = this.translationStats || {
@@ -895,7 +896,7 @@
         .map((item, idx) => ({ ...item, originalIndex: idx }))
         .filter((item) => {
           if (!q) return true;
-          const src = String(item.value || item.source || '').toLowerCase();
+          const src = String(item.value || '').toLowerCase();
           const trans = String(item.translated || '').toLowerCase();
           const name = String(item.name || '').toLowerCase();
           const key = String(item.key || '').toLowerCase();
@@ -916,7 +917,7 @@
 
       tbody.innerHTML = filtered.map((item) => {
         const idx = item.originalIndex;
-        const sourceVal = item.value || item.source || '';
+        const sourceVal = item.value || '';
         const transVal = item.translated || '';
         const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
 

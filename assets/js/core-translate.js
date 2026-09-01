@@ -80,13 +80,14 @@
      * @param {string} [widgetOrBlockName=''] Block name, widget name, or module name
      * @returns {Object} Saved translated string record
      */
-    saveTranslatedString(id, sourceValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
+    saveTranslatedString(id, sourceValue, filterValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
       const widget = widgetOrBlockName || id || 'generic';
       const hash = this.generateHash(widget, sourceValue);
 
       const entry = {
         id: id || hash,
         source: sourceValue !== undefined ? String(sourceValue) : '',
+        filterValue: filterValue !== undefined ? String(filterValue) : '',
         translated: translatedValue !== undefined ? String(translatedValue) : '',
         provider: provider || 'default',
         widget_id: widget,
@@ -163,15 +164,6 @@
       // 4. Check by ID directly
       if (id && this.translatedStrings.has(id)) {
         return this.translatedStrings.get(id).translated;
-      }
-
-      // 5. Fallback search across values
-      for (const entry of this.translatedStrings.values()) {
-        if (sourceValue && entry.source === sourceValue) {
-          if (!provider || entry.provider === provider) {
-            return entry.translated;
-          }
-        }
       }
 
       return '';
@@ -721,7 +713,7 @@
         throw new Error('Missing post ID for getPageContent');
       }
 
-      let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id);
+      let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id) + 'bypass=true';
       if (fields && fields.length > 0) {
         const fieldsStr = Array.isArray(fields) ? fields.join(',') : fields;
         url += '&fields=' + encodeURIComponent(fieldsStr);

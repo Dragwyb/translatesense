@@ -61,7 +61,7 @@ class Hashing_Db {
 	 * @param string $source_string
 	 * @return int String ID or 0 on failure
 	 */
-	public static function get_or_create_string_id( string $source_string ): int {
+	public static function get_or_create_string_id( string $filter_string, string $source_string ): int {
 		global $wpdb;
 
 		if ( '' === trim( $source_string ) ) {
@@ -69,14 +69,15 @@ class Hashing_Db {
 		}
 
 		$strings_table = self::get_strings_table();
-		$string_hash   = md5( $source_string );
+		$string_hash   = md5( $filter_string );
 
 		$sql = $wpdb->prepare(
-			"INSERT INTO {$strings_table} (`string_hash`, `source_string`, `created_at`)
-			 VALUES (%s, %s, NOW())
+			"INSERT INTO {$strings_table} (`string_hash`, `source_string`, `filter_string`, `created_at`)
+			 VALUES (%s, %s, %s, NOW())
 			 ON DUPLICATE KEY UPDATE `id` = LAST_INSERT_ID(`id`)",
 			$string_hash,
-			$source_string
+			$source_string,
+			$filter_string
 		);
 
 		$result = $wpdb->query( $sql );
@@ -103,10 +104,10 @@ class Hashing_Db {
 	 * @param int         $post_id
 	 * @param string      $target_lang
 	 * @param string|null $hash
-	 * @param string      $source_string
 	 * @param string      $editor_type
 	 * @param string      $widget_name
 	 * @param string      $widget_key
+	 * @param string      $source_string
 	 * @param string      $filter_string
 	 * @param int         $string_id Optional string_id if already resolved
 	 * @return int Package ID
@@ -115,10 +116,10 @@ class Hashing_Db {
 		$post_id,
 		$target_lang,
 		$hash,
-		$source_string,
 		$editor_type,
 		$widget_name,
 		$widget_key,
+		$source_string,
 		$filter_string = '',
 		$string_id = 0
 	): int {
@@ -138,7 +139,7 @@ class Hashing_Db {
 		// 1. Resolve or create string_id in translatesense_strings
 		$string_id = (int) $string_id;
 		if ( $string_id <= 0 && '' !== trim( (string) $filter_string ) ) {
-			$string_id = self::get_or_create_string_id( (string) $filter_string );
+			$string_id = self::get_or_create_string_id( (string) $filter_string, $source_string );
 		}
 
 		if ( $string_id <= 0 ) {
@@ -146,7 +147,7 @@ class Hashing_Db {
 		}
 
 		// 2. Calculate package hash
-		$package_hash = ! empty( $hash ) ? (string) $hash : md5( $post_id . $string_id . $widget_name . $widget_key );
+		$package_hash = ! empty( $hash ) ? (string) $hash : md5( $string_id . $widget_name );
 
 		// Check if package already exists
 		$existing_id = $wpdb->get_var(
@@ -160,19 +161,15 @@ class Hashing_Db {
 			return (int) $existing_id;
 		}
 
-		// 3. Insert package using INSERT IGNORE
-		$filter_str = ! empty( $filter_string ) ? $filter_string : (string) $source_string;
-
 		$wpdb->query(
 			$wpdb->prepare(
 				"INSERT IGNORE INTO {$packages_table} 
-				 (`post_id`, `string_id`, `language`, `package_hash`, `filter_string`, `editor_type`, `widget_name`, `widget_key`, `created_at`)
-				 VALUES (%d, %d, %s, %s, %s, %s, %s, %s, NOW())",
+				 (`post_id`, `string_id`, `language`, `package_hash`, `editor_type`, `widget_name`, `widget_key`, `created_at`)
+				 VALUES (%d, %d, %s, %s, %s, %s, %s, NOW())",
 				$post_id,
 				$string_id,
 				sanitize_text_field( (string) $target_lang ),
 				sanitize_text_field( $package_hash ),
-				$filter_str,
 				sanitize_text_field( (string) $editor_type ),
 				sanitize_text_field( (string) $widget_name ),
 				sanitize_text_field( (string) $widget_key )
@@ -405,8 +402,8 @@ class Hashing_Db {
 					p.package_hash as hash, 
 					p.widget_name as name, 
 					p.widget_key as `key`, 
-					s.source_string as source, 
-					p.filter_string as value,
+					s.source_string as source,
+					s.filter_string as value,
 					p.string_id
 				 FROM {$packages_table} p
 				 INNER JOIN {$strings_table} s ON p.string_id = s.id

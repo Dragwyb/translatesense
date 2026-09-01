@@ -1024,7 +1024,7 @@
 
               const extractData = await extractRes.json();
               let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
-              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || s.source || ''));
+              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
 
               totalBatchStrings += rawStrings.length;
               if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
@@ -1046,7 +1046,6 @@
                   hash: s.hash,
                   widget_id: s.name,
                   field: s.key,
-                  source: s.source || s.value,
                   content: s.value,
                 }));
 
@@ -1099,10 +1098,10 @@
                 throw new Error(postRes.message || `Post translation save failed`);
               }
 
-              const indexedStrings = rawStrings.map((s) => (typeof s === 'object' ? s.content || s.source || s.value || '' : String(s)));
+              const indexedStrings = rawStrings.map((s) => (typeof s === 'object' ? s.content || s.value || '' : String(s)));
               const indexedTranslated = rawStrings.map((s) => {
                 const h = typeof s === 'object' ? s.hash : '';
-                const src = typeof s === 'object' ? s.content || s.source || s.value || '' : String(s);
+                const src = typeof s === 'object' ? s.content || s.value || '' : String(s);
                 return inMemoryTranslations[h] || inMemoryTranslations[src] || src;
               });
 
