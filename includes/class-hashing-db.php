@@ -125,7 +125,7 @@ class Hashing_Db {
 		global $wpdb;
 
 		if ( empty( $filter_string ) ) {
-			return;
+			return 0;
 		}
 
 		$post_id = (int) $post_id;
