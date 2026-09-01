@@ -729,9 +729,45 @@
 
       return await response.json();
     }
+
+    /**
+     * Fetch block configuration rules parsed from editor-xml-config REST endpoint.
+     */
+    async getEditorConfig(editor = null, cache) {
+
+      if (!editor) {
+        return;
+      }
+
+      if (cache) {
+        return cache;
+      }
+
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+
+      try {
+        const response = await fetch(restUrl + 'editor-xml-config?editor=' + editor, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+        });
+        const data = await response.json();
+        if (data && data.rules) {
+          cache = data.rules;
+          return cache;
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=' + editor + ':', err);
+      }
+
+      return {};
+    }
   }
 
   // Create singleton instance
   window.TranslateSenseCore = new TranslateSenseCore();
-  window.TranslateSenseModal = TranslateSenseCore; // Backward compatibility alias
 })(window);

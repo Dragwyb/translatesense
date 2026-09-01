@@ -93,57 +93,26 @@
     blockRulesCache: null,
 
     /**
-     * Fetch block configuration rules parsed from editor-xml-config REST endpoint.
-     */
-    async getBlockRules() {
-      if (this.blockRulesCache) {
-        return this.blockRulesCache;
-      }
-
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-      const nonce = config.nonce || '';
-
-      try {
-        const response = await fetch(restUrl + 'editor-xml-config?editor=gutenberg', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-        });
-        const data = await response.json();
-        if (data && (data.block_rules || data.rules)) {
-          this.blockRulesCache = data.block_rules || data.rules;
-          return this.blockRulesCache;
-        }
-      } catch (err) {
-        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=gutenberg:', err);
-      }
-
-      return {};
-    },
-
-    /**
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
-      const blockRules = await this.getBlockRules();
+
+      if (!window.TranslateSenseCore) return;
+
+      const blockRules = await window.TranslateSenseCore.getEditorConfig('gutenberg', this.blockRulesCache);
 
       // Populate TranslateSenseCore stores
-      if (window.TranslateSenseCore) {
-        strings.forEach((s) => {
-          const wId = s.widget_id || 'core/paragraph';
-          const src = s.value || '';
-          const trans = s.translated || '';
-          if (src) {
-            window.TranslateSenseCore.saveSourceString(s.field || wId, src, src, wId);
-            if (trans) {
-              window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, src, trans, s.provider || 'default', wId);
-            }
+      strings.forEach((s) => {
+        const wId = s.widget_id || 'core/paragraph';
+        const src = s.value || '';
+        const trans = s.translated || '';
+        if (src) {
+          window.TranslateSenseCore.saveSourceString(s.field || wId, src, src, wId);
+          if (trans) {
+            window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, src, trans, s.provider || 'default', wId);
           }
-        });
-      }
+        }
+      });
 
       // Helper to find translation for a string value
       const findTranslation = (strVal, blockName = '') => {

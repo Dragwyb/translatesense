@@ -18,38 +18,6 @@
     widgetRulesCache: null,
 
     /**
-     * Fetch widget configuration rules parsed from editor-xml-config REST endpoint.
-     */
-    async getWidgetRules() {
-      if (this.widgetRulesCache) {
-        return this.widgetRulesCache;
-      }
-
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-      const nonce = config.nonce || '';
-
-      try {
-        const response = await fetch(restUrl + 'editor-xml-config?editor=elementor', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-        });
-        const data = await response.json();
-        if (data && (data.widget_rules || data.rules)) {
-          this.widgetRulesCache = data.widget_rules || data.rules;
-          return this.widgetRulesCache;
-        }
-      } catch (err) {
-        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=elementor:', err);
-      }
-
-      return {};
-    },
-
-    /**
      * Get active Elementor instance (current frame or top frame).
      */
     getElementorScope() {
