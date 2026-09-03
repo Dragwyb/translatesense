@@ -15,6 +15,16 @@
 
   const GutenbergUpdater = {
     /**
+     * Current translation provider ID (e.g. 'openai', 'gemini', 'chrome_ai').
+     */
+    provider: null,
+
+    /**
+     * Cache for Gutenberg block rules fetched from REST endpoint.
+     */
+    blockRulesCache: null,
+
+    /**
      * Check if Gutenberg block editor is active in the current window.
      */
     isActive() {
@@ -27,6 +37,7 @@
         window.wp.data.dispatch('core/block-editor')
       );
     },
+
 
     /**
      * Deep helper: Update nested object property by path array.
@@ -88,11 +99,6 @@
     },
 
     /**
-     * Cache for Gutenberg block rules fetched from REST endpoint.
-     */
-    blockRulesCache: null,
-
-    /**
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
@@ -101,19 +107,6 @@
 
       const blockRules = await window.TranslateSenseCore.getEditorConfig('gutenberg', this.blockRulesCache);
 
-      // Populate TranslateSenseCore stores
-      strings.forEach((s) => {
-        const wId = s.widget_id || 'core/paragraph';
-        const src = s.value || '';
-        const trans = s.translated || '';
-        if (src) {
-          window.TranslateSenseCore.saveSourceString(s.field || wId, src, src, wId);
-          if (trans) {
-            window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, src, trans, s.provider || 'default', wId);
-          }
-        }
-      });
-
       // Helper to find translation for a string value
       const findTranslation = (strVal, blockName = '') => {
         if (typeof strVal !== 'string' || strVal.trim() === '') return null;
@@ -121,15 +114,8 @@
 
         // 1. Check via TranslateSenseCore using block_name + string value hash
         if (window.TranslateSenseCore) {
-          const trans = window.TranslateSenseCore.getTranslatedString(blockName, clean, null, blockName);
-          if (trans && trans !== clean) return trans;
-        }
-
-        // 2. Direct string match
-        for (const s of strings) {
-          if (s.translated && s.value && s.value.trim() === clean) {
-            return s.translated;
-          }
+          const trans = window.TranslateSenseCore.getTranslatedString(blockName, clean, this.provider, blockName);
+          if (trans && trans.translate && trans.translate !== clean) return trans.translate;
         }
 
         return null;
@@ -239,6 +225,7 @@
     async apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
+      this.provider = options.provider;
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Post Title, Excerpt & Slug from translated source strings

@@ -154,22 +154,23 @@
         };
       }
 
-      let orignalSource;
+      let filterValue;
 
       for (const [key, data] of this.translatedStrings) {
-        if (data.source && data.filterValue === sourceValue) {
-          orignalSource = data.source;
+        if (data.filterValue && data.source === sourceValue) {
+          filterValue = data.filterValue;
           break;
         }
       }
 
-      if (orignalSource) {
-        const hash = this.generateHash(widget, orignalSource);
+      if (filterValue) {
+        const hash = this.generateHash(widget, filterValue);
 
-        if (this.translatedStrings.has(hash)) {
+        if (provider && this.translatedStrings.has(`${hash}_${provider}`)) {
+
           return {
-            source: orignalSource,
-            translate: this.translatedStrings.get(`${hash}_${provider}`).translated
+            source: sourceValue,
+            translate: sourceValue.replace(this.translatedStrings.get(`${hash}_${provider}`).filterValue, this.translatedStrings.get(`${hash}_${provider}`).translated)
           }
         }
       }
