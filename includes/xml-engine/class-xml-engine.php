@@ -381,7 +381,7 @@ class Xml_Engine {
 		$rules = self::get_all_rules();
 		if ( 'gutenberg' === $builder ) {
 			$block_rules = $rules['gutenberg'][ $name ] ?? null;
-			$keys        = ( $block_rules && ! empty( $block_rules['keys'] ) ) ? $block_rules['keys'] : array(
+			$keys        = $block_rules && ! empty( $block_rules['attributes'] ) ? $block_rules['attributes'] : array(
 				'content' => array(
 					'name'        => 'content',
 					'type'        => 'text',
@@ -391,13 +391,13 @@ class Xml_Engine {
 			return self::generate_xml_snippet( 'gutenberg', (string) $name, $keys );
 		} elseif ( 'elementor' === $builder ) {
 			$widget_rules = $rules['elementor'][ $name ] ?? null;
-			$fields       = ( $widget_rules && ! empty( $widget_rules['fields'] ) ) ? $widget_rules['fields'] : array(
+			$attributes   = $widget_rules && ! empty( $widget_rules['attributes'] ) ? $widget_rules['attributes'] : array(
 				'title' => array(
 					'type'        => 'title',
 					'editor_type' => 'LINE',
 				),
 			);
-			return self::generate_xml_snippet( 'elementor', (string) $name, $fields );
+			return self::generate_xml_snippet( 'elementor', (string) $name, $attributes );
 		}
 
 		return self::get_default_builder_skeleton( (string) $builder );

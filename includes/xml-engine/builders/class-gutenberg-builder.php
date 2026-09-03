@@ -71,13 +71,19 @@ class Gutenberg_Builder extends Base_Builder {
 		$section = $dom->createElement( $this->section_name );
 		$block   = $dom->createElement( 'gutenberg-block' );
 		$block->setAttribute( 'name', $name );
+
+		$attributes = $dom->createElement( 'attributes' );
 		foreach ( $field_details as $key => $info ) {
 			$k_node = $dom->createElement( 'key' );
 			$k_node->setAttribute( 'name', (string) $key );
 			$k_node->setAttribute( 'type', $info['type'] ?? 'text' );
 			$k_node->setAttribute( 'editor_type', $info['editor_type'] ?? 'VISUAL' );
-			$block->appendChild( $k_node );
+			if ( ! empty( $info['noTranslate'] ) ) {
+				$k_node->setAttribute( 'noTranslate', 'true' );
+			}
+			$attributes->appendChild( $k_node );
 		}
+		$block->appendChild( $attributes );
 		$section->appendChild( $block );
 		$root->appendChild( $section );
 
@@ -94,18 +100,36 @@ class Gutenberg_Builder extends Base_Builder {
 	public function sync_node( DOMElement $existing_block, SimpleXMLElement $new_block ): void {
 		$owner_doc = $existing_block->ownerDocument;
 
-		$new_keys = array();
-		if ( isset( $new_block->key ) ) {
-			foreach ( $new_block->key as $k_node ) {
+		// Find or create <attributes> element
+		$attributes_elem = null;
+		$child_nodes     = $existing_block->childNodes;
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'attributes' === $child->nodeName ) {
+				$attributes_elem = $child;
+				break;
+			}
+		}
+		if ( ! $attributes_elem ) {
+			$attributes_elem = $existing_block->appendChild( $owner_doc->createElement( 'attributes' ) );
+		}
+
+		$new_keys       = array();
+		$new_key_source = null;
+		if ( isset( $new_block->attributes->key ) ) {
+			$new_key_source = $new_block->attributes->key;
+		}
+		if ( $new_key_source ) {
+			foreach ( $new_key_source as $k_node ) {
 				$k_name              = (string) $k_node['name'];
 				$new_keys[ $k_name ] = $k_node;
 			}
 		}
 
 		$existing_keys = array();
-		$child_nodes   = $existing_block->childNodes;
-		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
-			$child = $child_nodes->item( $i );
+		$attr_children = $attributes_elem->childNodes;
+		for ( $i = 0; $i < $attr_children->length; $i++ ) {
+			$child = $attr_children->item( $i );
 			if ( XML_ELEMENT_NODE === $child->nodeType && 'key' === $child->nodeName ) {
 				$k_name                   = $child->getAttribute( 'name' );
 				$existing_keys[ $k_name ] = $child;
@@ -134,7 +158,7 @@ class Gutenberg_Builder extends Base_Builder {
 		foreach ( $new_keys as $k_name => $new_k ) {
 			if ( ! isset( $existing_keys[ $k_name ] ) ) {
 				$k_dom = dom_import_simplexml( $new_k );
-				$existing_block->appendChild( $owner_doc->importNode( $k_dom, true ) );
+				$attributes_elem->appendChild( $owner_doc->importNode( $k_dom, true ) );
 			}
 		}
 	}
@@ -163,10 +187,14 @@ class Gutenberg_Builder extends Base_Builder {
 			$found_block->addAttribute( 'name', $name );
 		}
 
+		if ( ! isset( $found_block->attributes ) ) {
+			$found_block->addChild( 'attributes' );
+		}
+
 		foreach ( $field_details as $f_key => $f_info ) {
 			$key_exists = false;
-			if ( isset( $found_block->key ) ) {
-				foreach ( $found_block->key as $k ) {
+			if ( isset( $found_block->attributes->key ) ) {
+				foreach ( $found_block->attributes->key as $k ) {
 					if ( (string) $k['name'] === $f_key ) {
 						$key_exists = true;
 						break;
@@ -174,7 +202,7 @@ class Gutenberg_Builder extends Base_Builder {
 				}
 			}
 			if ( ! $key_exists ) {
-				$k_node = $found_block->addChild( 'key' );
+				$k_node = $found_block->attributes->addChild( 'key' );
 				$k_node->addAttribute( 'name', $f_key );
 				$k_node->addAttribute( 'type', $f_info['type'] ?? 'text' );
 				$k_node->addAttribute( 'editor_type', $f_info['editor_type'] ?? 'VISUAL' );
@@ -196,23 +224,34 @@ class Gutenberg_Builder extends Base_Builder {
 				$name = (string) $block['name'];
 				if ( ! isset( $rules['gutenberg'][ $name ] ) ) {
 					$rules['gutenberg'][ $name ] = array(
-						'name'   => $name,
-						'source' => $source,
-						'keys'   => array(),
+						'name'         => $name,
+						'source'       => $source,
+						'attributes'   => array(),
+						'keys'         => array(),
+						'no_translate' => array(),
 					);
 				}
-				if ( isset( $block->key ) ) {
-					foreach ( $block->key as $key_node ) {
+
+				$key_nodes = null;
+				if ( isset( $block->attributes->key ) ) {
+					$key_nodes = $block->attributes->key;
+				} elseif ( isset( $block->key ) ) {
+					$key_nodes = $block->key;
+				}
+
+				if ( $key_nodes ) {
+					foreach ( $key_nodes as $key_node ) {
 						$key_name        = (string) $key_node['name'];
 						$is_no_translate = isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true );
 						if ( $is_no_translate ) {
-							if ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
-								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
+							if ( isset( $rules['gutenberg'][ $name ]['attributes'][ $key_name ] ) ) {
+								unset( $rules['gutenberg'][ $name ]['attributes'][ $key_name ] );
 							}
 							$rules['gutenberg'][ $name ]['no_translate'][ $key_name ] = true;
 							continue;
 						}
-						$rules['gutenberg'][ $name ]['keys'][ $key_name ] = self::parse_key_node( $key_node );
+						$parsed_key = self::parse_key_node( $key_node );
+						$rules['gutenberg'][ $name ]['attributes'][ $key_name ] = $parsed_key;
 					}
 				}
 			}

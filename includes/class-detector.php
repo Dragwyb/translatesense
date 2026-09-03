@@ -195,7 +195,7 @@ class Detector {
 			}
 
 			$attrs         = $block['attrs'] ?? array();
-			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['keys'] ) : array();
+			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['attributes'] ) : array();
 			$no_translate  = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
 			$ignore_keys   = array_merge( $existing_keys, $no_translate );
 
@@ -258,7 +258,7 @@ class Detector {
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
 				$settings        = $element['settings'] ?? array();
-				$existing_fields = isset( $elementor_rules[ $widget_type ] ) ? array_keys( $elementor_rules[ $widget_type ]['fields'] ) : array();
+				$existing_fields = isset( $elementor_rules[ $widget_type ] ) ? array_keys( $elementor_rules[ $widget_type ]['attributes'] ) : array();
 				$no_translate    = isset( $elementor_rules[ $widget_type ]['no_translate'] ) ? array_keys( $elementor_rules[ $widget_type ]['no_translate'] ) : array();
 				$ignore_fields   = array_merge( $existing_fields, $no_translate );
 
@@ -378,11 +378,11 @@ class Detector {
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <elementor-widgets>\n";
 		foreach ( $found_items as $w_name => $fields ) {
 			$generated_xml .= '        <widget name="' . esc_attr( $w_name ) . "\">\n";
-			$generated_xml .= "            <fields>\n";
+			$generated_xml .= "            <attributes>\n";
 			foreach ( $fields as $f_path => $f_info ) {
-				$generated_xml .= '                <field type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . '">' . esc_html( $f_path ) . "</field>\n";
+				$generated_xml .= '                <key name="' . esc_attr( $f_path ) . '" type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . "\" />\n";
 			}
-			$generated_xml .= "            </fields>\n";
+			$generated_xml .= "            </attributes>\n";
 			$generated_xml .= "        </widget>\n";
 		}
 		$generated_xml .= "    </elementor-widgets>\n</wpml-config>";

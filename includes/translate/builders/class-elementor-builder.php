@@ -64,7 +64,7 @@ class Elementor_Builder extends Base_Builder {
 			$widget_type = $element['widgetType'] ?? '';
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) && isset( $rules[ $widget_type ] ) ) {
-				$fields = $rules[ $widget_type ]['fields'] ?? array();
+				$fields = $rules[ $widget_type ]['attributes'] ?? array();
 				foreach ( $fields as $path => $f_info ) {
 					self::translate_nested_setting( $element['settings'], (string) $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
 				}
