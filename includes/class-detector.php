@@ -269,8 +269,7 @@ class Detector {
 					Xml_Engine::append_custom_rule(
 						'elementor',
 						$widget_type,
-						$new_fields,
-						array( 'widgetType' => $widget_type )
+						$new_fields
 					);
 				}
 			}

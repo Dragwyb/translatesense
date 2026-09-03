@@ -199,8 +199,7 @@ class Elementor_Builder extends Base_Builder {
 						Xml_Engine::append_custom_rule(
 							'elementor',
 							$widget_name,
-							$discovered_rules,
-							array( 'widgetType' => $widget_name )
+							$discovered_rules
 						);
 
 						foreach ( $discovered_rules as $new_path => $schema_info ) {

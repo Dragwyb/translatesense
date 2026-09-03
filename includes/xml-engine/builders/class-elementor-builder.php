@@ -278,10 +278,9 @@ class Elementor_Builder extends Base_Builder {
 	 * @param SimpleXMLElement $xml
 	 * @param string           $name
 	 * @param array            $field_details
-	 * @param array            $conditions
 	 * @return void
 	 */
-	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details, array $conditions = array() ): void {
+	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details ): void {
 		if ( ! isset( $xml->{$this->section_name} ) ) {
 			$xml->addChild( $this->section_name );
 		}
@@ -364,17 +363,10 @@ class Elementor_Builder extends Base_Builder {
 				$name = (string) $widget['name'];
 				if ( ! isset( $rules['elementor'][ $name ] ) ) {
 					$rules['elementor'][ $name ] = array(
-						'name'       => $name,
-						'source'     => $source,
-						'conditions' => array(),
-						'fields'     => array(),
+						'name'   => $name,
+						'source' => $source,
+						'fields' => array(),
 					);
-				}
-
-				if ( isset( $widget->conditions->condition ) ) {
-					foreach ( $widget->conditions->condition as $cond ) {
-						$rules['elementor'][ $name ]['conditions'][ (string) $cond['key'] ] = (string) $cond;
-					}
 				}
 
 				if ( isset( $widget->fields->field ) ) {

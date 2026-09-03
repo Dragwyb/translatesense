@@ -599,10 +599,9 @@ class Xml_Engine {
 	 * @param string $builder
 	 * @param string $name
 	 * @param array  $field_details
-	 * @param array  $conditions
 	 * @return bool|WP_Error
 	 */
-	public static function append_custom_rule( $builder, $name, $field_details, $conditions = array() ) {
+	public static function append_custom_rule( $builder, $name, $field_details ) {
 		$target_builder = in_array( $builder, self::BUILDERS, true ) ? $builder : 'gutenberg';
 		$builder_obj    = self::get_builder( $target_builder );
 		if ( ! $builder_obj ) {
@@ -617,7 +616,7 @@ class Xml_Engine {
 			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ) );
 		}
 
-		$builder_obj->append_rule( $xml, (string) $name, $field_details, $conditions );
+		$builder_obj->append_rule( $xml, (string) $name, $field_details );
 
 		return self::save_builder_xml( $target_builder, $xml->asXML() );
 	}

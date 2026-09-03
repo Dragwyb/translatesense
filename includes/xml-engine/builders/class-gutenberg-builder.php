@@ -145,10 +145,9 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param SimpleXMLElement $xml
 	 * @param string           $name
 	 * @param array            $field_details
-	 * @param array            $conditions
 	 * @return void
 	 */
-	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details, array $conditions = array() ): void {
+	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details ): void {
 		if ( ! isset( $xml->{$this->section_name} ) ) {
 			$xml->addChild( $this->section_name );
 		}
