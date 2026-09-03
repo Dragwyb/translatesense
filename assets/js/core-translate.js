@@ -82,7 +82,7 @@
      */
     saveTranslatedString(id, sourceValue, filterValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
       const widget = widgetOrBlockName || id || 'generic';
-      const hash = this.generateHash(widget, sourceValue);
+      const hash = this.generateHash(widget, filterValue);
 
       const entry = {
         id: id || hash,
@@ -148,22 +148,30 @@
 
       // 1. Check by hash + provider
       if (provider && this.translatedStrings.has(`${hash}_${provider}`)) {
-        return this.translatedStrings.get(`${hash}_${provider}`).translated;
+        return {
+          source: sourceValue,
+          translate: this.translatedStrings.get(`${hash}_${provider}`).translated
+        };
       }
 
-      // 2. Check by hash directly
-      if (this.translatedStrings.has(hash)) {
-        return this.translatedStrings.get(hash).translated;
+      let orignalSource;
+
+      for (const [key, data] of this.translatedStrings) {
+        if (data.source && data.filterValue === sourceValue) {
+          orignalSource = data.source;
+          break;
+        }
       }
 
-      // 3. Check by ID + provider
-      if (id && provider && this.translatedStrings.has(`${id}_${provider}`)) {
-        return this.translatedStrings.get(`${id}_${provider}`).translated;
-      }
+      if (orignalSource) {
+        const hash = this.generateHash(widget, orignalSource);
 
-      // 4. Check by ID directly
-      if (id && this.translatedStrings.has(id)) {
-        return this.translatedStrings.get(id).translated;
+        if (this.translatedStrings.has(hash)) {
+          return {
+            source: orignalSource,
+            translate: this.translatedStrings.get(`${hash}_${provider}`).translated
+          }
+        }
       }
 
       return '';
@@ -713,7 +721,7 @@
         throw new Error('Missing post ID for getPageContent');
       }
 
-      let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id) + 'bypass=true';
+      let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id);
       if (fields && fields.length > 0) {
         const fieldsStr = Array.isArray(fields) ? fields.join(',') : fields;
         url += '&fields=' + encodeURIComponent(fieldsStr);

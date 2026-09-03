@@ -97,7 +97,6 @@
 
     init() {
       this.bindUniversalTriggers();
-
       // Dispatch specific initialization based on localized editorType
       switch (this.editorType) {
         case 'gutenberg':
@@ -638,14 +637,14 @@
           this.strings = this.strings.map((item) => {
             if (item.value === result.source || (result.hash && item.hash === result.hash)) {
               if (window.TranslateSenseCore) {
-                window.TranslateSenseCore.saveSourceString(item.field || item.widget_id, item.value, item.widget_id);
+                window.TranslateSenseCore.saveSourceString(item.name, item.value, item.name);
                 window.TranslateSenseCore.saveTranslatedString(
-                  item.field || item.widget_id,
+                  item.name,
                   item.source,
                   item.value,
                   result.translated,
                   this.selectedProvider,
-                  item.widget_id
+                  item.name
                 );
               }
               return {
@@ -1016,6 +1015,9 @@
         const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
           strings: this.strings,
           sourcePageData: this.sourcePageData,
+          options: {
+            provider: this.selectedProvider
+          }
         });
 
         if (result && result.success) {
@@ -1025,7 +1027,9 @@
         await window.TranslateSenseLiveUpdater.apply({
           strings: this.strings,
           editorType: this.editorType,
-          options: { sourcePageData: this.sourcePageData },
+          options: {
+            sourcePageData: this.sourcePageData, provider: this.selectedProvider
+          },
         });
       } else {
         alert('🎉 Translations applied to page successfully!');
