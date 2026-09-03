@@ -215,8 +215,9 @@
 
           // Check if we have XML rules for this block
           const rule = blockRules[blockName];
-          if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
-            const res = updateAttributeTree(attrs, rule.keys, blockName);
+          const keys = rule ? (rule.attributes || rule) : null;
+          if (keys && Object.keys(keys).length > 0) {
+            const res = updateAttributeTree(attrs, keys, blockName);
             if (res.changed) {
               block.attributes = res.updated;
             }
