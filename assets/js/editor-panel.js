@@ -875,8 +875,8 @@
       });
 
       // Apply to editor button
-      document.getElementById('ts-apply-to-editor-btn').addEventListener('click', () => {
-        this.applyTranslationsToEditor();
+      document.getElementById('ts-apply-to-editor-btn').addEventListener('click', async () => {
+        await this.applyTranslationsToEditor();
         closeModal();
       });
 
