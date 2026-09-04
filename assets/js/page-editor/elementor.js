@@ -348,7 +348,7 @@
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Page Title from translated strings or source
-      const titleItem = strings.find((s) => s.field === 'post_title' || s.field === 'title');
+      const titleItem = strings.find((s) => s.name === 'post_title');
       const translatedTitle = titleItem ? titleItem.translated : (sourceData ? sourceData.title : '');
       if (translatedTitle) {
         this.updatePageTitle(translatedTitle);

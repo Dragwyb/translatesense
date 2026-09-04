@@ -79,17 +79,21 @@
 
       const editData = {};
       strings.forEach((s) => {
-        const field = s.field || '';
-        const translated = s.translated || '';
+        const field = s.name || '';
+        let isTranslated = null;
 
-        if (!translated) return;
+        if (['post_title', 'post_excerpt', 'post_name'].includes(field)) {
+          isTranslated = window.TranslateSenseCore.getTranslatedString(field, s.source, this.provider, field);
+        }
 
-        if (field === 'post_title' || field === 'title') {
-          editData.title = translated;
-        } else if (field === 'post_excerpt' || field === 'excerpt') {
-          editData.excerpt = translated;
-        } else if (field === 'post_name' || field === 'slug') {
-          editData.slug = translated;
+        if (!isTranslated || !isTranslated.translate) return;
+
+        if (field === 'post_title') {
+          editData.title = isTranslated.translate;
+        } else if (field === 'post_excerpt') {
+          editData.excerpt = isTranslated.translate;
+        } else if (field === 'post_name') {
+          editData.slug = isTranslated.translate;
         }
       });
 
