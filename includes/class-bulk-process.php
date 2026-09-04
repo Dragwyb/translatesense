@@ -279,6 +279,45 @@ class Bulk_Process {
 				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
 			}
 
+			$post_title = get_the_title( $post_id );
+
+			if ( ! empty( $post_title ) ) {
+				$post_title_hash = Hashing_Db::generate_hash( 'post_title', $post_title );
+				$packages[]      = array(
+					'hash'   => $post_title_hash,
+					'name'   => 'post_title',
+					'key'    => 'Post/Page Title',
+					'source' => $post_title,
+					'value'  => $post_title,
+				);
+			}
+
+			$post_slug = get_post_field( 'post_name', $post_id );
+
+			if ( ! empty( $post_slug ) ) {
+				$post_slug_hash = Hashing_Db::generate_hash( 'post_name', $post_slug );
+				$packages[]     = array(
+					'hash'   => $post_slug_hash,
+					'name'   => 'post_name',
+					'key'    => 'Post/Page Slug',
+					'source' => $post_slug,
+					'value'  => $post_slug,
+				);
+			}
+
+			$post_excerpt = get_post_field( 'post_excerpt', $post_id );
+
+			if ( ! empty( $post_excerpt ) ) {
+				$post_excerpt_hash = Hashing_Db::generate_hash( 'post_excerpt', $post_excerpt );
+				$packages[]        = array(
+					'hash'   => $post_excerpt_hash,
+					'name'   => 'post_excerpt',
+					'key'    => 'Post/Page Excerpt',
+					'source' => $post_excerpt,
+					'value'  => $post_excerpt,
+				);
+			}
+
 			$packages = array_values( (array) $packages );
 
 			// Extract pure strings indexed by array index
