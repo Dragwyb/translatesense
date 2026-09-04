@@ -65,18 +65,39 @@ class Gutenberg_Builder extends Base_Builder {
 
 			if ( isset( $rules[ $name ] ) ) {
 				$keys = $rules[ $name ]['attributes'] ?? array();
-				if ( ! empty( $keys ) && isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
-					foreach ( $keys as $k_name => $k_info ) {
-						if ( isset( $block['attrs'][ $k_name ] ) ) {
-							self::translate_attribute_value_recursive(
-								$block['attrs'][ $k_name ],
-								$k_info,
-								$name,
-								$source_lang,
-								$target_lang,
-								$post_id,
-								$custom_opts
-							);
+				if ( ! empty( $keys ) ) {
+					$found_strings = array();
+
+					if ( isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
+						foreach ( $keys as $k_name => $k_info ) {
+							if ( isset( $block['attrs'][ $k_name ] ) ) {
+								$found_strings[] = $block['attrs'][ $k_name ];
+								self::translate_attribute_value_recursive(
+									$block['attrs'][ $k_name ],
+									$k_info,
+									$name,
+									$source_lang,
+									$target_lang,
+									$post_id,
+									$custom_opts
+								);
+							}
+						}
+					}
+
+					if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+						foreach ( $block['innerContent'] as &$inner_content ) {
+							if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+								self::translate_attribute_value_recursive(
+									$inner_content,
+									array(),
+									$name,
+									$source_lang,
+									$target_lang,
+									$post_id,
+									$custom_opts
+								);
+							}
 						}
 					}
 				}
