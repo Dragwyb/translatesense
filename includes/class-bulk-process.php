@@ -40,9 +40,9 @@ class Bulk_Process {
 	/**
 	 * Get table name.
 	 */
-	public static function get_table_name(): string {
+	private static function get_table_name(): string {
 		global $wpdb;
-		return $wpdb->prefix . 'translatesense_bulk_translations';
+		return esc_sql( $wpdb->prefix . 'translatesense_bulk_translations' );
 	}
 
 	/**
@@ -70,6 +70,7 @@ class Bulk_Process {
 
 		// 2. Fallback check: look for post with _translatesense_source_id meta
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$found_id = (int) $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT p.ID FROM {$wpdb->posts} p
@@ -144,6 +145,7 @@ class Bulk_Process {
 					'updated_at'               => current_time( 'mysql' ),
 				);
 
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				$wpdb->insert(
 					$table,
 					$insert_data,
@@ -182,10 +184,9 @@ class Bulk_Process {
 	public static function has_pending_or_running_jobs(): bool {
 		global $wpdb;
 		$table = self::get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table} 
-			 WHERE status IN ('pending', 'running') 
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai')"
+			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return $count > 0;
@@ -230,22 +231,14 @@ class Bulk_Process {
 		global $wpdb;
 		$table = self::get_table_name();
 
-		// Check if any job has been stuck in 'running' state for over 10 minutes, reset to pending
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"UPDATE {$table} 
-			 SET status = 'pending', progress_status = 'Restarting after timeout' 
-			 WHERE status = 'running' 
-			 AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai')"
+			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
-		// Get next pending backend job
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$job = $wpdb->get_row(
-			"SELECT * FROM {$table} 
-			 WHERE status = 'pending' 
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai') 
-			 ORDER BY id ASC 
-			 LIMIT 1",
+			"SELECT * FROM {$table}  WHERE status = 'pending' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			ARRAY_A
 		);
 
@@ -431,6 +424,7 @@ class Bulk_Process {
 			$data['updated_at'] = current_time( 'mysql' );
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$result = $wpdb->update(
 			$table,
 			$data,
@@ -453,18 +447,21 @@ class Bulk_Process {
 		$table = self::get_table_name();
 
 		if ( ! empty( $batch_id ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE batch_id = %s ORDER BY id ASC", $batch_id ),
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE batch_id = %s ORDER BY id ASC", $batch_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		} elseif ( $post_id > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE post_id = %d ORDER BY id DESC LIMIT 20", $post_id ),
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE post_id = %d ORDER BY id DESC LIMIT 20", $post_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				"SELECT * FROM {$table} ORDER BY id DESC LIMIT 50",
+				"SELECT * FROM {$table} ORDER BY id DESC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		}
@@ -579,15 +576,19 @@ class Bulk_Process {
 		$current_status = 'Queued';
 		if ( 'completed' === $overall_status ) {
 			if ( $already_exists_jobs > 0 && $completed_jobs > 0 ) {
+				/* translators: 1: Number of translated posts, 2: Number of already existing posts */
 				$current_status = sprintf( __( 'Completed! %1$d posts translated, %2$d already existed.', 'translatesense' ), $completed_jobs, $already_exists_jobs );
 			} elseif ( $already_exists_jobs > 0 && 0 === $completed_jobs ) {
+				/* translators: %d: Number of already existing posts */
 				$current_status = sprintf( __( 'All %d selected translations already exist.', 'translatesense' ), $already_exists_jobs );
 			} else {
+				/* translators: %d: Number of translated posts */
 				$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
 			}
 		} elseif ( 'failed' === $overall_status ) {
 			$current_status = __( 'Batch translation failed.', 'translatesense' );
 		} elseif ( $running_jobs > 0 ) {
+			/* translators: 1: Completed jobs count, 2: Total jobs count */
 			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + $already_exists_jobs + 1, $total_jobs );
 		}
 

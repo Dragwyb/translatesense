@@ -125,19 +125,6 @@ class Plugin {
 		Editor_Integration::init();
 		Content_Parser::init();
 		Cron::init();
-
-		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
-	}
-
-	/**
-	 * Load plugin textdomain.
-	 */
-	public function load_textdomain() {
-		load_plugin_textdomain(
-			'translatesense',
-			false,
-			dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
-		);
 	}
 }
 

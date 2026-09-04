@@ -215,7 +215,7 @@ class Translate {
 	 * @return bool
 	 */
 	public static function is_email_or_url( string $str ): bool {
-		$trimmed = trim( strip_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
+		$trimmed = trim( wp_strip_all_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
 
 		if ( '' === $trimmed ) {
 			return false;

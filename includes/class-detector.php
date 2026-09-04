@@ -123,13 +123,13 @@ class Detector {
 			}
 		}
 
-		// Find existing draft sandbox post via query
+		// Find existing draft sandbox post via query (limit 1 for builder config post)
 		$existing_sandbox = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
 				'post_status'    => 'draft',
-				'meta_key'       => '_translatesense_config_post',
-				'meta_value'     => $builder,
+				'meta_key'       => '_translatesense_config_post', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				'meta_value'     => $builder, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'posts_per_page' => 1,
 			)
 		);

@@ -30,6 +30,7 @@ class Admin_Menu {
 	public static function register_menu_pages() {
 		$capability = 'manage_options';
 		if ( function_exists( 'pll_languages_list' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Using Polylang capability filter for compatibility.
 			$capability = apply_filters( 'pll_capability_manage_options', $capability );
 		}
 		$capability = apply_filters( 'translatesense_menu_capability', $capability );

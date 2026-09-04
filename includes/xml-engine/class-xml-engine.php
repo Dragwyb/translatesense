@@ -288,7 +288,7 @@ class Xml_Engine {
 
 			// Sync file if writable
 			$path = self::get_master_xml_path();
-			if ( is_writable( dirname( $path ) ) || ( file_exists( $path ) && is_writable( $path ) ) ) {
+			if ( wp_is_writable( dirname( $path ) ) || ( file_exists( $path ) && wp_is_writable( $path ) ) ) {
 				@file_put_contents( $path, $formatted_xml );
 			}
 		} else {

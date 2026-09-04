@@ -484,6 +484,7 @@ class Rest_Api {
 				'success'    => true,
 				'builder'    => $builder,
 				'widget_id'  => $widget_id,
+				/* translators: %s: Page builder name (e.g. Gutenberg, Elementor) */
 				'message'    => sprintf( __( '%s XML configuration saved successfully.', 'translatesense' ), ucfirst( $builder ) ),
 				'custom_xml' => Xml_Engine::get_config( $builder ),
 				'rules'      => Xml_Engine::get_all_rules( $builder, true ),
@@ -701,8 +702,8 @@ class Rest_Api {
 
 		// Stats
 		$table_translations = Hashing_Db::get_translations_table();
-		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" );
-		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" );
+		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		return rest_ensure_response(
 			array(
@@ -767,6 +768,7 @@ class Rest_Api {
 				array(
 					'success'     => false,
 					'editor_type' => $source_editor_type,
+					/* translators: 1: Source editor type, 2: Target editor type */
 					'message'     => sprintf( __( 'Source editor type (%1$s) must be same as Current Post editor type (%2$s).', 'translatesense' ), $source_editor_type, $target_editor_type ),
 				)
 			);

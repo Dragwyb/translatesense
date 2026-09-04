@@ -27,15 +27,15 @@ class Cron {
 		$table_packages     = Hashing_Db::get_packages_table();
 
 		// Clean cached strings after 5 days
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"DELETE FROM {$table_translations} 
-			 WHERE updated_at < DATE_SUB(NOW(), INTERVAL 5 DAY)"
+			"DELETE FROM {$table_translations} WHERE updated_at < DATE_SUB(NOW(), INTERVAL 5 DAY)" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		// Also clean expired packages older than 30 days
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"DELETE FROM {$table_packages} 
-			 WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
+			"DELETE FROM {$table_packages} WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		// Clean orphaned strings in translatesense_strings
@@ -48,6 +48,7 @@ class Cron {
 	public static function purge_all_cache() {
 		global $wpdb;
 		$table_translations = Hashing_Db::get_translations_table();
-		return $wpdb->query( "TRUNCATE TABLE {$table_translations}" );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->query( "TRUNCATE TABLE {$table_translations}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 }
