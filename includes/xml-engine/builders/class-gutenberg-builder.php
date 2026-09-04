@@ -227,7 +227,6 @@ class Gutenberg_Builder extends Base_Builder {
 						'name'         => $name,
 						'source'       => $source,
 						'attributes'   => array(),
-						'keys'         => array(),
 						'no_translate' => array(),
 					);
 				}
