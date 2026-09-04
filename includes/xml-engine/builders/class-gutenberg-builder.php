@@ -118,6 +118,8 @@ class Gutenberg_Builder extends Base_Builder {
 		$new_key_source = null;
 		if ( isset( $new_block->attributes->key ) ) {
 			$new_key_source = $new_block->attributes->key;
+		} elseif ( isset( $new_block->key ) ) {
+			$new_key_source = $new_block->key;
 		}
 		if ( $new_key_source ) {
 			foreach ( $new_key_source as $k_node ) {
@@ -126,7 +128,20 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 		}
 
+		// Gather existing keys from both direct <key> children and <attributes><key>
 		$existing_keys = array();
+		$direct_keys   = array();
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'key' === $child->nodeName ) {
+				$direct_keys[] = $child;
+				$k_name        = $child->getAttribute( 'name' );
+				if ( ! isset( $existing_keys[ $k_name ] ) ) {
+					$existing_keys[ $k_name ] = $child;
+				}
+			}
+		}
+
 		$attr_children = $attributes_elem->childNodes;
 		for ( $i = 0; $i < $attr_children->length; $i++ ) {
 			$child = $attr_children->item( $i );
@@ -136,8 +151,19 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 		}
 
+		// Remove direct <key> children so everything stays inside <attributes>
+		foreach ( $direct_keys as $dk ) {
+			$existing_block->removeChild( $dk );
+		}
+
 		foreach ( $existing_keys as $k_name => $dom_key ) {
+			$already_no_translate = $dom_key->hasAttribute( 'noTranslate' ) && in_array( strtolower( (string) $dom_key->getAttribute( 'noTranslate' ) ), array( 'true', '1', 'yes' ), true );
+
 			if ( isset( $new_keys[ $k_name ] ) ) {
+				if ( $dom_key->parentNode !== $attributes_elem ) {
+					$attributes_elem->appendChild( $dom_key );
+				}
+
 				$new_k = $new_keys[ $k_name ];
 				if ( isset( $new_k['type'] ) ) {
 					$dom_key->setAttribute( 'type', (string) $new_k['type'] );
@@ -151,7 +177,18 @@ class Gutenberg_Builder extends Base_Builder {
 					$dom_key->removeAttribute( 'noTranslate' );
 				}
 			} else {
-				$dom_key->setAttribute( 'noTranslate', 'true' );
+				if ( $already_no_translate ) {
+					// Key already had noTranslate tag and was removed from snippet -> remove completely
+					if ( $dom_key->parentNode === $attributes_elem ) {
+						$attributes_elem->removeChild( $dom_key );
+					}
+				} else {
+					// Key was previously active and was removed from snippet -> mark as noTranslate="true"
+					if ( $dom_key->parentNode !== $attributes_elem ) {
+						$attributes_elem->appendChild( $dom_key );
+					}
+					$dom_key->setAttribute( 'noTranslate', 'true' );
+				}
 			}
 		}
 
