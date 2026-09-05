@@ -562,13 +562,14 @@
           // State tracking for grouped post results & activity
           const postResultsMap = {};
           postIds.forEach(function (pid) {
-            postResultsMap[pid] = {
+            const pIdStr = String(pid);
+            postResultsMap[pIdStr] = {
               postId: pid,
               postTitle: `Post #${pid}`,
               translations: {},
             };
             selectedTargetLangs.forEach(function (lang) {
-              postResultsMap[pid].translations[lang] = {
+              postResultsMap[pIdStr].translations[lang] = {
                 targetLang: lang,
                 targetPostId: null,
                 targetTitle: '',
@@ -649,26 +650,25 @@
                 }
 
                 let actionsHtml = '';
-                if (isAlreadyExists) {
-                  const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
-                  actionsHtml = `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-action-link-btn view" title="View translated post on site">👁 View</a>`;
-                } else if (isDone) {
-                  const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
-                  const editLabel = '✏️ Edit';
-                  const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
-                  const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
+                const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
+                const editLabel = '✏️ Edit';
+                const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
+                const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
 
-                  const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
-                  const editHref = trans.editUrl || defaultEditUrl;
-                  const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
+                const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
+                const editHref = trans.editUrl || defaultEditUrl;
+                const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
 
+                if (isAlreadyExists || isDone) {
                   actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-action-link-btn view" title="View translated post on site">👁 View</a>`;
-                  actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
+                  if (trans.targetPostId || trans.editUrl) {
+                    actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
+                  }
                 } else {
                   actionsHtml += `<span class="ts-action-link-btn disabled">👁 View</span><span class="ts-action-link-btn disabled">✏️ Edit</span>`;
                 }
 
-                const displayTitle = trans.targetTitle || (isAlreadyExists ? (trans.targetTitle || postData.postTitle) : (isDone ? postData.postTitle : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`)));
+                const displayTitle = trans.targetTitle || (isAlreadyExists ? (trans.targetTitle || postData.postTitle) : (isDone ? (trans.targetTitle || postData.postTitle) : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`)));
 
                 html += `
                   <div class="ts-translation-item ${trans.status}">
@@ -839,19 +839,42 @@
 
           // Populate post titles & editor types from batch jobs
           jobsList.forEach(function (job) {
-            if (postResultsMap[job.post_id]) {
-              if (job.post_title) postResultsMap[job.post_id].postTitle = job.post_title;
-              if (job.editor_type && postResultsMap[job.post_id].translations[job.target_language]) {
-                postResultsMap[job.post_id].translations[job.target_language].editorType = job.editor_type;
-              }
-              if (job.status === 'already_exists' && postResultsMap[job.post_id].translations[job.target_language]) {
-                const trans = postResultsMap[job.post_id].translations[job.target_language];
-                trans.status = 'already_exists';
-                trans.targetPostId = job.target_post_id;
-                trans.targetTitle = job.target_post_title || job.post_title;
-                trans.viewUrl = job.view_url || '';
-                trans.editUrl = '';
-              }
+            const pId = String(job.post_id);
+            const tLang = String(job.target_language);
+
+            if (!postResultsMap[pId]) {
+              postResultsMap[pId] = {
+                postId: job.post_id,
+                postTitle: job.post_title || `Post #${job.post_id}`,
+                translations: {},
+              };
+            }
+            if (job.post_title) postResultsMap[pId].postTitle = job.post_title;
+
+            if (!postResultsMap[pId].translations[tLang]) {
+              postResultsMap[pId].translations[tLang] = {
+                targetLang: tLang,
+                targetPostId: null,
+                targetTitle: '',
+                status: 'pending',
+                completedStrings: 0,
+                totalStrings: 0,
+                editUrl: '',
+                viewUrl: '',
+                error: '',
+              };
+            }
+
+            const trans = postResultsMap[pId].translations[tLang];
+            if (job.editor_type) {
+              trans.editorType = job.editor_type;
+            }
+            if (job.status === 'already_exists') {
+              trans.status = 'already_exists';
+              trans.targetPostId = job.target_post_id;
+              trans.targetTitle = job.target_post_title || job.post_title;
+              trans.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
+              trans.editUrl = job.edit_url || (job.target_post_id ? `post.php?post=${job.target_post_id}&action=edit` : '');
             }
           });
           renderResultsUI();
@@ -899,24 +922,28 @@
                 // Update Grouped Results Map from Polling Items
                 if (Array.isArray(data.items)) {
                   data.items.forEach(function (item) {
-                    if (!postResultsMap[item.post_id]) {
-                      postResultsMap[item.post_id] = {
+                    const pId = String(item.post_id);
+                    const tLang = String(item.target_language);
+
+                    if (!postResultsMap[pId]) {
+                      postResultsMap[pId] = {
                         postId: item.post_id,
-                        postTitle: item.post_title,
+                        postTitle: item.post_title || `Post #${item.post_id}`,
                         translations: {},
                       };
                     }
-                    if (item.post_title) postResultsMap[item.post_id].postTitle = item.post_title;
-                    postResultsMap[item.post_id].translations[item.target_language] = {
+                    if (item.post_title) postResultsMap[pId].postTitle = item.post_title;
+
+                    postResultsMap[pId].translations[tLang] = {
                       targetLang: item.target_language,
                       targetPostId: item.target_post_id,
-                      targetTitle: item.target_post_title || (item.status === 'already_exists' || item.status === 'completed' ? item.post_title : (item.progress_status || 'Processing...')),
+                      targetTitle: item.target_post_title || (item.status === 'already_exists' || item.status === 'completed' ? (item.target_post_title || item.post_title) : (item.progress_status || 'Processing...')),
                       editorType: item.editor_type,
                       status: item.status,
                       completedStrings: item.completed_strings,
                       totalStrings: item.total_strings,
-                      editUrl: item.status === 'already_exists' ? '' : item.edit_url,
-                      viewUrl: item.view_url,
+                      editUrl: item.edit_url || (item.target_post_id ? `post.php?post=${item.target_post_id}&action=edit` : ''),
+                      viewUrl: item.view_url || (item.target_post_id ? `/?p=${item.target_post_id}` : ''),
                       error: item.error_message,
                     };
                   });
@@ -973,35 +1000,50 @@
 
           for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
             const job = jobsList[jobIndex];
-            const postId = job.post_id;
-            const targetLang = job.target_language;
+            const postId = String(job.post_id);
+            const targetLang = String(job.target_language);
             const jobId = job.id;
             const postEditorType = job.editor_type || 'core';
             const postTitle = job.post_title || `Post #${postId}`;
 
+            if (!postResultsMap[postId]) {
+              postResultsMap[postId] = {
+                postId: job.post_id,
+                postTitle: postTitle,
+                translations: {},
+              };
+            }
+            if (!postResultsMap[postId].translations[targetLang]) {
+              postResultsMap[postId].translations[targetLang] = {
+                targetLang: targetLang,
+                targetPostId: null,
+                targetTitle: '',
+                status: 'pending',
+                completedStrings: 0,
+                totalStrings: 0,
+                editUrl: '',
+                viewUrl: '',
+                error: '',
+              };
+            }
+
             // Skip Chrome AI translation if already exists
             if (job.status === 'already_exists') {
-              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
-                const transObj = postResultsMap[postId].translations[targetLang];
-                transObj.status = 'already_exists';
-                transObj.targetPostId = job.target_post_id;
-                transObj.targetTitle = job.target_post_title || postTitle;
-                transObj.editorType = job.editor_type || postEditorType;
-                transObj.editUrl = '';
-                transObj.viewUrl = job.view_url || '';
-                renderResultsUI();
-              }
+              const transObj = postResultsMap[postId].translations[targetLang];
+              transObj.status = 'already_exists';
+              transObj.targetPostId = job.target_post_id;
+              transObj.targetTitle = job.target_post_title || postTitle;
+              transObj.editorType = job.editor_type || postEditorType;
+              transObj.editUrl = job.edit_url || (job.target_post_id ? `post.php?post=${job.target_post_id}&action=edit` : '');
+              transObj.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
+              renderResultsUI();
               completedJobsCount++;
               continue;
             }
 
-            if (postResultsMap[postId]) {
-              postResultsMap[postId].postTitle = postTitle;
-              if (postResultsMap[postId].translations[targetLang]) {
-                postResultsMap[postId].translations[targetLang].status = 'running';
-                renderResultsUI();
-              }
-            }
+            postResultsMap[postId].postTitle = postTitle;
+            postResultsMap[postId].translations[targetLang].status = 'running';
+            renderResultsUI();
 
             if (statusText) {
               statusText.textContent = `Extracting strings for ${postTitle} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
