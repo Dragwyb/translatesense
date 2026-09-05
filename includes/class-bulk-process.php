@@ -87,8 +87,13 @@ class Bulk_Process {
 				$post_id
 			)
 		);
+
 		if ( $found_id > 0 && $found_id !== $post_id && get_post( $found_id ) ) {
-			return $found_id;
+			$found_post_lang = Polylang_Bridge::get_post_language( $found_id );
+
+			if ( $found_post_lang === $target_lang ) {
+				return $found_id;
+			}
 		}
 
 		return 0;
@@ -126,7 +131,8 @@ class Bulk_Process {
 
 				// Check if translation already exists for this post & target language
 				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
-				$already_exists    = ( $existing_trans_id > 0 );
+
+				$already_exists = ( $existing_trans_id > 0 );
 
 				$job_status      = $already_exists ? 'already_exists' : 'pending';
 				$progress_status = $already_exists ? 'Already Exists' : 'Queued';
