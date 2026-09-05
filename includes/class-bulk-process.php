@@ -57,7 +57,13 @@ class Bulk_Process {
 			return 0;
 		}
 
-		// 1. Check Polylang translations if active
+		// 1. If post itself is already in the target language
+		$post_lang = Polylang_Bridge::get_post_language( $post_id );
+		if ( ! empty( $post_lang ) && strtolower( $post_lang ) === strtolower( $target_lang ) ) {
+			return $post_id;
+		}
+
+		// 2. Check Polylang translations if active
 		if ( Polylang_Bridge::is_polylang_active() ) {
 			$translations = Polylang_Bridge::get_post_translations( $post_id );
 			if ( ! empty( $translations[ $target_lang ] ) ) {
@@ -68,7 +74,7 @@ class Bulk_Process {
 			}
 		}
 
-		// 2. Fallback check: look for post with _translatesense_source_id meta
+		// 3. Fallback check: look for post with _translatesense_source_id meta
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$found_id = (int) $wpdb->get_var(
@@ -77,10 +83,8 @@ class Bulk_Process {
 				 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
 				 WHERE pm.meta_key = '_translatesense_source_id' AND pm.meta_value = %d
 				 AND p.post_status NOT IN ('trash', 'auto-draft')
-				 AND p.post_name LIKE %s
 				 LIMIT 1",
-				$post_id,
-				'%-' . $wpdb->esc_like( $target_lang )
+				$post_id
 			)
 		);
 		if ( $found_id > 0 && $found_id !== $post_id && get_post( $found_id ) ) {
@@ -158,7 +162,7 @@ class Bulk_Process {
 				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
 				$insert_data['target_post_title'] = $already_exists ? ( get_the_title( $target_post_id ) ?: '' ) : '';
 				$insert_data['view_url']          = $already_exists ? get_permalink( $target_post_id ) : '';
-				$insert_data['edit_url']          = ''; // For existing translations, do NOT return edit link
+				$insert_data['edit_url']          = $already_exists && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 				$created_jobs[]                   = $insert_data;
 			}
 		}
@@ -545,10 +549,11 @@ class Bulk_Process {
 			$target_post_title = $target_post ? $target_post->post_title : '';
 			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
 
+			$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+			$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
+
 			if ( 'already_exists' === $status ) {
 				$item_progress = 100;
-				$view_url      = $target_post_id ? get_permalink( $target_post_id ) : '';
-				$edit_url      = ''; // Do NOT return edit link for existing translations
 			} else {
 				$item_progress = 0;
 				if ( 'completed' === $status ) {
@@ -556,8 +561,6 @@ class Bulk_Process {
 				} elseif ( $t_str > 0 ) {
 					$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
 				}
-				$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-				$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
 			}
 
 			$items[] = array(
