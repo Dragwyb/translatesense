@@ -7,8 +7,18 @@
   const { createElement: el, useState, useEffect, useMemo } = window.wp.element;
 
   function TranslateSenseApp() {
+    const getInitialTab = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      const validTabs = ['gutenberg', 'elementor', 'classic', 'xml_editor', 'settings'];
+      if (urlTab && validTabs.includes(urlTab)) {
+        return urlTab;
+      }
+      return 'gutenberg';
+    };
+
     const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false, classic: false });
-    const [activeTab, setActiveTab] = useState('gutenberg');
+    const [activeTab, setActiveTab] = useState(getInitialTab);
     const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
     const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [], classic: [] });
     const [xmlConfigs, setXmlConfigs] = useState({
@@ -37,6 +47,34 @@
     const [modalTargetBuilder, setModalTargetBuilder] = useState('gutenberg');
     const [notice, setNotice] = useState(null);
     const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
+
+    // Tab Change handler that updates URL query param
+    const handleTabChange = (newTab) => {
+      setActiveTab(newTab);
+      if (['gutenberg', 'elementor', 'classic'].includes(newTab)) {
+        setSearchQuery('');
+        setSelectedCategory('all');
+        setSelectedStatus('all');
+        setSortBy('name_asc');
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', newTab);
+      window.history.pushState({ tab: newTab }, '', url.toString());
+    };
+
+    // Listen to browser Back/Forward navigation
+    useEffect(() => {
+      const onPopState = () => {
+        const params = new URLSearchParams(window.location.search);
+        const tabFromUrl = params.get('tab');
+        const validTabs = ['gutenberg', 'elementor', 'classic', 'xml_editor', 'settings'];
+        if (tabFromUrl && validTabs.includes(tabFromUrl)) {
+          setActiveTab(tabFromUrl);
+        }
+      };
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }, []);
 
     // Fetch initial data from REST API
     useEffect(() => {
@@ -73,7 +111,7 @@
           setActiveBuilders(settingsRes.active_builders);
           if (!settingsRes.active_builders[activeTab] && activeTab !== 'xml_editor' && activeTab !== 'settings') {
             const firstActive = Object.keys(settingsRes.active_builders).find((k) => settingsRes.active_builders[k]);
-            if (firstActive) setActiveTab(firstActive);
+            if (firstActive) handleTabChange(firstActive);
           }
         }
       } catch (err) {
@@ -285,7 +323,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
+            onClick: () => handleTabChange('gutenberg'),
           },
           '🧱 Gutenberg Blocks',
           el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
@@ -295,7 +333,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('elementor'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
+            onClick: () => handleTabChange('elementor'),
           },
           '🎨 Elementor Widgets',
           el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
@@ -305,7 +343,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('classic'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
+            onClick: () => handleTabChange('classic'),
           },
           '📝 Classic / Custom Fields',
           el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
@@ -314,7 +352,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'xml_editor' ? 'active' : ''}`,
-            onClick: () => setActiveTab('xml_editor'),
+            onClick: () => handleTabChange('xml_editor'),
           },
           '📋 XML Configs'
         ),
@@ -322,7 +360,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
-            onClick: () => setActiveTab('settings'),
+            onClick: () => handleTabChange('settings'),
           },
           '⚙️ General Settings'
         )
