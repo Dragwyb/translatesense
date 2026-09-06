@@ -29,6 +29,9 @@
     const [stats, setStats] = useState({ total_packages: 0, cached_results: 0 });
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [selectedStatus, setSelectedStatus] = useState('all');
+    const [sortBy, setSortBy] = useState('name_asc');
     const [selectedWidget, setSelectedWidget] = useState(null);
     const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
     const [modalTargetBuilder, setModalTargetBuilder] = useState('gutenberg');
@@ -144,12 +147,62 @@
       }
     };
 
-    const filteredWidgets = useMemo(() => {
+    const availableCategories = useMemo(() => {
       const list = widgetsData[activeTab] || [];
-      if (!searchQuery.trim()) return list;
-      const q = searchQuery.toLowerCase();
-      return list.filter((w) => w.name.toLowerCase().includes(q) || w.id.toLowerCase().includes(q));
-    }, [widgetsData, activeTab, searchQuery]);
+      const cats = new Set();
+      list.forEach((w) => {
+        if (w.category && typeof w.category === 'string') {
+          cats.add(w.category);
+        }
+      });
+      return Array.from(cats).sort((a, b) => a.localeCompare(b));
+    }, [widgetsData, activeTab]);
+
+    const filteredWidgets = useMemo(() => {
+      let list = [...(widgetsData[activeTab] || [])];
+
+      // 1. Search Query Filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        list = list.filter((w) => (w.name && w.name.toLowerCase().includes(q)) || (w.id && w.id.toLowerCase().includes(q)));
+      }
+
+      // 2. Category Filter
+      if (selectedCategory && selectedCategory !== 'all') {
+        list = list.filter((w) => w.category === selectedCategory);
+      }
+
+      // 3. Support Status Filter
+      if (selectedStatus && selectedStatus !== 'all') {
+        list = list.filter((w) => w.status === selectedStatus);
+      }
+
+      // 4. Sorting (Alphabetical A-Z by default)
+      list.sort((a, b) => {
+        const nameA = (a.name || a.id || '').toLowerCase();
+        const nameB = (b.name || b.id || '').toLowerCase();
+
+        if (sortBy === 'name_desc') {
+          return nameB.localeCompare(nameA);
+        }
+        if (sortBy === 'fields_desc') {
+          return (b.field_count || 0) - (a.field_count || 0) || nameA.localeCompare(nameB);
+        }
+        if (sortBy === 'fields_asc') {
+          return (a.field_count || 0) - (b.field_count || 0) || nameA.localeCompare(nameB);
+        }
+        if (sortBy === 'status') {
+          const order = { custom: 1, supported: 2, unsupported: 3 };
+          const statusA = order[a.status] || 4;
+          const statusB = order[b.status] || 4;
+          return statusA - statusB || nameA.localeCompare(nameB);
+        }
+        // Default: name_asc (Alphabetical A-Z)
+        return nameA.localeCompare(nameB);
+      });
+
+      return list;
+    }, [widgetsData, activeTab, searchQuery, selectedCategory, selectedStatus, sortBy]);
 
     if (loading) {
       return el(
@@ -232,7 +285,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); },
+            onClick: () => { setActiveTab('gutenberg'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
           },
           '🧱 Gutenberg Blocks',
           el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
@@ -242,7 +295,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('elementor'); setSearchQuery(''); },
+            onClick: () => { setActiveTab('elementor'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
           },
           '🎨 Elementor Widgets',
           el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
@@ -252,7 +305,7 @@
           'button',
           {
             className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
-            onClick: () => { setActiveTab('classic'); setSearchQuery(''); },
+            onClick: () => { setActiveTab('classic'); setSearchQuery(''); setSelectedCategory('all'); setSelectedStatus('all'); setSortBy('name_asc'); },
           },
           '📝 Classic / Custom Fields',
           el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
@@ -307,6 +360,65 @@
                     value: searchQuery,
                     onChange: (e) => setSearchQuery(e.target.value),
                   })
+                ),
+                // Category Filter
+                el(
+                  'select',
+                  {
+                    className: 'ts-filter-select',
+                    value: selectedCategory,
+                    onChange: (e) => setSelectedCategory(e.target.value),
+                    title: 'Filter by Category',
+                  },
+                  el('option', { value: 'all' }, '📂 All Categories'),
+                  availableCategories.map((cat) =>
+                    el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
+                  )
+                ),
+                // Support Status Filter
+                el(
+                  'select',
+                  {
+                    className: 'ts-filter-select',
+                    value: selectedStatus,
+                    onChange: (e) => setSelectedStatus(e.target.value),
+                    title: 'Filter by Support Status',
+                  },
+                  el('option', { value: 'all' }, '🏷️ All Statuses'),
+                  el('option', { value: 'supported' }, '✓ Supported'),
+                  el('option', { value: 'custom' }, '★ Custom Config'),
+                  el('option', { value: 'unsupported' }, '✕ Unsupported')
+                ),
+                // Sort By
+                el(
+                  'select',
+                  {
+                    className: 'ts-filter-select',
+                    value: sortBy,
+                    onChange: (e) => setSortBy(e.target.value),
+                    title: 'Sort Items',
+                  },
+                  el('option', { value: 'name_asc' }, '🔤 Name (A → Z)'),
+                  el('option', { value: 'name_desc' }, '🔤 Name (Z → A)'),
+                  el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
+                  el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
+                  el('option', { value: 'status' }, '⚡ Status (Supported first)')
+                ),
+                // Reset Filters Button if any filter active
+                (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
+                el(
+                  'button',
+                  {
+                    className: 'ts-btn ts-btn-secondary ts-btn-sm ts-reset-filter-btn',
+                    onClick: () => {
+                      setSearchQuery('');
+                      setSelectedCategory('all');
+                      setSelectedStatus('all');
+                      setSortBy('name_asc');
+                    },
+                    title: 'Reset filters to default',
+                  },
+                  '✕ Reset'
                 ),
                 // View Switcher (Grid vs List)
                 el(

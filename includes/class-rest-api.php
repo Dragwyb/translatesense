@@ -293,6 +293,13 @@ class Rest_Api {
 			);
 		}
 
+		usort(
+			$result,
+			function ( $a, $b ) {
+				return strcasecmp( (string) $a['name'], (string) $b['name'] );
+			}
+		);
+
 		return $result;
 	}
 
@@ -340,6 +347,13 @@ class Rest_Api {
 				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
 			);
 		}
+
+		usort(
+			$result,
+			function ( $a, $b ) {
+				return strcasecmp( (string) $a['name'], (string) $b['name'] );
+			}
+		);
 
 		return $result;
 	}
