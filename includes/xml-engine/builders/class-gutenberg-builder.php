@@ -93,17 +93,28 @@ class Gutenberg_Builder extends Base_Builder {
 	 */
 	public function sync_node( DOMElement $existing_block, SimpleXMLElement $new_block ): void {
 		$owner_doc = $existing_block->ownerDocument;
+		$this->sync_keys_recursive( $existing_block, $new_block, $owner_doc );
+	}
 
+	/**
+	 * Recursively sync key elements between DOM and SimpleXML.
+	 *
+	 * @param DOMElement       $existing_parent
+	 * @param SimpleXMLElement $new_parent
+	 * @param DOMDocument      $owner_doc
+	 * @return void
+	 */
+	public function sync_keys_recursive( DOMElement $existing_parent, SimpleXMLElement $new_parent, DOMDocument $owner_doc ): void {
 		$new_keys = array();
-		if ( isset( $new_block->key ) ) {
-			foreach ( $new_block->key as $k_node ) {
+		if ( isset( $new_parent->key ) ) {
+			foreach ( $new_parent->key as $k_node ) {
 				$k_name              = (string) $k_node['name'];
 				$new_keys[ $k_name ] = $k_node;
 			}
 		}
 
 		$existing_keys = array();
-		$child_nodes   = $existing_block->childNodes;
+		$child_nodes   = $existing_parent->childNodes;
 		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
 			$child = $child_nodes->item( $i );
 			if ( XML_ELEMENT_NODE === $child->nodeType && 'key' === $child->nodeName ) {
@@ -115,26 +126,24 @@ class Gutenberg_Builder extends Base_Builder {
 		foreach ( $existing_keys as $k_name => $dom_key ) {
 			if ( isset( $new_keys[ $k_name ] ) ) {
 				$new_k = $new_keys[ $k_name ];
-				if ( isset( $new_k->key ) && count( $new_k->key ) > 0 ) {
-					$new_dom_k = $owner_doc->importNode( dom_import_simplexml( $new_k ), true );
-					$existing_block->replaceChild( $new_dom_k, $dom_key );
-				} else {
-					if ( isset( $new_k['type'] ) ) {
-						$dom_key->setAttribute( 'type', (string) $new_k['type'] );
-					}
-					if ( isset( $new_k['editor_type'] ) ) {
-						$dom_key->setAttribute( 'editor_type', (string) $new_k['editor_type'] );
-					}
-					if ( isset( $new_k['noTranslate'] ) && in_array( strtolower( (string) $new_k['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
-						$dom_key->setAttribute( 'noTranslate', 'true' );
-					} else {
-						$dom_key->removeAttribute( 'noTranslate' );
-					}
+				if ( isset( $new_k['type'] ) ) {
+					$dom_key->setAttribute( 'type', (string) $new_k['type'] );
 				}
+				if ( isset( $new_k['editor_type'] ) ) {
+					$dom_key->setAttribute( 'editor_type', (string) $new_k['editor_type'] );
+				}
+				if ( isset( $new_k['noTranslate'] ) && in_array( strtolower( (string) $new_k['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+					$dom_key->setAttribute( 'noTranslate', 'true' );
+				} else {
+					$dom_key->removeAttribute( 'noTranslate' );
+				}
+
+				// Recursively sync nested child keys
+				$this->sync_keys_recursive( $dom_key, $new_k, $owner_doc );
 			} else {
 				$already_no_translate = $dom_key->hasAttribute( 'noTranslate' ) && in_array( strtolower( (string) $dom_key->getAttribute( 'noTranslate' ) ), array( 'true', '1', 'yes' ), true );
 				if ( $already_no_translate ) {
-					$existing_block->removeChild( $dom_key );
+					$existing_parent->removeChild( $dom_key );
 				} else {
 					$dom_key->setAttribute( 'noTranslate', 'true' );
 				}
@@ -144,7 +153,7 @@ class Gutenberg_Builder extends Base_Builder {
 		foreach ( $new_keys as $k_name => $new_k ) {
 			if ( ! isset( $existing_keys[ $k_name ] ) ) {
 				$k_dom = dom_import_simplexml( $new_k );
-				$existing_block->appendChild( $owner_doc->importNode( $k_dom, true ) );
+				$existing_parent->appendChild( $owner_doc->importNode( $k_dom, true ) );
 			}
 		}
 	}
