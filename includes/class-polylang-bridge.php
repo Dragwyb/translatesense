@@ -205,6 +205,9 @@ class Polylang_Bridge {
 		// Set target post language
 		self::set_post_language( $target_post_id, $target_lang );
 
+		// translated flag on target post
+		update_post_meta( $target_post_id, '_translatesense_translated', '1' );
+
 		// Update translation group
 		$translations[ $target_lang ] = $target_post_id;
 		$source_lang                  = self::get_post_language( $source_post_id );

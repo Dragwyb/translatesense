@@ -101,9 +101,32 @@ class Editor_Integration {
 	}
 
 	/**
+	 * Check if post is already translated.
+	 *
+	 * @param int $post_id
+	 * @return bool
+	 */
+	public static function is_post_already_translated( int $post_id ): bool {
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		$is_translated = get_post_meta( $post_id, '_translatesense_translated', true );
+		if ( ! empty( $is_translated ) && '0' !== (string) $is_translated ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
 	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
+		if ( ! $post_id || self::is_post_already_translated( (int) $post_id ) ) {
+			return;
+		}
+
 		$source_post_id = self::get_source_post_id( $post_id );
 
 		if ( ! $source_post_id ) {
@@ -245,7 +268,7 @@ class Editor_Integration {
 	 */
 	public static function enqueue_block_editor_assets() {
 		global $post;
-		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -261,7 +284,7 @@ class Editor_Integration {
 			return;
 		}
 		global $post;
-		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -277,7 +300,11 @@ class Editor_Integration {
 	 * Enqueue Elementor editor scripts (only for Polylang translated post types).
 	 */
 	public static function enqueue_elementor_editor_assets() {
-		$post_id   = (int) get_the_ID();
+		$post_id = (int) get_the_ID();
+		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
+
 		$post_type = get_post_type( $post_id );
 
 		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
@@ -317,6 +344,11 @@ class Editor_Integration {
 	 * Add TranslateSense Meta Box only for post types translated/supported by Polylang.
 	 */
 	public static function add_translatesense_meta_box() {
+		global $post;
+		if ( $post && self::is_post_already_translated( (int) $post->ID ) ) {
+			return;
+		}
+
 		$post_types = Polylang_Bridge::get_translated_post_types();
 
 		foreach ( $post_types as $post_type ) {
@@ -335,7 +367,11 @@ class Editor_Integration {
 	 * Render Meta Box HTML for Gutenberg and Classic Editor.
 	 */
 	public static function render_editor_meta_box( $post ) {
-		$post_id = $post->ID;
+		$post_id = (int) $post->ID;
+
+		if ( self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
 
 		$source_post_id = self::get_source_post_id( $post_id );
 
@@ -365,6 +401,10 @@ class Editor_Integration {
 		}
 
 		$post_id = (int) get_the_ID();
+
+		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
 
 		$source_post_id = self::get_source_post_id( $post_id );
 

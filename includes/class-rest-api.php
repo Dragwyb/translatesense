@@ -205,6 +205,17 @@ class Rest_Api {
 				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
 			)
 		);
+
+		// 12. Mark post as translated endpoint (used by Single Page Editor & Live Updaters)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mark-translated',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'mark_translated' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
 	}
 
 	/**
@@ -885,6 +896,10 @@ class Rest_Api {
 			return $result;
 		}
 
+		if ( ! empty( $result['target_post_id'] ) ) {
+			update_post_meta( (int) $result['target_post_id'], '_translatesense_translated', '1' );
+		}
+
 		return rest_ensure_response( $result );
 	}
 
@@ -958,12 +973,37 @@ class Rest_Api {
 			}
 		}
 
+		if ( isset( $updates['status'] ) && 'completed' === $updates['status'] && ! empty( $updates['target_post_id'] ) ) {
+			update_post_meta( (int) $updates['target_post_id'], '_translatesense_translated', '1' );
+		}
+
 		$updated = Bulk_Process::update_job( $job_id, $clean_data );
 
 		return rest_ensure_response(
 			array(
 				'success' => $updated,
 				'job_id'  => $job_id,
+			)
+		);
+	}
+
+	/**
+	 * Mark post as translated endpoint (used by Single Page Editor).
+	 */
+	public static function mark_translated( WP_REST_Request $request ) {
+		$params  = $request->get_json_params();
+		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			return new WP_Error( 'invalid_post', __( 'Valid Post ID is required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		update_post_meta( $post_id, '_translatesense_translated', '1' );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'post_id' => $post_id,
 			)
 		);
 	}

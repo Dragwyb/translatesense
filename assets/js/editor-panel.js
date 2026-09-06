@@ -1011,6 +1011,39 @@
         }
       }
 
+      const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = this.config.nonce || '';
+      const currentPostId = this.postId || this.config.postId || 0;
+
+      // Mark this post with _translatesense_traslated = 1
+      if (currentPostId) {
+        fetch(restUrl + 'mark-translated', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+          body: JSON.stringify({ post_id: currentPostId }),
+        }).catch((err) => {
+          console.warn('[TranslateSense] Could not update translated flag:', err);
+        });
+      }
+
+      // Hide or remove Translate buttons on current page
+      const metaBoxBtn = document.getElementById('ts-metabox-translate-btn');
+      if (metaBoxBtn) {
+        const metaContent = metaBoxBtn.closest('.translatesense-metabox-content') || metaBoxBtn.parentElement;
+        if (metaContent) {
+          metaContent.innerText = 'Translations Applied';
+          metaContent.className = 'disabled';
+        }
+      }
+      const mediaBtn = document.getElementById('ts-media-translate-btn');
+      if (mediaBtn) {
+        mediaBtn.innerText = 'Translations Applied';
+        mediaBtn.className = 'disabled';
+      }
+
       if (window.TranslateSenseCore && typeof window.TranslateSenseCore.applyToPageEditor === 'function') {
         const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
           strings: this.strings,
