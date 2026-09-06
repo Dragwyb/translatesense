@@ -279,8 +279,13 @@ class Content_Parser {
 
 		// Detect source language
 		$lang = '';
+
 		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) ) {
 			$lang = Polylang_Bridge::get_post_language( $post_id );
+		}
+
+		if ( ! $lang ) {
+			return;
 		}
 
 		// Detect editor type / builder
