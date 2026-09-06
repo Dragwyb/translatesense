@@ -272,7 +272,7 @@
               'h1',
               null,
               'TranslateSense Engine',
-              el('span', { className: 'ts-version-tag' }, 'v' + (window.TranslateSenseData?.version || '1.0.0'))
+              el('span', { className: 'ts-version-tag' }, 'v' + (TranslateSenseData && TranslateSenseData.version || '1.0.0'))
             ),
             el(
               'p',
@@ -954,7 +954,7 @@
       : (settings.default_prompt || '');
 
     const getProviderLogo = (providerId) => {
-      const pluginUrl = window.TranslateSenseData?.pluginUrl || '';
+      const pluginUrl = (window.TranslateSenseData && window.TranslateSenseData.pluginUrl) ? window.TranslateSenseData.pluginUrl : '';
       return pluginUrl ? `${pluginUrl}assets/img/${providerId}.png` : '';
     };
 
@@ -1562,7 +1562,8 @@
   window.addEventListener('DOMContentLoaded', () => {
     const rootEl = document.getElementById('translatesense-admin-root');
     if (rootEl && window.wp && window.wp.element) {
-      window.wp.element.render(el(TranslateSenseApp), rootEl);
+      const root = window.wp.element.createRoot(rootEl);
+      root.render(el(TranslateSenseApp));
     }
   });
 })();
