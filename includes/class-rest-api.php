@@ -255,29 +255,16 @@ class Rest_Api {
 	private static function get_gutenberg_widgets_list( $rules ) {
 		$standard_blocks = array();
 
-		// Merge all blocks present in rules (from core-config.xml or custom)
-		foreach ( $rules as $block_name => $block_data ) {
-			if ( ! isset( $standard_blocks[ $block_name ] ) ) {
-				$parts                          = explode( '/', $block_name );
-				$cat                            = count( $parts ) > 1 ? $parts[0] : 'custom';
-				$title                          = ucwords( str_replace( array( '-', '_' ), ' ', count( $parts ) > 1 ? $parts[1] : $block_name ) );
-				$standard_blocks[ $block_name ] = array(
-					'title'    => $title,
-					'category' => $cat,
-				);
-			}
-		}
-
-		// Merge registered server blocks if WP_Block_Type_Registry is available
+		// Only include registered server blocks from WP_Block_Type_Registry
 		if ( class_exists( '\WP_Block_Type_Registry' ) ) {
 			$registered = \WP_Block_Type_Registry::get_instance()->get_all_registered();
 			foreach ( $registered as $name => $type ) {
-				if ( ! isset( $standard_blocks[ $name ] ) ) {
-					$standard_blocks[ $name ] = array(
-						'title'    => $type->title ? $type->title : $name,
-						'category' => $type->category ? $type->category : 'widgets',
-					);
-				}
+				$title = ! empty( $type->title ) ? $type->title : $name;
+				$cat   = ! empty( $type->category ) ? $type->category : 'widgets';
+				$standard_blocks[ $name ] = array(
+					'title'    => $title,
+					'category' => $cat,
+				);
 			}
 		}
 
@@ -315,28 +302,18 @@ class Rest_Api {
 	private static function get_elementor_widgets_list( $rules ) {
 		$standard_widgets = array();
 
-		// Merge any widgets present in rules
-		foreach ( $rules as $widget_name => $widget_data ) {
-			if ( ! isset( $standard_widgets[ $widget_name ] ) ) {
-				$standard_widgets[ $widget_name ] = array(
-					'title'    => ucwords( str_replace( array( '-', '_' ), ' ', $widget_name ) ),
-					'category' => 'general',
-				);
-			}
-		}
-
-		// If Elementor is active and loaded
+		// Only include registered Elementor widgets if Elementor is active and loaded
 		if ( did_action( 'elementor/loaded' ) && class_exists( '\Elementor\Plugin' ) ) {
 			$widgets_mgr = \Elementor\Plugin::instance()->widgets_manager;
 			if ( $widgets_mgr ) {
 				$elementor_registered = $widgets_mgr->get_widget_types();
 				foreach ( $elementor_registered as $name => $widget_obj ) {
-					if ( ! isset( $standard_widgets[ $name ] ) ) {
-						$standard_widgets[ $name ] = array(
-							'title'    => $widget_obj->get_title(),
-							'category' => method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general',
-						);
-					}
+					$title = method_exists( $widget_obj, 'get_title' ) ? $widget_obj->get_title() : $name;
+					$cat   = method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general';
+					$standard_widgets[ $name ] = array(
+						'title'    => $title,
+						'category' => $cat,
+					);
 				}
 			}
 		}
@@ -349,7 +326,7 @@ class Rest_Api {
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
 			$field_count        = count( $fields );
 			$no_translate_count = count( $no_translate );
-			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'supported' ) : 'unsupported';
+			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 
 			$result[] = array(
 				'id'                 => $name,
