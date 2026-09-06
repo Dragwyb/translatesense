@@ -259,8 +259,8 @@ class Rest_Api {
 		if ( class_exists( '\WP_Block_Type_Registry' ) ) {
 			$registered = \WP_Block_Type_Registry::get_instance()->get_all_registered();
 			foreach ( $registered as $name => $type ) {
-				$title = ! empty( $type->title ) ? $type->title : $name;
-				$cat   = ! empty( $type->category ) ? $type->category : 'widgets';
+				$title                    = ! empty( $type->title ) ? $type->title : $name;
+				$cat                      = ! empty( $type->category ) ? $type->category : 'widgets';
 				$standard_blocks[ $name ] = array(
 					'title'    => $title,
 					'category' => $cat,
@@ -315,8 +315,8 @@ class Rest_Api {
 			if ( $widgets_mgr ) {
 				$elementor_registered = $widgets_mgr->get_widget_types();
 				foreach ( $elementor_registered as $name => $widget_obj ) {
-					$title = method_exists( $widget_obj, 'get_title' ) ? $widget_obj->get_title() : $name;
-					$cat   = method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general';
+					$title                     = method_exists( $widget_obj, 'get_title' ) ? $widget_obj->get_title() : $name;
+					$cat                       = method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general';
 					$standard_widgets[ $name ] = array(
 						'title'    => $title,
 						'category' => $cat,
@@ -831,14 +831,6 @@ class Rest_Api {
 				'strings'     => $package_strings,
 			)
 		);
-	}
-
-	/**
-	 * Parse content (blocks or Elementor JSON or plain text) into translatable strings array.
-	 * Maintained as backward-compatible delegation to Content_Parser::parse.
-	 */
-	public static function parse_content_for_strings( $content, $post_id = 0, $lang = '', $builder = '' ) {
-		return Content_Parser::parse( $content, $post_id, $lang, $builder );
 	}
 
 	/**

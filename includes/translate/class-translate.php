@@ -398,10 +398,7 @@ class Translate {
 				case 'chrome_ai':
 				case 'chrome_local_ai':
 				default:
-					$res = array();
-					foreach ( $chunk as $idx => $text ) {
-						$res[ $idx ] = self::translate_public_engine( (string) $text, $source_lang, $target_lang );
-					}
+					$res = $chunk;
 					break;
 			}
 
@@ -449,42 +446,55 @@ class Translate {
 		if ( 0 === strpos( $raw_json, '```' ) ) {
 			$raw_json = preg_replace( '/^```(?:json)?\s*/i', '', $raw_json );
 			$raw_json = preg_replace( '/\s*```$/', '', $raw_json );
+			$raw_json = trim( $raw_json );
 		}
 
-		$parsed       = json_decode( trim( $raw_json ), true );
-		$translations = $parsed['translations'] ?? ( is_array( $parsed ) && isset( $parsed[0] ) ? $parsed : null );
+		$decoded = json_decode( $raw_json, true );
+		if ( ! is_array( $decoded ) || ! isset( $decoded['translations'] ) || ! is_array( $decoded['translations'] ) ) {
+			return null;
+		}
 
-		if ( is_array( $translations ) && count( $translations ) === count( $keys ) ) {
-			$result = array();
-			foreach ( $keys as $seq_idx => $orig_key ) {
-				$result[ $orig_key ] = trim( (string) $translations[ $seq_idx ] );
+		$translations_seq = array_values( $decoded['translations'] );
+		$mapped           = array();
+
+		foreach ( $keys as $i => $orig_key ) {
+			if ( isset( $translations_seq[ $i ] ) ) {
+				$mapped[ $orig_key ] = (string) $translations_seq[ $i ];
 			}
-			return $result;
 		}
 
-		return null;
+		return ! empty( $mapped ) ? $mapped : null;
 	}
 
 	/**
-	 * Common helper to dispatch AI POST requests with JSON payload.
+	 * Send HTTP request to external AI API endpoint with error logging.
 	 *
 	 * @param string $url
 	 * @param array  $body
 	 * @param array  $headers
 	 * @param int    $timeout
-	 * @return string|null
+	 * @return string|null Response body or null on failure
 	 */
 	public static function send_ai_http_request( string $url, array $body, array $headers = array(), int $timeout = 30 ): ?string {
-		$response = wp_remote_post(
-			$url,
-			array(
-				'body'    => wp_json_encode( $body ),
-				'headers' => array_merge( array( 'Content-Type' => 'application/json' ), $headers ),
-				'timeout' => $timeout,
-			)
+		$default_headers = array(
+			'Content-Type' => 'application/json',
 		);
 
+		$request_args = array(
+			'headers'     => array_merge( $default_headers, $headers ),
+			'body'        => wp_json_encode( $body ),
+			'timeout'     => $timeout,
+			'data_format' => 'body',
+		);
+
+		$response = wp_remote_post( $url, $request_args );
+
 		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( $status < 200 || $status >= 300 ) {
 			return null;
 		}
 
@@ -492,7 +502,7 @@ class Translate {
 	}
 
 	/**
-	 * OpenAI ChatGPT Batch Translation API (maintains exact indexed array keys).
+	 * OpenAI Batch Translation API (maintains exact indexed array keys).
 	 *
 	 * @param array  $texts Array of strings [ 0 => '...', 1 => '...' ]
 	 * @param string $source_lang
@@ -505,11 +515,7 @@ class Translate {
 		$model   = $settings['openai_model'] ?? 'gpt-4o-mini';
 
 		if ( empty( $api_key ) || empty( $texts ) ) {
-			$out = array();
-			foreach ( $texts as $idx => $t ) {
-				$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
-			}
-			return $out;
+			return $texts;
 		}
 
 		$keys        = array_keys( $texts );
@@ -548,12 +554,7 @@ class Translate {
 			}
 		}
 
-		// Fallback: public engine if batch JSON parsing fails
-		$out = array();
-		foreach ( $texts as $idx => $t ) {
-			$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
-		}
-		return $out;
+		return $texts;
 	}
 
 	/**
@@ -570,11 +571,7 @@ class Translate {
 		$model   = $settings['gemini_model'] ?? 'gemini-1.5-flash';
 
 		if ( empty( $api_key ) || empty( $texts ) ) {
-			$out = array();
-			foreach ( $texts as $idx => $t ) {
-				$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
-			}
-			return $out;
+			return $texts;
 		}
 
 		$keys        = array_keys( $texts );
@@ -608,48 +605,6 @@ class Translate {
 			}
 		}
 
-		// Fallback: public engine if batch JSON parsing fails
-		$out = array();
-		foreach ( $texts as $idx => $t ) {
-			$out[ $idx ] = self::translate_public_engine( (string) $t, $source_lang, $target_lang );
-		}
-		return $out;
-	}
-
-	/**
-	 * Free/Public Translation Engine fallback.
-	 */
-	private static function translate_public_engine( $text, $source_lang, $target_lang ) {
-		$sl = substr( $source_lang, 0, 2 );
-		$tl = substr( $target_lang, 0, 2 );
-
-		$url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=' . urlencode( $sl ) . '&tl=' . urlencode( $tl ) . '&dt=t&q=' . urlencode( $text );
-
-		$response = wp_remote_get(
-			$url,
-			array(
-				'timeout'    => 10,
-				'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $text;
-		}
-
-		$body = wp_remote_retrieve_body( $response );
-		$data = json_decode( $body, true );
-
-		if ( is_array( $data ) && isset( $data[0] ) && is_array( $data[0] ) ) {
-			$translated = '';
-			foreach ( $data[0] as $segment ) {
-				if ( isset( $segment[0] ) ) {
-					$translated .= $segment[0];
-				}
-			}
-			return $translated ? $translated : $text;
-		}
-
-		return $text;
+		return $texts;
 	}
 }
