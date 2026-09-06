@@ -64,7 +64,7 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 
 			if ( isset( $rules[ $name ] ) ) {
-				$keys = $rules[ $name ]['attributes'] ?? array();
+				$keys = $rules[ $name ]['keys'] ?? array();
 				if ( ! empty( $keys ) ) {
 					$found_strings = array();
 

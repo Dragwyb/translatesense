@@ -288,7 +288,7 @@ class Xml_Engine {
 
 			// Sync file if writable
 			$path = self::get_master_xml_path();
-			if ( wp_is_writable( dirname( $path ) ) || ( file_exists( $path ) && wp_is_writable( $path ) ) ) {
+			if ( is_writable( dirname( $path ) ) || ( file_exists( $path ) && is_writable( $path ) ) ) {
 				@file_put_contents( $path, $formatted_xml );
 			}
 		} else {
@@ -381,7 +381,7 @@ class Xml_Engine {
 		$rules = self::get_all_rules();
 		if ( 'gutenberg' === $builder ) {
 			$block_rules = $rules['gutenberg'][ $name ] ?? null;
-			$keys        = $block_rules && ! empty( $block_rules['attributes'] ) ? $block_rules['attributes'] : array(
+			$keys        = ( $block_rules && ! empty( $block_rules['keys'] ) ) ? $block_rules['keys'] : array(
 				'content' => array(
 					'name'        => 'content',
 					'type'        => 'text',
@@ -391,13 +391,13 @@ class Xml_Engine {
 			return self::generate_xml_snippet( 'gutenberg', (string) $name, $keys );
 		} elseif ( 'elementor' === $builder ) {
 			$widget_rules = $rules['elementor'][ $name ] ?? null;
-			$attributes   = $widget_rules && ! empty( $widget_rules['attributes'] ) ? $widget_rules['attributes'] : array(
+			$fields       = ( $widget_rules && ! empty( $widget_rules['fields'] ) ) ? $widget_rules['fields'] : array(
 				'title' => array(
 					'type'        => 'title',
 					'editor_type' => 'LINE',
 				),
 			);
-			return self::generate_xml_snippet( 'elementor', (string) $name, $attributes );
+			return self::generate_xml_snippet( 'elementor', (string) $name, $fields );
 		}
 
 		return self::get_default_builder_skeleton( (string) $builder );
@@ -599,9 +599,10 @@ class Xml_Engine {
 	 * @param string $builder
 	 * @param string $name
 	 * @param array  $field_details
+	 * @param array  $conditions
 	 * @return bool|WP_Error
 	 */
-	public static function append_custom_rule( $builder, $name, $field_details ) {
+	public static function append_custom_rule( $builder, $name, $field_details, $conditions = array() ) {
 		$target_builder = in_array( $builder, self::BUILDERS, true ) ? $builder : 'gutenberg';
 		$builder_obj    = self::get_builder( $target_builder );
 		if ( ! $builder_obj ) {
@@ -616,7 +617,7 @@ class Xml_Engine {
 			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ) );
 		}
 
-		$builder_obj->append_rule( $xml, (string) $name, $field_details );
+		$builder_obj->append_rule( $xml, (string) $name, $field_details, $conditions );
 
 		return self::save_builder_xml( $target_builder, $xml->asXML() );
 	}

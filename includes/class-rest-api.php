@@ -285,7 +285,7 @@ class Rest_Api {
 		foreach ( $standard_blocks as $name => $info ) {
 			$is_supported       = isset( $rules[ $name ] );
 			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$keys               = $is_supported ? ( $rules[ $name ]['attributes'] ?? array() ) : array();
+			$keys               = $is_supported ? ( $rules[ $name ]['keys'] ?? array() ) : array();
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
 			$field_count        = count( $keys );
 			$no_translate_count = count( $no_translate );
@@ -343,7 +343,7 @@ class Rest_Api {
 		foreach ( $standard_widgets as $name => $info ) {
 			$is_supported       = isset( $rules[ $name ] );
 			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields             = $is_supported ? ( $rules[ $name ]['attributes'] ?? array() ) : array();
+			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
 			$field_count        = count( $fields );
 			$no_translate_count = count( $no_translate );

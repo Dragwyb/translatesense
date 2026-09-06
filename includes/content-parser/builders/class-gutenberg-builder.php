@@ -73,35 +73,26 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 
 			$no_translate = $gutenberg_rules[ $name ]['no_translate'] ?? array();
-			$keys         = $gutenberg_rules[ $name ]['attributes'] ?? array();
 
-			// Match XML configured keys/attributes for the block
-			if ( ! empty( $keys ) ) {
+			// Match XML configured keys for the block
+			if ( isset( $gutenberg_rules[ $name ]['keys'] ) && ! empty( $gutenberg_rules[ $name ]['keys'] ) ) {
+				$keys = $gutenberg_rules[ $name ]['keys'];
+
 				$found_strings = array();
-				$attrs         = $block['attrs'] ?? array();
-
 				foreach ( $keys as $k_name => $k_info ) {
-					if ( isset( $no_translate[ $k_name ] ) || ! isset( $attrs[ $k_name ] ) ) {
+					if ( isset( $no_translate[ $k_name ] ) ) {
 						continue;
 					}
-
-					$this->extract_attribute_value_recursive(
-						$attrs[ $k_name ],
-						$k_info,
-						(string) $k_name,
-						$name,
-						$post_id,
-						$lang,
-						$extracted,
-						$found_strings
-					);
+					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
+						$val             = $block['attrs'][ $k_name ];
+						$found_strings[] = $val;
+						$this->record_extracted_string( $post_id, $lang, $name, $k_name, $val, $extracted );
+					}
 				}
 
 				if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
 					foreach ( $block['innerContent'] as $inner_content ) {
-						if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
-							$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
-						}
+						$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
 					}
 				}
 			}
@@ -109,85 +100,6 @@ class Gutenberg_Builder extends Base_Builder {
 			// Recurse inner blocks
 			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
 				$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted );
-			}
-		}
-	}
-
-	/**
-	 * Helper: Recursively extract translatable strings from block attribute values.
-	 *
-	 * @param mixed  $val
-	 * @param mixed  $schema_info
-	 * @param string $path
-	 * @param string $block_name
-	 * @param int    $post_id
-	 * @param string $lang
-	 * @param array  $extracted
-	 * @param array  $found_strings
-	 */
-	private function extract_attribute_value_recursive( $val, $schema_info, string $path, string $block_name, int $post_id, string $lang, array &$extracted, array &$found_strings ): void {
-		if ( is_string( $val ) ) {
-			if ( '' !== trim( $val ) ) {
-				$found_strings[] = $val;
-				$this->record_extracted_string( $post_id, $lang, $block_name, $path, $val, $extracted );
-			}
-			return;
-		}
-
-		if ( ! is_array( $val ) || empty( $val ) ) {
-			return;
-		}
-
-		$children_schema = is_array( $schema_info ) ? ( $schema_info['children'] ?? null ) : null;
-
-		// Case 1: Sequential list / array of items (e.g. table rows or list items)
-		if ( array_keys( $val ) === range( 0, count( $val ) - 1 ) ) {
-			foreach ( $val as $idx => $item ) {
-				$sub_path = $path . '[' . $idx . ']';
-				$this->extract_attribute_value_recursive(
-					$item,
-					$children_schema ?? $schema_info,
-					$sub_path,
-					$block_name,
-					$post_id,
-					$lang,
-					$extracted,
-					$found_strings
-				);
-			}
-			return;
-		}
-
-		// Case 2: Associative object / dictionary
-		if ( ! empty( $children_schema ) && is_array( $children_schema ) ) {
-			foreach ( $children_schema as $child_key => $child_schema ) {
-				if ( isset( $val[ $child_key ] ) ) {
-					$sub_path = $path . '>' . $child_key;
-					$this->extract_attribute_value_recursive(
-						$val[ $child_key ],
-						$child_schema,
-						$sub_path,
-						$block_name,
-						$post_id,
-						$lang,
-						$extracted,
-						$found_strings
-					);
-				}
-			}
-		} else {
-			foreach ( $val as $k => $sub_val ) {
-				$sub_path = $path . '>' . $k;
-				$this->extract_attribute_value_recursive(
-					$sub_val,
-					null,
-					$sub_path,
-					$block_name,
-					$post_id,
-					$lang,
-					$extracted,
-					$found_strings
-				);
 			}
 		}
 	}
