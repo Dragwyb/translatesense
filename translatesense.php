@@ -1,7 +1,6 @@
 <?php
 /**
  * Plugin Name:       TranslateSense
- * Plugin URI:        https://github.com/Aniketji007/translatesense
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
  * Version:           0.0.0
  * Author:            aniketji007
