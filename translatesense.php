@@ -1,11 +1,11 @@
 <?php
 /**
- * Plugin Name:       Translate Sense
- * Plugin URI:        https://translatesense.local
+ * Plugin Name:       TranslateSense
+ * Plugin URI:        https://github.com/Aniketji007/translatesense
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
  * Version:           0.0.0
  * Author:            aniketji007
- * Author URI:        https://translatesense.local
+ * Author URI:        https://github.com/Aniketji007
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       translatesense

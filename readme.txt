@@ -1,6 +1,5 @@
-=== Translate Sense ===
+=== TranslateSense ===
 Contributors: aniketji007
-Donate link: https://translatesense.local
 Tags: translation, polylang, multilingual, translate, ai translation
 Requires at least: 5.8
 Tested up to: 7.1
