@@ -65,17 +65,40 @@ class Gutenberg_Builder extends Base_Builder {
 
 			if ( isset( $rules[ $name ] ) ) {
 				$keys = $rules[ $name ]['keys'] ?? array();
-				foreach ( $keys as $k_name => $k_info ) {
-					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
-						$res                       = Translate::translate_string(
-							$block['attrs'][ $k_name ],
-							$source_lang,
-							$target_lang,
-							$name,
-							$post_id,
-							$custom_opts
-						);
-						$block['attrs'][ $k_name ] = $res['translated'];
+				if ( ! empty( $keys ) ) {
+					$found_strings = array();
+
+					if ( isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
+						foreach ( $keys as $k_name => $k_info ) {
+							if ( isset( $block['attrs'][ $k_name ] ) ) {
+								$found_strings[] = $block['attrs'][ $k_name ];
+								self::translate_attribute_value_recursive(
+									$block['attrs'][ $k_name ],
+									$k_info,
+									$name,
+									$source_lang,
+									$target_lang,
+									$post_id,
+									$custom_opts
+								);
+							}
+						}
+					}
+
+					if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+						foreach ( $block['innerContent'] as &$inner_content ) {
+							if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+								self::translate_attribute_value_recursive(
+									$inner_content,
+									array(),
+									$name,
+									$source_lang,
+									$target_lang,
+									$post_id,
+									$custom_opts
+								);
+							}
+						}
 					}
 				}
 			}
@@ -83,6 +106,87 @@ class Gutenberg_Builder extends Base_Builder {
 			if ( ! empty( $block['innerBlocks'] ) ) {
 				self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts );
 			}
+		}
+	}
+
+	/**
+	 * Helper: Recursively translate block attribute value.
+	 *
+	 * @param mixed  $val
+	 * @param mixed  $schema_info
+	 * @param string $block_name
+	 * @param string $source_lang
+	 * @param string $target_lang
+	 * @param int    $post_id
+	 * @param array  $custom_opts
+	 */
+	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+		if ( is_string( $val ) ) {
+			if ( '' !== trim( $val ) ) {
+				$res = Translate::translate_string(
+					$val,
+					$source_lang,
+					$target_lang,
+					$block_name,
+					$post_id,
+					$custom_opts
+				);
+				$val = $res['translated'];
+			}
+			return;
+		}
+
+		if ( ! is_array( $val ) || empty( $val ) ) {
+			return;
+		}
+
+		$children_schema = is_array( $schema_info ) ? ( $schema_info['children'] ?? null ) : null;
+
+		// Sequential list of items
+		if ( array_keys( $val ) === range( 0, count( $val ) - 1 ) ) {
+			foreach ( $val as &$item ) {
+				self::translate_attribute_value_recursive(
+					$item,
+					$children_schema ?? $schema_info,
+					$block_name,
+					$source_lang,
+					$target_lang,
+					$post_id,
+					$custom_opts
+				);
+			}
+			unset( $item );
+			return;
+		}
+
+		// Associative dictionary
+		if ( ! empty( $children_schema ) && is_array( $children_schema ) ) {
+			foreach ( $children_schema as $child_key => $child_schema ) {
+				if ( isset( $val[ $child_key ] ) ) {
+					self::translate_attribute_value_recursive(
+						$val[ $child_key ],
+						$child_schema,
+						$block_name,
+						$source_lang,
+						$target_lang,
+						$post_id,
+						$custom_opts
+					);
+				}
+			}
+		} else {
+			foreach ( $val as $k => &$sub_val ) {
+				self::translate_attribute_value_recursive(
+					$sub_val,
+					null,
+					$block_name,
+					$source_lang,
+					$target_lang,
+					$post_id,
+					$custom_opts
+				);
+			}
+			unset( $sub_val );
 		}
 	}
 }

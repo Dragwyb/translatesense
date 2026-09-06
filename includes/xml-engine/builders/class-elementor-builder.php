@@ -240,36 +240,90 @@ class Elementor_Builder extends Base_Builder {
 			$fields_elem = $existing_widget->appendChild( $owner_doc->createElement( 'fields' ) );
 		}
 
-		// Extract fields map from new_widget
-		$new_fields_map   = array();
-		$new_no_translate = array();
-		if ( isset( $new_widget->fields->field ) ) {
-			foreach ( $new_widget->fields->field as $f_node ) {
-				$this->parse_field_node_recursive( $f_node, '', $new_fields_map, $new_no_translate );
+		// Parse existing fields
+		$existing_fields_map       = array();
+		$existing_no_translate_map = array();
+		$existing_fields_xml       = simplexml_import_dom( $fields_elem );
+		if ( $existing_fields_xml && isset( $existing_fields_xml->field ) ) {
+			foreach ( $existing_fields_xml->field as $f_node ) {
+				$this->parse_field_node_recursive( $f_node, '', $existing_fields_map, $existing_no_translate_map );
 			}
 		}
 
-		// Rebuild fields DOM from new fields map and no-translate fields
+		// Extract fields map from new_widget
+		$new_fields_map       = array();
+		$new_no_translate_map = array();
+		if ( isset( $new_widget->fields->field ) ) {
+			foreach ( $new_widget->fields->field as $f_node ) {
+				$this->parse_field_node_recursive( $f_node, '', $new_fields_map, $new_no_translate_map );
+			}
+		}
+
+		$final_specs = array();
+
+		// 1. Existing active fields
+		foreach ( $existing_fields_map as $path => $info ) {
+			if ( isset( $new_fields_map[ $path ] ) ) {
+				// Kept active with new settings
+				$final_specs[ $path ] = $new_fields_map[ $path ];
+			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
+				// Explicitly marked noTranslate
+				$final_specs[ $path ] = array_merge( $new_no_translate_map[ $path ], array( 'noTranslate' => true ) );
+			} else {
+				// First removal: mark as noTranslate="true" to preserve for auto-updating prevention
+				$final_specs[ $path ] = array_merge( $info, array( 'noTranslate' => true ) );
+			}
+		}
+
+		// 2. Existing noTranslate fields
+		foreach ( $existing_no_translate_map as $path => $info ) {
+			if ( isset( $new_fields_map[ $path ] ) ) {
+				// Restored to active
+				$final_specs[ $path ] = $new_fields_map[ $path ];
+			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
+				// Kept as noTranslate
+				$final_specs[ $path ] = array_merge( $new_no_translate_map[ $path ], array( 'noTranslate' => true ) );
+			} else {
+				// Second removal: already had noTranslate, user removed it again -> permanently delete it!
+			}
+		}
+
+		// 3. New active fields added
+		foreach ( $new_fields_map as $path => $info ) {
+			if ( ! isset( $existing_fields_map[ $path ] ) && ! isset( $existing_no_translate_map[ $path ] ) ) {
+				$final_specs[ $path ] = $info;
+			}
+		}
+
+		// 4. New explicit noTranslate fields added
+		foreach ( $new_no_translate_map as $path => $info ) {
+			if ( ! isset( $existing_fields_map[ $path ] ) && ! isset( $existing_no_translate_map[ $path ] ) ) {
+				$final_specs[ $path ] = array_merge( $info, array( 'noTranslate' => true ) );
+			}
+		}
+
+		// Rebuild fields DOM from final specs
 		while ( $fields_elem->firstChild ) {
 			$fields_elem->removeChild( $fields_elem->firstChild );
 		}
 
-		$all_specs = $new_fields_map;
-		foreach ( $new_no_translate as $no_tr_path => $val ) {
-			if ( ! isset( $all_specs[ $no_tr_path ] ) ) {
-				$all_specs[ $no_tr_path ] = array(
-					'path'        => $no_tr_path,
-					'type'        => 'title',
-					'editor_type' => 'LINE',
-					'noTranslate' => true,
-				);
-			} else {
-				$all_specs[ $no_tr_path ]['noTranslate'] = true;
-			}
+		if ( ! empty( $final_specs ) ) {
+			$tree = $this->build_fields_tree( $final_specs );
+			$this->append_tree_to_dom( $owner_doc, $fields_elem, $tree );
 		}
 
-		$tree = $this->build_fields_tree( $all_specs );
-		$this->append_tree_to_dom( $owner_doc, $fields_elem, $tree );
+		// Sync conditions if present in new_widget
+		if ( isset( $new_widget->conditions ) ) {
+			for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+				$child = $child_nodes->item( $i );
+				if ( XML_ELEMENT_NODE === $child->nodeType && 'conditions' === $child->nodeName ) {
+					$existing_widget->removeChild( $child );
+					break;
+				}
+			}
+			$cond_dom = dom_import_simplexml( $new_widget->conditions );
+			$existing_widget->insertBefore( $owner_doc->importNode( $cond_dom, true ), $fields_elem );
+		}
 	}
 
 	/**

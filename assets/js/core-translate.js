@@ -20,7 +20,7 @@
       this.sourceStrings = new Map();
       this.translatedStrings = new Map();
       this.activeControllers = new Set();
-      this.defaultProvider = 'openai';
+      this.defaultProvider = '';
       this.enabledProviders = ['chrome_ai', 'openai', 'gemini'];
 
       // Initialize enabled providers from localized data if available
@@ -30,7 +30,7 @@
     /**
      * Generate MD5 hash for a string and widget/block name using SparkMD5 or internal fallback.
      * 
-     * @param {string} widgetOrBlockName Block name, Elementor widget type, or Divi module name
+     * @param {string} widgetOrBlockName Block name or Elementor widget type
      * @param {string} stringValue Source string value
      * @returns {string} 32-character hexadecimal MD5 hash
      */
@@ -80,13 +80,14 @@
      * @param {string} [widgetOrBlockName=''] Block name, widget name, or module name
      * @returns {Object} Saved translated string record
      */
-    saveTranslatedString(id, sourceValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
+    saveTranslatedString(id, sourceValue, filterValue, translatedValue, provider = 'default', widgetOrBlockName = '') {
       const widget = widgetOrBlockName || id || 'generic';
-      const hash = this.generateHash(widget, sourceValue);
+      const hash = this.generateHash(widget, filterValue);
 
       const entry = {
         id: id || hash,
         source: sourceValue !== undefined ? String(sourceValue) : '',
+        filterValue: filterValue !== undefined ? String(filterValue) : '',
         translated: translatedValue !== undefined ? String(translatedValue) : '',
         provider: provider || 'default',
         widget_id: widget,
@@ -147,29 +148,29 @@
 
       // 1. Check by hash + provider
       if (provider && this.translatedStrings.has(`${hash}_${provider}`)) {
-        return this.translatedStrings.get(`${hash}_${provider}`).translated;
+        return {
+          source: sourceValue,
+          translate: this.translatedStrings.get(`${hash}_${provider}`).translated
+        };
       }
 
-      // 2. Check by hash directly
-      if (this.translatedStrings.has(hash)) {
-        return this.translatedStrings.get(hash).translated;
+      let filterValue;
+
+      for (const [key, data] of this.translatedStrings) {
+        if (data.filterValue && data.source === sourceValue) {
+          filterValue = data.filterValue;
+          break;
+        }
       }
 
-      // 3. Check by ID + provider
-      if (id && provider && this.translatedStrings.has(`${id}_${provider}`)) {
-        return this.translatedStrings.get(`${id}_${provider}`).translated;
-      }
+      if (filterValue) {
+        const hash = this.generateHash(widget, filterValue);
 
-      // 4. Check by ID directly
-      if (id && this.translatedStrings.has(id)) {
-        return this.translatedStrings.get(id).translated;
-      }
+        if (provider && this.translatedStrings.has(`${hash}_${provider}`)) {
 
-      // 5. Fallback search across values
-      for (const entry of this.translatedStrings.values()) {
-        if (sourceValue && entry.source === sourceValue) {
-          if (!provider || entry.provider === provider) {
-            return entry.translated;
+          return {
+            source: sourceValue,
+            translate: sourceValue.replace(this.translatedStrings.get(`${hash}_${provider}`).filterValue, this.translatedStrings.get(`${hash}_${provider}`).translated)
           }
         }
       }
@@ -592,7 +593,7 @@
       }
     }
     /**
-     * Register a Page Editor live updater (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+     * Register a Page Editor live updater (e.g. 'gutenberg', 'elementor', 'classic').
      * 
      * @param {string} id Unique editor ID
      * @param {Object} options
@@ -667,7 +668,7 @@
     /**
      * Apply translated strings live to the specified or automatically detected page editor.
      * 
-     * @param {string} [editorId] Optional specific editor ID ('gutenberg', 'elementor', 'divi', 'classic')
+     * @param {string} [editorId] Optional specific editor ID ('gutenberg', 'elementor', 'classic')
      * @param {Object} options
      * @param {Array<Object>} options.strings Array of { field, widget_id, source, translated, hash }
      * @returns {Promise<Object>} Status object { success: boolean, editor: string, count: number }
@@ -737,9 +738,45 @@
 
       return await response.json();
     }
+
+    /**
+     * Fetch block configuration rules parsed from editor-xml-config REST endpoint.
+     */
+    async getEditorConfig(editor = null, cache) {
+
+      if (!editor) {
+        return;
+      }
+
+      if (cache) {
+        return cache;
+      }
+
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+
+      try {
+        const response = await fetch(restUrl + 'editor-xml-config?editor=' + editor, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+        });
+        const data = await response.json();
+        if (data && data.rules) {
+          cache = data.rules;
+          return cache;
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=' + editor + ':', err);
+      }
+
+      return {};
+    }
   }
 
   // Create singleton instance
   window.TranslateSenseCore = new TranslateSenseCore();
-  window.TranslateSenseModal = TranslateSenseCore; // Backward compatibility alias
 })(window);

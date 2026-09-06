@@ -4,7 +4,7 @@
  * 100% Pure Vanilla JavaScript (NO React, NO wp.element, NO useState).
  * Features:
  * 1. Source Post / Parent Post detection via _translatesense_source_id & from_post query parameter
- * 2. Editor-type detection for source post (Elementor, Divi, Gutenberg, Classic)
+ * 2. Editor-type detection for source post (Elementor, Gutenberg, Classic)
  * 3. Page load auto-translate prompt modal with editor-specific guidance
  * 4. Context-aware Translate button triggers across all editors
  */
@@ -12,19 +12,66 @@
 (function (window, document) {
   'use strict';
 
+  function getLanguageFlagHtml(langInput, allLanguages = []) {
+    let slug = '';
+    let flagUrl = '';
+
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+      flagUrl = langInput.flag || '';
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+      const found = allLanguages.find((l) => (l.slug || '').toLowerCase() === slug);
+      if (found && found.flag) {
+        flagUrl = found.flag;
+      }
+    }
+
+    if (flagUrl && typeof flagUrl === 'string' && (flagUrl.startsWith('http://') || flagUrl.startsWith('https://') || flagUrl.startsWith('/') || flagUrl.startsWith('data:image/'))) {
+      return `<img src="${flagUrl}" class="ts-lang-flag-img" alt="${slug}" />`;
+    }
+
+    return '';
+  }
+
+  function getLanguageDisplay(langInput, allLanguages = []) {
+    let slug = '';
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+    }
+    const flagHtml = getLanguageFlagHtml(langInput, allLanguages);
+    const code = slug.toUpperCase();
+    return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
+  }
+
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
+    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const pluginUrl = config.pluginUrl || '';
+    const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+
+    let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      const providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length > 0) return providers;
-      const all = window.TranslateSenseCore.getProviders(false);
-      if (all.length > 0) return all;
+      providers = window.TranslateSenseCore.getProviders(true);
+      if (providers.length === 0 && enabledProviders.length === 0) {
+        providers = window.TranslateSenseCore.getProviders(false);
+      }
     }
-    return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-    ];
+    if (!providers || providers.length === 0) {
+      const defaultList = [
+        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
+      ];
+      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+    }
+    return providers.map((p) => ({
+      ...p,
+      logo: p.logo || getLogo(p.id),
+    }));
   }
 
   // Universal TranslateSense Editor Controller (Pure Vanilla JS)
@@ -38,7 +85,9 @@
       this.sourceEditorType = this.config.sourceEditorType || '';
       this.fromPost = this.config.fromPost || 0;
       this.targetLang = this.config.currentLanguage || 'en';
-      this.selectedProvider = this.config.defaultProvider || 'openai';
+      const defaultProv = this.config.defaultProvider || '';
+      const enabledProviders = Array.isArray(this.config.enabledProviders) ? this.config.enabledProviders : [];
+      this.selectedProvider = (defaultProv && (enabledProviders.length === 0 || enabledProviders.includes(defaultProv))) ? defaultProv : '';
       this.strings = [];
       this.isExtracting = false;
       this.isTranslating = false;
@@ -48,7 +97,6 @@
 
     init() {
       this.bindUniversalTriggers();
-
       // Dispatch specific initialization based on localized editorType
       switch (this.editorType) {
         case 'gutenberg':
@@ -56,9 +104,6 @@
           break;
         case 'elementor':
           jQuery(window).on('elementor:init', () => elementor.on('document:loaded', () => this.initElementor()));
-          break;
-        case 'divi':
-          this.initDivi();
           break;
         case 'classic':
         default:
@@ -74,8 +119,6 @@
       switch (type) {
         case 'elementor':
           return 'Elementor';
-        case 'divi':
-          return 'Divi';
         case 'gutenberg':
           return 'Gutenberg';
         case 'classic':
@@ -102,25 +145,20 @@
      * @param {boolean} isPageLoad Whether this was triggered automatically on page load.
      */
     showSourceEditorPromptModal(isPageLoad = false) {
+
+      if (!window.TranslateSenseEditorData.showInitialPromptModal) {
+        return;
+      }
+
       const existing = document.getElementById('ts-source-editor-guidance-modal');
       if (existing) existing.remove();
-
-      const sourceEditorName = this.getEditorDisplayName(this.sourceEditorType);
-      const isElementorOrDivi = this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi';
 
       let modalTitle = '⚡ Translate Page Content';
       let modalMessage = '';
       let actionBtnText = '🚀 Continue to Translation';
-
-      if (!['elementor', 'divi'].includes(this.editorType) && isElementorOrDivi) {
-        modalTitle = `🌐 Source Post: ${sourceEditorName} Editor Detected`;
-        modalMessage = `Original post created with <strong>${sourceEditorName}</strong> editor.<br><br>If you want to translate this post in same editor then Click on <strong>Translate with ${sourceEditorName}</strong> button, or click the close icon to close this modal.`;
-        actionBtnText = `⚡ Translate with ${sourceEditorName}`;
-      } else {
-        const srcDisplay = this.sourceLanguage ? `from <strong>${this.sourceLanguage.toUpperCase()}</strong> ` : '';
-        modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${this.targetLang.toUpperCase()}</strong>, click to continue or close this modal.`;
-        actionBtnText = '🚀 Continue to Translation';
-      }
+      const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
+      modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
+      actionBtnText = '🚀 Continue to Translation';
 
       const modalContainer = document.createElement('div');
       modalContainer.id = 'ts-source-editor-guidance-modal';
@@ -159,25 +197,21 @@
      * Gutenberg Block Editor Integration.
      */
     initGutenberg() {
-      // Gutenberg metabox is rendered via WordPress add_meta_box natively.
-      // Trigger bindings are handled globally by bindUniversalTriggers().
+      if (this.sourceEditorType === 'gutenberg') {
+        // Check and show Page Load Auto-Translate Prompt Modal
+        this.initPageLoadPrompt();
+      }
     }
 
     /**
-     * Bind generic trigger buttons anywhere in the DOM (Metaboxes, Media button, Divi, Elementor).
+     * Bind generic trigger buttons anywhere in the DOM (Metaboxes, Media button, Elementor).
      */
     bindUniversalTriggers() {
       document.addEventListener('click', (e) => {
-        const trigger = e.target.closest('.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-divi-translate-btn, #ts-classic-translate-btn');
+        const trigger = e.target.closest('.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-classic-translate-btn');
         if (trigger) {
           e.preventDefault();
-
-          // If source post was built in Elementor or Divi, show editor-specific prompt modal first
-          if (!['elementor', 'divi'].includes(this.editorType) && (this.sourceEditorType === 'elementor' || this.sourceEditorType === 'divi')) {
-            this.showSourceEditorPromptModal(false);
-          } else {
-            this.openProviderModal();
-          }
+          this.openProviderModal();
         }
       });
     }
@@ -241,26 +275,7 @@
       this.initPageLoadPrompt();
     }
 
-    /**
-     * Divi Visual Builder: Insert translate button into Divi Builder.
-     */
-    initDivi() {
-      const checkDivi = () => {
-        const diviBar = document.querySelector('.et-fb-page-settings-bar') || document.getElementById('et-fb-app') || document.getElementById('et-main-area');
-        if (diviBar && !document.getElementById('ts-divi-translate-btn')) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.id = 'ts-divi-translate-btn';
-          btn.className = 'ts-open-translate-btn et-fb-button';
-          btn.style.cssText = 'position: fixed; bottom: 85px; right: 25px; z-index: 999999; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #fff; border: none; padding: 10px 18px; border-radius: 50px; font-weight: 700; font-size: 13px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;';
-          btn.innerHTML = '⚡ Translate Page';
-          document.body.appendChild(btn);
-        }
-      };
 
-      checkDivi();
-      setInterval(checkDivi, 1500);
-    }
 
     /**
      * Open Pure Vanilla JS Provider Selection Modal (Grid View).
@@ -285,39 +300,63 @@
               </div>
               <div>
                 <h3>Choose Translation Provider</h3>
-                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">🌐 ${this.targetLang.toUpperCase()}</span></p>
+                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span></p>
               </div>
             </div>
             <button class="ts-bulk-close" id="ts-provider-modal-close" title="Close">✕</button>
           </div>
           <div class="ts-review-body">
             <div class="ts-provider-list">
-              ${providersList.map((p, idx) => {
-                const isSelected = p.id === this.selectedProvider || (!this.selectedProvider && idx === 0);
-                const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-                const badgeHtml = isFrontend
-                  ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-                  : '';
+              ${(() => {
+          const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
+          const isProviderMissingKey = (id) => {
+            if (id === 'openai') return !this.config.hasOpenAiKey;
+            if (id === 'gemini') return !this.config.hasGeminiKey;
+            return false;
+          };
 
-                return `
-                  <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
-                    <div class="ts-provider-radio-wrap">
-                      <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
-                      <span class="ts-provider-custom-radio"></span>
-                    </div>
-                    <div class="ts-provider-icon-box">
-                      <span class="ts-provider-emoji">${p.icon}</span>
-                    </div>
-                    <div class="ts-provider-main-info">
-                      <div class="ts-provider-title-row">
-                        <span class="ts-provider-name">${p.title}</span>
-                        ${badgeHtml}
+          const defaultProv = this.config.defaultProvider || '';
+          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && !isProviderMissingKey(p.id)))
+            ? this.selectedProvider
+            : (defaultProv && providersList.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id)) ? defaultProv : '');
+
+          if (!currentSelected) {
+            const firstAvailable = providersList.find((p) => !isProviderMissingKey(p.id));
+            if (firstAvailable) currentSelected = firstAvailable.id;
+          }
+          this.selectedProvider = currentSelected;
+
+          return providersList.map((p) => {
+            const isMissingKey = isProviderMissingKey(p.id);
+            const isSelected = Boolean(!isMissingKey && currentSelected && p.id === currentSelected);
+            const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+            const badgeHtml = isFrontend
+              ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
+              : '';
+            const actionHtml = isMissingKey
+              ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+              : badgeHtml;
+
+            return `
+                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
+                      <div class="ts-provider-radio-wrap">
+                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
+                        <span class="ts-provider-custom-radio"></span>
                       </div>
-                      <p class="ts-provider-caption">${p.desc}</p>
+                      <div class="ts-provider-icon-box">
+                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
+                      </div>
+                      <div class="ts-provider-main-info">
+                        <div class="ts-provider-title-row">
+                          <span class="ts-provider-name">${p.title}</span>
+                          ${actionHtml}
+                        </div>
+                        <p class="ts-provider-caption">${p.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                `;
-              }).join('')}
+                  `;
+          }).join('');
+        })()}
             </div>
           </div>
           <div class="ts-review-footer">
@@ -334,6 +373,9 @@
       // Row Selection
       modalContainer.querySelectorAll('.ts-provider-row').forEach((row) => {
         row.addEventListener('click', () => {
+          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+            return;
+          }
           modalContainer.querySelectorAll('.ts-provider-row').forEach((r) => r.classList.remove('selected'));
           row.classList.add('selected');
           const radio = row.querySelector('input[type="radio"]');
@@ -350,7 +392,12 @@
       // Start Translation Action
       document.getElementById('ts-provider-modal-start').addEventListener('click', async () => {
         const checked = modalContainer.querySelector('input[name="ts_provider_choice"]:checked');
-        if (checked) this.selectedProvider = checked.value;
+        if (checked && !checked.disabled) this.selectedProvider = checked.value;
+
+        if (!this.selectedProvider) {
+          alert('Please choose an active translation provider before starting.');
+          return;
+        }
 
         closeModal();
         await this.extractAndTranslate();
@@ -410,7 +457,7 @@
           </div>
 
           <div class="ts-progress-header-badge">
-            <span>🌐 Translating to ${this.targetLang.toUpperCase()}</span>
+            <span>Translating to ${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
           </div>
 
           <h3 class="ts-progress-title">Translation in progress...</h3>
@@ -559,7 +606,7 @@
         let rawStrings = Array.isArray(data.strings) ? data.strings : [];
 
         // Exclude email addresses, URLs, and asset paths from translation
-        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || s.source || ''));
+        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
 
         if (!rawStrings || rawStrings.length === 0) {
           const serverRes = await this.processServerPostTranslation();
@@ -607,15 +654,16 @@
 
         const onProgress = (result) => {
           this.strings = this.strings.map((item) => {
-            if (item.source === result.source || (result.hash && item.hash === result.hash)) {
+            if (item.value === result.source || (result.hash && item.hash === result.hash)) {
               if (window.TranslateSenseCore) {
-                window.TranslateSenseCore.saveSourceString(item.field || item.widget_id, item.source, item.widget_id);
+                window.TranslateSenseCore.saveSourceString(item.name, item.value, item.name);
                 window.TranslateSenseCore.saveTranslatedString(
-                  item.field || item.widget_id,
+                  item.name,
                   item.source,
+                  item.value,
                   result.translated,
                   this.selectedProvider,
-                  item.widget_id
+                  item.name
                 );
               }
               return {
@@ -659,14 +707,14 @@
           : `${elapsedSec}s`;
 
         const totalSourceChars = this.strings.reduce((sum, s) => {
-          const val = String(s.value || s.source || '');
+          const val = String(s.value || '');
           return sum + val.length;
         }, 0);
 
         const totalTransChars = this.strings.reduce((sum, s) => {
           const isTranslated = s.translated && String(s.translated).trim() !== '';
           if (isTranslated) {
-            const originalVal = String(s.value || s.source || '');
+            const originalVal = String(s.value || '');
             return sum + originalVal.length;
           }
           return sum;
@@ -706,10 +754,10 @@
      * Update stats cards in review modal header dynamically based on original characters.
      */
     updateStatsHeader() {
-      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
       const totalTransChars = this.strings.reduce((sum, s) => {
         const isTranslated = s.translated && String(s.translated).trim() !== '';
-        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+        return sum + (isTranslated ? String(s.value || '').length : 0);
       }, 0);
 
       const timeEl = document.querySelector('#ts-universal-review-modal .ts-stat-time .ts-stat-value');
@@ -730,10 +778,10 @@
       let modalContainer = document.getElementById('ts-universal-review-modal');
       if (modalContainer) return; // Keep existing if already opened
 
-      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || s.source || '').length, 0);
+      const totalSourceChars = this.strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
       const totalTransChars = this.strings.reduce((sum, s) => {
         const isTranslated = s.translated && String(s.translated).trim() !== '';
-        return sum + (isTranslated ? String(s.value || s.source || '').length : 0);
+        return sum + (isTranslated ? String(s.value || '').length : 0);
       }, 0);
 
       const stats = this.translationStats || {
@@ -753,7 +801,7 @@
           <div class="ts-review-header">
             <div class="ts-review-header-title">
               <h3>⚡ Review Translations</h3>
-              <span class="ts-badge-pill">🌐 ${this.targetLang.toUpperCase()}</span>
+              <span class="ts-badge-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
               <span class="ts-badge-pill">${providerInfo.icon} ${providerInfo.title}</span>
             </div>
             <button class="ts-bulk-close" id="ts-review-modal-close" title="Close">✕</button>
@@ -846,8 +894,8 @@
       });
 
       // Apply to editor button
-      document.getElementById('ts-apply-to-editor-btn').addEventListener('click', () => {
-        this.applyTranslationsToEditor();
+      document.getElementById('ts-apply-to-editor-btn').addEventListener('click', async () => {
+        await this.applyTranslationsToEditor();
         closeModal();
       });
 
@@ -866,7 +914,7 @@
         .map((item, idx) => ({ ...item, originalIndex: idx }))
         .filter((item) => {
           if (!q) return true;
-          const src = String(item.value || item.source || '').toLowerCase();
+          const src = String(item.value || '').toLowerCase();
           const trans = String(item.translated || '').toLowerCase();
           const name = String(item.name || '').toLowerCase();
           const key = String(item.key || '').toLowerCase();
@@ -887,7 +935,7 @@
 
       tbody.innerHTML = filtered.map((item) => {
         const idx = item.originalIndex;
-        const sourceVal = item.value || item.source || '';
+        const sourceVal = item.value || '';
         const transVal = item.translated || '';
         const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
 
@@ -970,7 +1018,7 @@
     }
 
     /**
-     * Apply translated strings back to the active editor (Gutenberg, Elementor, Divi, Classic).
+     * Apply translated strings back to the active editor (Gutenberg, Elementor, Classic).
      */
     async applyTranslationsToEditor() {
       // Ensure sourcePageData is fetched if not present
@@ -982,10 +1030,46 @@
         }
       }
 
+      const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = this.config.nonce || '';
+      const currentPostId = this.postId || this.config.postId || 0;
+
+      // Mark this post with _translatesense_traslated = 1
+      if (currentPostId) {
+        fetch(restUrl + 'mark-translated', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce,
+          },
+          body: JSON.stringify({ post_id: currentPostId }),
+        }).catch((err) => {
+          console.warn('[TranslateSense] Could not update translated flag:', err);
+        });
+      }
+
+      // Hide or remove Translate buttons on current page
+      const metaBoxBtn = document.getElementById('ts-metabox-translate-btn');
+      if (metaBoxBtn) {
+        const metaContent = metaBoxBtn.closest('.translatesense-metabox-content') || metaBoxBtn.parentElement;
+        if (metaContent) {
+          metaContent.innerText = 'Translations Applied';
+          metaContent.className = 'disabled';
+        }
+      }
+      const mediaBtn = document.getElementById('ts-media-translate-btn');
+      if (mediaBtn) {
+        mediaBtn.innerText = 'Translations Applied';
+        mediaBtn.className = 'disabled';
+      }
+
       if (window.TranslateSenseCore && typeof window.TranslateSenseCore.applyToPageEditor === 'function') {
         const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
           strings: this.strings,
           sourcePageData: this.sourcePageData,
+          options: {
+            provider: this.selectedProvider
+          }
         });
 
         if (result && result.success) {
@@ -995,7 +1079,9 @@
         await window.TranslateSenseLiveUpdater.apply({
           strings: this.strings,
           editorType: this.editorType,
-          options: { sourcePageData: this.sourcePageData },
+          options: {
+            sourcePageData: this.sourcePageData, provider: this.selectedProvider
+          },
         });
       } else {
         alert('🎉 Translations applied to page successfully!');

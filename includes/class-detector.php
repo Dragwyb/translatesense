@@ -108,7 +108,7 @@ class Detector {
 	/**
 	 * Get or create a config sandbox post ID for the specified builder.
 	 *
-	 * @param string $builder Builder identifier ('gutenberg', 'elementor', 'divi', 'classic')
+	 * @param string $builder Builder identifier ('gutenberg', 'elementor', 'classic')
 	 * @return int Post ID of the config sandbox post
 	 */
 	public static function get_or_create_config_post( string $builder = 'gutenberg' ): int {
@@ -128,8 +128,8 @@ class Detector {
 			array(
 				'post_type'      => self::POST_TYPE,
 				'post_status'    => 'draft',
-				'meta_key'       => '_translatesense_config_post',
-				'meta_value'     => $builder,
+				'meta_key'       => '_translatesense_config_post', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				'meta_value'     => $builder, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'posts_per_page' => 1,
 			)
 		);

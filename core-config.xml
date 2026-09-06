@@ -926,36 +926,6 @@
         </widget>
     </elementor-widgets>
 
-    <!-- Divi Modules Mapping -->
-    <divi-modules>
-        <module name="et_pb_text">
-            <fields>
-                <field type="content" editor_type="VISUAL">content</field>
-            </fields>
-        </module>
-        <module name="et_pb_header">
-            <fields>
-                <field type="title" editor_type="LINE">title</field>
-                <field type="subhead" editor_type="LINE">subhead</field>
-                <field type="content" editor_type="VISUAL">content</field>
-                <field type="button_one_text" editor_type="LINE">button_one_text</field>
-            </fields>
-        </module>
-        <module name="et_pb_blurb">
-            <fields>
-                <field type="title" editor_type="LINE">title</field>
-                <field type="content" editor_type="VISUAL">content</field>
-            </fields>
-        </module>
-        <module name="et_pb_cta">
-            <fields>
-                <field type="title" editor_type="LINE">title</field>
-                <field type="button_text" editor_type="LINE">button_text</field>
-                <field type="content" editor_type="VISUAL">content</field>
-            </fields>
-        </module>
-    </divi-modules>
-
     <!-- Classic Editor & Custom Fields -->
     <custom-fields>
         <custom-field action="translate">_yoast_wpseo_title</custom-field>

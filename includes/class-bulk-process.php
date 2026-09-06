@@ -40,9 +40,63 @@ class Bulk_Process {
 	/**
 	 * Get table name.
 	 */
-	public static function get_table_name(): string {
+	private static function get_table_name(): string {
 		global $wpdb;
-		return $wpdb->prefix . 'translatesense_bulk_translations';
+		return esc_sql( $wpdb->prefix . 'translatesense_bulk_translations' );
+	}
+
+	/**
+	 * Check if a translated post already exists for a post and target language.
+	 *
+	 * @param int    $post_id
+	 * @param string $target_lang
+	 * @return int Target post ID if exists, or 0 if not
+	 */
+	public static function get_existing_translation_post_id( int $post_id, string $target_lang ): int {
+		if ( $post_id <= 0 || empty( $target_lang ) ) {
+			return 0;
+		}
+
+		// 1. If post itself is already in the target language
+		$post_lang = Polylang_Bridge::get_post_language( $post_id );
+		if ( ! empty( $post_lang ) && strtolower( $post_lang ) === strtolower( $target_lang ) ) {
+			return $post_id;
+		}
+
+		// 2. Check Polylang translations if active
+		if ( Polylang_Bridge::is_polylang_active() ) {
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+			if ( ! empty( $translations[ $target_lang ] ) ) {
+				$trans_id = (int) $translations[ $target_lang ];
+				if ( $trans_id > 0 && $trans_id !== $post_id && get_post( $trans_id ) && 'trash' !== get_post_status( $trans_id ) ) {
+					return $trans_id;
+				}
+			}
+		}
+
+		// 3. Fallback check: look for post with _translatesense_source_id meta
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$found_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT p.ID FROM {$wpdb->posts} p
+				 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+				 WHERE pm.meta_key = '_translatesense_source_id' AND pm.meta_value = %d
+				 AND p.post_status NOT IN ('trash', 'auto-draft')
+				 LIMIT 1",
+				$post_id
+			)
+		);
+
+		if ( $found_id > 0 && $found_id !== $post_id && get_post( $found_id ) ) {
+			$found_post_lang = Polylang_Bridge::get_post_language( $found_id );
+
+			if ( $found_post_lang === $target_lang ) {
+				return $found_id;
+			}
+		}
+
+		return 0;
 	}
 
 	/**
@@ -75,41 +129,53 @@ class Bulk_Process {
 					continue;
 				}
 
+				// Check if translation already exists for this post & target language
+				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
+
+				$already_exists = ( $existing_trans_id > 0 );
+
+				$job_status      = $already_exists ? 'already_exists' : 'pending';
+				$progress_status = $already_exists ? 'Already Exists' : 'Queued';
+				$target_post_id  = $already_exists ? $existing_trans_id : 0;
+
 				$insert_data = array(
 					'batch_id'                 => $batch_id,
 					'post_id'                  => $post_id,
 					'target_language'          => $target_lang,
 					'provider'                 => $provider,
-					'status'                   => 'pending',
-					'progress_status'          => 'Queued',
+					'status'                   => $job_status,
+					'progress_status'          => $progress_status,
 					'total_strings'            => 0,
 					'completed_strings'        => 0,
 					'sent_ai_request_data'     => null,
 					'received_ai_request_data' => null,
 					'error_message'            => null,
-					'target_post_id'           => 0,
+					'target_post_id'           => $target_post_id,
 					'created_at'               => current_time( 'mysql' ),
 					'updated_at'               => current_time( 'mysql' ),
 				);
 
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				$wpdb->insert(
 					$table,
 					$insert_data,
 					array( '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' )
 				);
 
-				$job_id                     = (int) $wpdb->insert_id;
-				$insert_data['id']          = $job_id;
-				$insert_data['editor_type'] = Editor_Integration::get_post_editor_type( $post_id );
-				$insert_data['post_title']  = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
-				$created_jobs[]             = $insert_data;
+				$job_id                           = (int) $wpdb->insert_id;
+				$insert_data['id']                = $job_id;
+				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $already_exists ? $target_post_id : $post_id );
+				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
+				$insert_data['target_post_title'] = $already_exists ? ( get_the_title( $target_post_id ) ?: '' ) : '';
+				$insert_data['view_url']          = $already_exists ? get_permalink( $target_post_id ) : '';
+				$insert_data['edit_url']          = $already_exists && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				$created_jobs[]                   = $insert_data;
 			}
 		}
 
-		// If backend provider, schedule cron and trigger immediate processing
-		if ( ! $is_chrome_ai && ! empty( $created_jobs ) ) {
+		// If backend provider (OpenAI, Gemini, etc.), schedule cron and trigger immediate background processing if there are pending jobs
+		if ( ! $is_chrome_ai && ! empty( $created_jobs ) && self::has_pending_or_running_jobs() ) {
 			self::schedule_cron_if_needed();
-			// Attempt to spawn cron or run immediate non-blocking tick
 			self::trigger_async_cron();
 		}
 
@@ -128,10 +194,9 @@ class Bulk_Process {
 	public static function has_pending_or_running_jobs(): bool {
 		global $wpdb;
 		$table = self::get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table} 
-			 WHERE status IN ('pending', 'running') 
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai')"
+			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return $count > 0;
@@ -176,22 +241,14 @@ class Bulk_Process {
 		global $wpdb;
 		$table = self::get_table_name();
 
-		// Check if any job has been stuck in 'running' state for over 10 minutes, reset to pending
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"UPDATE {$table} 
-			 SET status = 'pending', progress_status = 'Restarting after timeout' 
-			 WHERE status = 'running' 
-			 AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai')"
+			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
-		// Get next pending backend job
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$job = $wpdb->get_row(
-			"SELECT * FROM {$table} 
-			 WHERE status = 'pending' 
-			 AND provider NOT IN ('chrome_ai', 'chrome_local_ai') 
-			 ORDER BY id ASC 
-			 LIMIT 1",
+			"SELECT * FROM {$table}  WHERE status = 'pending' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			ARRAY_A
 		);
 
@@ -225,30 +282,127 @@ class Bulk_Process {
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
-			// 1. Extract translatable strings
-			$extracted = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
-			$total_str = count( $extracted );
+			// 1. Extract packages array (contains hash, strings, widget info)
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
 
+			if ( empty( $packages ) ) {
+				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
+			}
+
+			$post_title = get_the_title( $post_id );
+
+			if ( ! empty( $post_title ) ) {
+				$post_title_hash = Hashing_Db::generate_hash( 'post_title', $post_title );
+				$packages[]      = array(
+					'hash'   => $post_title_hash,
+					'name'   => 'post_title',
+					'key'    => 'Post/Page Title',
+					'source' => $post_title,
+					'value'  => $post_title,
+				);
+			}
+
+			$post_slug = get_post_field( 'post_name', $post_id );
+
+			if ( ! empty( $post_slug ) ) {
+				$post_slug_hash = Hashing_Db::generate_hash( 'post_name', $post_slug );
+				$packages[]     = array(
+					'hash'   => $post_slug_hash,
+					'name'   => 'post_name',
+					'key'    => 'Post/Page Slug',
+					'source' => $post_slug,
+					'value'  => $post_slug,
+				);
+			}
+
+			$post_excerpt = get_post_field( 'post_excerpt', $post_id );
+
+			if ( ! empty( $post_excerpt ) ) {
+				$post_excerpt_hash = Hashing_Db::generate_hash( 'post_excerpt', $post_excerpt );
+				$packages[]        = array(
+					'hash'   => $post_excerpt_hash,
+					'name'   => 'post_excerpt',
+					'key'    => 'Post/Page Excerpt',
+					'source' => $post_excerpt,
+					'value'  => $post_excerpt,
+				);
+			}
+
+			$packages = array_values( (array) $packages );
+
+			// Extract pure strings indexed by array index
+			$strings_to_send = array();
+			$widgets_by_idx  = array();
+
+			foreach ( $packages as $idx => $pkg ) {
+				if ( isset( $pkg['value'] ) && isset( $pkg['widget_name'] ) && ! empty( $pkg['value'] ) ) {
+					$str  = (string) $pkg['value'];
+					$w_id = (string) $pkg['widget_name'];
+
+					$strings_to_send[ $idx ] = $str;
+					$widgets_by_idx[ $idx ]  = $w_id;
+				}
+			}
+
+			$total_str = count( $strings_to_send );
+
+			// Save AI request data with clean source strings array
 			self::update_job(
 				$job_id,
 				array(
 					'total_strings'        => $total_str,
 					'progress_status'      => sprintf( 'Translating strings (%d found)...', $total_str ),
-					'sent_ai_request_data' => wp_json_encode(
-						array(
-							'post_id'     => $post_id,
-							'title'       => $source_post->post_title,
-							'source_lang' => $source_lang,
-							'target_lang' => $target_lang,
-							'strings'     => $extracted,
-						)
-					),
+					'sent_ai_request_data' => wp_json_encode( $strings_to_send ),
 					'updated_at'           => current_time( 'mysql' ),
 				)
 			);
 
-			// 2. Execute post translation
-			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider );
+			// 2. Send indexed string array to AI
+			$ai_response = Translate::translate_batch(
+				$strings_to_send,
+				$source_lang,
+				$target_lang,
+				$widgets_by_idx,
+				$post_id,
+				array( 'provider' => $provider )
+			);
+
+			$translated_content     = array();
+			$in_memory_translations = array();
+
+			// 3. Match AI response by index in packages array and set translated value to hash
+			foreach ( $strings_to_send as $idx => $orig_str ) {
+				$translated_str = isset( $ai_response[ $idx ]['translated'] ) ? (string) $ai_response[ $idx ]['translated'] : (string) $orig_str;
+
+				// Save translated content in smart indexed format
+				$translated_content[ $idx ] = $translated_str;
+
+				// Match index with packages array to resolve hash
+				if ( isset( $packages[ $idx ] ) ) {
+					$pkg  = $packages[ $idx ];
+					$hash = is_array( $pkg ) ? ( $pkg['hash'] ?? ( $pkg['package_hash'] ?? '' ) ) : '';
+
+					if ( empty( $hash ) && '' !== $orig_str ) {
+						$w_id = is_array( $pkg ) ? ( $pkg['widget_name'] ?? ( $pkg['widget_id'] ?? 'generic' ) ) : 'generic';
+						$hash = Hashing_Db::generate_hash( (string) $w_id, (string) $orig_str );
+					}
+
+					if ( ! empty( $hash ) ) {
+						// Set translated value to hash in DB
+						if ( Translate::should_cache_provider( $provider ) ) {
+							Hashing_Db::save_translation_result( $hash, $target_lang, $translated_str );
+						}
+						$in_memory_translations[ $hash ] = $translated_str;
+					}
+				}
+
+				if ( ! empty( $orig_str ) ) {
+					$in_memory_translations[ $orig_str ] = $translated_str;
+				}
+			}
+
+			// 4. Execute post translation
+			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider, $in_memory_translations );
 
 			if ( is_wp_error( $result ) ) {
 				throw new \Exception( $result->get_error_message() );
@@ -256,7 +410,7 @@ class Bulk_Process {
 
 			$target_post_id = $result['target_post_id'] ?? 0;
 
-			// 3. Mark as completed
+			// 5. Mark as completed and save translated strings array
 			self::update_job(
 				$job_id,
 				array(
@@ -264,7 +418,7 @@ class Bulk_Process {
 					'progress_status'          => 'Completed successfully',
 					'completed_strings'        => $total_str,
 					'target_post_id'           => $target_post_id,
-					'received_ai_request_data' => wp_json_encode( $result ),
+					'received_ai_request_data' => wp_json_encode( $translated_content ),
 					'error_message'            => null,
 					'updated_at'               => current_time( 'mysql' ),
 				)
@@ -319,6 +473,7 @@ class Bulk_Process {
 			$data['updated_at'] = current_time( 'mysql' );
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$result = $wpdb->update(
 			$table,
 			$data,
@@ -341,27 +496,31 @@ class Bulk_Process {
 		$table = self::get_table_name();
 
 		if ( ! empty( $batch_id ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE batch_id = %s ORDER BY id ASC", $batch_id ),
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE batch_id = %s ORDER BY id ASC", $batch_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		} elseif ( $post_id > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE post_id = %d ORDER BY id DESC LIMIT 20", $post_id ),
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE post_id = %d ORDER BY id DESC LIMIT 20", $post_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$rows = $wpdb->get_results(
-				"SELECT * FROM {$table} ORDER BY id DESC LIMIT 50",
+				"SELECT * FROM {$table} ORDER BY id DESC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				ARRAY_A
 			);
 		}
 
-		$total_jobs     = count( $rows );
-		$completed_jobs = 0;
-		$failed_jobs    = 0;
-		$running_jobs   = 0;
-		$pending_jobs   = 0;
+		$total_jobs          = count( $rows );
+		$completed_jobs      = 0;
+		$already_exists_jobs = 0;
+		$failed_jobs         = 0;
+		$running_jobs        = 0;
+		$pending_jobs        = 0;
 
 		$total_strings     = 0;
 		$completed_strings = 0;
@@ -372,6 +531,8 @@ class Bulk_Process {
 			$status = $row['status'];
 			if ( 'completed' === $status ) {
 				++$completed_jobs;
+			} elseif ( 'already_exists' === $status ) {
+				++$already_exists_jobs;
 			} elseif ( 'failed' === $status ) {
 				++$failed_jobs;
 			} elseif ( 'running' === $status ) {
@@ -389,19 +550,24 @@ class Bulk_Process {
 			$post       = get_post( (int) $row['post_id'] );
 			$post_title = $post ? $post->post_title : sprintf( '#%d', (int) $row['post_id'] );
 
-			$item_progress = 0;
-			if ( 'completed' === $status ) {
-				$item_progress = 100;
-			} elseif ( $t_str > 0 ) {
-				$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
-			}
-
 			$target_post_id    = (int) $row['target_post_id'];
 			$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
 			$target_post_title = $target_post ? $target_post->post_title : '';
 			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
-			$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-			$view_url          = $target_post_id ? get_permalink( $target_post_id ) : '';
+
+			$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+			$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
+
+			if ( 'already_exists' === $status ) {
+				$item_progress = 100;
+			} else {
+				$item_progress = 0;
+				if ( 'completed' === $status ) {
+					$item_progress = 100;
+				} elseif ( $t_str > 0 ) {
+					$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
+				}
+			}
 
 			$items[] = array(
 				'id'                => (int) $row['id'],
@@ -432,7 +598,7 @@ class Bulk_Process {
 		// Calculate overall batch progress percentage
 		$overall_progress = 0;
 		if ( $total_jobs > 0 ) {
-			$done_jobs = $completed_jobs + $failed_jobs;
+			$done_jobs = $completed_jobs + $already_exists_jobs + $failed_jobs;
 			if ( $done_jobs === $total_jobs ) {
 				$overall_progress = 100;
 			} else {
@@ -448,7 +614,8 @@ class Bulk_Process {
 		}
 
 		$overall_status = 'pending';
-		if ( $total_jobs > 0 && ( $completed_jobs + $failed_jobs ) === $total_jobs ) {
+		$done_jobs      = $completed_jobs + $already_exists_jobs + $failed_jobs;
+		if ( $total_jobs > 0 && $done_jobs === $total_jobs ) {
 			$overall_status = ( $failed_jobs === $total_jobs ) ? 'failed' : 'completed';
 		} elseif ( $running_jobs > 0 || $completed_jobs > 0 ) {
 			$overall_status = 'running';
@@ -456,28 +623,39 @@ class Bulk_Process {
 
 		$current_status = 'Queued';
 		if ( 'completed' === $overall_status ) {
-			$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
+			if ( $already_exists_jobs > 0 && $completed_jobs > 0 ) {
+				/* translators: 1: Number of translated posts, 2: Number of already existing posts */
+				$current_status = sprintf( __( 'Completed! %1$d posts translated, %2$d already existed.', 'translatesense' ), $completed_jobs, $already_exists_jobs );
+			} elseif ( $already_exists_jobs > 0 && 0 === $completed_jobs ) {
+				/* translators: %d: Number of already existing posts */
+				$current_status = sprintf( __( 'All %d selected translations already exist.', 'translatesense' ), $already_exists_jobs );
+			} else {
+				/* translators: %d: Number of translated posts */
+				$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
+			}
 		} elseif ( 'failed' === $overall_status ) {
 			$current_status = __( 'Batch translation failed.', 'translatesense' );
 		} elseif ( $running_jobs > 0 ) {
-			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + 1, $total_jobs );
+			/* translators: 1: Completed jobs count, 2: Total jobs count */
+			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + $already_exists_jobs + 1, $total_jobs );
 		}
 
 		return array(
-			'success'           => true,
-			'batch_id'          => $batch_id,
-			'overall_status'    => $overall_status,
-			'progress_percent'  => $overall_progress,
-			'current_status'    => $current_status,
-			'total_jobs'        => $total_jobs,
-			'completed_jobs'    => $completed_jobs,
-			'failed_jobs'       => $failed_jobs,
-			'running_jobs'      => $running_jobs,
-			'pending_jobs'      => $pending_jobs,
-			'total_strings'     => $total_strings,
-			'completed_strings' => $completed_strings,
-			'pending_strings'   => $pending_strings,
-			'items'             => $items,
+			'success'             => true,
+			'batch_id'            => $batch_id,
+			'overall_status'      => $overall_status,
+			'progress_percent'    => $overall_progress,
+			'current_status'      => $current_status,
+			'total_jobs'          => $total_jobs,
+			'completed_jobs'      => $completed_jobs,
+			'already_exists_jobs' => $already_exists_jobs,
+			'failed_jobs'         => $failed_jobs,
+			'running_jobs'        => $running_jobs,
+			'pending_jobs'        => $pending_jobs,
+			'total_strings'       => $total_strings,
+			'completed_strings'   => $completed_strings,
+			'pending_strings'     => $pending_strings,
+			'items'               => $items,
 		);
 	}
 }

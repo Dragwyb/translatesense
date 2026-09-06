@@ -101,10 +101,9 @@ class Classic_Builder extends Base_Builder {
 	 * @param SimpleXMLElement $xml
 	 * @param string           $name
 	 * @param array            $field_details
-	 * @param array            $conditions
 	 * @return void
 	 */
-	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details, array $conditions = array() ): void {
+	public function append_rule( SimpleXMLElement $xml, string $name, array $field_details ): void {
 		if ( ! isset( $xml->{$this->section_name} ) ) {
 			$xml->addChild( $this->section_name );
 		}
@@ -133,6 +132,7 @@ class Classic_Builder extends Base_Builder {
 		if ( isset( $xml->{$this->section_name}->{'custom-field'} ) ) {
 			foreach ( $xml->{$this->section_name}->{'custom-field'} as $cf ) {
 				$field_name      = trim( (string) $cf );
+				$action          = (string) ( $cf['action'] ?? 'translate' );
 				$is_no_translate = isset( $cf['noTranslate'] ) && in_array( strtolower( (string) $cf['noTranslate'] ), array( 'true', '1', 'yes' ), true );
 				if ( $is_no_translate || 'ignore' === $action ) {
 					if ( isset( $rules['custom_fields'][ $field_name ] ) ) {
@@ -143,7 +143,7 @@ class Classic_Builder extends Base_Builder {
 				}
 				$rules['custom_fields'][ $field_name ] = array(
 					'name'   => $field_name,
-					'action' => (string) ( $cf['action'] ?? 'translate' ),
+					'action' => $action,
 					'source' => $source,
 				);
 			}

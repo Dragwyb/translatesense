@@ -32,10 +32,6 @@ class Editor_Integration {
 
 		// Elementor Editor Hooks
 		add_action( 'elementor/editor/after_enqueue_scripts', array( __CLASS__, 'enqueue_elementor_editor_assets' ) );
-
-		// Divi Visual Builder Hooks
-		add_action( 'et_builder_ready', array( __CLASS__, 'enqueue_divi_editor_assets' ) );
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_builder_assets' ) );
 	}
 
 	/**
@@ -46,6 +42,7 @@ class Editor_Integration {
 			$from_post_id = (int) $_GET['from_post']; // phpcs:ignore
 			if ( $from_post_id > 0 ) {
 				update_post_meta( $post_id, '_translatesense_source_id', $from_post_id );
+				update_post_meta( $post_id, '_show_initial_prompt_modal', '1' );
 			}
 		}
 	}
@@ -54,7 +51,7 @@ class Editor_Integration {
 	 * Detect editor type for a given post ID.
 	 *
 	 * @param int $post_id
-	 * @return string 'elementor' | 'divi' | 'gutenberg' | 'classic'
+	 * @return string 'elementor' | 'gutenberg' | 'classic'
 	 */
 	public static function get_post_editor_type( $post_id ) {
 		if ( ! $post_id ) {
@@ -67,13 +64,7 @@ class Editor_Integration {
 			return 'elementor';
 		}
 
-		// 2. Check Divi Builder
-		$et_pb_use_builder = get_post_meta( $post_id, '_et_pb_use_builder', true );
-		if ( 'on' === $et_pb_use_builder ) {
-			return 'divi';
-		}
-
-		// 3. Check Gutenberg (has blocks)
+		// 2. Check Gutenberg (has blocks)
 		$post = get_post( $post_id );
 		if ( $post && function_exists( 'has_blocks' ) && has_blocks( $post->post_content ) ) {
 			return 'gutenberg';
@@ -83,7 +74,7 @@ class Editor_Integration {
 	}
 
 	/**
-	 * Get appropriate edit link based on post editor type (Elementor, Divi, Gutenberg, Classic).
+	 * Get appropriate edit link based on post editor type (Elementor, Gutenberg, Classic).
 	 *
 	 * @param int $post_id
 	 * @return string
@@ -110,9 +101,32 @@ class Editor_Integration {
 	}
 
 	/**
+	 * Check if post is already translated.
+	 *
+	 * @param int $post_id
+	 * @return bool
+	 */
+	public static function is_post_already_translated( int $post_id ): bool {
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		$is_translated = get_post_meta( $post_id, '_translatesense_translated', true );
+		if ( ! empty( $is_translated ) && '0' !== (string) $is_translated ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
 	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
+		if ( ! $post_id || self::is_post_already_translated( (int) $post_id ) ) {
+			return;
+		}
+
 		$source_post_id = self::get_source_post_id( $post_id );
 
 		if ( ! $source_post_id ) {
@@ -169,7 +183,7 @@ class Editor_Integration {
 			true
 		);
 
-		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Divi, Classic)
+		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Classic)
 		wp_enqueue_script(
 			'translatesense-live-meta-fields-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/meta-fields.js',
@@ -192,13 +206,6 @@ class Editor_Integration {
 			true
 		);
 		wp_enqueue_script(
-			'translatesense-live-divi-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/divi.js',
-			array( 'translatesense-live-meta-fields-js' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-		wp_enqueue_script(
 			'translatesense-live-classic-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/classic.js',
 			array( 'translatesense-live-meta-fields-js' ),
@@ -208,7 +215,7 @@ class Editor_Integration {
 		wp_enqueue_script(
 			'translatesense-page-editor-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/index.js',
-			array( 'translatesense-live-meta-fields-js', 'translatesense-live-gutenberg-js', 'translatesense-live-elementor-js', 'translatesense-live-divi-js', 'translatesense-live-classic-js' ),
+			array( 'translatesense-live-meta-fields-js', 'translatesense-live-gutenberg-js', 'translatesense-live-elementor-js', 'translatesense-live-classic-js' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -222,26 +229,32 @@ class Editor_Integration {
 			true
 		);
 
-		$settings = get_option( 'translatesense_settings', array() );
+		$settings                  = get_option( 'translatesense_settings', array() );
+		$show_initial_prompt_modal = get_post_meta( $post_id, '_show_initial_prompt_modal', true );
 
 		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
 		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
 
 		$localize_data = array_merge(
 			array(
-				'postId'           => $post_id,
-				'editorType'       => $editor_type,
-				'sourcePostId'     => $source_post_id,
-				'sourceLanguage'   => $source_language,
-				'sourceEditorType' => $source_editor_type,
+				'postId'                 => $post_id,
+				'editorType'             => $editor_type,
+				'sourcePostId'           => $source_post_id,
+				'sourceLanguage'         => $source_language,
+				'sourceEditorType'       => $source_editor_type,
 				'fromPost'         => isset( $_GET['from_post'] ) ? (int) $_GET['from_post'] : 0, // phpcs:ignore
-				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'            => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
-				'currentLanguage'  => Polylang_Bridge::get_post_language( $post_id ),
-				'languages'        => Polylang_Bridge::get_languages(),
-				'defaultProvider'  => $settings['provider'] ?? 'openai',
-				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'                  => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'         => Polylang_Bridge::is_polylang_active(),
+				'currentLanguage'        => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'              => Polylang_Bridge::get_languages(),
+				'defaultProvider'        => $settings['provider'] ?? '',
+				'enabledProviders'       => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
+				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
+				'settingsUrl'            => Admin_Menu::get_dashboard_url( 'settings' ),
+				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'           => ! empty( $settings['gemini_api_key'] ),
 			),
 			$localize_data
 		);
@@ -258,7 +271,7 @@ class Editor_Integration {
 	 */
 	public static function enqueue_block_editor_assets() {
 		global $post;
-		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -274,7 +287,7 @@ class Editor_Integration {
 			return;
 		}
 		global $post;
-		if ( ! $post || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -290,7 +303,11 @@ class Editor_Integration {
 	 * Enqueue Elementor editor scripts (only for Polylang translated post types).
 	 */
 	public static function enqueue_elementor_editor_assets() {
-		$post_id   = (int) get_the_ID();
+		$post_id = (int) get_the_ID();
+		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
+
 		$post_type = get_post_type( $post_id );
 
 		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
@@ -298,36 +315,6 @@ class Editor_Integration {
 		}
 
 		self::enqueue_universal_editor_assets( $post_id, 'elementor' );
-	}
-
-	/**
-	 * Enqueue Divi builder scripts (only for Polylang translated post types).
-	 */
-	public static function enqueue_divi_editor_assets() {
-		$post_id   = (int) get_the_ID();
-		$post_type = get_post_type( $post_id );
-
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
-			return;
-		}
-
-		self::enqueue_universal_editor_assets( $post_id, 'divi' );
-	}
-
-	/**
-	 * Enqueue frontend builder assets (only for Polylang translated post types).
-	 */
-	public static function enqueue_frontend_builder_assets() {
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
-			$post_id   = (int) get_the_ID();
-			$post_type = get_post_type( $post_id );
-
-			if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
-				return;
-			}
-
-			self::enqueue_universal_editor_assets( $post_id, 'divi' );
-		}
 	}
 
 	private static function get_source_post_id( $post_id ) {
@@ -360,6 +347,11 @@ class Editor_Integration {
 	 * Add TranslateSense Meta Box only for post types translated/supported by Polylang.
 	 */
 	public static function add_translatesense_meta_box() {
+		global $post;
+		if ( $post && self::is_post_already_translated( (int) $post->ID ) ) {
+			return;
+		}
+
 		$post_types = Polylang_Bridge::get_translated_post_types();
 
 		foreach ( $post_types as $post_type ) {
@@ -378,7 +370,11 @@ class Editor_Integration {
 	 * Render Meta Box HTML for Gutenberg and Classic Editor.
 	 */
 	public static function render_editor_meta_box( $post ) {
-		$post_id = $post->ID;
+		$post_id = (int) $post->ID;
+
+		if ( self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
 
 		$source_post_id = self::get_source_post_id( $post_id );
 
@@ -408,6 +404,10 @@ class Editor_Integration {
 		}
 
 		$post_id = (int) get_the_ID();
+
+		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
+			return;
+		}
 
 		$source_post_id = self::get_source_post_id( $post_id );
 

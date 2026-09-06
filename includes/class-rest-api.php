@@ -41,7 +41,7 @@ class Rest_Api {
 			)
 		);
 
-		// 2. Read XML configuration (supports ?builder=gutenberg/elementor/divi/classic)
+		// 2. Read XML configuration (supports ?builder=gutenberg/elementor/classic)
 		register_rest_route(
 			self::NAMESPACE,
 			'/xml-config',
@@ -205,6 +205,17 @@ class Rest_Api {
 				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
 			)
 		);
+
+		// 12. Mark post as translated endpoint (used by Single Page Editor & Live Updaters)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mark-translated',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'mark_translated' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+			)
+		);
 	}
 
 	/**
@@ -229,7 +240,6 @@ class Rest_Api {
 		$response = array(
 			'gutenberg' => self::get_gutenberg_widgets_list( $rules['gutenberg'] ),
 			'elementor' => self::get_elementor_widgets_list( $rules['elementor'] ),
-			'divi'      => self::get_divi_widgets_list( $rules['divi'] ),
 			'classic'   => self::get_classic_widgets_list( $rules['custom_fields'] ),
 		);
 
@@ -245,31 +255,20 @@ class Rest_Api {
 	private static function get_gutenberg_widgets_list( $rules ) {
 		$standard_blocks = array();
 
-		// Merge all blocks present in rules (from core-config.xml or custom)
-		foreach ( $rules as $block_name => $block_data ) {
-			if ( ! isset( $standard_blocks[ $block_name ] ) ) {
-				$parts                          = explode( '/', $block_name );
-				$cat                            = count( $parts ) > 1 ? $parts[0] : 'custom';
-				$title                          = ucwords( str_replace( array( '-', '_' ), ' ', count( $parts ) > 1 ? $parts[1] : $block_name ) );
-				$standard_blocks[ $block_name ] = array(
+		// Only include registered server blocks from WP_Block_Type_Registry
+		if ( class_exists( '\WP_Block_Type_Registry' ) ) {
+			$registered = \WP_Block_Type_Registry::get_instance()->get_all_registered();
+			foreach ( $registered as $name => $type ) {
+				$title                    = ! empty( $type->title ) ? $type->title : $name;
+				$cat                      = ! empty( $type->category ) ? $type->category : 'widgets';
+				$standard_blocks[ $name ] = array(
 					'title'    => $title,
 					'category' => $cat,
 				);
 			}
 		}
 
-		// Merge registered server blocks if WP_Block_Type_Registry is available
-		if ( class_exists( '\WP_Block_Type_Registry' ) ) {
-			$registered = \WP_Block_Type_Registry::get_instance()->get_all_registered();
-			foreach ( $registered as $name => $type ) {
-				if ( ! isset( $standard_blocks[ $name ] ) ) {
-					$standard_blocks[ $name ] = array(
-						'title'    => $type->title ? $type->title : $name,
-						'category' => $type->category ? $type->category : 'widgets',
-					);
-				}
-			}
-		}
+		$gb_builder = Xml_Engine::get_builder( 'gutenberg' );
 
 		$result = array();
 		foreach ( $standard_blocks as $name => $info ) {
@@ -277,7 +276,7 @@ class Rest_Api {
 			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
 			$keys               = $is_supported ? ( $rules[ $name ]['keys'] ?? array() ) : array();
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
-			$field_count        = count( $keys );
+			$field_count        = $gb_builder ? $gb_builder->count_leaf_keys( $keys ) : count( $keys );
 			$no_translate_count = count( $no_translate );
 			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 
@@ -294,6 +293,13 @@ class Rest_Api {
 			);
 		}
 
+		usort(
+			$result,
+			function ( $a, $b ) {
+				return strcasecmp( (string) $a['name'], (string) $b['name'] );
+			}
+		);
+
 		return $result;
 	}
 
@@ -303,76 +309,24 @@ class Rest_Api {
 	private static function get_elementor_widgets_list( $rules ) {
 		$standard_widgets = array();
 
-		// Merge any widgets present in rules
-		foreach ( $rules as $widget_name => $widget_data ) {
-			if ( ! isset( $standard_widgets[ $widget_name ] ) ) {
-				$standard_widgets[ $widget_name ] = array(
-					'title'    => ucwords( str_replace( array( '-', '_' ), ' ', $widget_name ) ),
-					'category' => 'general',
-				);
-			}
-		}
-
-		// If Elementor is active and loaded
+		// Only include registered Elementor widgets if Elementor is active and loaded
 		if ( did_action( 'elementor/loaded' ) && class_exists( '\Elementor\Plugin' ) ) {
 			$widgets_mgr = \Elementor\Plugin::instance()->widgets_manager;
 			if ( $widgets_mgr ) {
 				$elementor_registered = $widgets_mgr->get_widget_types();
 				foreach ( $elementor_registered as $name => $widget_obj ) {
-					if ( ! isset( $standard_widgets[ $name ] ) ) {
-						$standard_widgets[ $name ] = array(
-							'title'    => $widget_obj->get_title(),
-							'category' => method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general',
-						);
-					}
+					$title                     = method_exists( $widget_obj, 'get_title' ) ? $widget_obj->get_title() : $name;
+					$cat                       = method_exists( $widget_obj, 'get_categories' ) ? implode( ', ', $widget_obj->get_categories() ) : 'general';
+					$standard_widgets[ $name ] = array(
+						'title'    => $title,
+						'category' => $cat,
+					);
 				}
 			}
 		}
 
 		$result = array();
 		foreach ( $standard_widgets as $name => $info ) {
-			$is_supported       = isset( $rules[ $name ] );
-			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
-			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
-			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
-			$field_count        = count( $fields );
-			$no_translate_count = count( $no_translate );
-			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'supported' ) : 'unsupported';
-
-			$result[] = array(
-				'id'                 => $name,
-				'name'               => $info['title'],
-				'category'           => $info['category'],
-				'status'             => $status,
-				'source'             => $source,
-				'field_count'        => $field_count,
-				'no_translate_count' => $no_translate_count,
-				'fields'             => $fields,
-				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
-			);
-		}
-
-		return $result;
-	}
-
-	/**
-	 * Scan Divi modules and match with rules.
-	 */
-	private static function get_divi_widgets_list( $rules ) {
-		$standard_modules = array();
-
-		// Merge any modules present in rules
-		foreach ( $rules as $module_name => $module_data ) {
-			if ( ! isset( $standard_modules[ $module_name ] ) ) {
-				$standard_modules[ $module_name ] = array(
-					'title'    => ucwords( str_replace( array( 'et_pb_', '-', '_' ), ' ', $module_name ) ),
-					'category' => 'content',
-				);
-			}
-		}
-
-		$result = array();
-		foreach ( $standard_modules as $name => $info ) {
 			$is_supported       = isset( $rules[ $name ] );
 			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
 			$fields             = $is_supported ? ( $rules[ $name ]['fields'] ?? array() ) : array();
@@ -390,12 +344,21 @@ class Rest_Api {
 				'field_count'        => $field_count,
 				'no_translate_count' => $no_translate_count,
 				'fields'             => $fields,
-				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'divi', $name ),
+				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet( 'elementor', $name ),
 			);
 		}
 
+		usort(
+			$result,
+			function ( $a, $b ) {
+				return strcasecmp( (string) $a['name'], (string) $b['name'] );
+			}
+		);
+
 		return $result;
 	}
+
+
 
 	/**
 	 * Scan Classic & Custom fields list.
@@ -490,7 +453,6 @@ class Rest_Api {
 			'custom_xml'    => Xml_Engine::get_config( $builder ),
 			'gutenberg_xml' => Xml_Engine::get_config( 'gutenberg' ),
 			'elementor_xml' => Xml_Engine::get_config( 'elementor' ),
-			'divi_xml'      => Xml_Engine::get_config( 'divi' ),
 			'classic_xml'   => Xml_Engine::get_config( 'classic' ),
 			'rules'         => Xml_Engine::get_all_rules( $builder ),
 			'all_rules'     => Xml_Engine::get_all_rules( 'all' ),
@@ -526,6 +488,7 @@ class Rest_Api {
 				'success'    => true,
 				'builder'    => $builder,
 				'widget_id'  => $widget_id,
+				/* translators: %s: Page builder name (e.g. Gutenberg, Elementor) */
 				'message'    => sprintf( __( '%s XML configuration saved successfully.', 'translatesense' ), ucfirst( $builder ) ),
 				'custom_xml' => Xml_Engine::get_config( $builder ),
 				'rules'      => Xml_Engine::get_all_rules( $builder, true ),
@@ -618,7 +581,7 @@ class Rest_Api {
 
 	/**
 	 * Get specific editor XML configuration and parsed rules.
-	 * Accepts editor parameter (gutenberg, elementor, divi, classic) and excludes 'all'.
+	 * Accepts editor parameter (gutenberg, elementor, classic) and excludes 'all'.
 	 */
 	public static function get_editor_xml_config( WP_REST_Request $request ) {
 		$editor = sanitize_key( (string) ( $request->get_param( 'editor' ) ?: $request->get_param( 'builder' ) ?: '' ) );
@@ -626,7 +589,7 @@ class Rest_Api {
 		if ( empty( $editor ) || 'all' === $editor || ! in_array( $editor, Xml_Engine::BUILDERS, true ) ) {
 			return new WP_Error(
 				'invalid_editor',
-				__( 'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, divi, classic).', 'translatesense' ),
+				__( 'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, classic).', 'translatesense' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -642,7 +605,6 @@ class Rest_Api {
 				'rules'        => $rules,
 				'block_rules'  => ( 'gutenberg' === $editor ) ? $rules : array(),
 				'widget_rules' => ( 'elementor' === $editor ) ? $rules : array(),
-				'module_rules' => ( 'divi' === $editor ) ? $rules : array(),
 				'field_rules'  => ( 'classic' === $editor ) ? $rules : array(),
 			)
 		);
@@ -720,16 +682,32 @@ class Rest_Api {
 	public static function get_settings( WP_REST_Request $request ) {
 		global $wpdb;
 		$settings = get_option( 'translatesense_settings', array() );
-		if ( empty( $settings['enabled_providers'] ) ) {
-			$settings['enabled_providers'] = array( 'chrome_ai', 'openai', 'gemini' );
+		$defaults = array(
+			'provider'          => '',
+			'openai_api_key'    => '',
+			'openai_model'      => 'gpt-4o-mini',
+			'gemini_api_key'    => '',
+			'gemini_model'      => 'gemini-1.5-flash',
+			'enabled_providers' => array( 'chrome_ai', 'openai', 'gemini' ),
+			'batch_size'        => 25,
+			'response_timeout'  => 30,
+			'max_tokens'        => 4096,
+			'temperature'       => 0.2,
+			'custom_prompt'     => '',
+			'default_prompt'    => \TranslateSense\Includes\Translate\Translate::DEFAULT_PROMPT,
+		);
+		$settings = wp_parse_args( $settings, $defaults );
+		if ( empty( $settings['default_prompt'] ) ) {
+			$settings['default_prompt'] = \TranslateSense\Includes\Translate\Translate::DEFAULT_PROMPT;
 		}
+
 		$languages       = Polylang_Bridge::get_languages();
 		$polylang_active = Polylang_Bridge::is_polylang_active();
 
 		// Stats
 		$table_translations = Hashing_Db::get_translations_table();
-		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" );
-		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_strings != '' AND translated_strings != '{}' AND translated_strings != '[]'" );
+		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		return rest_ensure_response(
 			array(
@@ -782,7 +760,6 @@ class Rest_Api {
 		}
 
 		$source_editor_type = Editor_Integration::get_post_editor_type( $post_id );
-		$target_lang        = $params['target_lang'] ?? 'es';
 		$target_editor_type = ! empty( $params['builder'] ) ? sanitize_key( $params['builder'] ) : $source_editor_type;
 
 		if ( 'core' === $target_editor_type ) {
@@ -795,6 +772,7 @@ class Rest_Api {
 				array(
 					'success'     => false,
 					'editor_type' => $source_editor_type,
+					/* translators: 1: Source editor type, 2: Target editor type */
 					'message'     => sprintf( __( 'Source editor type (%1$s) must be same as Current Post editor type (%2$s).', 'translatesense' ), $source_editor_type, $target_editor_type ),
 				)
 			);
@@ -807,6 +785,45 @@ class Rest_Api {
 			$package_strings = Content_Parser::parse( '', $post_id, $source_language, $source_editor_type );
 		}
 
+		$post_title = get_the_title( $post_id );
+
+		if ( ! empty( $post_title ) ) {
+			$post_title_hash   = Hashing_Db::generate_hash( 'post_title', $post_title );
+			$package_strings[] = array(
+				'hash'   => $post_title_hash,
+				'name'   => 'post_title',
+				'key'    => 'Post/Page Title',
+				'source' => $post_title,
+				'value'  => $post_title,
+			);
+		}
+
+		$post_slug = get_post_field( 'post_name', $post_id );
+
+		if ( ! empty( $post_slug ) ) {
+			$post_slug_hash    = Hashing_Db::generate_hash( 'post_name', $post_slug );
+			$package_strings[] = array(
+				'hash'   => $post_slug_hash,
+				'name'   => 'post_name',
+				'key'    => 'Post/Page Slug',
+				'source' => $post_slug,
+				'value'  => $post_slug,
+			);
+		}
+
+		$post_excerpt = get_post_field( 'post_excerpt', $post_id );
+
+		if ( ! empty( $post_excerpt ) ) {
+			$post_excerpt_hash = Hashing_Db::generate_hash( 'post_excerpt', $post_excerpt );
+			$package_strings[] = array(
+				'hash'   => $post_excerpt_hash,
+				'name'   => 'post_excerpt',
+				'key'    => 'Post/Page Excerpt',
+				'source' => $post_excerpt,
+				'value'  => $post_excerpt,
+			);
+		}
+
 		return rest_ensure_response(
 			array(
 				'success'     => true,
@@ -814,14 +831,6 @@ class Rest_Api {
 				'strings'     => $package_strings,
 			)
 		);
-	}
-
-	/**
-	 * Parse content (blocks or Elementor JSON or plain text) into translatable strings array.
-	 * Maintained as backward-compatible delegation to Content_Parser::parse.
-	 */
-	public static function parse_content_for_strings( $content, $post_id = 0, $lang = '', $builder = '' ) {
-		return Content_Parser::parse( $content, $post_id, $lang, $builder );
 	}
 
 	/**
@@ -870,6 +879,10 @@ class Rest_Api {
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
+		}
+
+		if ( ! empty( $result['target_post_id'] ) ) {
+			update_post_meta( (int) $result['target_post_id'], '_translatesense_translated', '1' );
 		}
 
 		return rest_ensure_response( $result );
@@ -945,12 +958,37 @@ class Rest_Api {
 			}
 		}
 
+		if ( isset( $updates['status'] ) && 'completed' === $updates['status'] && ! empty( $updates['target_post_id'] ) ) {
+			update_post_meta( (int) $updates['target_post_id'], '_translatesense_translated', '1' );
+		}
+
 		$updated = Bulk_Process::update_job( $job_id, $clean_data );
 
 		return rest_ensure_response(
 			array(
 				'success' => $updated,
 				'job_id'  => $job_id,
+			)
+		);
+	}
+
+	/**
+	 * Mark post as translated endpoint (used by Single Page Editor).
+	 */
+	public static function mark_translated( WP_REST_Request $request ) {
+		$params  = $request->get_json_params();
+		$post_id = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			return new WP_Error( 'invalid_post', __( 'Valid Post ID is required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		update_post_meta( $post_id, '_translatesense_translated', '1' );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'post_id' => $post_id,
 			)
 		);
 	}

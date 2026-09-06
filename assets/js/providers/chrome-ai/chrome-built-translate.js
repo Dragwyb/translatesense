@@ -168,10 +168,17 @@
     return await translateSingleWithChromeAi(sourceText, sourceLang, targetLang);
   }
 
+  const getChromeLogo = () => {
+    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const base = data.pluginUrl || '';
+    return base ? `${base}assets/img/chrome_ai.png` : '';
+  };
+
   // Register provider on TranslateSenseCore
   window.TranslateSenseCore.registerProvider('chrome_ai', {
     title: 'Chrome Local AI',
     icon: '🤖',
+    logo: getChromeLogo(),
     desc: 'Private on-device translation powered by Chrome built-in Gemini Nano / Translation API.',
     category: 'browser',
     savesToDb: false,

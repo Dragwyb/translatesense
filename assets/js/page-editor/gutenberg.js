@@ -15,6 +15,16 @@
 
   const GutenbergUpdater = {
     /**
+     * Current translation provider ID (e.g. 'openai', 'gemini', 'chrome_ai').
+     */
+    provider: null,
+
+    /**
+     * Cache for Gutenberg block rules fetched from REST endpoint.
+     */
+    blockRulesCache: null,
+
+    /**
      * Check if Gutenberg block editor is active in the current window.
      */
     isActive() {
@@ -27,6 +37,7 @@
         window.wp.data.dispatch('core/block-editor')
       );
     },
+
 
     /**
      * Deep helper: Update nested object property by path array.
@@ -68,17 +79,21 @@
 
       const editData = {};
       strings.forEach((s) => {
-        const field = s.field || '';
-        const translated = s.translated || '';
+        const field = s.name || '';
+        let isTranslated = null;
 
-        if (!translated) return;
+        if (['post_title', 'post_excerpt', 'post_name'].includes(field)) {
+          isTranslated = window.TranslateSenseCore.getTranslatedString(field, s.source, this.provider, field);
+        }
 
-        if (field === 'post_title' || field === 'title') {
-          editData.title = translated;
-        } else if (field === 'post_excerpt' || field === 'excerpt') {
-          editData.excerpt = translated;
-        } else if (field === 'post_name' || field === 'slug') {
-          editData.slug = translated;
+        if (!isTranslated || !isTranslated.translate) return;
+
+        if (field === 'post_title') {
+          editData.title = isTranslated.translate;
+        } else if (field === 'post_excerpt') {
+          editData.excerpt = isTranslated.translate;
+        } else if (field === 'post_name') {
+          editData.slug = isTranslated.translate;
         }
       });
 
@@ -88,62 +103,13 @@
     },
 
     /**
-     * Cache for Gutenberg block rules fetched from REST endpoint.
-     */
-    blockRulesCache: null,
-
-    /**
-     * Fetch block configuration rules parsed from editor-xml-config REST endpoint.
-     */
-    async getBlockRules() {
-      if (this.blockRulesCache) {
-        return this.blockRulesCache;
-      }
-
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-      const nonce = config.nonce || '';
-
-      try {
-        const response = await fetch(restUrl + 'editor-xml-config?editor=gutenberg', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-        });
-        const data = await response.json();
-        if (data && (data.block_rules || data.rules)) {
-          this.blockRulesCache = data.block_rules || data.rules;
-          return this.blockRulesCache;
-        }
-      } catch (err) {
-        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=gutenberg:', err);
-      }
-
-      return {};
-    },
-
-    /**
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
-      const blockRules = await this.getBlockRules();
 
-      // Populate TranslateSenseCore stores
-      if (window.TranslateSenseCore) {
-        strings.forEach((s) => {
-          const wId = s.widget_id || 'core/paragraph';
-          const src = s.value || '';
-          const trans = s.translated || '';
-          if (src) {
-            window.TranslateSenseCore.saveSourceString(s.field || wId, src, wId);
-            if (trans) {
-              window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, trans, s.provider || 'default', wId);
-            }
-          }
-        });
-      }
+      if (!window.TranslateSenseCore) return;
+
+      const blockRules = await window.TranslateSenseCore.getEditorConfig('gutenberg', this.blockRulesCache);
 
       // Helper to find translation for a string value
       const findTranslation = (strVal, blockName = '') => {
@@ -152,15 +118,8 @@
 
         // 1. Check via TranslateSenseCore using block_name + string value hash
         if (window.TranslateSenseCore) {
-          const trans = window.TranslateSenseCore.getTranslatedString(blockName, clean, null, blockName);
-          if (trans && trans !== clean) return trans;
-        }
-
-        // 2. Direct string match
-        for (const s of strings) {
-          if (s.translated && s.value && s.value.trim() === clean) {
-            return s.translated;
-          }
+          const trans = window.TranslateSenseCore.getTranslatedString(blockName, clean, this.provider, blockName);
+          if (trans && trans.translate && trans.translate !== clean) return trans.translate;
         }
 
         return null;
@@ -269,6 +228,7 @@
     async apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
+      this.provider = options.provider;
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Post Title, Excerpt & Slug from translated source strings

@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 abstract class Base_Builder {
 
 	/**
-	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'classic').
 	 *
 	 * @return string
 	 */
@@ -93,6 +93,23 @@ abstract class Base_Builder {
 		return ! empty( $res['translated'] ) ? (string) $res['translated'] : $excerpt;
 	}
 
+	public function translate_post_name( string $post_name, string $source_lang, string $target_lang, int $post_id = 0, array $custom_opts = array() ): string {
+		if ( empty( trim( $post_name ) ) ) {
+			return $post_name;
+		}
+
+		$res = Translate::translate_string(
+			$post_name,
+			$source_lang,
+			$target_lang,
+			'post_name',
+			$post_id,
+			$custom_opts
+		);
+
+		return ! empty( $res['translated'] ) ? (string) $res['translated'] : $post_name;
+	}
+
 	/**
 	 * Generate or translate slug for target post.
 	 *
@@ -142,8 +159,9 @@ abstract class Base_Builder {
 		}
 
 		// 1. Translate Title & Excerpt
-		$translated_title   = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
-		$translated_excerpt = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_title     = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_excerpt   = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_post_name = $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts );
 
 		// 2. Translate Builder Content
 		$translated_content = $this->translate_content( $source_post, $source_lang, $target_lang, $custom_opts );
@@ -170,6 +188,16 @@ abstract class Base_Builder {
 				array(
 					'ID'           => $created_post_id,
 					'post_excerpt' => $translated_excerpt,
+				)
+			);
+		}
+
+		// Update slug if translated
+		if ( ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
+			wp_update_post(
+				array(
+					'ID'        => $created_post_id,
+					'post_name' => $translated_post_name,
 				)
 			);
 		}

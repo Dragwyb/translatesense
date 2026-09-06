@@ -111,10 +111,9 @@ abstract class Base_Builder {
 	 * @param SimpleXMLElement $xml
 	 * @param string           $name
 	 * @param array            $field_details
-	 * @param array            $conditions
 	 * @return void
 	 */
-	abstract public function append_rule( SimpleXMLElement $xml, string $name, array $field_details, array $conditions = array() ): void;
+	abstract public function append_rule( SimpleXMLElement $xml, string $name, array $field_details ): void;
 
 	/**
 	 * Parse rules from SimpleXMLElement into the rules array.

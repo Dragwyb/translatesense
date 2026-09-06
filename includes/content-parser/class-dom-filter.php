@@ -40,7 +40,7 @@ class Dom_Filter {
 	 * @return bool
 	 */
 	public static function has_text_content( string $text ): bool {
-		$decoded = html_entity_decode( strip_tags( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$decoded = html_entity_decode( wp_strip_all_tags( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 		$clean   = preg_replace( '/[\s\x{00a0}\x{200b}\x{200e}\x{200f}]+/u', '', $decoded );
 
 		return '' !== (string) $clean;

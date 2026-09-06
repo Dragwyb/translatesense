@@ -7,19 +7,66 @@
 (function (window, document) {
   'use strict';
 
+  function getLanguageFlagHtml(langInput, allLanguages = []) {
+    let slug = '';
+    let flagUrl = '';
+
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+      flagUrl = langInput.flag || '';
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+      const found = allLanguages.find((l) => (l.slug || '').toLowerCase() === slug);
+      if (found && found.flag) {
+        flagUrl = found.flag;
+      }
+    }
+
+    if (flagUrl && typeof flagUrl === 'string' && (flagUrl.startsWith('http://') || flagUrl.startsWith('https://') || flagUrl.startsWith('/') || flagUrl.startsWith('data:image/'))) {
+      return `<img src="${flagUrl}" class="ts-lang-flag-img" alt="${slug}" />`;
+    }
+
+    return '';
+  }
+
+  function getLanguageDisplay(langInput, allLanguages = []) {
+    let slug = '';
+    if (typeof langInput === 'object' && langInput !== null) {
+      slug = (langInput.slug || '').toLowerCase();
+    } else if (typeof langInput === 'string') {
+      slug = langInput.toLowerCase();
+    }
+    const flagHtml = getLanguageFlagHtml(langInput, allLanguages);
+    const code = slug.toUpperCase();
+    return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
+  }
+
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
+    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
+    const pluginUrl = config.pluginUrl || '';
+    const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+
+    let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      const providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length > 0) return providers;
-      const all = window.TranslateSenseCore.getProviders(false);
-      if (all.length > 0) return all;
+      providers = window.TranslateSenseCore.getProviders(true);
+      if (providers.length === 0 && enabledProviders.length === 0) {
+        providers = window.TranslateSenseCore.getProviders(false);
+      }
     }
-    return [
-      { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-      { id: 'gemini', title: 'Gemini AI', icon: '✨', desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-      { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-    ];
+    if (!providers || providers.length === 0) {
+      const defaultList = [
+        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
+        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
+        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
+      ];
+      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+    }
+    return providers.map((p) => ({
+      ...p,
+      logo: p.logo || getLogo(p.id),
+    }));
   }
 
   function initBulkTranslate() {
@@ -95,7 +142,20 @@
         selectedTargetLangs = [allLanguages[0].slug];
       }
 
-      let selectedProviderId = config.defaultProvider || 'openai';
+      const providers = getRegisteredProviders();
+      const defaultProv = config.defaultProvider || '';
+      const settingsUrl = config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
+      const isProviderMissingKey = (id) => {
+        if (id === 'openai') return !config.hasOpenAiKey;
+        if (id === 'gemini') return !config.hasGeminiKey;
+        return false;
+      };
+
+      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id))) ? defaultProv : '';
+      if (!selectedProviderId) {
+        const firstAvail = providers.find((p) => !isProviderMissingKey(p.id));
+        if (firstAvail) selectedProviderId = firstAvail.id;
+      }
 
       // Ensure root container exists
       let root = document.getElementById('translatesense-bulk-modal-root');
@@ -104,8 +164,6 @@
         root.id = 'translatesense-bulk-modal-root';
         document.body.appendChild(root);
       }
-
-      const providers = getRegisteredProviders();
 
       // Render Modal Skeleton with 3 distinct views: Languages -> Provider -> Live Progress
       root.innerHTML = `
@@ -128,6 +186,11 @@
                   <div class="ts-step-item">
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
+                  </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">3</span>
+                    <span>Translation Progress</span>
                   </div>
                 </div>
 
@@ -153,7 +216,7 @@
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
                           <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
                           <span class="ts-lang-name">${lang.name}</span>
-                          <span class="ts-lang-code">${lang.slug.toUpperCase()}</span>
+                          <span class="ts-lang-code">${getLanguageDisplay(lang, allLanguages)}</span>
                         </div>
                       `;
           })
@@ -173,6 +236,11 @@
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
                   </div>
+                  <span class="ts-step-divider">&rarr;</span>
+                  <div class="ts-step-item">
+                    <span class="ts-step-number">3</span>
+                    <span>Translation Progress</span>
+                  </div>
                 </div>
 
                 <div class="ts-summary-box" id="ts-summary-box-content"></div>
@@ -182,25 +250,29 @@
                   <div class="ts-provider-list">
                     ${providers.map(
             (p) => {
-              const isSelected = p.id === selectedProviderId;
+              const isMissingKey = isProviderMissingKey(p.id);
+              const isSelected = !isMissingKey && p.id === selectedProviderId;
               const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
               const badgeHtml = isLocalFrontend
                 ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
                 : '';
+              const actionHtml = isMissingKey
+                ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+                : badgeHtml;
 
               return `
-                          <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                          <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
                             <div class="ts-provider-radio-wrap">
-                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
                               <span class="ts-provider-custom-radio"></span>
                             </div>
                             <div class="ts-provider-icon-box">
-                              <span class="ts-provider-emoji">${p.icon}</span>
+                              <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                             </div>
                             <div class="ts-provider-main-info">
                               <div class="ts-provider-title-row">
                                 <span class="ts-provider-name">${p.title}</span>
-                                ${badgeHtml}
+                                ${actionHtml}
                               </div>
                               <p class="ts-provider-caption">${p.desc}</p>
                             </div>
@@ -393,7 +465,7 @@
           const totalTranslations = postIds.length * selectedTargetLangs.length;
           const langTags = allLanguages
             .filter((l) => selectedTargetLangs.includes(l.slug))
-            .map((l) => `<span class="ts-summary-tag">${l.name} (${l.slug.toUpperCase()})</span>`)
+            .map((l) => `<span class="ts-summary-tag">${getLanguageFlagHtml(l, allLanguages)} ${l.name} (${l.slug.toUpperCase()})</span>`)
             .join(' ');
 
           const step1Label = document.getElementById('ts-summary-step1-label');
@@ -440,6 +512,9 @@
       // Provider Selection Row Click
       document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (row) {
         row.addEventListener('click', function () {
+          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+            return;
+          }
           document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (c) {
             c.classList.remove('selected');
           });
@@ -455,7 +530,13 @@
       if (startBtn) {
         startBtn.addEventListener('click', async function () {
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
-          const selectedProvider = checkedRadio ? checkedRadio.value : selectedProviderId;
+          const selectedProvider = checkedRadio && !checkedRadio.disabled ? checkedRadio.value : selectedProviderId;
+
+          if (!selectedProvider || isProviderMissingKey(selectedProvider)) {
+            alert('Please choose an active translation engine with a configured API key before starting.');
+            return;
+          }
+
           const isChromeAi = (selectedProvider === 'chrome_ai' || selectedProvider === 'chrome_local_ai');
 
           // Switch UI view: Hide provider view, show dedicated progress view
@@ -499,13 +580,14 @@
           // State tracking for grouped post results & activity
           const postResultsMap = {};
           postIds.forEach(function (pid) {
-            postResultsMap[pid] = {
+            const pIdStr = String(pid);
+            postResultsMap[pIdStr] = {
               postId: pid,
               postTitle: `Post #${pid}`,
               translations: {},
             };
             selectedTargetLangs.forEach(function (lang) {
-              postResultsMap[pid].translations[lang] = {
+              postResultsMap[pIdStr].translations[lang] = {
                 targetLang: lang,
                 targetPostId: null,
                 targetTitle: '',
@@ -550,18 +632,21 @@
 
               transKeys.forEach(function (langSlug) {
                 const trans = postData.translations[langSlug];
+                const isAlreadyExists = trans.status === 'already_exists';
                 const isDone = trans.status === 'completed';
                 const isFail = trans.status === 'failed';
                 const isRunning = trans.status === 'running';
 
-                if (isDone) completedTranslationsCount++;
+                if (isDone || isAlreadyExists) completedTranslationsCount++;
 
                 const langUpper = langSlug.toUpperCase();
                 const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
                 const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
 
                 let statusBadge = '';
-                if (isDone) {
+                if (isAlreadyExists) {
+                  statusBadge = '<span class="ts-trans-status-pill already-exists">⚡ Already Exists</span>';
+                } else if (isDone) {
                   statusBadge = '<span class="ts-trans-status-pill success">✓ Completed</span>';
                 } else if (isFail) {
                   statusBadge = '<span class="ts-trans-status-pill failed">✕ Failed</span>';
@@ -572,7 +657,9 @@
                 }
 
                 let metaInfo = '';
-                if (isDone && trans.completedStrings) {
+                if (isAlreadyExists) {
+                  metaInfo = trans.targetPostId ? `<span class="ts-trans-target-id">#${trans.targetPostId}</span>` : '';
+                } else if (isDone && trans.completedStrings) {
                   metaInfo = `<span class="ts-trans-strings-count">${trans.completedStrings} strings</span>`;
                 } else if (isFail && trans.error) {
                   metaInfo = `<span class="ts-trans-error-msg">${escapeHtml(trans.error)}</span>`;
@@ -581,28 +668,30 @@
                 }
 
                 let actionsHtml = '';
-                if (isDone) {
-                  const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
-                  const editLabel = '✏️ Edit';
-                  const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
-                  const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
+                const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
+                const editLabel = '✏️ Edit';
+                const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
+                const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
 
-                  const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
-                  const editHref = trans.editUrl || defaultEditUrl;
-                  const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
+                const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
+                const editHref = trans.editUrl || defaultEditUrl;
+                const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
 
+                if (isAlreadyExists || isDone) {
                   actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-action-link-btn view" title="View translated post on site">👁 View</a>`;
-                  actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
+                  if (trans.targetPostId || trans.editUrl) {
+                    actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
+                  }
                 } else {
                   actionsHtml += `<span class="ts-action-link-btn disabled">👁 View</span><span class="ts-action-link-btn disabled">✏️ Edit</span>`;
                 }
 
-                const displayTitle = trans.targetTitle || (isDone ? postData.postTitle : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`));
+                const displayTitle = trans.targetTitle || (isAlreadyExists ? (trans.targetTitle || postData.postTitle) : (isDone ? (trans.targetTitle || postData.postTitle) : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`)));
 
                 html += `
                   <div class="ts-translation-item ${trans.status}">
                     <div class="ts-trans-lang-col">
-                      <span class="ts-trans-lang-badge ${isDone ? 'success' : (isFail ? 'failed' : '')}">${langUpper}</span>
+                      <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${getLanguageFlagHtml(langObj || langSlug, allLanguages)} (${langUpper})</span>
                     </div>
                     <div class="ts-trans-details-col">
                       <div class="ts-trans-title ${isFail ? 'error' : ''}">
@@ -680,6 +769,14 @@
                         successSummaryText.textContent = `Successfully processed and created translations for ${completedJobs || 1} of ${totalJobs || 1} post(s).`;
                       }
                       successSummary.style.display = 'flex';
+
+                      // Auto-hide success notice after 20 seconds
+                      setTimeout(function () {
+                        successSummary.classList.add('ts-progress-fade-out');
+                        setTimeout(function () {
+                          successSummary.style.display = 'none';
+                        }, 500);
+                      }, 7000);
                     }
                   }, 500);
                 }
@@ -760,17 +857,49 @@
 
           // Populate post titles & editor types from batch jobs
           jobsList.forEach(function (job) {
-            if (postResultsMap[job.post_id]) {
-              if (job.post_title) postResultsMap[job.post_id].postTitle = job.post_title;
-              if (job.editor_type && postResultsMap[job.post_id].translations[job.target_language]) {
-                postResultsMap[job.post_id].translations[job.target_language].editorType = job.editor_type;
-              }
+            const pId = String(job.post_id);
+            const tLang = String(job.target_language);
+
+            if (!postResultsMap[pId]) {
+              postResultsMap[pId] = {
+                postId: job.post_id,
+                postTitle: job.post_title || `Post #${job.post_id}`,
+                translations: {},
+              };
+            }
+            if (job.post_title) postResultsMap[pId].postTitle = job.post_title;
+
+            if (!postResultsMap[pId].translations[tLang]) {
+              postResultsMap[pId].translations[tLang] = {
+                targetLang: tLang,
+                targetPostId: null,
+                targetTitle: '',
+                status: 'pending',
+                completedStrings: 0,
+                totalStrings: 0,
+                editUrl: '',
+                viewUrl: '',
+                error: '',
+              };
+            }
+
+            const trans = postResultsMap[pId].translations[tLang];
+            if (job.editor_type) {
+              trans.editorType = job.editor_type;
+            }
+            if (job.status === 'already_exists') {
+              trans.status = 'already_exists';
+              trans.targetPostId = job.target_post_id;
+              trans.targetTitle = job.target_post_title || job.post_title;
+              trans.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
+              trans.editUrl = job.edit_url || (job.target_post_id ? `post.php?post=${job.target_post_id}&action=edit` : '');
             }
           });
           renderResultsUI();
 
           // =========================================================================
-          // WORKFLOW A: Backend AI Providers (OpenAI, Gemini) via Cron + 5s Polling
+          // WORKFLOW A: Backend AI Providers (OpenAI, Gemini, etc.) -> Backend Cron & 5s Polling
+          // Frontend does NOT translate strings or call AI providers in JS.
           // =========================================================================
           if (!isChromeAi) {
             if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
@@ -781,6 +910,7 @@
               statusLabelEl.textContent = 'RUNNING';
             }
 
+            let pollingTimer = null;
             const pollStatus = async () => {
               try {
                 const statusRes = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(batchId)}`, {
@@ -810,24 +940,28 @@
                 // Update Grouped Results Map from Polling Items
                 if (Array.isArray(data.items)) {
                   data.items.forEach(function (item) {
-                    if (!postResultsMap[item.post_id]) {
-                      postResultsMap[item.post_id] = {
+                    const pId = String(item.post_id);
+                    const tLang = String(item.target_language);
+
+                    if (!postResultsMap[pId]) {
+                      postResultsMap[pId] = {
                         postId: item.post_id,
-                        postTitle: item.post_title,
+                        postTitle: item.post_title || `Post #${item.post_id}`,
                         translations: {},
                       };
                     }
-                    if (item.post_title) postResultsMap[item.post_id].postTitle = item.post_title;
-                    postResultsMap[item.post_id].translations[item.target_language] = {
+                    if (item.post_title) postResultsMap[pId].postTitle = item.post_title;
+
+                    postResultsMap[pId].translations[tLang] = {
                       targetLang: item.target_language,
                       targetPostId: item.target_post_id,
-                      targetTitle: item.target_post_title || (item.status === 'completed' ? item.post_title : (item.progress_status || 'Processing...')),
+                      targetTitle: item.target_post_title || (item.status === 'already_exists' || item.status === 'completed' ? (item.target_post_title || item.post_title) : (item.progress_status || 'Processing...')),
                       editorType: item.editor_type,
                       status: item.status,
                       completedStrings: item.completed_strings,
                       totalStrings: item.total_strings,
-                      editUrl: item.edit_url,
-                      viewUrl: item.view_url,
+                      editUrl: item.edit_url || (item.target_post_id ? `post.php?post=${item.target_post_id}&action=edit` : ''),
+                      viewUrl: item.view_url || (item.target_post_id ? `/?p=${item.target_post_id}` : ''),
                       error: item.error_message,
                     };
                   });
@@ -839,10 +973,21 @@
                   clearInterval(pollingTimer);
                   pollingTimer = null;
                   const isDone = data.overall_status === 'completed';
-                  const msg = isDone
-                    ? `🎉 Bulk Translation Complete! (${data.completed_jobs}/${data.total_jobs} posts translated)`
-                    : `Batch translation completed with issues (${data.failed_jobs} failed).`;
-                  onBulkProgressComplete(isDone, msg, data.completed_jobs, data.total_jobs);
+                  const existsCount = data.already_exists_jobs || 0;
+                  const doneCount = data.completed_jobs || 0;
+                  let msg = '';
+                  if (isDone) {
+                    if (existsCount > 0 && doneCount > 0) {
+                      msg = `🎉 Bulk Translation Complete! (${doneCount} translated, ${existsCount} already existed)`;
+                    } else if (existsCount > 0 && doneCount === 0) {
+                      msg = `ℹ️ All ${existsCount} translation(s) already exist.`;
+                    } else {
+                      msg = `🎉 Bulk Translation Complete! (${doneCount}/${data.total_jobs} posts translated)`;
+                    }
+                  } else {
+                    msg = `Batch translation completed with issues (${data.failed_jobs} failed).`;
+                  }
+                  onBulkProgressComplete(isDone, msg, (doneCount + existsCount), data.total_jobs);
                 }
               } catch (pollErr) {
                 console.warn('[TranslateSense] Polling error:', pollErr);
@@ -857,6 +1002,7 @@
 
           // =========================================================================
           // WORKFLOW B: Chrome Local AI In-Memory String Translation Workflow
+          // Runs on-device inside browser, creates translated post and sets strings in backend.
           // =========================================================================
           let totalBatchStrings = 0;
           let completedBatchStrings = 0;
@@ -872,19 +1018,50 @@
 
           for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
             const job = jobsList[jobIndex];
-            const postId = job.post_id;
-            const targetLang = job.target_language;
+            const postId = String(job.post_id);
+            const targetLang = String(job.target_language);
             const jobId = job.id;
             const postEditorType = job.editor_type || 'core';
             const postTitle = job.post_title || `Post #${postId}`;
 
-            if (postResultsMap[postId]) {
-              postResultsMap[postId].postTitle = postTitle;
-              if (postResultsMap[postId].translations[targetLang]) {
-                postResultsMap[postId].translations[targetLang].status = 'running';
-                renderResultsUI();
-              }
+            if (!postResultsMap[postId]) {
+              postResultsMap[postId] = {
+                postId: job.post_id,
+                postTitle: postTitle,
+                translations: {},
+              };
             }
+            if (!postResultsMap[postId].translations[targetLang]) {
+              postResultsMap[postId].translations[targetLang] = {
+                targetLang: targetLang,
+                targetPostId: null,
+                targetTitle: '',
+                status: 'pending',
+                completedStrings: 0,
+                totalStrings: 0,
+                editUrl: '',
+                viewUrl: '',
+                error: '',
+              };
+            }
+
+            // Skip Chrome AI translation if already exists
+            if (job.status === 'already_exists') {
+              const transObj = postResultsMap[postId].translations[targetLang];
+              transObj.status = 'already_exists';
+              transObj.targetPostId = job.target_post_id;
+              transObj.targetTitle = job.target_post_title || postTitle;
+              transObj.editorType = job.editor_type || postEditorType;
+              transObj.editUrl = job.edit_url || (job.target_post_id ? `post.php?post=${job.target_post_id}&action=edit` : '');
+              transObj.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
+              renderResultsUI();
+              completedJobsCount++;
+              continue;
+            }
+
+            postResultsMap[postId].postTitle = postTitle;
+            postResultsMap[postId].translations[targetLang].status = 'running';
+            renderResultsUI();
 
             if (statusText) {
               statusText.textContent = `Extracting strings for ${postTitle} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
@@ -907,7 +1084,7 @@
 
               const extractData = await extractRes.json();
               let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
-              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || s.source || ''));
+              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
 
               totalBatchStrings += rawStrings.length;
               if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
@@ -929,7 +1106,6 @@
                   hash: s.hash,
                   widget_id: s.name,
                   field: s.key,
-                  source: s.source || s.value,
                   content: s.value,
                 }));
 
@@ -945,7 +1121,7 @@
                   if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
                 };
 
-                // Run client-side Chrome AI translation (stores results in inMemoryTranslations variable, NOT in DB translations cache)
+                // Run client-side Chrome AI translation
                 await window.TranslateSenseCore.translate(
                   'chrome_ai',
                   {
@@ -982,6 +1158,13 @@
                 throw new Error(postRes.message || `Post translation save failed`);
               }
 
+              const indexedStrings = rawStrings.map((s) => (typeof s === 'object' ? s.content || s.value || '' : String(s)));
+              const indexedTranslated = rawStrings.map((s) => {
+                const h = typeof s === 'object' ? s.hash : '';
+                const src = typeof s === 'object' ? s.content || s.value || '' : String(s);
+                return inMemoryTranslations[h] || inMemoryTranslations[src] || src;
+              });
+
               // 3. Update bulk job record in DB
               await fetch(restUrl + 'bulk-update-job', {
                 method: 'POST',
@@ -997,8 +1180,8 @@
                     total_strings: rawStrings.length,
                     completed_strings: rawStrings.length,
                     target_post_id: postRes.target_post_id,
-                    sent_ai_request_data: rawStrings,
-                    received_ai_request_data: inMemoryTranslations,
+                    sent_ai_request_data: indexedStrings,
+                    received_ai_request_data: indexedTranslated,
                   },
                 }),
               });

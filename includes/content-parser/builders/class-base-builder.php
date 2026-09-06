@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 abstract class Base_Builder {
 
 	/**
-	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'divi', 'classic').
+	 * Get the builder slug identifier (e.g. 'gutenberg', 'elementor', 'classic').
 	 *
 	 * @return string
 	 */
@@ -62,7 +62,7 @@ abstract class Base_Builder {
 		$hash         = Hashing_Db::generate_hash( $name, $filtered_value );
 
 		if ( $post_id > 0 && ! empty( $lang ) ) {
-			Hashing_Db::record_package( $post_id, $lang, $hash, $value, $builder_slug, $name, $key, $filtered_value );
+			Hashing_Db::record_package( $post_id, $lang, $hash, $builder_slug, $name, $key, $value, $filtered_value );
 		}
 
 		$item = array(
@@ -85,7 +85,7 @@ abstract class Base_Builder {
 	 * @return bool
 	 */
 	public function is_email_or_url( string $str ): bool {
-		$trimmed = trim( strip_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
+		$trimmed = trim( wp_strip_all_tags( html_entity_decode( $str, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
 
 		if ( '' === $trimmed ) {
 			return false;
@@ -169,7 +169,7 @@ abstract class Base_Builder {
 		}
 
 		// Decode HTML entities (including &nbsp;, &#160;, etc.)
-		$decoded = html_entity_decode( strip_tags( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$decoded = html_entity_decode( wp_strip_all_tags( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 		// Strip all whitespace including unicode non-breaking spaces and zero-width spaces
 		$clean = preg_replace( '/[\s\x{00a0}\x{200b}\x{200e}\x{200f}]+/u', '', $decoded );
 

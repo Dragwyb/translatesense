@@ -30,6 +30,7 @@ class Admin_Menu {
 	public static function register_menu_pages() {
 		$capability = 'manage_options';
 		if ( function_exists( 'pll_languages_list' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Using Polylang capability filter for compatibility.
 			$capability = apply_filters( 'pll_capability_manage_options', $capability );
 		}
 		$capability = apply_filters( 'translatesense_menu_capability', $capability );
@@ -108,15 +109,30 @@ class Admin_Menu {
 			'translatesense-admin-js',
 			'TranslateSenseData',
 			array(
-				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage' => Polylang_Bridge::get_default_language(),
-				'languages'       => Polylang_Bridge::get_languages(),
-				'activeBuilders'  => self::get_active_builders(),
-				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
+				'restUrl'        => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'          => wp_create_nonce( 'wp_rest' ),
+				'polylangActive' => Polylang_Bridge::is_polylang_active(),
+				'languages'      => Polylang_Bridge::get_languages(),
+				'activeBuilders' => self::get_active_builders(),
+				'pluginUrl'      => TRANSLATESENSE_PLUGIN_URL,
+				'version'        => TRANSLATESENSE_VERSION,
 			)
 		);
+	}
+
+	/**
+	 * Get Dashboard Page URL with optional tab parameter.
+	 *
+	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor', 'classic', 'xml_editor')
+	 * @return string
+	 */
+	public static function get_dashboard_url( string $tab = '' ): string {
+		$base_page = Polylang_Bridge::is_polylang_active() ? 'admin.php' : 'options-general.php';
+		$url       = admin_url( $base_page . '?page=translatesense' );
+		if ( ! empty( $tab ) ) {
+			$url = add_query_arg( 'tab', $tab, $url );
+		}
+		return $url;
 	}
 
 	/**

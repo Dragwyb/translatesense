@@ -15,39 +15,15 @@
   'use strict';
 
   const ElementorUpdater = {
-    widgetRulesCache: null,
+    /**
+   * Current translation provider ID (e.g. 'openai', 'gemini', 'chrome_ai').
+   */
+    provider: null,
 
     /**
-     * Fetch widget configuration rules parsed from editor-xml-config REST endpoint.
-     */
-    async getWidgetRules() {
-      if (this.widgetRulesCache) {
-        return this.widgetRulesCache;
-      }
-
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-      const nonce = config.nonce || '';
-
-      try {
-        const response = await fetch(restUrl + 'editor-xml-config?editor=elementor', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-        });
-        const data = await response.json();
-        if (data && (data.widget_rules || data.rules)) {
-          this.widgetRulesCache = data.widget_rules || data.rules;
-          return this.widgetRulesCache;
-        }
-      } catch (err) {
-        console.warn('[TranslateSense] Could not fetch /editor-xml-config?editor=elementor:', err);
-      }
-
-      return {};
-    },
+    * Cache for Elementor Widget  rules fetched from REST endpoint.
+    */
+    widgetRulesCache: null,
 
     /**
      * Get active Elementor instance (current frame or top frame).
@@ -79,20 +55,15 @@
     /**
      * Resolve translated string for a given text value.
      */
-    resolveTranslation(strVal, widgetType = '', strings = []) {
+    resolveTranslation(strVal, widgetType = '') {
       if (typeof strVal !== 'string' || !strVal.trim()) return null;
       const clean = strVal.trim();
 
       if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getTranslatedString === 'function') {
-        const trans = window.TranslateSenseCore.getTranslatedString(widgetType, clean, null, widgetType);
-        if (trans && trans !== clean) return trans;
+        const trans = window.TranslateSenseCore.getTranslatedString(widgetType, clean, this.provider, widgetType);
+        if (trans && trans.translate && trans.translate !== clean) return trans.translate;
       }
 
-      for (const s of strings) {
-        if (s.translated && s.value && s.value.trim() === clean) {
-          return s.translated;
-        }
-      }
       return null;
     },
 
@@ -113,57 +84,59 @@
     },
 
     /**
-     * Save strings to TranslateSenseCore cache.
-     */
-    cacheStrings(strings) {
-      if (!window.TranslateSenseCore || !Array.isArray(strings)) return;
-
-      strings.forEach((s) => {
-        const wId = s.widget_id || 'elementor_widget';
-        const src = s.value || '';
-        const trans = s.translated || '';
-        if (src) {
-          window.TranslateSenseCore.saveSourceString(s.field || wId, src, wId);
-          if (trans) {
-            window.TranslateSenseCore.saveTranslatedString(s.field || wId, src, trans, s.provider || 'default', wId);
-          }
-        }
-      });
-    },
-
-    /**
      * Deeply translates all translatable strings in source Elementor elements JSON tree.
      *
      * @param {Array} elements - Raw Elementor elements tree array.
      * @param {Array} strings  - Array of translation objects { value, translated, field, widget_id }.
      * @returns {Array} Translated elements tree.
      */
-    translateElementTree(elements, strings) {
+    async translateElementTree(elements) {
       if (!Array.isArray(elements)) return elements;
+
+      const widgetRules = await window.TranslateSenseCore.getEditorConfig('elementor', this.widgetRulesCache);
 
       const clonedTree = JSON.parse(JSON.stringify(elements));
 
-      const translateSettingsObject = (settings, widgetType) => {
+      const translatePathRecursive = (data, segments, index, widgetType, rules) => {
+        if (!data || typeof data !== 'object' || !segments || index >= segments.length) return;
+
+        const currentKey = segments[index];
+        const isLast = (index === segments.length - 1);
+
+        if (Array.isArray(data)) {
+          data.forEach((item) => {
+            translatePathRecursive(item, segments, index, widgetType, rules);
+          });
+          return;
+        }
+
+        if (data.hasOwnProperty(currentKey)) {
+          if (isLast) {
+            const val = data[currentKey];
+            if (typeof val === 'string' && val.trim() !== '') {
+              const transVal = this.resolveTranslation(val, widgetType);
+              if (transVal) {
+                data[currentKey] = transVal;
+              }
+            }
+          } else if (typeof data[currentKey] === 'object' && data[currentKey] !== null) {
+            translatePathRecursive(data[currentKey], segments, index + 1, widgetType, rules);
+          }
+        }
+      };
+
+      const translateSettingsObject = (settings, widgetType, rules) => {
         if (!settings || typeof settings !== 'object') return;
 
-        Object.keys(settings).forEach((key) => {
-          const val = settings[key];
+        const attrRules = (rules && (rules.attributes || rules.fields || rules.keys)) || rules || {};
 
-          if (typeof val === 'string' && val.trim() !== '') {
-            const transVal = this.resolveTranslation(val, widgetType, strings);
-            if (transVal) {
-              settings[key] = transVal;
-            }
-          } else if (Array.isArray(val)) {
-            val.forEach((item) => {
-              if (item && typeof item === 'object') {
-                translateSettingsObject(item, widgetType);
-              }
-            });
-          } else if (val && typeof val === 'object') {
-            translateSettingsObject(val, widgetType);
-          }
-        });
+        if (Object.keys(attrRules).length > 0) {
+          Object.keys(attrRules).forEach((path) => {
+            const delimiter = path.includes('>') ? '>' : (path.includes('.') ? '.' : '');
+            const segments = delimiter ? path.split(delimiter) : [path];
+            translatePathRecursive(settings, segments, 0, widgetType, rules);
+          });
+        }
       };
 
       const traverseNodes = (nodes) => {
@@ -175,7 +148,10 @@
           const widgetType = node.widgetType || node.elType || 'widget';
 
           if (node.settings && typeof node.settings === 'object') {
-            translateSettingsObject(node.settings, widgetType);
+            const rules = widgetRules[widgetType];
+            if (rules) {
+              translateSettingsObject(node.settings, widgetType, rules);
+            }
           }
 
           if (Array.isArray(node.elements) && node.elements.length > 0) {
@@ -361,18 +337,18 @@
      * 5. Inserts newly translated elements into canvas via Command API ($e.run).
      * 6. Marks document modified and updates metadata.
      */
-    apply(strings, options = {}) {
+    async apply(strings, options = {}) {
+      if (!window.TranslateSenseCore) return;
+
       if (!this.isActive() || !Array.isArray(strings)) return;
 
       const el = this.getElementorScope();
       const $e = this.getCommandEngine();
+      this.provider = options.provider;
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
-      // Cache strings for fast retrieval
-      this.cacheStrings(strings);
-
       // 1. Update Page Title from translated strings or source
-      const titleItem = strings.find((s) => s.field === 'post_title' || s.field === 'title');
+      const titleItem = strings.find((s) => s.name === 'post_title');
       const translatedTitle = titleItem ? titleItem.translated : (sourceData ? sourceData.title : '');
       if (translatedTitle) {
         this.updatePageTitle(translatedTitle);
@@ -404,7 +380,8 @@
       // 3. Process complete translation: Translate data -> Purge canvas -> Insert new translated elements
       if (Array.isArray(sourceElementorData) && sourceElementorData.length > 0) {
         // Step A: Translate the source element tree first
-        const translatedTree = this.translateElementTree(sourceElementorData, strings);
+
+        const translatedTree = await this.translateElementTree(sourceElementorData);
 
         // Step B: Purge old elements and insert translated element tree
         this.reconstructElementTree(translatedTree, el, $e);

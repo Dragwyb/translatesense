@@ -2,7 +2,7 @@
  * TranslateSense - Universal Page Editor Translation Styles
  * File: assets/css/editor.css
  *
- * Professional, clean, modern UI for Gutenberg, Elementor, Divi, and Classic Editors.
+ * Professional, clean, modern UI for Gutenberg, Elementor, and Classic Editors.
  */
 
 /* ==========================================================================
@@ -360,6 +360,38 @@
   background: #f1f5f9;
   color: #475569;
   border: 1px solid #e2e8f0;
+}
+
+.ts-lang-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 2.5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #c7d2fe;
+}
+
+.ts-lang-flag-img {
+  width: 16px;
+  height: 11px;
+  object-fit: cover;
+  border-radius: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.ts-lang-flag-emoji {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -770,6 +802,46 @@
   box-shadow: 0 0 0 1px #4f46e5, 0 6px 16px -3px rgba(79, 70, 229, 0.15);
 }
 
+.ts-provider-row.disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ts-provider-row.disabled:hover {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ts-add-api-key-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dc2626 !important;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ts-add-api-key-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c !important;
+  border-color: #f87171;
+  text-decoration: none !important;
+  transform: translateY(-1px);
+}
+
 /* Custom Radio Indicator */
 .ts-provider-radio-wrap {
   position: relative;
@@ -831,6 +903,15 @@
   background: #ffffff;
   border-color: #c7d2fe;
   box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+}
+
+.ts-provider-logo-img {
+  width: 24px;
+  height: 24px;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 /* Main Text & Title */
@@ -944,12 +1025,11 @@
 }
 
 /* ==========================================================================
-   Universal Editor Translate Trigger Buttons (Classic, Elementor, Divi, Gutenberg)
+   Universal Editor Translate Trigger Buttons (Classic, Elementor, Gutenberg)
    ========================================================================== */
 .ts-open-translate-btn,
 #ts-media-translate-btn,
 #ts-elementor-translate-btn,
-#ts-divi-translate-btn,
 #ts-classic-translate-btn,
 #ts-metabox-translate-btn {
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
@@ -971,7 +1051,6 @@
 .ts-open-translate-btn:hover,
 #ts-media-translate-btn:hover,
 #ts-elementor-translate-btn:hover,
-#ts-divi-translate-btn:hover,
 #ts-classic-translate-btn:hover,
 #ts-metabox-translate-btn:hover {
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
@@ -984,7 +1063,6 @@
 .ts-open-translate-btn:active,
 #ts-media-translate-btn:active,
 #ts-elementor-translate-btn:active,
-#ts-divi-translate-btn:active,
 #ts-classic-translate-btn:active,
 #ts-metabox-translate-btn:active {
   background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%) !important;
