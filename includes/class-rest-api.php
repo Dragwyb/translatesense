@@ -281,13 +281,15 @@ class Rest_Api {
 			}
 		}
 
+		$gb_builder = Xml_Engine::get_builder( 'gutenberg' );
+
 		$result = array();
 		foreach ( $standard_blocks as $name => $info ) {
 			$is_supported       = isset( $rules[ $name ] );
 			$source             = $is_supported ? ( $rules[ $name ]['source'] ?? 'core' ) : 'none';
 			$keys               = $is_supported ? ( $rules[ $name ]['keys'] ?? array() ) : array();
 			$no_translate       = $is_supported ? ( $rules[ $name ]['no_translate'] ?? array() ) : array();
-			$field_count        = count( $keys );
+			$field_count        = $gb_builder ? $gb_builder->count_leaf_keys( $keys ) : count( $keys );
 			$no_translate_count = count( $no_translate );
 			$status             = ( $field_count > 0 || $no_translate_count > 0 ) ? ( 'custom' === $source ? 'custom' : 'supported' ) : 'unsupported';
 

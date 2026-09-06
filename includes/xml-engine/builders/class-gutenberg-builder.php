@@ -216,23 +216,29 @@ class Gutenberg_Builder extends Base_Builder {
 				$name = (string) $block['name'];
 				if ( ! isset( $rules['gutenberg'][ $name ] ) ) {
 					$rules['gutenberg'][ $name ] = array(
-						'name'   => $name,
-						'source' => $source,
-						'keys'   => array(),
+						'name'         => $name,
+						'source'       => $source,
+						'keys'         => array(),
+						'no_translate' => array(),
 					);
+				}
+				if ( ! isset( $rules['gutenberg'][ $name ]['no_translate'] ) ) {
+					$rules['gutenberg'][ $name ]['no_translate'] = array();
 				}
 				if ( isset( $block->key ) ) {
 					foreach ( $block->key as $key_node ) {
-						$key_name        = (string) $key_node['name'];
-						$is_no_translate = isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true );
-						if ( $is_no_translate ) {
+						$key_name = (string) $key_node['name'];
+						if ( empty( $key_name ) ) {
+							continue;
+						}
+						$key_data = self::parse_key_node_recursive( $key_node, '', $rules['gutenberg'][ $name ]['no_translate'] );
+						if ( null !== $key_data ) {
+							$rules['gutenberg'][ $name ]['keys'][ $key_name ] = $key_data;
+						} else {
 							if ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
 								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
 							}
-							$rules['gutenberg'][ $name ]['no_translate'][ $key_name ] = true;
-							continue;
 						}
-						$rules['gutenberg'][ $name ]['keys'][ $key_name ] = self::parse_key_node( $key_node );
 					}
 				}
 			}
@@ -240,28 +246,75 @@ class Gutenberg_Builder extends Base_Builder {
 	}
 
 	/**
-	 * Helper: parse key node.
+	 * Helper: Recursively parse key node and record leaf noTranslate paths.
 	 *
 	 * @param SimpleXMLElement $key_node
-	 * @return array
+	 * @param string           $prefix
+	 * @param array            $no_translate_out
+	 * @param bool             $parent_no_translate
+	 * @return array|null
 	 */
-	private static function parse_key_node( SimpleXMLElement $key_node ): array {
+	private static function parse_key_node_recursive( SimpleXMLElement $key_node, string $prefix, array &$no_translate_out, bool $parent_no_translate = false ): ?array {
 		$key_name = (string) $key_node['name'];
-		$data     = array(
-			'name'        => $key_name,
-			'type'        => (string) ( $key_node['type'] ?? 'text' ),
-			'editor_type' => (string) ( $key_node['editor_type'] ?? 'VISUAL' ),
-		);
-
-		if ( isset( $key_node->key ) ) {
-			$children = array();
-			foreach ( $key_node->key as $child_node ) {
-				$child_name              = (string) $child_node['name'];
-				$children[ $child_name ] = self::parse_key_node( $child_node );
-			}
-			$data['children'] = $children;
+		if ( empty( $key_name ) ) {
+			return null;
 		}
 
-		return $data;
+		$current_path    = '' !== $prefix ? ( $prefix . '>' . $key_name ) : $key_name;
+		$is_no_translate = $parent_no_translate || ( isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true ) );
+		$has_children    = isset( $key_node->key ) && count( $key_node->key ) > 0;
+
+		if ( $has_children ) {
+			$children = array();
+			foreach ( $key_node->key as $child_node ) {
+				$child_name = (string) $child_node['name'];
+				$child_data = self::parse_key_node_recursive( $child_node, $current_path, $no_translate_out, $is_no_translate );
+				if ( null !== $child_data ) {
+					$children[ $child_name ] = $child_data;
+				}
+			}
+
+			if ( $is_no_translate || empty( $children ) ) {
+				return null;
+			}
+
+			return array(
+				'name'        => $key_name,
+				'type'        => (string) ( $key_node['type'] ?? 'text' ),
+				'editor_type' => (string) ( $key_node['editor_type'] ?? 'VISUAL' ),
+				'children'    => $children,
+			);
+		} else {
+			if ( $is_no_translate ) {
+				$no_translate_out[ $current_path ] = true;
+				return null;
+			}
+
+			return array(
+				'name'        => $key_name,
+				'type'        => (string) ( $key_node['type'] ?? 'text' ),
+				'editor_type' => (string) ( $key_node['editor_type'] ?? 'VISUAL' ),
+			);
+		}
+	}
+
+	/**
+	 * Count actual leaf translatable keys in a structured key tree.
+	 *
+	 * @param array $keys
+	 * @return int
+	 */
+	public static function count_leaf_keys( array $keys ): int {
+		$count = 0;
+		foreach ( $keys as $k => $info ) {
+			if ( isset( $info['children'] ) && is_array( $info['children'] ) ) {
+				if ( ! empty( $info['children'] ) ) {
+					$count += self::count_leaf_keys( $info['children'] );
+				}
+			} else {
+				$count++;
+			}
+		}
+		return $count;
 	}
 }
