@@ -37,6 +37,7 @@ define( 'TRANSLATESENSE_VERSION', '0.0.0' );
 define( 'TRANSLATESENSE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+define( 'TRANSLATESENSE_ASSETS_EXT', ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min' );
 
 /**
  * Register PSR/WordPress dynamic class autoloader.

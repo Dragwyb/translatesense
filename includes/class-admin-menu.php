@@ -85,7 +85,7 @@ class Admin_Menu {
 		// Enqueue CSS
 		wp_enqueue_style(
 			'translatesense-admin-css',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin-dashboard.css',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin-dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
 			array(),
 			TRANSLATESENSE_VERSION
 		);
@@ -98,7 +98,7 @@ class Admin_Menu {
 		// Enqueue App Script
 		wp_enqueue_script(
 			'translatesense-admin-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin-dashboard.js',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin-dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
 			array( 'wp-element', 'wp-components', 'wp-api-fetch' ),
 			TRANSLATESENSE_VERSION,
 			true
