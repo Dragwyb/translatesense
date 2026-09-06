@@ -115,19 +115,29 @@ class Gutenberg_Builder extends Base_Builder {
 		foreach ( $existing_keys as $k_name => $dom_key ) {
 			if ( isset( $new_keys[ $k_name ] ) ) {
 				$new_k = $new_keys[ $k_name ];
-				if ( isset( $new_k['type'] ) ) {
-					$dom_key->setAttribute( 'type', (string) $new_k['type'] );
-				}
-				if ( isset( $new_k['editor_type'] ) ) {
-					$dom_key->setAttribute( 'editor_type', (string) $new_k['editor_type'] );
-				}
-				if ( isset( $new_k['noTranslate'] ) && in_array( strtolower( (string) $new_k['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
-					$dom_key->setAttribute( 'noTranslate', 'true' );
+				if ( isset( $new_k->key ) && count( $new_k->key ) > 0 ) {
+					$new_dom_k = $owner_doc->importNode( dom_import_simplexml( $new_k ), true );
+					$existing_block->replaceChild( $new_dom_k, $dom_key );
 				} else {
-					$dom_key->removeAttribute( 'noTranslate' );
+					if ( isset( $new_k['type'] ) ) {
+						$dom_key->setAttribute( 'type', (string) $new_k['type'] );
+					}
+					if ( isset( $new_k['editor_type'] ) ) {
+						$dom_key->setAttribute( 'editor_type', (string) $new_k['editor_type'] );
+					}
+					if ( isset( $new_k['noTranslate'] ) && in_array( strtolower( (string) $new_k['noTranslate'] ), array( 'true', '1', 'yes' ), true ) ) {
+						$dom_key->setAttribute( 'noTranslate', 'true' );
+					} else {
+						$dom_key->removeAttribute( 'noTranslate' );
+					}
 				}
 			} else {
-				$dom_key->setAttribute( 'noTranslate', 'true' );
+				$already_no_translate = $dom_key->hasAttribute( 'noTranslate' ) && in_array( strtolower( (string) $dom_key->getAttribute( 'noTranslate' ) ), array( 'true', '1', 'yes' ), true );
+				if ( $already_no_translate ) {
+					$existing_block->removeChild( $dom_key );
+				} else {
+					$dom_key->setAttribute( 'noTranslate', 'true' );
+				}
 			}
 		}
 

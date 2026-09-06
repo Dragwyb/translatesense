@@ -156,7 +156,7 @@ class Elementor_Builder extends Base_Builder {
 
 			if ( 'widget' === $node_type && ! empty( $widget_name ) ) {
 				$widget_settings     = $element_node['settings'] ?? array();
-				$configured_fields   = $elementor_rules[ $widget_name ]['attributes'] ?? array();
+				$configured_fields   = $elementor_rules[ $widget_name ]['fields'] ?? array();
 				$no_translate_fields = $elementor_rules[ $widget_name ]['no_translate'] ?? array();
 				$mapped_rule_paths   = array();
 
@@ -203,7 +203,7 @@ class Elementor_Builder extends Base_Builder {
 						);
 
 						foreach ( $discovered_rules as $new_path => $schema_info ) {
-							$elementor_rules[ $widget_name ]['attributes'][ $new_path ] = array(
+							$elementor_rules[ $widget_name ]['fields'][ $new_path ] = array(
 								'path'        => $new_path,
 								'name'        => $new_path,
 								'type'        => $schema_info['type'] ?? 'title',
