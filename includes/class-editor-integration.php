@@ -252,6 +252,9 @@ class Editor_Integration {
 				'enabledProviders'       => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
 				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
+				'settingsUrl'            => Admin_Menu::get_dashboard_url( 'settings' ),
+				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'           => ! empty( $settings['gemini_api_key'] ),
 			),
 			$localize_data
 		);

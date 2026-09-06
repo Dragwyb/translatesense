@@ -144,7 +144,18 @@
 
       const providers = getRegisteredProviders();
       const defaultProv = config.defaultProvider || '';
-      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv)) ? defaultProv : '';
+      const settingsUrl = config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
+      const isProviderMissingKey = (id) => {
+        if (id === 'openai') return !config.hasOpenAiKey;
+        if (id === 'gemini') return !config.hasGeminiKey;
+        return false;
+      };
+
+      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id))) ? defaultProv : '';
+      if (!selectedProviderId) {
+        const firstAvail = providers.find((p) => !isProviderMissingKey(p.id));
+        if (firstAvail) selectedProviderId = firstAvail.id;
+      }
 
       // Ensure root container exists
       let root = document.getElementById('translatesense-bulk-modal-root');
@@ -239,16 +250,20 @@
                   <div class="ts-provider-list">
                     ${providers.map(
             (p) => {
-              const isSelected = p.id === selectedProviderId;
+              const isMissingKey = isProviderMissingKey(p.id);
+              const isSelected = !isMissingKey && p.id === selectedProviderId;
               const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
               const badgeHtml = isLocalFrontend
                 ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
                 : '';
+              const actionHtml = isMissingKey
+                ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+                : badgeHtml;
 
               return `
-                          <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                          <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
                             <div class="ts-provider-radio-wrap">
-                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
                               <span class="ts-provider-custom-radio"></span>
                             </div>
                             <div class="ts-provider-icon-box">
@@ -257,7 +272,7 @@
                             <div class="ts-provider-main-info">
                               <div class="ts-provider-title-row">
                                 <span class="ts-provider-name">${p.title}</span>
-                                ${badgeHtml}
+                                ${actionHtml}
                               </div>
                               <p class="ts-provider-caption">${p.desc}</p>
                             </div>
@@ -497,6 +512,9 @@
       // Provider Selection Row Click
       document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (row) {
         row.addEventListener('click', function () {
+          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+            return;
+          }
           document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (c) {
             c.classList.remove('selected');
           });
@@ -512,10 +530,10 @@
       if (startBtn) {
         startBtn.addEventListener('click', async function () {
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
-          const selectedProvider = checkedRadio ? checkedRadio.value : selectedProviderId;
+          const selectedProvider = checkedRadio && !checkedRadio.disabled ? checkedRadio.value : selectedProviderId;
 
-          if (!selectedProvider) {
-            alert('Please choose a translation engine before starting.');
+          if (!selectedProvider || isProviderMissingKey(selectedProvider)) {
+            alert('Please choose an active translation engine with a configured API key before starting.');
             return;
           }
 

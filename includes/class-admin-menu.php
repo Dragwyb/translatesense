@@ -109,14 +109,13 @@ class Admin_Menu {
 			'translatesense-admin-js',
 			'TranslateSenseData',
 			array(
-				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage' => Polylang_Bridge::get_default_language(),
-				'languages'       => Polylang_Bridge::get_languages(),
-				'activeBuilders'  => self::get_active_builders(),
-				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
-				'version'         => TRANSLATESENSE_VERSION,
+				'restUrl'        => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'          => wp_create_nonce( 'wp_rest' ),
+				'polylangActive' => Polylang_Bridge::is_polylang_active(),
+				'languages'      => Polylang_Bridge::get_languages(),
+				'activeBuilders' => self::get_active_builders(),
+				'pluginUrl'      => TRANSLATESENSE_PLUGIN_URL,
+				'version'        => TRANSLATESENSE_VERSION,
 			)
 		);
 	}

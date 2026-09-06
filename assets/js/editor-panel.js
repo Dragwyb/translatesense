@@ -308,23 +308,39 @@
           <div class="ts-review-body">
             <div class="ts-provider-list">
               ${(() => {
+          const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
+          const isProviderMissingKey = (id) => {
+            if (id === 'openai') return !this.config.hasOpenAiKey;
+            if (id === 'gemini') return !this.config.hasGeminiKey;
+            return false;
+          };
+
           const defaultProv = this.config.defaultProvider || '';
-          const currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider))
+          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && !isProviderMissingKey(p.id)))
             ? this.selectedProvider
-            : (defaultProv && providersList.some((p) => p.id === defaultProv) ? defaultProv : '');
+            : (defaultProv && providersList.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id)) ? defaultProv : '');
+
+          if (!currentSelected) {
+            const firstAvailable = providersList.find((p) => !isProviderMissingKey(p.id));
+            if (firstAvailable) currentSelected = firstAvailable.id;
+          }
           this.selectedProvider = currentSelected;
 
           return providersList.map((p) => {
-            const isSelected = Boolean(currentSelected && p.id === currentSelected);
+            const isMissingKey = isProviderMissingKey(p.id);
+            const isSelected = Boolean(!isMissingKey && currentSelected && p.id === currentSelected);
             const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
             const badgeHtml = isFrontend
               ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
               : '';
+            const actionHtml = isMissingKey
+              ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+              : badgeHtml;
 
             return `
-                    <div class="ts-provider-row ${isSelected ? 'selected' : ''}" data-provider="${p.id}">
+                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
                       <div class="ts-provider-radio-wrap">
-                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} class="ts-provider-radio-input" />
+                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
                         <span class="ts-provider-custom-radio"></span>
                       </div>
                       <div class="ts-provider-icon-box">
@@ -333,7 +349,7 @@
                       <div class="ts-provider-main-info">
                         <div class="ts-provider-title-row">
                           <span class="ts-provider-name">${p.title}</span>
-                          ${badgeHtml}
+                          ${actionHtml}
                         </div>
                         <p class="ts-provider-caption">${p.desc}</p>
                       </div>
@@ -357,6 +373,9 @@
       // Row Selection
       modalContainer.querySelectorAll('.ts-provider-row').forEach((row) => {
         row.addEventListener('click', () => {
+          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+            return;
+          }
           modalContainer.querySelectorAll('.ts-provider-row').forEach((r) => r.classList.remove('selected'));
           row.classList.add('selected');
           const radio = row.querySelector('input[type="radio"]');
@@ -373,10 +392,10 @@
       // Start Translation Action
       document.getElementById('ts-provider-modal-start').addEventListener('click', async () => {
         const checked = modalContainer.querySelector('input[name="ts_provider_choice"]:checked');
-        if (checked) this.selectedProvider = checked.value;
+        if (checked && !checked.disabled) this.selectedProvider = checked.value;
 
         if (!this.selectedProvider) {
-          alert('Please choose a translation provider before starting.');
+          alert('Please choose an active translation provider before starting.');
           return;
         }
 
