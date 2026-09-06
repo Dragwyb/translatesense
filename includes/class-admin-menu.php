@@ -121,6 +121,21 @@ class Admin_Menu {
 	}
 
 	/**
+	 * Get Dashboard Page URL with optional tab parameter.
+	 *
+	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor', 'classic', 'xml_editor')
+	 * @return string
+	 */
+	public static function get_dashboard_url( string $tab = '' ): string {
+		$base_page = Polylang_Bridge::is_polylang_active() ? 'admin.php' : 'options-general.php';
+		$url       = admin_url( $base_page . '?page=translatesense' );
+		if ( ! empty( $tab ) ) {
+			$url = add_query_arg( 'tab', $tab, $url );
+		}
+		return $url;
+	}
+
+	/**
 	 * Render React root container.
 	 */
 	public static function render_admin_root() {
