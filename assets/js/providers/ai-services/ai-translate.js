@@ -212,7 +212,7 @@
   }
 
   const getProviderLogo = (id) => {
-    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
     const base = data.pluginUrl || '';
     return base ? `${base}assets/img/${id}.png` : '';
   };

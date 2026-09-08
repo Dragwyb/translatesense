@@ -43,7 +43,7 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
-    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
+    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || {};
     const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
     const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];

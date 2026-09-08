@@ -196,7 +196,7 @@
      * Sync enabled providers from localized WordPress global configurations.
      */
     syncEnabledProviders() {
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
       if (Array.isArray(config.enabledProviders) && config.enabledProviders.length > 0) {
         this.enabledProviders = config.enabledProviders;
       }

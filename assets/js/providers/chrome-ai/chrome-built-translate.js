@@ -169,7 +169,7 @@
   }
 
   const getChromeLogo = () => {
-    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const data = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
     const base = data.pluginUrl || '';
     return base ? `${base}assets/img/chrome_ai.png` : '';
   };
