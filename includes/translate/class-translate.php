@@ -381,33 +381,47 @@ class Translate {
 			return array();
 		}
 
-		$batch_size  = ! empty( $settings['batch_size'] ) ? max( 1, (int) $settings['batch_size'] ) : 25;
-		$chunks      = array_chunk( $texts, $batch_size, true );
-		$all_results = array();
+		// Use Ai_Connector_Bridge to handle Core AI and Legacy fallbacks
+		if ( class_exists( '\TranslateSense\Includes\Ai_Connector_Bridge' ) ) {
+			$bridge_settings                = $settings;
+			$bridge_settings['source_lang'] = $source_lang;
+			$bridge_settings['target_lang'] = $target_lang;
 
-		foreach ( $chunks as $chunk ) {
-			switch ( $provider ) {
-				case 'openai':
-					$res = self::translate_openai_batch( $chunk, $source_lang, $target_lang, $settings );
-					break;
+			$model = '';
+			if ( 'openai' === $provider ) {
+				$model = $settings['openai_model'] ?? 'gpt-4o-mini';
+			} elseif ( 'gemini' === $provider ) {
+				$model = $settings['gemini_model'] ?? 'gemini-1.5-flash';
+			}
 
-				case 'gemini':
-					$res = self::translate_gemini_batch( $chunk, $source_lang, $target_lang, $settings );
-					break;
+			$batch_size  = ! empty( $settings['batch_size'] ) ? max( 1, (int) $settings['batch_size'] ) : 25;
+			$chunks      = array_chunk( $texts, $batch_size, true );
+			$all_results = array();
 
-				case 'chrome_ai':
-				case 'chrome_local_ai':
-				default:
+			foreach ( $chunks as $chunk ) {
+				$prompt = self::build_batch_translation_prompt( $source_lang, $target_lang, array_values( $chunk ), $settings );
+				$res    = \TranslateSense\Includes\Ai_Connector_Bridge::get_instance()->translate_strings(
+					$chunk,
+					$prompt,
+					$model,
+					$bridge_settings,
+					$provider
+				);
+
+				if ( is_wp_error( $res ) ) {
+					// Fall back to original texts on error
 					$res = $chunk;
-					break;
+				}
+
+				foreach ( $res as $idx => $val ) {
+					$all_results[ $idx ] = $val;
+				}
 			}
 
-			foreach ( $res as $idx => $val ) {
-				$all_results[ $idx ] = $val;
-			}
+			return $all_results;
 		}
 
-		return $all_results;
+		return $texts;
 	}
 
 	/**
@@ -499,112 +513,5 @@ class Translate {
 		}
 
 		return wp_remote_retrieve_body( $response );
-	}
-
-	/**
-	 * OpenAI Batch Translation API (maintains exact indexed array keys).
-	 *
-	 * @param array  $texts Array of strings [ 0 => '...', 1 => '...' ]
-	 * @param string $source_lang
-	 * @param string $target_lang
-	 * @param array  $settings
-	 * @return array Translated strings with same keys [ 0 => '...', 1 => '...' ]
-	 */
-	public static function translate_openai_batch( array $texts, string $source_lang, string $target_lang, array $settings = array() ): array {
-		$api_key = $settings['openai_api_key'] ?? '';
-		$model   = $settings['openai_model'] ?? 'gpt-4o-mini';
-
-		if ( empty( $api_key ) || empty( $texts ) ) {
-			return $texts;
-		}
-
-		$keys        = array_keys( $texts );
-		$values_seq  = array_values( $texts );
-		$url         = 'https://api.openai.com/v1/chat/completions';
-		$prompt      = self::build_batch_translation_prompt( $source_lang, $target_lang, $values_seq, $settings );
-		$timeout     = ! empty( $settings['response_timeout'] ) ? (int) $settings['response_timeout'] : 30;
-		$max_tokens  = ! empty( $settings['max_tokens'] ) ? (int) $settings['max_tokens'] : 4096;
-		$temperature = isset( $settings['temperature'] ) && '' !== $settings['temperature'] ? (float) $settings['temperature'] : 0.2;
-
-		$body = array(
-			'model'           => ! empty( $model ) ? $model : 'gpt-4o-mini',
-			'messages'        => array(
-				array(
-					'role'    => 'system',
-					'content' => 'You are a translation API. You output ONLY valid JSON matching {"translations": ["..."]}.',
-				),
-				array(
-					'role'    => 'user',
-					'content' => $prompt,
-				),
-			),
-			'temperature'     => $temperature,
-			'max_tokens'      => $max_tokens,
-			'response_format' => array( 'type' => 'json_object' ),
-		);
-
-		$res_body = self::send_ai_http_request( $url, $body, array( 'Authorization' => 'Bearer ' . $api_key ), $timeout );
-		if ( ! empty( $res_body ) ) {
-			$data = json_decode( $res_body, true );
-			if ( isset( $data['choices'][0]['message']['content'] ) ) {
-				$parsed = self::parse_batch_translation_json( $data['choices'][0]['message']['content'], $keys );
-				if ( is_array( $parsed ) ) {
-					return $parsed;
-				}
-			}
-		}
-
-		return $texts;
-	}
-
-	/**
-	 * Google Gemini AI Batch Translation API (maintains exact indexed array keys).
-	 *
-	 * @param array  $texts Array of strings [ 0 => '...', 1 => '...' ]
-	 * @param string $source_lang
-	 * @param string $target_lang
-	 * @param array  $settings
-	 * @return array Translated strings with same keys [ 0 => '...', 1 => '...' ]
-	 */
-	public static function translate_gemini_batch( array $texts, string $source_lang, string $target_lang, array $settings = array() ): array {
-		$api_key = $settings['gemini_api_key'] ?? '';
-		$model   = $settings['gemini_model'] ?? 'gemini-1.5-flash';
-
-		if ( empty( $api_key ) || empty( $texts ) ) {
-			return $texts;
-		}
-
-		$keys        = array_keys( $texts );
-		$values_seq  = array_values( $texts );
-		$model_name  = ! empty( $model ) ? $model : 'gemini-1.5-flash';
-		$url         = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode( $model_name ) . ':generateContent?key=' . urlencode( $api_key );
-		$prompt      = self::build_batch_translation_prompt( $source_lang, $target_lang, $values_seq, $settings );
-		$timeout     = ! empty( $settings['response_timeout'] ) ? (int) $settings['response_timeout'] : 30;
-		$max_tokens  = ! empty( $settings['max_tokens'] ) ? (int) $settings['max_tokens'] : 4096;
-		$temperature = isset( $settings['temperature'] ) && '' !== $settings['temperature'] ? (float) $settings['temperature'] : 0.2;
-
-		$body = array(
-			'contents'         => array(
-				array( 'parts' => array( array( 'text' => $prompt ) ) ),
-			),
-			'generationConfig' => array(
-				'temperature'      => $temperature,
-				'maxOutputTokens'  => $max_tokens,
-				'responseMimeType' => 'application/json',
-			),
-		);
-
-		$res_body = self::send_ai_http_request( $url, $body, array(), $timeout );
-		if ( ! empty( $res_body ) ) {
-			$data = json_decode( $res_body, true );
-			if ( isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
-				$parsed = self::parse_batch_translation_json( $data['candidates'][0]['content']['parts'][0]['text'], $keys );
-				if ( is_array( $parsed ) ) {
-					return $parsed;
-				}
-			}
-		}
-
-		return $texts;
 	}
 }
