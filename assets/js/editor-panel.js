@@ -51,12 +51,13 @@
     const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
     const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
-    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+    const enabledProviders = config.enabledProviders || {};
+    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
     let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
       providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledProviders.length === 0) {
+      if (providers.length === 0 && enabledKeys.length === 0) {
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
@@ -66,7 +67,7 @@
         { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
         { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
       ];
-      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
     }
     return providers.map((p) => ({
       ...p,
@@ -86,8 +87,9 @@
       this.fromPost = this.config.fromPost || 0;
       this.targetLang = this.config.currentLanguage || 'en';
       const defaultProv = this.config.defaultProvider || '';
-      const enabledProviders = Array.isArray(this.config.enabledProviders) ? this.config.enabledProviders : [];
-      this.selectedProvider = (defaultProv && (enabledProviders.length === 0 || enabledProviders.includes(defaultProv))) ? defaultProv : '';
+      const enabledProviders = this.config.enabledProviders || {};
+      const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
+      this.selectedProvider = (defaultProv && (enabledKeys.length === 0 || enabledKeys.includes(defaultProv))) ? defaultProv : '';
       this.strings = [];
       this.isExtracting = false;
       this.isTranslating = false;
@@ -309,32 +311,54 @@
             <div class="ts-provider-list">
               ${(() => {
           const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
-          const isProviderMissingKey = (id) => {
-            if (id === 'openai') return !this.config.hasOpenAiKey;
-            if (id === 'gemini') return !this.config.hasGeminiKey;
-            return false;
+          const connectorsUrl = this.config.connectorsUrl || 'options-connectors.php';
+          const enabledProviders = this.config.enabledProviders || {};
+
+          const getProviderStatus = (id) => {
+            if (enabledProviders && typeof enabledProviders === 'object' && !Array.isArray(enabledProviders) && enabledProviders[id]) {
+              const meta = enabledProviders[id];
+              const isConn = meta.isConnected !== false;
+              const isCore = Boolean(meta.connectors);
+              return {
+                isConnected: isConn,
+                connectors: isCore,
+                targetUrl: isCore ? connectorsUrl : settingsUrl,
+              };
+            }
+            const isMissing = (id === 'openai') ? !this.config.hasOpenAiKey : (id === 'gemini') ? !this.config.hasGeminiKey : false;
+            return {
+              isConnected: !isMissing,
+              connectors: false,
+              targetUrl: settingsUrl,
+            };
           };
 
           const defaultProv = this.config.defaultProvider || '';
-          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && !isProviderMissingKey(p.id)))
+          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && getProviderStatus(p.id).isConnected))
             ? this.selectedProvider
-            : (defaultProv && providersList.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id)) ? defaultProv : '');
+            : (defaultProv && providersList.some((p) => p.id === defaultProv && getProviderStatus(p.id).isConnected) ? defaultProv : '');
 
           if (!currentSelected) {
-            const firstAvailable = providersList.find((p) => !isProviderMissingKey(p.id));
+            const firstAvailable = providersList.find((p) => getProviderStatus(p.id).isConnected);
             if (firstAvailable) currentSelected = firstAvailable.id;
           }
           this.selectedProvider = currentSelected;
 
           return providersList.map((p) => {
-            const isMissingKey = isProviderMissingKey(p.id);
+            const status = getProviderStatus(p.id);
+            const isMissingKey = !status.isConnected;
             const isSelected = Boolean(!isMissingKey && currentSelected && p.id === currentSelected);
             const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-            const badgeHtml = isFrontend
-              ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-              : '';
+
+            let badgeHtml = '';
+            if (isFrontend) {
+              badgeHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+            } else if (status.connectors) {
+              badgeHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+            }
+
             const actionHtml = isMissingKey
-              ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+              ? `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="${status.connectors ? 'Configure in WordPress Connectors' : 'Configure API Key in TranslateSense Settings'}">⚠️ Add API Key</a>`
               : badgeHtml;
 
             return `

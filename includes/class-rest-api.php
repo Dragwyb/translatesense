@@ -711,11 +711,13 @@ class Rest_Api {
 
 		return rest_ensure_response(
 			array(
-				'settings'        => $settings,
-				'languages'       => $languages,
-				'polylang_active' => $polylang_active,
-				'active_builders' => Admin_Menu::get_active_builders(),
-				'stats'           => array(
+				'settings'         => $settings,
+				'languages'        => $languages,
+				'polylang_active'  => $polylang_active,
+				'active_builders'  => Admin_Menu::get_active_builders(),
+				'active_providers' => Ai_Connector_Bridge::get_instance()->get_active_providers(),
+				'connectors_url'   => esc_url_raw( admin_url( 'options-connectors.php' ) ),
+				'stats'            => array(
 					'total_packages' => $packages_count,
 					'cached_results' => $results_count,
 				),

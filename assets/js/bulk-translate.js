@@ -43,15 +43,16 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
-    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || {};
+    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
     const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
-    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+    const enabledProviders = config.enabledProviders || {};
+    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
     let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
       providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledProviders.length === 0) {
+      if (providers.length === 0 && enabledKeys.length === 0) {
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
@@ -61,7 +62,7 @@
         { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
         { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
       ];
-      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
     }
     return providers.map((p) => ({
       ...p,
@@ -145,15 +146,31 @@
       const providers = getRegisteredProviders();
       const defaultProv = config.defaultProvider || '';
       const settingsUrl = config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
-      const isProviderMissingKey = (id) => {
-        if (id === 'openai') return !config.hasOpenAiKey;
-        if (id === 'gemini') return !config.hasGeminiKey;
-        return false;
+      const connectorsUrl = config.connectorsUrl || 'options-connectors.php';
+      const enabledProviders = config.enabledProviders || {};
+
+      const getProviderStatus = (id) => {
+        if (enabledProviders && typeof enabledProviders === 'object' && !Array.isArray(enabledProviders) && enabledProviders[id]) {
+          const meta = enabledProviders[id];
+          const isConn = meta.isConnected !== false;
+          const isCore = Boolean(meta.connectors);
+          return {
+            isConnected: isConn,
+            connectors: isCore,
+            targetUrl: isCore ? connectorsUrl : settingsUrl,
+          };
+        }
+        const isMissing = (id === 'openai') ? !config.hasOpenAiKey : (id === 'gemini') ? !config.hasGeminiKey : false;
+        return {
+          isConnected: !isMissing,
+          connectors: false,
+          targetUrl: settingsUrl,
+        };
       };
 
-      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id))) ? defaultProv : '';
+      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && getProviderStatus(p.id).isConnected)) ? defaultProv : '';
       if (!selectedProviderId) {
-        const firstAvail = providers.find((p) => !isProviderMissingKey(p.id));
+        const firstAvail = providers.find((p) => getProviderStatus(p.id).isConnected);
         if (firstAvail) selectedProviderId = firstAvail.id;
       }
 
@@ -250,14 +267,20 @@
                   <div class="ts-provider-list">
                     ${providers.map(
             (p) => {
-              const isMissingKey = isProviderMissingKey(p.id);
+              const status = getProviderStatus(p.id);
+              const isMissingKey = !status.isConnected;
               const isSelected = !isMissingKey && p.id === selectedProviderId;
               const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-              const badgeHtml = isLocalFrontend
-                ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-                : '';
+
+              let badgeHtml = '';
+              if (isLocalFrontend) {
+                badgeHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+              } else if (status.connectors) {
+                badgeHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+              }
+
               const actionHtml = isMissingKey
-                ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
+                ? `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="${status.connectors ? 'Configure in WordPress Connectors' : 'Configure API Key in TranslateSense Settings'}">⚠️ Add API Key</a>`
                 : badgeHtml;
 
               return `
@@ -532,7 +555,7 @@
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
           const selectedProvider = checkedRadio && !checkedRadio.disabled ? checkedRadio.value : selectedProviderId;
 
-          if (!selectedProvider || isProviderMissingKey(selectedProvider)) {
+          if (!selectedProvider || !getProviderStatus(selectedProvider).isConnected) {
             alert('Please choose an active translation engine with a configured API key before starting.');
             return;
           }
