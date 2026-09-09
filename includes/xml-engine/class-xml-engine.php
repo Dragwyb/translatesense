@@ -45,14 +45,10 @@ class Xml_Engine {
 	private static $parsed_rules = null;
 
 	/**
-	 * Initialize engine and ensure uploads directory exists.
+	 * Initialize engine.
 	 */
 	public static function init() {
-		$upload_dir = wp_upload_dir();
-		$dir        = trailingslashit( $upload_dir['basedir'] ) . 'translatesense-configs';
-		if ( ! file_exists( $dir ) ) {
-			wp_mkdir_p( $dir );
-		}
+		// Configuration is stored in and retrieved from the database option table.
 	}
 
 	/**
@@ -156,16 +152,6 @@ class Xml_Engine {
 		$saved      = get_option( $option_key, '' );
 		if ( ! empty( $saved ) ) {
 			return $saved;
-		}
-
-		// Check if custom builder XML file exists in uploads
-		$custom_file = self::get_builder_xml_path( $editor );
-		if ( file_exists( $custom_file ) ) {
-			$file_xml = file_get_contents( $custom_file );
-			if ( ! empty( $file_xml ) ) {
-				update_option( $option_key, $file_xml );
-				return $file_xml;
-			}
 		}
 
 		// Extract editor-specific section from unified 'all' configuration in option table
@@ -283,25 +269,11 @@ class Xml_Engine {
 		}
 
 		if ( 'all' === $editor ) {
-			// Update primary options
+			// Update primary options in database
 			update_option( self::OPTION_ALL_XML, $formatted_xml );
-
-			// Sync file if writable
-			$path = self::get_master_xml_path();
-			if ( is_writable( dirname( $path ) ) || ( file_exists( $path ) && is_writable( $path ) ) ) {
-				@file_put_contents( $path, $formatted_xml );
-			}
 		} else {
 			$option_key = 'translatesense_' . $editor . '_xml';
 			update_option( $option_key, $formatted_xml );
-
-			// Sync builder custom config file
-			$path = self::get_builder_xml_path( $editor );
-			$dir  = dirname( $path );
-			if ( ! file_exists( $dir ) ) {
-				wp_mkdir_p( $dir );
-			}
-			@file_put_contents( $path, $formatted_xml );
 		}
 
 		// Reset in-memory cache

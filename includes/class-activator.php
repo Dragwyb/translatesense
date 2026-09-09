@@ -17,7 +17,6 @@ class Activator {
 	 */
 	public static function activate() {
 		self::create_tables();
-		self::create_uploads_directory();
 		self::set_default_options();
 		self::save_config_to_db();
 		self::schedule_cleanup_cron();
@@ -110,18 +109,7 @@ class Activator {
 		dbDelta( $sql_bulk );
 	}
 
-	/**
-	 * Ensure custom config directory exists.
-	 */
-	public static function create_uploads_directory() {
-		$upload_dir = wp_upload_dir();
-		$custom_dir = trailingslashit( $upload_dir['basedir'] ) . 'translatesense-configs';
 
-		if ( ! file_exists( $custom_dir ) ) {
-			wp_mkdir_p( $custom_dir );
-			file_put_contents( $custom_dir . '/index.html', '' );
-		}
-	}
 
 	/**
 	 * Initialize default plugin options.
