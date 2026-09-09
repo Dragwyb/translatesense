@@ -183,18 +183,32 @@ class Detector {
 
 	/**
 	 * Recursively scan Gutenberg blocks for unmapped text or dummy markers.
+	 *
+	 * @param array $blocks
+	 * @param int   $depth
 	 */
-	public static function scan_blocks_for_mapping( $blocks ) {
+	public static function scan_blocks_for_mapping( $blocks, $depth = 0 ) {
+		if ( ! is_array( $blocks ) || empty( $blocks ) || $depth > 25 ) {
+			return;
+		}
+
 		$rules           = Xml_Engine::get_all_rules();
 		$gutenberg_rules = $rules['gutenberg'];
 
 		foreach ( $blocks as $block ) {
-			$block_name = $block['blockName'];
-			if ( empty( $block_name ) ) {
+			if ( ! is_array( $block ) ) {
 				continue;
 			}
 
-			$attrs         = $block['attrs'] ?? array();
+			$block_name = $block['blockName'] ?? '';
+			if ( empty( $block_name ) ) {
+				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+					self::scan_blocks_for_mapping( $block['innerBlocks'], $depth + 1 );
+				}
+				continue;
+			}
+
+			$attrs         = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
 			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['keys'] ) : array();
 			$no_translate  = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
 			$ignore_keys   = array_merge( $existing_keys, $no_translate );
@@ -221,9 +235,9 @@ class Detector {
 				Xml_Engine::append_custom_rule( 'gutenberg', $block_name, $new_fields );
 			}
 
-			// Recurse inner blocks
-			if ( ! empty( $block['innerBlocks'] ) ) {
-				self::scan_blocks_for_mapping( $block['innerBlocks'] );
+			// Recurse inner blocks with depth limit
+			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+				self::scan_blocks_for_mapping( $block['innerBlocks'], $depth + 1 );
 			}
 		}
 	}
@@ -238,7 +252,7 @@ class Detector {
 		}
 
 		$elements = $data['elements'] ?? array();
-		if ( ! empty( $elements ) ) {
+		if ( ! empty( $elements ) && is_array( $elements ) ) {
 			self::scan_elementor_elements( $elements );
 		}
 
@@ -246,24 +260,35 @@ class Detector {
 	}
 
 	/**
-	 * Recursively scan Elementor elements tree for unmapped settings.
+	 * Recursively scan Elementor elements tree for unmapped settings with depth protection.
+	 *
+	 * @param array $elements
+	 * @param int   $depth
 	 */
-	public static function scan_elementor_elements( $elements ) {
+	public static function scan_elementor_elements( $elements, $depth = 0 ) {
+		if ( ! is_array( $elements ) || empty( $elements ) || $depth > 25 ) {
+			return;
+		}
+
 		$rules           = Xml_Engine::get_all_rules();
 		$elementor_rules = $rules['elementor'];
 
 		foreach ( $elements as $element ) {
+			if ( ! is_array( $element ) ) {
+				continue;
+			}
+
 			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? ( 'widget' === $el_type ? ( $element['name'] ?? '' ) : '' );
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
-				$settings        = $element['settings'] ?? array();
+				$settings        = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : array();
 				$existing_fields = isset( $elementor_rules[ $widget_type ] ) ? array_keys( $elementor_rules[ $widget_type ]['fields'] ) : array();
 				$no_translate    = isset( $elementor_rules[ $widget_type ]['no_translate'] ) ? array_keys( $elementor_rules[ $widget_type ]['no_translate'] ) : array();
 				$ignore_fields   = array_merge( $existing_fields, $no_translate );
 
 				$new_fields = array();
-				self::find_elementor_text_settings( $settings, '', $ignore_fields, $new_fields );
+				self::find_elementor_text_settings( $settings, '', $ignore_fields, $new_fields, 0 );
 
 				if ( ! empty( $new_fields ) ) {
 					Xml_Engine::append_custom_rule(
@@ -275,27 +300,50 @@ class Detector {
 				}
 			}
 
-			// Recurse inner elements
-			if ( ! empty( $element['elements'] ) ) {
-				self::scan_elementor_elements( $element['elements'] );
+			// Recurse inner elements with depth limit
+			if ( ! empty( $element['elements'] ) && is_array( $element['elements'] ) ) {
+				self::scan_elementor_elements( $element['elements'], $depth + 1 );
 			}
 		}
 	}
 
 	/**
 	 * Detect unmapped fields / dummy text from Gutenberg blocks in memory and generate XML snippet.
+	 * Enforces depth and node limits to prevent resource exhaustion.
+	 *
+	 * @param mixed $blocks
+	 * @return array|null
 	 */
 	public static function detect_from_gutenberg_blocks( $blocks ) {
-		$found_items = array();
+		if ( ! is_array( $blocks ) || empty( $blocks ) ) {
+			return null;
+		}
 
-		$scan_recursive = function ( $block_list ) use ( &$scan_recursive, &$found_items ) {
+		$found_items   = array();
+		$scanned_nodes = 0;
+		$max_depth     = 25;
+		$max_nodes     = 2000;
+
+		$scan_recursive = function ( $block_list, $depth = 0 ) use ( &$scan_recursive, &$found_items, &$scanned_nodes, $max_depth, $max_nodes ) {
+			if ( ! is_array( $block_list ) || $depth > $max_depth || $scanned_nodes >= $max_nodes ) {
+				return;
+			}
+
 			foreach ( $block_list as $block ) {
+				if ( ! is_array( $block ) || $scanned_nodes >= $max_nodes ) {
+					break;
+				}
+				$scanned_nodes++;
+
 				$block_name = $block['blockName'] ?? '';
 				if ( empty( $block_name ) ) {
+					if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+						$scan_recursive( $block['innerBlocks'], $depth + 1 );
+					}
 					continue;
 				}
 
-				$attrs = $block['attrs'] ?? array();
+				$attrs = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
 				foreach ( $attrs as $attr_key => $attr_val ) {
 					if ( is_string( $attr_val ) && ! empty( trim( $attr_val ) ) ) {
 						$is_dummy = ( false !== stripos( $attr_val, self::$dummy_text ) );
@@ -311,13 +359,13 @@ class Detector {
 					}
 				}
 
-				if ( ! empty( $block['innerBlocks'] ) ) {
-					$scan_recursive( $block['innerBlocks'] );
+				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+					$scan_recursive( $block['innerBlocks'], $depth + 1 );
 				}
 			}
 		};
 
-		$scan_recursive( $blocks );
+		$scan_recursive( $blocks, 0 );
 
 		if ( empty( $found_items ) ) {
 			return null;
@@ -342,19 +390,39 @@ class Detector {
 
 	/**
 	 * Detect unmapped fields / dummy text from Elementor data in memory and generate XML snippet.
+	 * Enforces depth and node limits to prevent resource exhaustion.
+	 *
+	 * @param mixed $elements
+	 * @return array|null
 	 */
 	public static function detect_from_elementor_data( $elements ) {
-		$found_items = array();
+		if ( ! is_array( $elements ) || empty( $elements ) ) {
+			return null;
+		}
 
-		$scan_recursive = function ( $element_list ) use ( &$scan_recursive, &$found_items ) {
+		$found_items   = array();
+		$scanned_nodes = 0;
+		$max_depth     = 25;
+		$max_nodes     = 2000;
+
+		$scan_recursive = function ( $element_list, $depth = 0 ) use ( &$scan_recursive, &$found_items, &$scanned_nodes, $max_depth, $max_nodes ) {
+			if ( ! is_array( $element_list ) || $depth > $max_depth || $scanned_nodes >= $max_nodes ) {
+				return;
+			}
+
 			foreach ( $element_list as $element ) {
+				if ( ! is_array( $element ) || $scanned_nodes >= $max_nodes ) {
+					break;
+				}
+				$scanned_nodes++;
+
 				$el_type     = $element['elType'] ?? '';
 				$widget_type = $element['widgetType'] ?? ( 'widget' === $el_type ? ( $element['name'] ?? '' ) : '' );
 
 				if ( 'widget' === $el_type && ! empty( $widget_type ) ) {
-					$settings   = $element['settings'] ?? array();
+					$settings   = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : array();
 					$new_fields = array();
-					self::find_elementor_text_settings( $settings, '', array(), $new_fields );
+					self::find_elementor_text_settings( $settings, '', array(), $new_fields, 0 );
 
 					if ( ! empty( $new_fields ) ) {
 						if ( ! isset( $found_items[ $widget_type ] ) ) {
@@ -364,13 +432,13 @@ class Detector {
 					}
 				}
 
-				if ( ! empty( $element['elements'] ) ) {
-					$scan_recursive( $element['elements'] );
+				if ( ! empty( $element['elements'] ) && is_array( $element['elements'] ) ) {
+					$scan_recursive( $element['elements'], $depth + 1 );
 				}
 			}
 		};
 
-		$scan_recursive( $elements );
+		$scan_recursive( $elements, 0 );
 
 		if ( empty( $found_items ) ) {
 			return null;
@@ -397,8 +465,18 @@ class Detector {
 
 	/**
 	 * Helper to recursively identify translatable text settings in Elementor widget.
+	 *
+	 * @param array  $settings
+	 * @param string $prefix
+	 * @param array  $existing_fields
+	 * @param array  $new_fields
+	 * @param int    $depth
 	 */
-	private static function find_elementor_text_settings( $settings, $prefix, $existing_fields, &$new_fields ) {
+	private static function find_elementor_text_settings( $settings, $prefix, $existing_fields, &$new_fields, $depth = 0 ) {
+		if ( ! is_array( $settings ) || empty( $settings ) || $depth > 15 ) {
+			return;
+		}
+
 		$ignored_keys = array( '_id', '_element_id', 'css_classes', 'custom_css', '_animation', 'color', 'background', 'margin', 'padding', 'typography' );
 
 		foreach ( $settings as $key => $val ) {
@@ -419,7 +497,7 @@ class Detector {
 					);
 				}
 			} elseif ( is_array( $val ) && ! empty( $val ) && count( $val ) < 20 ) {
-				self::find_elementor_text_settings( $val, $path, $existing_fields, $new_fields );
+				self::find_elementor_text_settings( $val, $path, $existing_fields, $new_fields, $depth + 1 );
 			}
 		}
 	}

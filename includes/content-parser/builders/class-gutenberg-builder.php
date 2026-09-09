@@ -65,10 +65,21 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param string $lang
 	 * @param array  $extracted
 	 */
-	public function extract_blocks_recursive( array $blocks, array $gutenberg_rules, int $post_id, string $lang, array &$extracted ): void {
+	public function extract_blocks_recursive( array $blocks, array $gutenberg_rules, int $post_id, string $lang, array &$extracted, int $depth = 0 ): void {
+		if ( empty( $blocks ) || $depth > 100 ) {
+			return;
+		}
+
 		foreach ( $blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+
 			$name = $block['blockName'] ?? '';
 			if ( empty( $name ) ) {
+				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+					$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted, $depth + 1 );
+				}
 				continue;
 			}
 
@@ -90,16 +101,18 @@ class Gutenberg_Builder extends Base_Builder {
 					}
 				}
 
-				if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+				if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) && is_array( $block['innerContent'] ) ) {
 					foreach ( $block['innerContent'] as $inner_content ) {
-						$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
+						if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+							$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
+						}
 					}
 				}
 			}
 
 			// Recurse inner blocks
 			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
-				$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted );
+				$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted, $depth + 1 );
 			}
 		}
 	}
