@@ -70,7 +70,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'generate_config_from_content' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
 			)
 		);
 
@@ -81,7 +81,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'open_mapping_sandbox' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
 			)
 		);
 
@@ -114,7 +114,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_page_content' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 
@@ -147,7 +147,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'extract_strings' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 
@@ -158,7 +158,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'translate_batch' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 
@@ -169,7 +169,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'translate_post' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 
@@ -180,7 +180,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'bulk_start' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_bulk_start_permissions' ),
 			)
 		);
 
@@ -191,7 +191,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'bulk_status' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 
@@ -202,7 +202,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'bulk_update_job' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_bulk_update_job_permissions' ),
 			)
 		);
 
@@ -213,7 +213,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'mark_translated' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
 			)
 		);
 	}
@@ -230,6 +230,96 @@ class Rest_Api {
 	 */
 	public static function check_edit_permissions() {
 		return current_user_can( 'edit_posts' );
+	}
+
+	/**
+	 * Check edit permission for a specific post.
+	 */
+	public static function check_edit_post_permission( WP_REST_Request $request ) {
+		$post_id = (int) $request->get_param( 'post_id' );
+		if ( ! $post_id ) {
+			$json_params = $request->get_json_params();
+			if ( ! empty( $json_params['post_id'] ) ) {
+				$post_id = (int) $json_params['post_id'];
+			}
+		}
+
+		if ( $post_id > 0 ) {
+			return current_user_can( 'edit_post', $post_id );
+		}
+
+		return current_user_can( 'edit_posts' );
+	}
+
+	/**
+	 * Check bulk translation batch start permissions across all requested post IDs.
+	 */
+	public static function check_bulk_start_permissions( WP_REST_Request $request ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return false;
+		}
+
+		$post_ids = $request->get_param( 'post_ids' );
+		if ( empty( $post_ids ) ) {
+			$json_params = $request->get_json_params();
+			if ( ! empty( $json_params['post_ids'] ) && is_array( $json_params['post_ids'] ) ) {
+				$post_ids = $json_params['post_ids'];
+			}
+		}
+
+		if ( ! empty( $post_ids ) && is_array( $post_ids ) ) {
+			foreach ( $post_ids as $post_id ) {
+				$post_id = (int) $post_id;
+				if ( $post_id > 0 && ! current_user_can( 'edit_post', $post_id ) ) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check bulk translation job update permissions.
+	 */
+	public static function check_bulk_update_job_permissions( WP_REST_Request $request ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return false;
+		}
+
+		$job_id = (int) $request->get_param( 'job_id' );
+		$params = $request->get_json_params();
+		if ( ! $job_id && ! empty( $params['job_id'] ) ) {
+			$job_id = (int) $params['job_id'];
+		}
+
+		if ( $job_id > 0 ) {
+			$job = Bulk_Process::get_job( $job_id );
+			if ( ! $job ) {
+				return false;
+			}
+
+			// Verify permission for source post
+			if ( ! empty( $job->post_id ) && ! current_user_can( 'edit_post', (int) $job->post_id ) ) {
+				return false;
+			}
+
+			// Verify permission for existing target post if present
+			if ( ! empty( $job->target_post_id ) && (int) $job->target_post_id > 0 && ! current_user_can( 'edit_post', (int) $job->target_post_id ) ) {
+				return false;
+			}
+		}
+
+		// If a new target_post_id is passed in update data, verify caller can edit that post as well
+		$updates = $params['data'] ?? array();
+		if ( ! empty( $updates['target_post_id'] ) ) {
+			$target_post_id = (int) $updates['target_post_id'];
+			if ( $target_post_id > 0 && ! current_user_can( 'edit_post', $target_post_id ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -961,7 +1051,10 @@ class Rest_Api {
 		}
 
 		if ( isset( $updates['status'] ) && 'completed' === $updates['status'] && ! empty( $updates['target_post_id'] ) ) {
-			update_post_meta( (int) $updates['target_post_id'], '_translatesense_translated', '1' );
+			$target_post_id = (int) $updates['target_post_id'];
+			if ( $target_post_id > 0 && current_user_can( 'edit_post', $target_post_id ) ) {
+				update_post_meta( $target_post_id, '_translatesense_translated', '1' );
+			}
 		}
 
 		$updated = Bulk_Process::update_job( $job_id, $clean_data );
@@ -983,6 +1076,10 @@ class Rest_Api {
 
 		if ( ! $post_id || ! get_post( $post_id ) ) {
 			return new WP_Error( 'invalid_post', __( 'Valid Post ID is required.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return new WP_Error( 'rest_forbidden', __( 'You do not have permission to edit this post.', 'translatesense' ), array( 'status' => 403 ) );
 		}
 
 		update_post_meta( $post_id, '_translatesense_translated', '1' );

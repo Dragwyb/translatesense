@@ -459,6 +459,29 @@ class Bulk_Process {
 	}
 
 	/**
+	 * Get a single job row by ID.
+	 *
+	 * @param int $job_id
+	 * @return object|null
+	 */
+	public static function get_job( int $job_id ) {
+		if ( $job_id <= 0 ) {
+			return null;
+		}
+
+		global $wpdb;
+		$table = self::get_table_name();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE id = %d LIMIT 1",
+				$job_id
+			)
+		);
+	}
+
+	/**
 	 * Update a job row in the bulk translation table.
 	 *
 	 * @param int   $job_id
