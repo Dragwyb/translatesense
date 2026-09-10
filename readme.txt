@@ -4,7 +4,7 @@ Tags: translation, polylang, multilingual, translate, ai translation
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.0.0
+Stable tag: 0.0.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,19 @@ Yes, Translate Sense is designed to work in synergy with the Polylang multilingu
 Currently, Gutenberg (WordPress Block Editor) and Elementor are fully supported with custom XML rule generators.
 
 == Changelog ==
+
+= 0.0.1 =
+* Added WordPress 7.0 connectors provider support If provider install.
+* Dynamic provider models showing.
+* Added Redirect and Manage API key and Provider Activate button for WP 7.0 connectors.
+* Remove creating and update config in upload directory.
+* Update permission check in routes.
+* Added depth check in array recursive.
+* Improve error handling.
+* Removed unused code.
+* Dashboard style improvement.
+* Fixed translate string save issue and AI provider translation issues.
+* Prevent saving translate posts in package.
 
 = 0.0.0 =
 * Initial release.
