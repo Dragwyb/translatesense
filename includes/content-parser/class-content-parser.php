@@ -230,27 +230,6 @@ class Content_Parser {
 		return array_values( (array) $extracted );
 	}
 
-	/**
-	 * Parse a post object or ID directly.
-	 *
-	 * @param int    $post_id
-	 * @param string $lang
-	 * @param string $builder
-	 * @return array
-	 */
-	public static function parse_post( int $post_id, string $lang = '', string $builder = '' ): array {
-		if ( ! $post_id ) {
-			return array();
-		}
-
-		$post = get_post( $post_id );
-		if ( ! $post ) {
-			return array();
-		}
-
-		return self::parse( $post->post_content, $post_id, $lang, $builder );
-	}
-
 	public static function is_save_package( $post_id ): bool {
 		if ( ! $post_id ) {
 			return false;
