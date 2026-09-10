@@ -263,8 +263,7 @@ class Translate {
 		}
 
 		foreach ( $strings_array as $idx => $str ) {
-			$w_id           = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
-			$hashes[ $idx ] = Hashing_Db::generate_hash( (string) $w_id, (string) $str );
+			$hashes[ $idx ] = md5( $str );
 		}
 
 		// Step 3.2b: Check in-memory translations batch
