@@ -58,11 +58,16 @@ class Hashing_Db {
 	 *
 	 * Uses atomic MySQL ON DUPLICATE KEY UPDATE to minimize queries and prevent race conditions.
 	 *
-	 * @param string $source_string
+	 * @param string $filter_string Clean/filtered string used for hash computation.
+	 * @param string $source_string Original source string (defaults to $filter_string if omitted).
 	 * @return int String ID or 0 on failure
 	 */
-	public static function get_or_create_string_id( string $filter_string, string $source_string ): int {
+	public static function get_or_create_string_id( string $filter_string, string $source_string = '' ): int {
 		global $wpdb;
+
+		if ( '' === $source_string ) {
+			$source_string = $filter_string;
+		}
 
 		if ( '' === trim( $source_string ) ) {
 			return 0;
