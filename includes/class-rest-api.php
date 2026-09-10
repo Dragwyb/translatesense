@@ -799,13 +799,21 @@ class Rest_Api {
 		$packages_count     = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$results_count      = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
+		$bridge           = Ai_Connector_Bridge::get_instance();
+		$active_providers = $bridge->get_active_providers();
+		$provider_models  = array();
+		foreach ( $active_providers as $p_id => $p_opts ) {
+			$provider_models[ $p_id ] = $bridge->get_models( (string) $p_id, (array) $p_opts );
+		}
+
 		return rest_ensure_response(
 			array(
 				'settings'         => $settings,
 				'languages'        => $languages,
 				'polylang_active'  => $polylang_active,
 				'active_builders'  => Admin_Menu::get_active_builders(),
-				'active_providers' => Ai_Connector_Bridge::get_instance()->get_active_providers(),
+				'active_providers' => $active_providers,
+				'provider_models'  => $provider_models,
 				'connectors_url'   => esc_url_raw( admin_url( 'options-connectors.php' ) ),
 				'stats'            => array(
 					'total_packages' => $packages_count,
@@ -826,11 +834,20 @@ class Rest_Api {
 
 		update_option( 'translatesense_settings', $updated );
 
+		$bridge           = Ai_Connector_Bridge::get_instance();
+		$active_providers = $bridge->get_active_providers( true );
+		$provider_models  = array();
+		foreach ( $active_providers as $p_id => $p_opts ) {
+			$provider_models[ $p_id ] = $bridge->get_models( (string) $p_id, (array) $p_opts );
+		}
+
 		return rest_ensure_response(
 			array(
-				'success'  => true,
-				'message'  => __( 'Settings updated successfully.', 'translatesense' ),
-				'settings' => $updated,
+				'success'          => true,
+				'message'          => __( 'Settings updated successfully.', 'translatesense' ),
+				'settings'         => $updated,
+				'active_providers' => $active_providers,
+				'provider_models'  => $provider_models,
 			)
 		);
 	}

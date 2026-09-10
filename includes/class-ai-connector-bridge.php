@@ -14,6 +14,7 @@ namespace TranslateSense\Includes;
 
 use WP_Error;
 use WordPress\AiClient\AiClient;
+use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -744,9 +745,10 @@ class Ai_Connector_Bridge {
 			// 1. If WordPress 7.0+ Core AI is active, query core registry for site-level providers
 			if ( $this->has_wp_ai ) {
 				if ( function_exists( 'wp_is_connector_registered' ) ) {
-					$providers_arr = array( 'openai', 'google' );
-					$registry      = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
-
+					$providers_arr  = array( 'openai', 'google' );
+					$registry       = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
+					$key_start_like = 'connectors';
+					$key_end_like   = 'api_key';
 					foreach ( $providers_arr as $id ) {
 						$connector_registry = wp_is_connector_registered( $id );
 						$key_id             = ( 'google' === $id ) ? 'gemini' : $id;
@@ -763,10 +765,11 @@ class Ai_Connector_Bridge {
 
 							$is_connected = false;
 							if ( $registry ) {
-								try {
-									$is_connected = $registry->hasProvider( $id ) && $registry->isProviderConfigured( $id );
-								} catch ( \Throwable $e ) {
-									$is_connected = false;
+
+								$full_key_name = $key_start_like . '_ai_' . $id . '_' . $key_end_like;
+								$is_key_exist  = get_option( $full_key_name );
+								if ( ! empty( $is_key_exist ) ) {
+									$is_connected = true;
 								}
 							}
 
@@ -886,6 +889,10 @@ class Ai_Connector_Bridge {
 		$provider_id   = sanitize_key( $id );
 		$core_provider = ( 'gemini' === $provider_id ) ? 'google' : $provider_id;
 
+		if ( ! in_array( $core_provider, array( 'google', 'openai' ) ) ) {
+			return array();
+		}
+
 		// 1. If provider connector is true and provider plugin is installed, always get models from WordPress AI Connectors registry
 		if ( ! empty( $provider_options['connectors'] ) && ! empty( $provider_options['isProviderInstall'] ) ) {
 
@@ -905,15 +912,20 @@ class Ai_Connector_Bridge {
 				return array();
 			}
 
+			// 2. If connector is false, check 24-hour transient cache
+			$transient_key = 'translatesense_connector_models_' . $provider_id;
+			$cached_models = get_transient( $transient_key );
+
+			if ( false !== $cached_models && is_array( $cached_models ) && ! empty( $cached_models ) ) {
+				return $cached_models;
+			}
+
 			try {
 				// Resolve CapabilityEnum
 				$capability = null;
-				if ( class_exists( '\WordPress\AiClient\Providers\Models\Enums\CapabilityEnum' ) && method_exists( '\WordPress\AiClient\Providers\Models\Enums\CapabilityEnum', 'textGeneration' ) ) {
-					$capability = \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::textGeneration();
-				} elseif ( class_exists( '\CapabilityEnum' ) && method_exists( '\CapabilityEnum', 'textGeneration' ) ) {
-					$capability = \CapabilityEnum::textGeneration();
+				if ( class_exists( CapabilityEnum::class ) ) {
+					$capability = CapabilityEnum::textGeneration();
 				}
-
 				// Resolve MessagePart & UserMessage
 				$messages = array();
 				if ( class_exists( '\WordPress\AiClient\Messages\DTO\MessagePart' ) && class_exists( '\WordPress\AiClient\Messages\DTO\UserMessage' ) ) {
@@ -934,6 +946,7 @@ class Ai_Connector_Bridge {
 
 				// Build ModelRequirements
 				$requirements = null;
+
 				if ( null !== $capability && ! empty( $messages ) && null !== $modal_config ) {
 					if ( class_exists( '\WordPress\AiClient\Providers\Models\DTO\ModelRequirements' ) && method_exists( '\WordPress\AiClient\Providers\Models\DTO\ModelRequirements', 'fromPromptData' ) ) {
 						$requirements = \WordPress\AiClient\Providers\Models\DTO\ModelRequirements::fromPromptData( $capability, $messages, $modal_config );
@@ -971,6 +984,7 @@ class Ai_Connector_Bridge {
 					}
 
 					if ( ! empty( $connector_models ) ) {
+						set_transient( $transient_key, $connector_models, HOUR_IN_SECONDS );
 						return $connector_models;
 					}
 				}
@@ -997,7 +1011,7 @@ class Ai_Connector_Bridge {
 		$fetched_models = $this->fetch_remote_provider_models( $provider_id );
 
 		if ( ! empty( $fetched_models ) && is_array( $fetched_models ) ) {
-			set_transient( $transient_key, $fetched_models, DAY_IN_SECONDS );
+			set_transient( $transient_key, $fetched_models, HOUR_IN_SECONDS );
 			return $fetched_models;
 		}
 
@@ -1009,10 +1023,14 @@ class Ai_Connector_Bridge {
 	 * Alias for get_provider_models.
 	 *
 	 * @param string $id
-	 * @param bool   $provider_options
+	 * @param array  $provider_options
 	 * @return array
 	 */
-	public function get_models( string $id, array $provider_options ): array {
+	public function get_models( string $id, array $provider_options = array() ): array {
+		if ( empty( $provider_options ) ) {
+			$active_providers = $this->get_active_providers( false, array( $id ) );
+			$provider_options = $active_providers[ $id ] ?? array();
+		}
 		return $this->get_provider_models( $id, $provider_options );
 	}
 

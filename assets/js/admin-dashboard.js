@@ -38,6 +38,7 @@
     const [languages, setLanguages] = useState([]);
     const [stats, setStats] = useState({ total_packages: 0, cached_results: 0 });
     const [activeProviders, setActiveProviders] = useState((window.TranslateSenseData && window.TranslateSenseData.activeProviders) || {});
+    const [providerModels, setProviderModels] = useState((window.TranslateSenseData && window.TranslateSenseData.providerModels) || {});
     const [connectorsUrl, setConnectorsUrl] = useState((window.TranslateSenseData && window.TranslateSenseData.connectorsUrl) || 'options-connectors.php');
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -111,6 +112,9 @@
         }
         if (settingsRes.active_providers) {
           setActiveProviders(settingsRes.active_providers);
+        }
+        if (settingsRes.provider_models) {
+          setProviderModels(settingsRes.provider_models);
         }
         if (settingsRes.connectors_url) {
           setConnectorsUrl(settingsRes.connectors_url);
@@ -188,6 +192,8 @@
         });
         showNotice(res.message || 'Settings saved successfully!');
         if (res.settings) setSettings(res.settings);
+        if (res.active_providers) setActiveProviders(res.active_providers);
+        if (res.provider_models) setProviderModels(res.provider_models);
       } catch (err) {
         showNotice('Error updating settings: ' + (err.message || 'Network error'), 'error');
       }
@@ -384,6 +390,7 @@
           showNotice,
           activeProviders,
           connectorsUrl,
+          providerModels,
         })
         : activeTab === 'xml_editor'
           ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
@@ -884,6 +891,7 @@
     showNotice,
     activeProviders = {},
     connectorsUrl = 'options-connectors.php',
+    providerModels = {},
   }) {
     const [showOpenAiKey, setShowOpenAiKey] = useState(false);
     const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -913,6 +921,27 @@
 
     const openAiStatus = getProviderStatus('openai');
     const geminiStatus = getProviderStatus('gemini');
+
+    const defaultOpenAiModels = [
+      { id: 'gpt-4o-mini', name: 'gpt-4o-mini ( Fast & Cost-Effective )' },
+      { id: 'gpt-4o', name: 'gpt-4o ( Flagship Reasoning )' },
+      { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo ( Legacy )' },
+    ];
+    const defaultGeminiModels = [
+      { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash ( High Speed & Quality )' },
+      { id: 'gemini-1.5-pro', name: 'gemini-1.5-pro ( Advanced Multilingual )' },
+      { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash ( Next-Gen Flash )' },
+    ];
+
+    const openAiModels = (providerModels && Array.isArray(providerModels.openai) && providerModels.openai.length > 0)
+      ? providerModels.openai
+      : defaultOpenAiModels;
+
+    const geminiModels = (providerModels && Array.isArray(providerModels.gemini) && providerModels.gemini.length > 0)
+      ? providerModels.gemini
+      : (providerModels && Array.isArray(providerModels.google) && providerModels.google.length > 0)
+        ? providerModels.google
+        : defaultGeminiModels;
 
     const toggleProvider = (providerId) => {
       let updated;
@@ -1249,13 +1278,13 @@
                     'select',
                     {
                       className: 'ts-form-select',
-                      value: settings.openai_model || 'gpt-4o-mini',
+                      value: settings.openai_model || (openAiModels[0] && openAiModels[0].id) || 'gpt-4o-mini',
                       disabled: !enabledProviders.includes('openai'),
                       onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
                     },
-                    el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini ( Fast & Cost-Effective )'),
-                    el('option', { value: 'gpt-4o' }, 'gpt-4o ( Flagship Reasoning )'),
-                    el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo ( Legacy )')
+                    openAiModels.map((m) =>
+                      el('option', { key: m.id, value: m.id }, m.name ? (m.name === m.id ? m.id : `${m.name}`) : m.id)
+                    )
                   )
                 )
                 : null
@@ -1388,13 +1417,13 @@
                     'select',
                     {
                       className: 'ts-form-select',
-                      value: settings.gemini_model || 'gemini-1.5-flash',
+                      value: settings.gemini_model || (geminiModels[0] && geminiModels[0].id) || 'gemini-1.5-flash',
                       disabled: !enabledProviders.includes('gemini'),
                       onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
                     },
-                    el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash ( High Speed & Quality )'),
-                    el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro ( Advanced Multilingual )'),
-                    el('option', { value: 'gemini-2.0-flash' }, 'gemini-2.0-flash ( Next-Gen Flash )')
+                    geminiModels.map((m) =>
+                      el('option', { key: m.id, value: m.id }, m.name ? (m.name === m.id ? m.id : `${m.name}`) : m.id)
+                    )
                   )
                 )
                 : null
