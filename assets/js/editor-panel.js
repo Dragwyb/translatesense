@@ -319,9 +319,13 @@
               const meta = enabledProviders[id];
               const isConn = meta.isConnected !== false;
               const isCore = Boolean(meta.connectors);
+              const isInstall = meta.isProviderInstall !== undefined ? Boolean(meta.isProviderInstall) : true;
+              const isActive = meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true;
               return {
                 isConnected: isConn,
                 connectors: isCore,
+                isProviderInstall: isInstall,
+                isProviderActive: isActive,
                 targetUrl: isCore ? connectorsUrl : settingsUrl,
               };
             }
@@ -329,42 +333,72 @@
             return {
               isConnected: !isMissing,
               connectors: false,
+              isProviderInstall: false,
+              isProviderActive: false,
               targetUrl: settingsUrl,
             };
           };
 
+          const isProviderAvailable = (id) => {
+            if (id === 'chrome_ai' || id === 'chrome_local_ai') return true;
+            const st = getProviderStatus(id);
+            if (st.connectors && st.isProviderInstall) {
+              return Boolean(st.isProviderActive && st.isConnected);
+            }
+            return Boolean(st.isConnected);
+          };
+
           const defaultProv = this.config.defaultProvider || '';
-          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && getProviderStatus(p.id).isConnected))
+          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && isProviderAvailable(p.id)))
             ? this.selectedProvider
-            : (defaultProv && providersList.some((p) => p.id === defaultProv && getProviderStatus(p.id).isConnected) ? defaultProv : '');
+            : (defaultProv && providersList.some((p) => p.id === defaultProv && isProviderAvailable(p.id)) ? defaultProv : '');
 
           if (!currentSelected) {
-            const firstAvailable = providersList.find((p) => getProviderStatus(p.id).isConnected);
+            const firstAvailable = providersList.find((p) => isProviderAvailable(p.id));
             if (firstAvailable) currentSelected = firstAvailable.id;
           }
           this.selectedProvider = currentSelected;
 
           return providersList.map((p) => {
             const status = getProviderStatus(p.id);
-            const isMissingKey = !status.isConnected;
-            const isSelected = Boolean(!isMissingKey && currentSelected && p.id === currentSelected);
             const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+            const isConnector = Boolean(status.connectors && status.isProviderInstall);
 
-            let badgeHtml = '';
+            let isAvailable = false;
+            let actionHtml = '';
+
             if (isFrontend) {
-              badgeHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
-            } else if (status.connectors) {
-              badgeHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+              isAvailable = true;
+              actionHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+            } else if (isConnector) {
+              if (!status.isProviderActive) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+              } else if (!status.isConnected) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+              } else {
+                isAvailable = true;
+                actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+              }
+            } else {
+              // Legacy direct API
+              if (!status.isConnected) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+              } else {
+                isAvailable = true;
+                actionHtml = '';
+              }
             }
 
-            const actionHtml = isMissingKey
-              ? `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="${status.connectors ? 'Configure in WordPress Connectors' : 'Configure API Key in TranslateSense Settings'}">⚠️ Add API Key</a>`
-              : badgeHtml;
+            const isSelected = Boolean(isAvailable && currentSelected && p.id === currentSelected);
+            const isDisabled = !isAvailable;
 
             return `
-                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
+                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
                       <div class="ts-provider-radio-wrap">
-                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
+                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
                         <span class="ts-provider-custom-radio"></span>
                       </div>
                       <div class="ts-provider-icon-box">

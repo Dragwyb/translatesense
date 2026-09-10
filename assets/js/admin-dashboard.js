@@ -898,12 +898,16 @@
         return {
           isConnected: meta.isConnected !== false,
           connectors: Boolean(meta.connectors),
+          isProviderInstall: meta.isProviderInstall !== undefined ? Boolean(meta.isProviderInstall) : true,
+          isProviderActive: meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true,
         };
       }
       const isKeyConfigured = (id === 'openai') ? Boolean(settings.openai_api_key) : (id === 'gemini') ? Boolean(settings.gemini_api_key) : true;
       return {
         isConnected: isKeyConfigured,
         connectors: false,
+        isProviderInstall: false,
+        isProviderActive: false,
       };
     };
 
@@ -994,31 +998,73 @@
       return pluginUrl ? `${pluginUrl}assets/img/${providerId}.png` : '';
     };
 
-    // Determine OpenAI badge tag class & label
+    // Determine OpenAI badge tag class, label, description & action button
     let openAiTagClass = 'offline';
     let openAiTagText = 'Disabled';
+    let openAiConnectorDesc = '';
+    let openAiConnectorBtnText = '';
+
     if (enabledProviders.includes('openai')) {
-      if (openAiStatus.connectors) {
-        openAiTagClass = openAiStatus.isConnected ? 'wp-connector' : 'setup-connector';
-        openAiTagText = openAiStatus.isConnected ? '⚡ WP Connector Active' : '⚠️ Setup Connector';
+      if (openAiStatus.connectors && openAiStatus.isProviderInstall) {
+        if (!openAiStatus.isProviderActive) {
+          openAiTagClass = 'setup-connector';
+          openAiTagText = '⚠️ Activate Provider';
+          openAiConnectorDesc = 'WordPress AI Connector plugin for OpenAI is installed but inactive. Please activate it in WordPress Connectors.';
+          openAiConnectorBtnText = '↗ Activate in WP Connectors';
+        } else if (!openAiStatus.isConnected) {
+          openAiTagClass = 'key-needed';
+          openAiTagText = '⚠️ API Key Needed';
+          openAiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your OpenAI credentials directly in WordPress Connectors.';
+          openAiConnectorBtnText = '↗ Connect in WP Connectors';
+        } else {
+          openAiTagClass = 'wp-connector';
+          openAiTagText = '⚡ WP Connector Active';
+          openAiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client. Global credentials and connections are handled securely by core.';
+          openAiConnectorBtnText = '↗ Manage in WP Connectors';
+        }
       } else {
         openAiTagClass = settings.openai_api_key ? 'ready' : 'key-needed';
         openAiTagText = settings.openai_api_key ? '✓ Configured' : '⚠️ API Key Needed';
       }
     }
 
-    // Determine Gemini badge tag class & label
+    // Determine Gemini badge tag class, label, description & action button
     let geminiTagClass = 'offline';
     let geminiTagText = 'Disabled';
+    let geminiConnectorDesc = '';
+    let geminiConnectorBtnText = '';
+
     if (enabledProviders.includes('gemini')) {
-      if (geminiStatus.connectors) {
-        geminiTagClass = geminiStatus.isConnected ? 'wp-connector' : 'setup-connector';
-        geminiTagText = geminiStatus.isConnected ? '⚡ WP Connector Active' : '⚠️ Setup Connector';
+      if (geminiStatus.connectors && geminiStatus.isProviderInstall) {
+        if (!geminiStatus.isProviderActive) {
+          geminiTagClass = 'setup-connector';
+          geminiTagText = '⚠️ Activate Provider';
+          geminiConnectorDesc = 'WordPress AI Connector plugin for Google Gemini is installed but inactive. Please activate it in WordPress Connectors.';
+          geminiConnectorBtnText = '↗ Activate in WP Connectors';
+        } else if (!geminiStatus.isConnected) {
+          geminiTagClass = 'key-needed';
+          geminiTagText = '⚠️ API Key Needed';
+          geminiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your Google Gemini credentials directly in WordPress Connectors.';
+          geminiConnectorBtnText = '↗ Connect in WP Connectors';
+        } else {
+          geminiTagClass = 'wp-connector';
+          geminiTagText = '⚡ WP Connector Active';
+          geminiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client (Google). Global credentials and connections are handled securely by core.';
+          geminiConnectorBtnText = '↗ Manage in WP Connectors';
+        }
       } else {
         geminiTagClass = settings.gemini_api_key ? 'ready' : 'key-needed';
         geminiTagText = settings.gemini_api_key ? '✓ Configured' : '⚠️ API Key Needed';
       }
     }
+
+    const isOpenAiConnected = (openAiStatus.connectors && openAiStatus.isProviderInstall)
+      ? Boolean(openAiStatus.isConnected && openAiStatus.isProviderActive)
+      : Boolean(settings.openai_api_key && settings.openai_api_key.trim());
+
+    const isGeminiConnected = (geminiStatus.connectors && geminiStatus.isProviderInstall)
+      ? Boolean(geminiStatus.isConnected && geminiStatus.isProviderActive)
+      : Boolean(settings.gemini_api_key && settings.gemini_api_key.trim());
 
     return el(
       'form',
@@ -1130,7 +1176,7 @@
             el(
               'div',
               { className: 'ts-provider-body' },
-              openAiStatus.connectors
+              (openAiStatus.connectors && openAiStatus.isProviderInstall)
                 ? el(
                   'div',
                   { className: 'ts-connector-box' },
@@ -1140,13 +1186,7 @@
                     el('span', { className: 'ts-connector-icon' }, '⚡'),
                     el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
                   ),
-                  el(
-                    'p',
-                    { className: 'ts-connector-desc' },
-                    openAiStatus.isConnected
-                      ? 'Managed natively via WordPress 7.0+ AI Client. Global credentials and connections are handled securely by core.'
-                      : 'WordPress AI Connector is active. Configure your OpenAI credentials directly in WordPress Connectors.'
-                  ),
+                  el('p', { className: 'ts-connector-desc' }, openAiConnectorDesc),
                   el(
                     'a',
                     {
@@ -1156,7 +1196,7 @@
                       className: 'ts-btn-connector',
                       title: 'Manage directly in WordPress Connectors',
                     },
-                    openAiStatus.isConnected ? '↗ Manage in WP Connectors' : '↗ Connect in WP Connectors'
+                    openAiConnectorBtnText
                   )
                 )
                 : el(
@@ -1200,23 +1240,25 @@
                     )
                   )
                 ),
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el('label', null, el('span', null, 'Translation Model')),
-                el(
-                  'select',
-                  {
-                    className: 'ts-form-select',
-                    value: settings.openai_model || 'gpt-4o-mini',
-                    disabled: !enabledProviders.includes('openai'),
-                    onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
-                  },
-                  el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini ( Fast & Cost-Effective )'),
-                  el('option', { value: 'gpt-4o' }, 'gpt-4o ( Flagship Reasoning )'),
-                  el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo ( Legacy )')
+              isOpenAiConnected
+                ? el(
+                  'div',
+                  { className: 'ts-input-group' },
+                  el('label', null, el('span', null, 'Translation Model')),
+                  el(
+                    'select',
+                    {
+                      className: 'ts-form-select',
+                      value: settings.openai_model || 'gpt-4o-mini',
+                      disabled: !enabledProviders.includes('openai'),
+                      onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
+                    },
+                    el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini ( Fast & Cost-Effective )'),
+                    el('option', { value: 'gpt-4o' }, 'gpt-4o ( Flagship Reasoning )'),
+                    el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo ( Legacy )')
+                  )
                 )
-              ),
+                : null
             )
           ),
 
@@ -1273,7 +1315,7 @@
             el(
               'div',
               { className: 'ts-provider-body' },
-              geminiStatus.connectors
+              (geminiStatus.connectors && geminiStatus.isProviderInstall)
                 ? el(
                   'div',
                   { className: 'ts-connector-box' },
@@ -1283,13 +1325,7 @@
                     el('span', { className: 'ts-connector-icon' }, '⚡'),
                     el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
                   ),
-                  el(
-                    'p',
-                    { className: 'ts-connector-desc' },
-                    geminiStatus.isConnected
-                      ? 'Managed natively via WordPress 7.0+ AI Client (Google). Global credentials and connections are handled securely by core.'
-                      : 'WordPress AI Connector is active. Configure your Google Gemini credentials directly in WordPress Connectors.'
-                  ),
+                  el('p', { className: 'ts-connector-desc' }, geminiConnectorDesc),
                   el(
                     'a',
                     {
@@ -1299,7 +1335,7 @@
                       className: 'ts-btn-connector',
                       title: 'Manage directly in WordPress Connectors',
                     },
-                    geminiStatus.isConnected ? '↗ Manage in WP Connectors' : '↗ Connect in WP Connectors'
+                    geminiConnectorBtnText
                   )
                 )
                 : el(
@@ -1343,23 +1379,25 @@
                     )
                   )
                 ),
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el('label', null, el('span', null, 'Translation Model')),
-                el(
-                  'select',
-                  {
-                    className: 'ts-form-select',
-                    value: settings.gemini_model || 'gemini-1.5-flash',
-                    disabled: !enabledProviders.includes('gemini'),
-                    onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
-                  },
-                  el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash ( High Speed & Quality )'),
-                  el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro ( Advanced Multilingual )'),
-                  el('option', { value: 'gemini-2.0-flash' }, 'gemini-2.0-flash ( Next-Gen Flash )')
+              isGeminiConnected
+                ? el(
+                  'div',
+                  { className: 'ts-input-group' },
+                  el('label', null, el('span', null, 'Translation Model')),
+                  el(
+                    'select',
+                    {
+                      className: 'ts-form-select',
+                      value: settings.gemini_model || 'gemini-1.5-flash',
+                      disabled: !enabledProviders.includes('gemini'),
+                      onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
+                    },
+                    el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash ( High Speed & Quality )'),
+                    el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro ( Advanced Multilingual )'),
+                    el('option', { value: 'gemini-2.0-flash' }, 'gemini-2.0-flash ( Next-Gen Flash )')
+                  )
                 )
-              ),
+                : null
             )
           ),
 
