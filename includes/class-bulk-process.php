@@ -332,15 +332,11 @@ class Bulk_Process {
 
 			// Extract pure strings indexed by array index
 			$strings_to_send = array();
-			$widgets_by_idx  = array();
 
 			foreach ( $packages as $idx => $pkg ) {
-				if ( isset( $pkg['value'] ) && isset( $pkg['widget_name'] ) && ! empty( $pkg['value'] ) ) {
-					$str  = (string) $pkg['value'];
-					$w_id = (string) $pkg['widget_name'];
-
+				if ( isset( $pkg['value'] ) && ! empty( $pkg['value'] ) ) {
+					$str                     = (string) $pkg['value'];
 					$strings_to_send[ $idx ] = $str;
-					$widgets_by_idx[ $idx ]  = $w_id;
 				}
 			}
 
@@ -362,7 +358,6 @@ class Bulk_Process {
 				$strings_to_send,
 				$source_lang,
 				$target_lang,
-				$widgets_by_idx,
 				array( 'provider' => $provider )
 			);
 

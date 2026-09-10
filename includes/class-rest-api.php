@@ -961,7 +961,6 @@ class Rest_Api {
 			$strings,
 			$source_lang,
 			$target_lang,
-			array(),
 			$custom_opts
 		);
 

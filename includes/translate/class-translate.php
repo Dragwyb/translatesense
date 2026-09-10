@@ -249,11 +249,10 @@ class Translate {
 	 * @param array  $strings_array
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param array  $widget_ids
 	 * @param array  $custom_options
 	 * @return array
 	 */
-	public static function translate_batch( $strings_array, $source_lang, $target_lang, $widget_ids = array(), $custom_options = array() ) {
+	public static function translate_batch( $strings_array, $source_lang, $target_lang, $custom_options = array() ) {
 		$results = array();
 		$hashes  = array();
 
