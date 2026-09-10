@@ -138,12 +138,38 @@ class Ai_Connector_Bridge {
 			$prompt      = $this->build_default_prompt( $strings, (string) $source_lang, (string) $target_lang, $settings );
 		}
 
-		$active_providers = $this->get_active_providers();
+		$active_providers = $this->get_active_providers( false, array( $provider ) );
 		$provider_info    = $active_providers[ $provider ] ?? null;
 		$uses_connector   = $this->has_wp_ai && ! empty( $provider_info['connectors'] );
 
-		// Condition A: If WP 7.0+ and connectors are available for this provider, send request through WP Core Connectors
-		if ( $uses_connector && $active_providers[ $provider ]['connectors'] ) {
+		// Condition A: If WP 7.0+ and connectors are installed for this provider, always send request through WP Core Connectors
+		if ( ! empty( $provider_info['connectors'] ) && ! empty( $provider_info['isProviderInstall'] ) ) {
+			if ( empty( $provider_info['isConnected'] ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					error_log( sprintf( '[TranslateSense] Provider %s is not connected or configured in WordPress AI Connectors.', $provider ) );
+				}
+				return new \WP_Error(
+					'provider_not_connected',
+					/* translators: %s: Provider name */
+					sprintf( __( 'Provider %s is not connected or configured in WordPress AI Connectors.', 'translatesense' ), strtoupper( $provider ) ),
+					array( 'status' => 401 )
+				);
+			}
+
+			if ( empty( $provider_info['isProviderActive'] ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					error_log( sprintf( '[TranslateSense] Provider plugin is not active: %s', $provider ) );
+				}
+				return new \WP_Error(
+					'provider_inactive',
+					/* translators: %s: Provider name */
+					sprintf( __( 'Provider connector plugin for %s is not active.', 'translatesense' ), strtoupper( $provider ) ),
+					array( 'status' => 400 )
+				);
+			}
+
 			$core_result = $this->translate_via_wp_core( $strings, $prompt, $model, $settings, $provider );
 
 			// If Core AI succeeded, return result.
@@ -151,22 +177,16 @@ class Ai_Connector_Bridge {
 				return $core_result;
 			}
 
-			// If Core failed and legacy direct API key exists, fallback to legacy
-			if ( ! empty( $this->legacy_keys[ $provider ] ) ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-					error_log( sprintf( '[TranslateSense AI Bridge] WP Core Connector error (%s), falling back to direct API key.', $core_result->get_error_message() ) );
-				}
-				$legacy_result = $this->translate_via_legacy_api( $strings, $prompt, $model, $provider, $settings );
-				if ( ! is_wp_error( $legacy_result ) ) {
-					return $legacy_result;
-				}
+			// Core AI Connector failed: log error and return standardized error (do not trigger legacy direct API fallback)
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( sprintf( '[TranslateSense AI Bridge] WP Core Connector translation error (%s): %s', $provider, $core_result->get_error_message() ) );
 			}
 
 			return $this->standardize_error( $core_result, $provider );
 		}
 
-		// Condition B: For older WordPress versions or unconfigured connectors, use legacy direct API endpoints
+		// Condition B: For providers without connectors or uninstalled connector plugins, use legacy direct API endpoints
 		$legacy_result = $this->translate_via_legacy_api( $strings, $prompt, $model, $provider, $settings );
 
 		if ( is_wp_error( $legacy_result ) ) {
@@ -712,74 +732,95 @@ class Ai_Connector_Bridge {
 	/**
 	 * Return a unified list of available providers for the TranslateSense settings & editor UI.
 	 *
-	 * @param bool $refresh Force cache refresh.
+	 * @param bool         $refresh       Force cache refresh.
+	 * @param array|string $get_providers Providers to return (default: ['openai', 'gemini', 'chrome_ai']).
 	 * @return array
 	 */
-	public function get_active_providers( bool $refresh = false ): array {
-		if ( null !== $this->active_providers && ! $refresh ) {
-			return $this->active_providers;
-		}
+	public function get_active_providers( bool $refresh = false, $get_providers = array( 'openai', 'gemini', 'chrome_ai' ) ): array {
+		if ( null === $this->active_providers || $refresh ) {
+			$this->load_saved_settings();
+			$providers = array();
 
-		$this->load_saved_settings();
-		$providers = array();
+			// 1. If WordPress 7.0+ Core AI is active, query core registry for site-level providers
+			if ( $this->has_wp_ai ) {
+				if ( function_exists( 'wp_is_connector_registered' ) ) {
+					$providers_arr = array( 'openai', 'google' );
+					$registry      = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
 
-		// 1. If WordPress 7.0+ Core AI is active, query core registry for site-level providers
-		if ( $this->has_wp_ai ) {
-			if ( function_exists( 'wp_is_connector_registered' ) ) {
-				$providers_arr = array( 'openai', 'google' );
-				$registry      = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
+					foreach ( $providers_arr as $id ) {
+						$connector_registry = wp_is_connector_registered( $id );
+						$key_id             = ( 'google' === $id ) ? 'gemini' : $id;
 
-				foreach ( $providers_arr as $id ) {
-					$connector_registry = wp_is_connector_registered( $id );
-					$key_id             = ( 'google' === $id ) ? 'gemini' : $id;
+						if ( $connector_registry ) {
+							$provider_connector = wp_get_connector( $id );
+							$file               = $provider_connector['plugin']['file'];
+							$is_activated       = (bool) call_user_func( $provider_connector['plugin']['is_active'] );
+							$is_installed       = $is_activated || 0 === validate_plugin( $file );
 
-					if ( $connector_registry ) {
-						$is_connected = false;
-						if ( $registry ) {
-							try {
-								$is_connected = $registry->hasProvider( $id ) && $registry->isProviderConfigured( $id );
-							} catch ( \Throwable $e ) {
-								$is_connected = false;
+							if ( ! $is_installed ) {
+								continue;
 							}
-						} else {
-							$is_connected = true;
-						}
 
-						$providers[ $key_id ] = array(
-							'isConnected' => (bool) $is_connected,
-							'connectors'  => true,
-						);
+							$is_connected = false;
+							if ( $registry ) {
+								try {
+									$is_connected = $registry->hasProvider( $id ) && $registry->isProviderConfigured( $id );
+								} catch ( \Throwable $e ) {
+									$is_connected = false;
+								}
+							}
+
+							$providers[ $key_id ] = array(
+								'isConnected'       => (bool) $is_connected,
+								'connectors'        => true,
+								'isProviderActive'  => $is_activated,
+								'isProviderInstall' => $is_installed,
+							);
+
+						}
 					}
 				}
 			}
-		}
 
-		// 2. Check legacy / custom configured API keys for providers without registered core connectors
-		if ( ! isset( $providers['openai'] ) ) {
-			$has_openai          = ! empty( $this->legacy_keys['openai'] );
-			$providers['openai'] = array(
-				'isConnected' => (bool) $has_openai,
+			// 2. Check legacy / custom configured API keys for providers without registered core connectors
+			if ( ! isset( $providers['openai'] ) ) {
+				$has_openai          = ! empty( $this->legacy_keys['openai'] );
+				$providers['openai'] = array(
+					'isConnected' => (bool) $has_openai,
+					'connectors'  => false,
+				);
+			}
+
+			if ( ! isset( $providers['gemini'] ) ) {
+				$has_gemini          = ! empty( $this->legacy_keys['gemini'] );
+				$providers['gemini'] = array(
+					'isConnected' => (bool) $has_gemini,
+					'connectors'  => false,
+				);
+			}
+
+			// 3. Built-in On-Device browser AI
+			$providers['chrome_ai'] = array(
+				'isConnected' => true,
 				'connectors'  => false,
 			);
+
+			$this->active_providers = $providers;
 		}
 
-		if ( ! isset( $providers['gemini'] ) ) {
-			$has_gemini          = ! empty( $this->legacy_keys['gemini'] );
-			$providers['gemini'] = array(
-				'isConnected' => (bool) $has_gemini,
-				'connectors'  => false,
-			);
+		if ( empty( $get_providers ) ) {
+			return $this->active_providers;
 		}
 
-		// 3. Built-in On-Device browser AI
-		$providers['chrome_ai'] = array(
-			'isConnected' => true,
-			'connectors'  => false,
+		// Normalize requested providers list (mapping aliases e.g. 'google' => 'gemini')
+		$requested_providers = array_map(
+			static function ( $p ) {
+				return 'google' === $p ? 'gemini' : sanitize_key( (string) $p );
+			},
+			(array) $get_providers
 		);
 
-		$this->active_providers = $providers;
-
-		return $this->active_providers;
+		return array_intersect_key( $this->active_providers, array_flip( $requested_providers ) );
 	}
 
 	/**
@@ -832,5 +873,249 @@ class Ai_Connector_Bridge {
 	 */
 	public function get_legacy_keys(): array {
 		return $this->legacy_keys;
+	}
+
+	/**
+	 * Get provider models either from WP Core AI Connectors, provider API endpoint with 24h transient cache, or static cache.
+	 *
+	 * @param string $id        Provider identifier ('openai', 'gemini'/'google', 'chrome_ai').
+	 * @param bool   $connector Whether to retrieve models via WP AI Connectors.
+	 * @return array<int, array<string, string>> Array of models containing 'id' and 'name'.
+	 */
+	private function get_provider_models( string $id, array $provider_options ): array {
+		$provider_id   = sanitize_key( $id );
+		$core_provider = ( 'gemini' === $provider_id ) ? 'google' : $provider_id;
+
+		// 1. If provider connector is true and provider plugin is installed, always get models from WordPress AI Connectors registry
+		if ( ! empty( $provider_options['connectors'] ) && ! empty( $provider_options['isProviderInstall'] ) ) {
+
+			if ( empty( $provider_options['isConnected'] ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					error_log( sprintf( '[TranslateSense] Provider %s is not connected or configured in WordPress AI Connectors.', $provider_id ) );
+				}
+				return array();
+			}
+
+			if ( empty( $provider_options['isProviderActive'] ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					error_log( sprintf( '[TranslateSense] Provider connector plugin for %s is not active.', $provider_id ) );
+				}
+				return array();
+			}
+
+			try {
+				// Resolve CapabilityEnum
+				$capability = null;
+				if ( class_exists( '\WordPress\AiClient\Providers\Models\Enums\CapabilityEnum' ) && method_exists( '\WordPress\AiClient\Providers\Models\Enums\CapabilityEnum', 'textGeneration' ) ) {
+					$capability = \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::textGeneration();
+				} elseif ( class_exists( '\CapabilityEnum' ) && method_exists( '\CapabilityEnum', 'textGeneration' ) ) {
+					$capability = \CapabilityEnum::textGeneration();
+				}
+
+				// Resolve MessagePart & UserMessage
+				$messages = array();
+				if ( class_exists( '\WordPress\AiClient\Messages\DTO\MessagePart' ) && class_exists( '\WordPress\AiClient\Messages\DTO\UserMessage' ) ) {
+					$part       = new \WordPress\AiClient\Messages\DTO\MessagePart( 'hello' );
+					$messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage( array( $part ) );
+				} elseif ( class_exists( '\MessagePart' ) && class_exists( '\UserMessage' ) ) {
+					$part       = new \MessagePart( 'hello' );
+					$messages[] = new \UserMessage( array( $part ) );
+				}
+
+				// Resolve ModelConfig
+				$modal_config = null;
+				if ( class_exists( '\WordPress\AiClient\Providers\Models\DTO\ModelConfig' ) ) {
+					$modal_config = new \WordPress\AiClient\Providers\Models\DTO\ModelConfig();
+				} elseif ( class_exists( '\ModelConfig' ) ) {
+					$modal_config = new \ModelConfig();
+				}
+
+				// Build ModelRequirements
+				$requirements = null;
+				if ( null !== $capability && ! empty( $messages ) && null !== $modal_config ) {
+					if ( class_exists( '\WordPress\AiClient\Providers\Models\DTO\ModelRequirements' ) && method_exists( '\WordPress\AiClient\Providers\Models\DTO\ModelRequirements', 'fromPromptData' ) ) {
+						$requirements = \WordPress\AiClient\Providers\Models\DTO\ModelRequirements::fromPromptData( $capability, $messages, $modal_config );
+					} elseif ( class_exists( '\ModelRequirements' ) && method_exists( '\ModelRequirements', 'fromPromptData' ) ) {
+						$requirements = \ModelRequirements::fromPromptData( $capability, $messages, $modal_config );
+					}
+				}
+
+				// Query registry for models matching requirements
+				if ( null !== $requirements && class_exists( '\WordPress\AiClient\AiClient' ) && method_exists( '\WordPress\AiClient\AiClient', 'defaultRegistry' ) ) {
+					$Privders_Registory = \WordPress\AiClient\AiClient::defaultRegistry();
+					$modal_list         = $Privders_Registory->findModelsMetadataForSupport( $requirements );
+
+					$connector_models = array();
+					if ( is_iterable( $modal_list ) ) {
+						foreach ( $modal_list as $provider_models ) {
+							if ( is_object( $provider_models ) && method_exists( $provider_models, 'getProvider' ) && method_exists( $provider_models, 'getModels' ) ) {
+								$provider_obj = $provider_models->getProvider();
+								$p_id         = is_object( $provider_obj ) && method_exists( $provider_obj, 'getId' ) ? $provider_obj->getId() : '';
+
+								if ( $p_id === $core_provider || $p_id === $provider_id ) {
+									$model_metas = (array) $provider_models->getModels();
+									foreach ( $model_metas as $model_meta ) {
+										if ( is_object( $model_meta ) && method_exists( $model_meta, 'getId' ) ) {
+											$connector_models[] = array(
+												'id'   => (string) $model_meta->getId(),
+												'name' => method_exists( $model_meta, 'getName' ) ? (string) $model_meta->getName() : (string) $model_meta->getId(),
+											);
+										}
+									}
+									break;
+								}
+							}
+						}
+					}
+
+					if ( ! empty( $connector_models ) ) {
+						return $connector_models;
+					}
+				}
+			} catch ( \Throwable $e ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					error_log( sprintf( '[TranslateSense] Failed to retrieve connector models for %s: %s', $provider_id, $e->getMessage() ) );
+				}
+			}
+
+			// Do not fall back to manual API endpoint if connector is installed
+			return array();
+		}
+
+		// 2. If connector is false, check 24-hour transient cache
+		$transient_key = 'translatesense_models_' . $provider_id;
+		$cached_models = get_transient( $transient_key );
+
+		if ( false !== $cached_models && is_array( $cached_models ) && ! empty( $cached_models ) ) {
+			return $cached_models;
+		}
+
+		// 3. If transient does not exist, custom fetch models from provider's endpoint
+		$fetched_models = $this->fetch_remote_provider_models( $provider_id );
+
+		if ( ! empty( $fetched_models ) && is_array( $fetched_models ) ) {
+			set_transient( $transient_key, $fetched_models, DAY_IN_SECONDS );
+			return $fetched_models;
+		}
+
+		// 4. Return from static cache
+		return array();
+	}
+
+	/**
+	 * Alias for get_provider_models.
+	 *
+	 * @param string $id
+	 * @param bool   $provider_options
+	 * @return array
+	 */
+	public function get_models( string $id, array $provider_options ): array {
+		return $this->get_provider_models( $id, $provider_options );
+	}
+
+	/**
+	 * Custom fetch models directly from provider API endpoints.
+	 *
+	 * @param string $provider_id
+	 * @return array<int, array<string, string>>
+	 */
+	private function fetch_remote_provider_models( string $provider_id ): array {
+		$models         = array();
+		$provider_clean = sanitize_key( $provider_id );
+		$this->load_saved_settings();
+
+		switch ( $provider_clean ) {
+			case 'openai':
+				$api_key = ! empty( $this->legacy_keys['openai'] ) ? (string) $this->legacy_keys['openai'] : '';
+				if ( empty( $api_key ) ) {
+					return array();
+				}
+
+				$response = wp_remote_get(
+					'https://api.openai.com/v1/models',
+					array(
+						'headers' => array(
+							'Authorization' => 'Bearer ' . $api_key,
+						),
+						'timeout' => 15,
+					)
+				);
+
+				if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+					return array();
+				}
+
+				$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+				if ( ! empty( $body['data'] ) && is_array( $body['data'] ) ) {
+					foreach ( $body['data'] as $item ) {
+						if ( ! empty( $item['id'] ) && is_string( $item['id'] ) ) {
+							$model_id = $item['id'];
+							// Filter relevant chat / text generation models
+							if (
+								0 === strpos( $model_id, 'gpt-' ) ||
+								0 === strpos( $model_id, 'o1' ) ||
+								0 === strpos( $model_id, 'o3' ) ||
+								0 === strpos( $model_id, 'chatgpt' )
+							) {
+								$models[] = array(
+									'id'   => $model_id,
+									'name' => $model_id,
+								);
+							}
+						}
+					}
+
+					usort(
+						$models,
+						static function ( $a, $b ) {
+							return strcasecmp( (string) $a['id'], (string) $b['id'] );
+						}
+					);
+				}
+				break;
+
+			case 'gemini':
+			case 'google':
+				$api_key = ! empty( $this->legacy_keys['gemini'] ) ? (string) $this->legacy_keys['gemini'] : '';
+				if ( empty( $api_key ) ) {
+					return array();
+				}
+
+				$url      = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . rawurlencode( $api_key );
+				$response = wp_remote_get(
+					$url,
+					array(
+						'timeout' => 15,
+					)
+				);
+
+				if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+					return array();
+				}
+
+				$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+				if ( ! empty( $body['models'] ) && is_array( $body['models'] ) ) {
+					foreach ( $body['models'] as $item ) {
+						if ( ! empty( $item['name'] ) && is_string( $item['name'] ) ) {
+							$methods = $item['supportedGenerationMethods'] ?? array();
+							if ( is_array( $methods ) && ( in_array( 'generateContent', $methods, true ) || in_array( 'generateMessage', $methods, true ) ) ) {
+								$clean_id     = preg_replace( '#^models/#', '', (string) $item['name'] );
+								$display_name = ! empty( $item['displayName'] ) ? (string) $item['displayName'] : $clean_id;
+
+								$models[] = array(
+									'id'   => $clean_id,
+									'name' => $display_name,
+								);
+							}
+						}
+					}
+				}
+				break;
+		}
+
+		return $models;
 	}
 }
