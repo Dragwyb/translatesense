@@ -744,7 +744,7 @@ class Ai_Connector_Bridge {
 
 			// 1. If WordPress 7.0+ Core AI is active, query core registry for site-level providers
 			if ( $this->has_wp_ai ) {
-				if ( function_exists( 'wp_is_connector_registered' ) ) {
+				if ( function_exists( 'wp_is_connector_registered' ) && function_exists( 'wp_get_connector' ) ) {
 					$providers_arr  = array( 'openai', 'google' );
 					$registry       = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
 					$key_start_like = 'connectors';
