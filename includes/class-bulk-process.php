@@ -363,9 +363,12 @@ class Bulk_Process {
 				$source_lang,
 				$target_lang,
 				$widgets_by_idx,
-				$post_id,
 				array( 'provider' => $provider )
 			);
+
+			if ( is_wp_error( $ai_response ) ) {
+				throw new \Exception( 'Failed to translate strings: ' . $ai_response->get_error_message() );
+			}
 
 			$translated_content     = array();
 			$in_memory_translations = array();

@@ -117,16 +117,19 @@ class Ai_Connector_Bridge {
 			return array();
 		}
 
+		$custom_error = new \WP_Error();
+
 		if ( empty( $provider ) ) {
-			$provider = ! empty( $settings['provider'] ) ? (string) $settings['provider'] : 'openai';
+			$custom_error->add( 'no_provider', __( 'No provider specified', 'translatesense' ) );
+			return $custom_error;
+		}
+
+		if ( ! in_array( $provider, array( 'openai', 'gemini' ) ) ) {
+			$custom_error->add( 'invalid_provider', __( 'Invalid Provider', 'translatesense' ) );
+			return $custom_error;
 		}
 
 		$provider = sanitize_key( $provider );
-
-		// Browser on-device AI handles translations on frontend
-		if ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider ) {
-			return $strings;
-		}
 
 		// Set default prompt if not supplied
 		if ( empty( $prompt ) ) {
@@ -310,14 +313,14 @@ class Ai_Connector_Bridge {
 			 * Get the WordPress AI Client registry.
 			 */
 			if (
-			! class_exists( '\WordPress\AiClient\AiClient' )
-			|| ! method_exists( '\WordPress\AiClient\AiClient', 'defaultRegistry' )
-			) {
-				return new WP_Error(
-					'ai_registry_unavailable',
-					__( 'The WordPress AI Client registry is not available.', 'translatesense' ),
-					array( 'status' => 503 )
-				);
+				! class_exists( '\WordPress\AiClient\AiClient' )
+				|| ! method_exists( '\WordPress\AiClient\AiClient', 'defaultRegistry' )
+				) {
+					return new WP_Error(
+						'ai_registry_unavailable',
+						__( 'The WordPress AI Client registry is not available.', 'translatesense' ),
+						array( 'status' => 503 )
+					);
 			}
 
 			$registry = \WordPress\AiClient\AiClient::defaultRegistry();
@@ -731,7 +734,6 @@ class Ai_Connector_Bridge {
 					$key_id             = ( 'google' === $id ) ? 'gemini' : $id;
 
 					if ( $connector_registry ) {
-						// var_dump( $id );
 						$is_connected = false;
 						if ( $registry ) {
 							try {

@@ -933,7 +933,6 @@ class Rest_Api {
 		$strings     = $params['strings'] ?? array();
 		$source_lang = $params['source_lang'] ?? 'en';
 		$target_lang = $params['target_lang'] ?? 'es';
-		$post_id     = isset( $params['post_id'] ) ? (int) $params['post_id'] : 0;
 		$provider    = $params['provider'] ?? null;
 
 		$custom_opts = array();
@@ -946,9 +945,12 @@ class Rest_Api {
 			$source_lang,
 			$target_lang,
 			array(),
-			$post_id,
 			$custom_opts
 		);
+
+		if ( is_wp_error( $results ) ) {
+			return wp_send_json_error( array( 'error' => 'Something went wrong.' ) );
+		}
 
 		return rest_ensure_response( array( 'results' => $results ) );
 	}

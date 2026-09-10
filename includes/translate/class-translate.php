@@ -250,13 +250,17 @@ class Translate {
 	 * @param string $source_lang
 	 * @param string $target_lang
 	 * @param array  $widget_ids
-	 * @param int    $post_id
 	 * @param array  $custom_options
 	 * @return array
 	 */
-	public static function translate_batch( $strings_array, $source_lang, $target_lang, $widget_ids = array(), $post_id = 0, $custom_options = array() ) {
+	public static function translate_batch( $strings_array, $source_lang, $target_lang, $widget_ids = array(), $custom_options = array() ) {
 		$results = array();
 		$hashes  = array();
+
+		if ( ! isset( $custom_options['provider'] ) || ! in_array( $custom_options['provider'], array( 'openai', 'google', 'gemini' ) ) ) {
+			wp_send_json_error( 'Invalid provider' );
+			return;
+		}
 
 		foreach ( $strings_array as $idx => $str ) {
 			$w_id           = $widget_ids[ $idx ] ?? ( 'batch_' . $idx );
@@ -330,6 +334,10 @@ class Translate {
 		// Execute provider batch translation preserving array keys / indices
 		$translated_batch = self::execute_provider_batch_translation( $to_translate, $source_lang, $target_lang, $provider, $settings );
 
+		if ( is_wp_error( $translated_batch ) ) {
+			return $translated_batch;
+		}
+
 		foreach ( $to_translate as $idx => $str ) {
 			$h     = $hashes[ $idx ];
 			$trans = isset( $translated_batch[ $idx ] ) && '' !== trim( (string) $translated_batch[ $idx ] ) ? (string) $translated_batch[ $idx ] : (string) $str;
@@ -374,54 +382,47 @@ class Translate {
 	 * @param string $target_lang
 	 * @param string $provider
 	 * @param array  $settings
-	 * @return array Array of translated strings with identical keys [ 0 => '...', 1 => '...' ]
+	 * @return array|WP_Error Array of translated strings with identical keys [ 0 => '...', 1 => '...' ]
 	 */
-	public static function execute_provider_batch_translation( array $texts, string $source_lang, string $target_lang, string $provider, array $settings ): array {
+	public static function execute_provider_batch_translation( array $texts, string $source_lang, string $target_lang, string $provider, array $settings ) {
 		if ( empty( $texts ) ) {
 			return array();
 		}
 
-		// Use Ai_Connector_Bridge to handle Core AI and Legacy fallbacks
-		if ( class_exists( '\TranslateSense\Includes\Ai_Connector_Bridge' ) ) {
-			$bridge_settings                = $settings;
-			$bridge_settings['source_lang'] = $source_lang;
-			$bridge_settings['target_lang'] = $target_lang;
-
-			$model = '';
-			if ( 'openai' === $provider ) {
-				$model = $settings['openai_model'] ?? 'gpt-4o-mini';
-			} elseif ( 'gemini' === $provider ) {
-				$model = $settings['gemini_model'] ?? 'gemini-1.5-flash';
-			}
+		$bridge_settings                = $settings;
+		$bridge_settings['source_lang'] = $source_lang;
+		$bridge_settings['target_lang'] = $target_lang;
+		$model                          = '';
+		if ( 'openai' === $provider ) {
+			$model = $settings['openai_model'] ?? 'gpt-4o-mini';
+		} elseif ( 'gemini' === $provider ) {
+			$model = $settings['gemini_model'] ?? 'gemini-1.5-flash';
+		}
 
 			$batch_size  = ! empty( $settings['batch_size'] ) ? max( 1, (int) $settings['batch_size'] ) : 25;
 			$chunks      = array_chunk( $texts, $batch_size, true );
 			$all_results = array();
 
-			foreach ( $chunks as $chunk ) {
-				$prompt = self::build_batch_translation_prompt( $source_lang, $target_lang, array_values( $chunk ), $settings );
-				$res    = \TranslateSense\Includes\Ai_Connector_Bridge::get_instance()->translate_strings(
-					$chunk,
-					$prompt,
-					$model,
-					$bridge_settings,
-					$provider
-				);
+		foreach ( $chunks as $chunk ) {
+			$prompt = self::build_batch_translation_prompt( $source_lang, $target_lang, array_values( $chunk ), $settings );
+			$res    = \TranslateSense\Includes\Ai_Connector_Bridge::get_instance()->translate_strings(
+				$chunk,
+				$prompt,
+				$model,
+				$bridge_settings,
+				$provider
+			);
 
-				if ( is_wp_error( $res ) ) {
-					// Fall back to original texts on error
-					$res = $chunk;
-				}
-
-				foreach ( $res as $idx => $val ) {
-					$all_results[ $idx ] = $val;
-				}
+			if ( is_wp_error( $res ) ) {
+				return $res;
 			}
 
-			return $all_results;
+			foreach ( $res as $idx => $val ) {
+				$all_results[ $idx ] = $val;
+			}
 		}
 
-		return $texts;
+		return $all_results;
 	}
 
 	/**
