@@ -406,6 +406,32 @@ class Hashing_Db {
 	}
 
 	/**
+	 * Check if a post has packages recorded in the translatesense_packages table.
+	 *
+	 * @param int $post_id
+	 * @return bool
+	 */
+	public static function has_post_packages( int $post_id ): bool {
+		global $wpdb;
+
+		if ( $post_id <= 0 ) {
+			return false;
+		}
+
+		$packages_table = self::get_packages_table();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$exists = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT 1 FROM {$packages_table} WHERE post_id = %d LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$post_id
+			)
+		);
+
+		return ! empty( $exists );
+	}
+
+	/**
 	 * Clean up orphan records in translatesense_strings and translatesense_translations
 	 * that are no longer referenced in translatesense_packages.
 	 *

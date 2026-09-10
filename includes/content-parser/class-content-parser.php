@@ -249,8 +249,30 @@ class Content_Parser {
 
 		$is_translated_post = get_post_meta( $post_id, '_translatesense_source_id', true );
 
-		if ( ! empty( $is_translated_post ) && $is_translated_post !== intval( $post_id ) ) {
+		if ( ! empty( $is_translated_post ) && intval( $is_translated_post ) !== intval( $post_id ) ) {
 			return false;
+		}
+
+		if ( get_post_meta( $post_id, '_translatesense_translated', true ) ) {
+			return false;
+		}
+
+		// Check all linked Polylang translation posts
+		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) && Polylang_Bridge::is_polylang_active() ) {
+			$default_lang = Polylang_Bridge::get_default_language();
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+
+			if ( ! empty( $translations ) && is_array( $translations ) ) {
+				foreach ( $translations as $lang => $linked_post_id ) {
+					$linked_post_id = (int) $linked_post_id;
+					if ( $linked_post_id > 0 && $linked_post_id !== (int) $post_id ) {
+						// If any linked post is in Polylang default language and already has packages saved, return false
+						if ( $lang === $default_lang && class_exists( Hashing_Db::class ) && Hashing_Db::has_post_packages( $linked_post_id ) ) {
+							return false;
+						}
+					}
+				}
+			}
 		}
 
 		$post = get_post( $post_id );
