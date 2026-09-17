@@ -30,8 +30,11 @@ class Bulk_Translate {
 		if ( $current_screen && ! empty( $current_screen->post_type ) ) {
 			return $current_screen->post_type;
 		}
-		if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore
-			return sanitize_key( $_GET['post_type'] ); // phpcs:ignore
+		if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$type = sanitize_key( wp_unslash( $_GET['post_type'] ) );
+			if ( post_type_exists( $type ) ) {
+				return $type;
+			}
 		}
 		return 'post';
 	}
