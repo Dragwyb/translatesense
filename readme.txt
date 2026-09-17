@@ -4,7 +4,7 @@ Tags: translation, polylang, multilingual, translate, ai translation
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.0.1
+Stable tag: 0.0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,11 @@ Yes, Translate Sense is designed to work in synergy with the Polylang multilingu
 Currently, Gutenberg (WordPress Block Editor) and Elementor are fully supported with custom XML rule generators.
 
 == Changelog ==
+
+= 0.0.2 =
+* Update permission callback in bulk status route.
+* Added nonce verification in save_post hook callback.
+* Use provider isProviderConfigured methods with transient instead of get option.
 
 = 0.0.1 =
 * Added WordPress 7.0 connectors provider support If provider install.
