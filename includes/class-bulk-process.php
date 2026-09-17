@@ -139,20 +139,20 @@ class Bulk_Process {
 				$target_post_id  = $already_exists ? $existing_trans_id : 0;
 
 				$insert_data = array(
-					'batch_id'                 => $batch_id,
-					'post_id'                  => $post_id,
-					'target_language'          => $target_lang,
-					'provider'                 => $provider,
-					'status'                   => $job_status,
-					'progress_status'          => $progress_status,
-					'total_strings'            => 0,
-					'completed_strings'        => 0,
-					'sent_ai_request_data'     => null,
-					'received_ai_request_data' => null,
-					'error_message'            => null,
-					'target_post_id'           => $target_post_id,
-					'created_at'               => current_time( 'mysql' ),
-					'updated_at'               => current_time( 'mysql' ),
+					'batch_id'          => $batch_id,
+					'post_id'           => $post_id,
+					'target_language'   => $target_lang,
+					'provider'          => $provider,
+					'status'            => $job_status,
+					'progress_status'   => $progress_status,
+					'total_strings'     => 0,
+					'completed_strings' => 0,
+					'sent_data'         => null,
+					'receive_data'      => null,
+					'error_message'     => null,
+					'target_post_id'    => $target_post_id,
+					'created_at'        => current_time( 'mysql' ),
+					'updated_at'        => current_time( 'mysql' ),
 				);
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
@@ -307,10 +307,10 @@ class Bulk_Process {
 			self::update_job(
 				$job_id,
 				array(
-					'total_strings'        => $total_str,
-					'progress_status'      => sprintf( 'Translating strings (%d found)...', $total_str ),
-					'sent_ai_request_data' => wp_json_encode( $strings_to_send ),
-					'updated_at'           => current_time( 'mysql' ),
+					'total_strings'   => $total_str,
+					'progress_status' => sprintf( 'Translating strings (%d found)...', $total_str ),
+					'sent_data'       => wp_json_encode( $strings_to_send ),
+					'updated_at'      => current_time( 'mysql' ),
 				)
 			);
 
@@ -373,13 +373,13 @@ class Bulk_Process {
 			self::update_job(
 				$job_id,
 				array(
-					'status'                   => 'completed',
-					'progress_status'          => 'Completed successfully',
-					'completed_strings'        => $total_str,
-					'target_post_id'           => $target_post_id,
-					'received_ai_request_data' => wp_json_encode( $translated_content ),
-					'error_message'            => null,
-					'updated_at'               => current_time( 'mysql' ),
+					'status'            => 'completed',
+					'progress_status'   => 'Completed successfully',
+					'completed_strings' => $total_str,
+					'target_post_id'    => $target_post_id,
+					'receive_data'      => wp_json_encode( $translated_content ),
+					'error_message'     => null,
+					'updated_at'        => current_time( 'mysql' ),
 				)
 			);
 		} catch ( \Throwable $e ) {
@@ -510,6 +510,11 @@ class Bulk_Process {
 		$items = array();
 
 		foreach ( $rows as $row ) {
+			$post_id = (int) $row['post_id'];
+			if ( $post_id > 0 && ! current_user_can( 'edit_post', $post_id ) ) {
+				continue;
+			}
+
 			$status = $row['status'];
 			if ( 'completed' === $status ) {
 				++$completed_jobs;

@@ -1120,8 +1120,8 @@ class Rest_Api {
 			'progress_status',
 			'total_strings',
 			'completed_strings',
-			'sent_ai_request_data',
-			'received_ai_request_data',
+			'sent_data',
+			'receive_data',
 			'error_message',
 			'target_post_id',
 		);

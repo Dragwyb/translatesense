@@ -1236,8 +1236,8 @@
                     total_strings: rawStrings.length,
                     completed_strings: rawStrings.length,
                     target_post_id: postRes.target_post_id,
-                    sent_ai_request_data: indexedStrings,
-                    received_ai_request_data: indexedTranslated,
+                    sent_data: indexedStrings,
+                    receive_data: indexedTranslated,
                   },
                 }),
               });
