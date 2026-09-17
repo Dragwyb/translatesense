@@ -331,10 +331,10 @@ class Rest_Api {
 
 		$table = Bulk_Process::get_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$batch_post_ids = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT DISTINCT post_id FROM {$table} WHERE batch_id = %s",
+				"SELECT DISTINCT post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id
 			)
 		);

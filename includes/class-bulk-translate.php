@@ -31,7 +31,7 @@ class Bulk_Translate {
 			return $current_screen->post_type;
 		}
 		if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			$type = sanitize_key( wp_unslash( $_GET['post_type'] ) );
+			$type = sanitize_key( wp_unslash( $_GET['post_type'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( post_type_exists( $type ) ) {
 				return $type;
 			}
