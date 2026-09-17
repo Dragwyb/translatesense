@@ -745,10 +745,8 @@ class Ai_Connector_Bridge {
 			// 1. If WordPress 7.0+ Core AI is active, query core registry for site-level providers
 			if ( $this->has_wp_ai ) {
 				if ( function_exists( 'wp_is_connector_registered' ) && function_exists( 'wp_get_connector' ) ) {
-					$providers_arr  = array( 'openai', 'google' );
-					$registry       = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
-					$key_start_like = 'connectors';
-					$key_end_like   = 'api_key';
+					$providers_arr = array( 'openai', 'google' );
+					$registry      = class_exists( 'WordPress\AiClient\AiClient' ) ? AiClient::defaultRegistry() : null;
 					foreach ( $providers_arr as $id ) {
 						$connector_registry = wp_is_connector_registered( $id );
 						$key_id             = ( 'google' === $id ) ? 'gemini' : $id;
@@ -764,12 +762,20 @@ class Ai_Connector_Bridge {
 							}
 
 							$is_connected = false;
-							if ( $registry ) {
+							if ( $is_activated && $is_installed && $registry && method_exists( $registry, 'isProviderConfigured' ) ) {
+								if ( $is_activated && $is_installed ) {
+									$provider_statu_transient_key = 'translatesense_provider_activated_' . $id;
+									$is_activated_transient_value = get_transient( $provider_statu_transient_key );
 
-								$full_key_name = $key_start_like . '_ai_' . $id . '_' . $key_end_like;
-								$is_key_exist  = get_option( $full_key_name );
-								if ( ! empty( $is_key_exist ) ) {
-									$is_connected = true;
+									if ( $is_activated_transient_value ) {
+										$is_connected = (bool) $is_activated_transient_value;
+									} else {
+										$is_connected = (bool) $registry->isProviderConfigured( $id );
+
+										if ( $is_connected ) {
+											set_transient( $provider_statu_transient_key, $is_connected, 300 );
+										}
+									}
 								}
 							}
 
@@ -784,7 +790,6 @@ class Ai_Connector_Bridge {
 					}
 				}
 			}
-
 			// 2. Check legacy / custom configured API keys for providers without registered core connectors
 			if ( ! isset( $providers['openai'] ) ) {
 				$has_openai          = ! empty( $this->legacy_keys['openai'] );
