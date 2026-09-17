@@ -191,7 +191,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'bulk_status' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
+				'permission_callback' => array( __CLASS__, 'check_bulk_status_permissions' ),
 			)
 		);
 
@@ -280,6 +280,113 @@ class Rest_Api {
 	}
 
 	/**
+	 * Check permissions for the bulk status REST endpoint.
+	 *
+	 * @param WP_REST_Request $request REST API request.
+	 * @return true|WP_Error True when authorized, otherwise WP_Error.
+	 */
+	public static function check_bulk_status_permissions( WP_REST_Request $request ) {
+
+		$post_id = absint( $request->get_param( 'post_id' ) );
+
+		$batch_id = sanitize_text_field(
+			(string) $request->get_param( 'batch_id' )
+		);
+
+		/*
+		 * A specific post was requested.
+		 */
+		if ( $post_id > 0 ) {
+
+			/*
+			 * Object-level authorization.
+			 */
+			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+				return new WP_Error(
+					'rest_forbidden',
+					__( 'You are not allowed to access this post.', 'translatesense' ),
+					array(
+						'status' => 403,
+					)
+				);
+			}
+
+			return true;
+		}
+
+		/*
+		 * No post ID. A valid batch ID is required.
+		 */
+		if ( '' === $batch_id ) {
+			return new WP_Error(
+				'invalid_request',
+				__( 'A valid post ID or batch ID is required.', 'translatesense' ),
+				array(
+					'status' => 400,
+				)
+			);
+		}
+
+		global $wpdb;
+
+		$table = Bulk_Process::get_table_name();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$batch_post_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT post_id FROM {$table} WHERE batch_id = %s",
+				$batch_id
+			)
+		);
+
+		/*
+		 * Do not grant permission for an unknown/non-existent batch.
+		 */
+		if ( empty( $batch_post_ids ) && ! is_array( $batch_post_ids ) ) {
+			return new WP_Error(
+				'rest_batch_not_found',
+				__( 'Batch not found.', 'translatesense' ),
+				array(
+					'status' => 404,
+				)
+			);
+		}
+
+		/*
+		 * A batch can contain multiple posts.
+		 *
+		 * The user must have permission to edit every post whose
+		 * information may be exposed by the bulk-status endpoint.
+		 */
+		foreach ( $batch_post_ids as $batch_post_id ) {
+
+			$batch_post_id = absint( $batch_post_id );
+
+			if ( ! $batch_post_id ) {
+				return new WP_Error(
+					'invalid_batch_data',
+					__( 'The batch contains an invalid post.', 'translatesense' ),
+					array(
+						'status' => 400,
+					)
+				);
+			}
+
+			if ( ! current_user_can( 'edit_post', $batch_post_id ) ) {
+				return new WP_Error(
+					'rest_forbidden',
+					__( 'You are not allowed to access this batch.', 'translatesense' ),
+					array(
+						'status' => 403,
+					)
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Check bulk translation job update permissions.
 	 */
 	public static function check_bulk_update_job_permissions( WP_REST_Request $request ) {
@@ -293,21 +400,23 @@ class Rest_Api {
 			$job_id = (int) $params['job_id'];
 		}
 
-		if ( $job_id > 0 ) {
-			$job = Bulk_Process::get_job( $job_id );
-			if ( ! $job ) {
-				return false;
-			}
+		if ( $job_id <= 0 ) {
+			return false;
+		}
 
-			// Verify permission for source post
-			if ( ! empty( $job->post_id ) && ! current_user_can( 'edit_post', (int) $job->post_id ) ) {
-				return false;
-			}
+		$job = Bulk_Process::get_job( $job_id );
+		if ( ! $job ) {
+			return false;
+		}
 
-			// Verify permission for existing target post if present
-			if ( ! empty( $job->target_post_id ) && (int) $job->target_post_id > 0 && ! current_user_can( 'edit_post', (int) $job->target_post_id ) ) {
-				return false;
-			}
+		// Verify permission for source post
+		if ( ! empty( $job->post_id ) && ! current_user_can( 'edit_post', (int) $job->post_id ) ) {
+			return false;
+		}
+
+		// Verify permission for existing target post if present
+		if ( ! empty( $job->target_post_id ) && (int) $job->target_post_id > 0 && ! current_user_can( 'edit_post', (int) $job->target_post_id ) ) {
+			return false;
 		}
 
 		// If a new target_post_id is passed in update data, verify caller can edit that post as well
