@@ -721,8 +721,22 @@ class Rest_Api {
 			);
 		}
 
-		/* Bulk_Process owns its table implementation. */
-		$batch_post_ids = Bulk_Process::get_batch_post_ids( $batch_id );
+		global $wpdb;
+
+		$table = Bulk_Process::get_table_name();
+
+		/*
+		 * The table name comes from the plugin's own table-name
+		 * generator. The batch ID itself is always passed through
+		 * $wpdb->prepare().
+		 */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$batch_post_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT post_id FROM {$table} WHERE batch_id = %s",
+				$batch_id
+			)
+		);
 
 		if ( ! is_array( $batch_post_ids ) || empty( $batch_post_ids ) ) {
 			return new WP_Error(

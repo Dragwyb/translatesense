@@ -40,9 +40,18 @@ class Bulk_Process {
 	/**
 	 * Get table name.
 	 */
-	private static function get_table_name(): string {
+	private static function get_table_name_internal(): string {
 		global $wpdb;
 		return esc_sql( $wpdb->prefix . 'translatesense_bulk_translations' );
+	}
+
+	/**
+	 * Get table name (legacy compatibility).
+	 *
+	 * @return string
+	 */
+	final public static function get_table_name(): string {
+		return self::get_table_name_internal();
 	}
 
 	/**
@@ -110,7 +119,7 @@ class Bulk_Process {
 	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai' ): array {
 		global $wpdb;
 
-		$table        = self::get_table_name();
+		$table        = self::get_table_name_internal();
 		$batch_id     = 'batch_' . wp_generate_uuid4();
 		$provider     = sanitize_text_field( $provider );
 		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
@@ -193,7 +202,7 @@ class Bulk_Process {
 	 */
 	public static function has_pending_or_running_jobs(): bool {
 		global $wpdb;
-		$table = self::get_table_name();
+		$table = self::get_table_name_internal();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
 			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -239,7 +248,7 @@ class Bulk_Process {
 	 */
 	public static function process_cron_tick(): void {
 		global $wpdb;
-		$table = self::get_table_name();
+		$table = self::get_table_name_internal();
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
@@ -429,7 +438,7 @@ class Bulk_Process {
 		}
 
 		global $wpdb;
-		$table = self::get_table_name();
+		$table = self::get_table_name_internal();
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		return $wpdb->get_row(
@@ -449,7 +458,7 @@ class Bulk_Process {
 	 */
 	public static function update_job( int $job_id, array $data ): bool {
 		global $wpdb;
-		$table = self::get_table_name();
+		$table = self::get_table_name_internal();
 
 		if ( ! isset( $data['updated_at'] ) ) {
 			$data['updated_at'] = current_time( 'mysql' );
@@ -475,7 +484,7 @@ class Bulk_Process {
 	public static function get_batch_status( string $batch_id, int $post_id = 0 ): array {
 		global $wpdb;
 
-		$table = self::get_table_name();
+		$table = self::get_table_name_internal();
 
 		if ( ! empty( $batch_id ) ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
