@@ -1004,8 +1004,8 @@
 }
 
 .ts-translation-item.failed {
-  background: #fff8f8;
-  border-color: #fee2e2;
+  background: #ffffff;
+  border-color: #f1f5f9;
 }
 
 .ts-trans-lang-col {
@@ -1061,10 +1061,6 @@
   margin-bottom: 2px;
 }
 
-.ts-trans-title.error {
-  color: #dc2626;
-}
-
 .ts-trans-meta {
   display: flex;
   align-items: center;
@@ -1107,6 +1103,7 @@
 .ts-trans-status-pill.failed {
   background: #fef2f2;
   color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .ts-trans-strings-count {
