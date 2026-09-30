@@ -1185,10 +1185,10 @@
           // WORKFLOW B: Chrome Local AI In-Memory String Translation Workflow
           // Runs on-device inside browser, creates translated post and sets strings in backend.
           // =========================================================================
-          let totalBatchStrings = 0;
           let completedBatchStrings = 0;
           let completedJobsCount = 0;
-          const totalJobsCount = jobsList.length;
+          let failedJobsCount = 0;
+          const totalJobsCount = jobsList.length || 1;
 
           if (statusBadgeEl) {
             statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
@@ -1196,6 +1196,20 @@
           if (statusLabelEl) {
             statusLabelEl.textContent = 'LOCAL AI RUNNING';
           }
+
+          function updateBulkProgressUI(currentJobIndex, jobFraction = 0) {
+            const safeFraction = Math.max(0, Math.min(1, jobFraction));
+            const progressRatio = (currentJobIndex + safeFraction) / totalJobsCount;
+            const pct = Math.min(100, Math.round(progressRatio * 100));
+
+            if (barFill) barFill.style.width = pct + '%';
+            if (percentText) percentText.textContent = pct + '%';
+            if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
+            if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalJobsCount - (completedJobsCount + failedJobsCount))}</strong> Pending Posts`;
+          }
+
+          // Initial progress state (0%)
+          updateBulkProgressUI(0, 0);
 
           for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
             const job = jobsList[jobIndex];
@@ -1237,6 +1251,7 @@
               transObj.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
               renderResultsUI();
               completedJobsCount++;
+              updateBulkProgressUI(jobIndex + 1, 0);
               continue;
             }
 
@@ -1247,6 +1262,7 @@
             if (statusText) {
               statusText.textContent = `Extracting strings for ${postTitle} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
             }
+            updateBulkProgressUI(jobIndex, 0.05);
 
             try {
               // 1. Extract strings for this post one by one passing editor_type
@@ -1267,9 +1283,6 @@
               let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
               rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
 
-              totalBatchStrings += rawStrings.length;
-              if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
-
               if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
                 postResultsMap[postId].translations[targetLang].totalStrings = rawStrings.length;
                 renderResultsUI();
@@ -1277,6 +1290,7 @@
 
               // Local in-memory dictionary for pre-translated strings
               const inMemoryTranslations = {};
+              let jobStringsCompleted = 0;
 
               if (rawStrings.length > 0) {
                 if (statusText) {
@@ -1295,11 +1309,10 @@
                     if (resItem.hash) inMemoryTranslations[resItem.hash] = resItem.translated;
                   }
                   completedBatchStrings++;
-                  const strPct = totalBatchStrings > 0 ? Math.round((completedBatchStrings / totalBatchStrings) * 100) : 0;
-                  if (barFill) barFill.style.width = strPct + '%';
-                  if (percentText) percentText.textContent = strPct + '%';
-                  if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
-                  if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
+                  jobStringsCompleted++;
+                  const strRatio = rawStrings.length > 0 ? (jobStringsCompleted / rawStrings.length) : 1;
+                  // Map string translation to 0.05 -> 0.90 of this job's slice
+                  updateBulkProgressUI(jobIndex, 0.05 + (strRatio * 0.85));
                 };
 
                 // Run client-side Chrome AI translation
@@ -1319,6 +1332,7 @@
               if (statusText) {
                 statusText.textContent = `Saving translated Post #${postId} (${targetLang.toUpperCase()})...`;
               }
+              updateBulkProgressUI(jobIndex, 0.95);
 
               const postResponse = await fetch(restUrl + 'translate-post', {
                 method: 'POST',
@@ -1368,6 +1382,7 @@
               });
 
               completedJobsCount++;
+              updateBulkProgressUI(jobIndex + 1, 0);
 
               // Update Result Item
               if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
@@ -1383,6 +1398,7 @@
               }
             } catch (err) {
               console.error(`[TranslateSense] Chrome AI error for post #${postId}:`, err);
+              failedJobsCount++;
 
               await fetch(restUrl + 'bulk-update-job', {
                 method: 'POST',
@@ -1406,12 +1422,20 @@
                 transObj.error = err.message || 'Error';
                 renderResultsUI();
               }
+
+              // Complete progress slice for this failed post so progress count reaches 100%
+              updateBulkProgressUI(jobIndex + 1, 0);
             }
           }
 
+          const isOverallSuccess = (failedJobsCount === 0 || completedJobsCount > 0);
+          const finalMsg = failedJobsCount > 0
+            ? `Chrome Local AI Bulk Translation Finished (${completedJobsCount} succeeded, ${failedJobsCount} failed of ${totalJobsCount} total).`
+            : `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`;
+
           onBulkProgressComplete(
-            true,
-            `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`,
+            isOverallSuccess,
+            finalMsg,
             completedJobsCount,
             totalJobsCount
           );

@@ -333,7 +333,7 @@ class Detector {
 				if ( ! is_array( $block ) || $scanned_nodes >= $max_nodes ) {
 					break;
 				}
-				$scanned_nodes++;
+				++$scanned_nodes;
 
 				$block_name = $block['blockName'] ?? '';
 				if ( empty( $block_name ) ) {
@@ -414,7 +414,7 @@ class Detector {
 				if ( ! is_array( $element ) || $scanned_nodes >= $max_nodes ) {
 					break;
 				}
-				$scanned_nodes++;
+				++$scanned_nodes;
 
 				$el_type     = $element['elType'] ?? '';
 				$widget_type = $element['widgetType'] ?? ( 'widget' === $el_type ? ( $element['name'] ?? '' ) : '' );
