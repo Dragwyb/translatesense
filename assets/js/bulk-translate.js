@@ -440,129 +440,11 @@
       let pollingTimer = null;
       const sourceLangCode = 'en';
 
-      /**
-       * Check capability of Chrome Built-in AI for a target language with static source 'en'
-       * and warm up translation by translating 'Hello' under the user gesture.
-       * If error occurs (e.g. requires user gesture or downloading), keeps uncached so subsequent gestures retry.
-       */
-      async function checkLanguageCapability(targetLang, bypassCache = false) {
-        if (!window.TranslateSenseCore) return { available: true, warmedUp: true };
-
-        if (!bypassCache && window.TranslateSenseCore.hasLanguagePairCapability('chrome_ai', sourceLangCode, targetLang)) {
-          const cached = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, targetLang);
-          if (cached && cached.warmedUp) {
-            return cached;
-          }
-        }
-
-        try {
-          const check = await window.TranslateSenseCore.validateProvider('chrome_ai', sourceLangCode, targetLang, bypassCache);
-          if (check && check.available === false) {
-            return check;
-          }
-
-          // Warmup translator instance and trigger model download under the active user gesture
-          const chromeProvider = window.TranslateSenseCore.getProvider('chrome_ai');
-          if (chromeProvider && typeof chromeProvider.warmup === 'function') {
-            await chromeProvider.warmup(sourceLangCode, targetLang, 'Hello');
-          } else {
-            // Fallback warmup through translate()
-            await window.TranslateSenseCore.translate('chrome_ai', {
-              items: [{ hash: 'warmup', content: 'Hello' }],
-              sourceLang: sourceLangCode,
-              targetLang: targetLang,
-            });
-          }
-
-          const successResult = { available: true, warmedUp: true };
-          window.TranslateSenseCore.setLanguagePairCapability('chrome_ai', sourceLangCode, targetLang, successResult);
-          return successResult;
-        } catch (err) {
-          console.warn(`[TranslateSense] Chrome AI capability/warmup check for ${sourceLangCode}->${targetLang} encountered:`, err.message);
-
-          const errMsg = String(err && err.message ? err.message : err);
-          const isGestureOrDownloadErr = errMsg.toLowerCase().includes('user gesture') || errMsg.toLowerCase().includes('download');
-
-          if (isGestureOrDownloadErr) {
-            // Remove from cache so that subsequent user gestures (mousemove, click, etc.) will retry warming up
-            const key = window.TranslateSenseCore.getLanguagePairKey('chrome_ai', sourceLangCode, targetLang);
-            window.TranslateSenseCore.languagePairCapabilities.delete(key);
-            return { available: false, warmedUp: false, reason: errMsg, retryOnGesture: true };
-          }
-
-          const fallback = { available: false, warmedUp: false, reason: errMsg, noticeType: 'error' };
-          window.TranslateSenseCore.setLanguagePairCapability('chrome_ai', sourceLangCode, targetLang, fallback);
-          return fallback;
-        }
-      }
-
-      /**
-       * Check all selected languages that are not yet verified & warmed up in TranslateSenseCore cache.
-       * Runs during user gesture events (clicks, selections, mousemove) to avoid "User Gesture Needed" errors.
-       */
-      let isCheckingMissingLanguages = false;
-      async function checkMissingSelectedLanguages(languagesToCheck) {
-        if (isCheckingMissingLanguages || !window.TranslateSenseCore) return;
-
-        const targetList = Array.isArray(languagesToCheck) && languagesToCheck.length > 0
-          ? languagesToCheck
-          : selectedTargetLangs;
-
-        const unverifiedLangs = targetList.filter(function (lang) {
-          const cap = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, lang);
-          return !cap || !cap.warmedUp || cap.available === false;
-        });
-
-        if (unverifiedLangs.length === 0) return;
-
-        isCheckingMissingLanguages = true;
-        try {
-          for (let i = 0; i < unverifiedLangs.length; i++) {
-            const lang = unverifiedLangs[i];
-            await checkLanguageCapability(lang, false);
-          }
-        } finally {
-          isCheckingMissingLanguages = false;
-        }
-      }
-
-      // Throttled user gesture listener to check & warmup any remaining unverified selected languages
-      let gestureThrottleTimer = null;
-      function onUserGestureActivity() {
-        if (gestureThrottleTimer) return;
-        gestureThrottleTimer = setTimeout(function () {
-          gestureThrottleTimer = null;
-        }, 300);
-
-        if (!window.TranslateSenseCore) return;
-
-        const hasUnverified = selectedTargetLangs.some(function (lang) {
-          const cap = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, lang);
-          return !cap || !cap.warmedUp || (cap.available === false && cap.retryOnGesture);
-        });
-
-        if (hasUnverified) {
-          checkMissingSelectedLanguages();
-        }
-      }
-
-      const gestureEvents = ['mousemove', 'pointermove', 'click', 'keydown', 'touchstart'];
-      gestureEvents.forEach(function (evt) {
-        document.addEventListener(evt, onUserGestureActivity, { passive: true });
-      });
-
-      function cleanupGestureListeners() {
-        gestureEvents.forEach(function (evt) {
-          document.removeEventListener(evt, onUserGestureActivity);
-        });
-      }
-
       // Close modal handler
       const closeBtn = document.getElementById('ts-bulk-close-btn');
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
           if (pollingTimer) clearInterval(pollingTimer);
-          cleanupGestureListeners();
           root.innerHTML = '';
         });
       }
@@ -590,13 +472,11 @@
         card.addEventListener('click', function (e) {
           const slug = card.getAttribute('data-lang');
           const isInput = e.target && e.target.type === 'checkbox';
-          let isNowSelected = false;
 
           if (isInput) {
             const checked = e.target.checked;
             if (checked) {
               if (!selectedTargetLangs.includes(slug)) selectedTargetLangs.push(slug);
-              isNowSelected = true;
             } else {
               selectedTargetLangs = selectedTargetLangs.filter((s) => s !== slug);
             }
@@ -605,17 +485,10 @@
               selectedTargetLangs = selectedTargetLangs.filter((s) => s !== slug);
             } else {
               selectedTargetLangs.push(slug);
-              isNowSelected = true;
             }
           }
 
           updateLanguageSelectionState();
-
-          // Check language capability on user click gesture if not already cached
-          if (isNowSelected) {
-            checkLanguageCapability(slug, false);
-          }
-          checkMissingSelectedLanguages();
         });
       });
 
@@ -625,8 +498,6 @@
         selectAllBtn.addEventListener('click', function () {
           selectedTargetLangs = allLanguages.map((l) => l.slug);
           updateLanguageSelectionState();
-          // Check all languages on user click gesture
-          checkMissingSelectedLanguages(selectedTargetLangs);
         });
       }
 
@@ -639,9 +510,6 @@
         });
       }
 
-      // Initial check on modal load for default selected languages
-      checkMissingSelectedLanguages();
-
       // Step 1 -> Step 2 Navigation
       const nextBtn = document.getElementById('ts-wizard-next-btn');
       if (nextBtn) {
@@ -650,9 +518,6 @@
             alert('Please select at least one target language.');
             return;
           }
-
-          // Trigger capability check on user gesture for any remaining uncached languages
-          checkMissingSelectedLanguages();
 
           const totalTranslations = postIds.length * selectedTargetLangs.length;
           const langTags = allLanguages
@@ -781,13 +646,6 @@
             selectedTargetLangs.forEach(function (lang) {
               let initialStatus = 'pending';
               let initialError = '';
-              if (isChromeAi && window.TranslateSenseCore) {
-                const cap = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, lang);
-                if (cap && cap.available === false) {
-                  initialStatus = 'failed';
-                  initialError = cap.reason || `Language ${lang.toUpperCase()} is not supported by Chrome Built-in AI.`;
-                }
-              }
 
               postResultsMap[pIdStr].translations[lang] = {
                 targetLang: lang,
@@ -853,7 +711,7 @@
                 } else if (isFail) {
                   const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
                   statusBadge = isUnsupported
-                    ? '<span class="ts-trans-status-pill failed">✕ Language Not Supported</span>'
+                    ? `<button type="button" class="ts-trans-status-pill failed ts-error-detail-btn" data-lang="${escapeHtml(langDisplayName)}" data-error="${escapeHtml(trans.error || 'Language is not supported by Chrome Local AI.')}" title="Click to view detailed reason">✕ Language Not Supported ℹ️</button>`
                     : '<span class="ts-trans-status-pill failed">✕ Failed</span>';
                 } else if (isRunning) {
                   statusBadge = '<span class="ts-trans-status-pill running">⏳ In Progress</span>';
@@ -896,10 +754,10 @@
 
                 const displayTitle = trans.targetTitle
                   || (isAlreadyExists ? (trans.targetTitle || postData.postTitle)
-                  : (isDone ? (trans.targetTitle || postData.postTitle)
-                  : (isFail ? (postData.postTitle || `Post #${pId}`)
-                  : (isRunning ? 'Translating content...'
-                  : `Waiting in queue (${langDisplayName})`))));
+                    : (isDone ? (trans.targetTitle || postData.postTitle)
+                      : (isFail ? (postData.postTitle || `Post #${pId}`)
+                        : (isRunning ? 'Translating content...'
+                          : `Waiting in queue (${langDisplayName})`))));
 
                 html += `
                   <div class="ts-translation-item ${trans.status}">
@@ -932,6 +790,55 @@
             if (resultsCounterEl) {
               resultsCounterEl.textContent = `${completedTranslationsCount}/${totalTranslationsCount} Completed`;
             }
+          }
+
+          // Global delegation for error details button click
+          if (resultsListEl && !resultsListEl._hasErrorDetailListener) {
+            resultsListEl._hasErrorDetailListener = true;
+            resultsListEl.addEventListener('click', function (e) {
+              const errorBtn = e.target.closest('.ts-error-detail-btn');
+              if (!errorBtn) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const langName = errorBtn.getAttribute('data-lang') || 'Language';
+              const errorMsg = errorBtn.getAttribute('data-error') || 'This language is not supported by the local AI engine.';
+
+              let modalRoot = document.getElementById('ts-error-modal-root');
+              if (!modalRoot) {
+                modalRoot = document.createElement('div');
+                modalRoot.id = 'ts-error-modal-root';
+                document.body.appendChild(modalRoot);
+              }
+
+              modalRoot.innerHTML = `
+                <div class="ts-bulk-overlay" style="z-index: 1000000;">
+                  <div class="ts-bulk-modal" style="max-width: 480px;">
+                    <div class="ts-bulk-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+                      <h2>⚠️ ${escapeHtml(langName)} Notice</h2>
+                      <button type="button" class="ts-bulk-close" id="ts-err-modal-close">&times;</button>
+                    </div>
+                    <div class="ts-bulk-body" style="padding: 22px;">
+                      <p style="margin-top: 0; font-size: 13.5px; color: #334155; line-height: 1.6;">
+                        ${escapeHtml(errorMsg)}
+                      </p>
+                    </div>
+                    <div class="ts-bulk-footer" style="padding: 12px 20px;">
+                      <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">OK</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              function closeModal() {
+                if (modalRoot) modalRoot.innerHTML = '';
+              }
+
+              const closeBtn = document.getElementById('ts-err-modal-close');
+              const okBtn = document.getElementById('ts-err-modal-ok');
+              if (closeBtn) closeBtn.addEventListener('click', closeModal);
+              if (okBtn) okBtn.addEventListener('click', closeModal);
+            });
           }
 
           // Initial render of results skeleton
@@ -1030,7 +937,7 @@
             }
           }
 
-          // For Chrome AI, filter and only proceed with supported capabilities languages from cache
+          // For Chrome AI, filter and only proceed with supported languages
           let effectiveTargetLangs = [...selectedTargetLangs];
           if (isChromeAi && window.TranslateSenseCore) {
             const supported = [];
@@ -1038,9 +945,12 @@
 
             for (let i = 0; i < selectedTargetLangs.length; i++) {
               const lang = selectedTargetLangs[i];
-              const cap = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, lang);
-              if (cap && cap.available === false) {
-                unsupported.push(lang);
+              const check = await window.TranslateSenseCore.validateProvider('chrome_ai', sourceLangCode, lang, false);
+              if (check && check.available === false) {
+                unsupported.push({
+                  lang: lang,
+                  reason: check.reason || `Language ${lang.toUpperCase()} is not supported by Chrome Built-in AI.`
+                });
               } else {
                 supported.push(lang);
               }
@@ -1048,15 +958,32 @@
 
             if (unsupported.length > 0) {
               if (supported.length === 0) {
-                alert('None of the selected languages are supported by Chrome Built-in AI: ' + unsupported.join(', '));
+                const unsuppList = unsupported.map((u) => u.lang.toUpperCase()).join(', ');
+                alert('None of the selected languages are supported by Chrome Local AI: ' + unsuppList);
+                unsupported.forEach(function (uItem) {
+                  const uLang = uItem.lang;
+                  const reason = uItem.reason;
+                  postIds.forEach(function (pid) {
+                    const pIdStr = String(pid);
+                    if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
+                      const trans = postResultsMap[pIdStr].translations[uLang];
+                      trans.status = 'failed';
+                      trans.error = reason;
+                      trans.targetTitle = postResultsMap[pIdStr].postTitle || `Post #${pid}`;
+                    }
+                  });
+                });
+                renderResultsUI();
+                onBulkProgressComplete(false, 'Translation stopped: Selected languages are not supported by Chrome Built-in AI.', 0, postIds.length * selectedTargetLangs.length);
                 return;
               }
+
               console.warn('[TranslateSense] Excluding unsupported Chrome AI languages from bulk translation:', unsupported);
               effectiveTargetLangs = supported;
 
-              unsupported.forEach(function (uLang) {
-                const cap = window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, uLang);
-                const reason = cap && cap.reason ? cap.reason : `Language ${uLang.toUpperCase()} is not supported by Chrome Built-in AI.`;
+              unsupported.forEach(function (uItem) {
+                const uLang = uItem.lang;
+                const reason = uItem.reason;
                 postIds.forEach(function (pid) {
                   const pIdStr = String(pid);
                   if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
@@ -1310,38 +1237,6 @@
               transObj.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
               renderResultsUI();
               completedJobsCount++;
-              continue;
-            }
-
-            // Check cached capability before translation to prevent runtime capability failures
-            const cachedCap = window.TranslateSenseCore
-              ? window.TranslateSenseCore.getLanguagePairCapability('chrome_ai', sourceLangCode, targetLang)
-              : null;
-
-            if (cachedCap && cachedCap.available === false) {
-              const failReason = cachedCap.reason || 'Language pair not supported by Chrome AI';
-              await fetch(restUrl + 'bulk-update-job', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-WP-Nonce': nonce,
-                },
-                body: JSON.stringify({
-                  job_id: jobId,
-                  data: {
-                    status: 'failed',
-                    progress_status: `Failed: ${failReason}`,
-                    error_message: failReason,
-                  },
-                }),
-              });
-
-              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
-                const transObj = postResultsMap[postId].translations[targetLang];
-                transObj.status = 'failed';
-                transObj.error = failReason;
-                renderResultsUI();
-              }
               continue;
             }
 

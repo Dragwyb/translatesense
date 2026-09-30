@@ -22,7 +22,6 @@
       this.activeControllers = new Set();
       this.defaultProvider = '';
       this.enabledProviders = ['chrome_ai', 'openai', 'gemini'];
-      this.languagePairCapabilities = new Map();
 
       // Initialize enabled providers from localized data if available
       this.syncEnabledProviders();
@@ -310,72 +309,6 @@
     }
 
     /**
-     * Helper to generate a normalized language pair key for a provider.
-     * 
-     * @param {string} [providerId='chrome_ai']
-     * @param {string} [sourceLang='en']
-     * @param {string} [targetLang='']
-     * @returns {string} Normalized cache key (e.g. 'chrome_ai:en->es')
-     */
-    getLanguagePairKey(providerId = 'chrome_ai', sourceLang = 'en', targetLang = '') {
-      const p = String(providerId || 'chrome_ai').toLowerCase().trim();
-      const s = String(sourceLang || 'en').toLowerCase().split('-')[0].trim();
-      const t = String(targetLang || '').toLowerCase().split('-')[0].trim();
-      return `${p}:${s}->${t}`;
-    }
-
-    /**
-     * Set cached capability / availability for a language pair.
-     * 
-     * @param {string} providerId
-     * @param {string} sourceLang
-     * @param {string} targetLang
-     * @param {Object|boolean} result
-     * @returns {Object}
-     */
-    setLanguagePairCapability(providerId, sourceLang, targetLang, result) {
-      const key = this.getLanguagePairKey(providerId, sourceLang, targetLang);
-      const data = typeof result === 'object' && result !== null
-        ? { ...result }
-        : { available: Boolean(result) };
-      this.languagePairCapabilities.set(key, data);
-      return data;
-    }
-
-    /**
-     * Get cached capability for a language pair.
-     * 
-     * @param {string} providerId
-     * @param {string} sourceLang
-     * @param {string} targetLang
-     * @returns {Object|null}
-     */
-    getLanguagePairCapability(providerId, sourceLang, targetLang) {
-      const key = this.getLanguagePairKey(providerId, sourceLang, targetLang);
-      return this.languagePairCapabilities.get(key) || null;
-    }
-
-    /**
-     * Check if a language pair capability is cached.
-     * 
-     * @param {string} providerId
-     * @param {string} sourceLang
-     * @param {string} targetLang
-     * @returns {boolean}
-     */
-    hasLanguagePairCapability(providerId, sourceLang, targetLang) {
-      const key = this.getLanguagePairKey(providerId, sourceLang, targetLang);
-      return this.languagePairCapabilities.has(key);
-    }
-
-    /**
-     * Clear all cached language pair capabilities.
-     */
-    clearLanguagePairCapabilities() {
-      this.languagePairCapabilities.clear();
-    }
-
-    /**
      * Validate a provider for the given language pair and environment.
      * 
      * @param {string} providerId
@@ -398,34 +331,20 @@
       if (typeof provider.isLanguageSupported === 'function') {
         const supported = provider.isLanguageSupported(sourceLang, targetLang);
         if (!supported) {
-          const result = {
+          return {
             available: false,
             reason: `Language pair (${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}) is not supported by ${provider.title}.`,
             noticeType: 'warning',
           };
-          this.setLanguagePairCapability(providerId, sourceLang, targetLang, result);
-          return result;
-        }
-      }
-
-      // If cache exists and bypass is not requested, return cached capability
-      if (!bypassCache) {
-        const cached = this.getLanguagePairCapability(providerId, sourceLang, targetLang);
-        if (cached) {
-          return cached;
         }
       }
 
       // Run provider-specific availability check (e.g. browser on-device AI check, API key presence)
       try {
         const check = await provider.checkAvailability(sourceLang, targetLang, bypassCache);
-        const result = check || { available: true };
-        this.setLanguagePairCapability(providerId, sourceLang, targetLang, result);
-        return result;
+        return check || { available: true };
       } catch (err) {
-        const result = { available: false, reason: err.message || 'Provider availability check failed.', noticeType: 'error' };
-        this.setLanguagePairCapability(providerId, sourceLang, targetLang, result);
-        return result;
+        return { available: false, reason: err.message || 'Provider availability check failed.', noticeType: 'error' };
       }
     }
 

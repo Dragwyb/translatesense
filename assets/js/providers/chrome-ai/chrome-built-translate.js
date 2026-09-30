@@ -1,51 +1,58 @@
 /**
  * TranslateSense - Built-in AI Translation Provider
  *
- * File:
- * assets/js/providers/chrome-ai/chrome-built-translate.js
+ * File: assets/js/providers/chrome-ai/chrome-built-translate.js
  *
  * Provides client-side translation through supported Chromium
  * on-device translation APIs in Google Chrome and Microsoft Edge.
  *
  * Supported API implementations:
  * - window.translation
- * - window.ai.translator
  * - window.Translator
+ * - window.ai.translator
  */
 
 (function (window) {
   'use strict';
 
-  /**
-   * TranslateSense core must be available before registering this provider.
-   */
   if (!window.TranslateSenseCore) {
     console.error(
       '[TranslateSense] TranslateSenseCore must be loaded before chrome-built-translate.js.'
     );
-
     return;
   }
 
   /**
    * TranslateSense language helper.
-   *
-   * The provider only relies on these two methods:
-   * - isSupported()
-   * - formatCode()
    */
   const TranslateSenseLanguageHelper =
     window.TranslateSenseChromeLanguages || {
       isSupported: function () {
         return true;
       },
-
       formatCode: function (code) {
         return code
           ? String(code).toLowerCase().split('-')[0]
           : 'en';
       }
     };
+
+  /**
+   * Internal cache for language-pair availability checks in Chrome AI.
+   */
+  const languageAvailabilityCache = new Map();
+
+  /**
+   * Queue of languages that require a user gesture or model download.
+   */
+  let unavailableLanguage = [];
+  let isListeningGestures = false;
+  let isProcessingUnavailableQueue = false;
+
+  /**
+   * Cache of active translator instances per language pair.
+   */
+  const activeTranslators = new Map();
 
   /**
    * Detect the browser supported by TranslateSense Built-in AI.
@@ -55,45 +62,18 @@
   function detectTranslateSenseAiBrowser() {
     const navigatorObject = window.navigator;
 
-    /**
-     * Prefer User-Agent Client Hints when available.
-     */
     if (
       navigatorObject.userAgentData &&
       Array.isArray(navigatorObject.userAgentData.brands)
     ) {
       const brands = navigatorObject.userAgentData.brands;
-
-      if (
-        brands.some(function (brand) {
-          return brand.brand === 'Microsoft Edge';
-        })
-      ) {
-        return 'Edge';
-      }
-
-      if (
-        brands.some(function (brand) {
-          return brand.brand === 'Google Chrome';
-        })
-      ) {
-        return 'Chrome';
-      }
+      if (brands.some((b) => b.brand === 'Microsoft Edge')) return 'Edge';
+      if (brands.some((b) => b.brand === 'Google Chrome')) return 'Chrome';
     }
 
-    /**
-     * Fall back to User-Agent detection.
-     */
     const userAgent = navigatorObject.userAgent || '';
-
-    if (userAgent.indexOf('Edg/') !== -1) {
-      return 'Edge';
-    }
-
-    if (
-      userAgent.indexOf('Chrome/') !== -1 &&
-      userAgent.indexOf('Edg/') === -1
-    ) {
+    if (userAgent.indexOf('Edg/') !== -1) return 'Edge';
+    if (userAgent.indexOf('Chrome/') !== -1 && userAgent.indexOf('Edg/') === -1) {
       return 'Chrome';
     }
 
@@ -101,48 +81,40 @@
   }
 
   /**
-   * Get the browser-specific flags URL used by TranslateSense.
-   *
-   * @param {string} browserType
-   * @param {string} flag
-   * @returns {string}
+   * Helper to generate a normalized language-pair cache key.
    */
-  function getTranslateSenseBrowserFlagUrl(browserType, flag) {
-    const browserUrl =
-      browserType === 'Edge'
-        ? 'edge://flags/'
-        : 'chrome://flags/';
-
-    return `${browserUrl}#${flag}`;
+  function getLanguagePairCacheKey(sourceLang, targetLang) {
+    const s = TranslateSenseLanguageHelper.formatCode(sourceLang || 'en');
+    const t = TranslateSenseLanguageHelper.formatCode(targetLang || '');
+    return `${s}->${t}`;
   }
 
   /**
-   * Detect the available Translator API implementation.
-   *
-   * This keeps API detection in one place so the capability check
-   * and translation process use the same API selection logic.
+   * Detect the available Translator API factory.
    *
    * @returns {Object|null}
    */
   function getTranslateSenseTranslatorApi() {
-    /**
-     * Current/experimental Translation API implementation.
-     */
+    if (
+      window.Translator &&
+      typeof window.Translator.create === 'function'
+    ) {
+      return {
+        type: 'translator',
+        create: (opts) => window.Translator.create(opts)
+      };
+    }
+
     if (
       window.translation &&
       typeof window.translation.createTranslator === 'function'
     ) {
       return {
         type: 'translation',
-        create: function (options) {
-          return window.translation.createTranslator(options);
-        }
+        create: (opts) => window.translation.createTranslator(opts)
       };
     }
 
-    /**
-     * Older/experimental AI Translator implementation.
-     */
     if (
       window.ai &&
       window.ai.translator &&
@@ -150,24 +122,7 @@
     ) {
       return {
         type: 'ai-translator',
-        create: function (options) {
-          return window.ai.translator.create(options);
-        }
-      };
-    }
-
-    /**
-     * Translator API implementation.
-     */
-    if (
-      window.Translator &&
-      typeof window.Translator.create === 'function'
-    ) {
-      return {
-        type: 'translator',
-        create: function (options) {
-          return window.Translator.create(options);
-        }
+        create: (opts) => window.ai.translator.create(opts)
       };
     }
 
@@ -175,33 +130,135 @@
   }
 
   /**
-   * Check whether the selected language is supported by
-   * TranslateSense's built-in AI language mapping.
+   * Query the browser for translation availability for a language pair.
+   * Checks window.Translator.availability, window.translation.canTranslate,
+   * window.Translator.canTranslate, and window.ai.translator.availability.
    *
-   * @param {string} language
-   * @returns {boolean}
+   * @param {string} sourceLanguage
+   * @param {string} targetLanguage
+   * @returns {Promise<string|null>}
    */
-  function isTranslateSenseLanguageSupported(language) {
-    const formattedLanguage =
-      TranslateSenseLanguageHelper.formatCode(language);
+  async function queryTranslatorAvailability(sourceLanguage, targetLanguage) {
+    const pair = { sourceLanguage, targetLanguage };
 
-    return TranslateSenseLanguageHelper.isSupported(
-      formattedLanguage
-    );
+    if (window.Translator && typeof window.Translator.availability === 'function') {
+      try {
+        let status = await window.Translator.availability(pair);
+
+        if (!status || status !== 'available') {
+          await window.Translator.create({
+            sourceLanguage: pair.sourceLanguage,
+            targetLanguage: pair.targetLanguage,
+            monitor(m) {
+              m.addEventListener('downloadprogress', (e) => {
+                console.log('downloadprogress', e.loaded * 100);
+              });
+            }
+          });
+
+          status = await window.Translator.availability(pair);
+        }
+
+        return status;
+      } catch (e) {
+        if (e.message.includes('user gesture')) {
+          return "downloadable";
+        }
+      }
+    }
+
+    if (window.translation && typeof window.translation.canTranslate === 'function') {
+      try {
+        return await window.translation.canTranslate(pair);
+      } catch (e) { }
+    }
+
+    if (
+      window.ai &&
+      window.ai.translator &&
+      typeof window.ai.translator.capabilities === 'function'
+    ) {
+      try {
+        const caps = await window.ai.translator.capabilities();
+        return await caps.languagePairAvailable(pair);
+      } catch (e) { }
+    }
+
+    return null;
+  }
+
+  /**
+   * Normalize availability status response into standard TranslateSense result object.
+   */
+  function normalizeAvailabilityStatus(status, browserType, sourceLanguage, targetLanguage) {
+    if (!status) return null;
+
+    if (status === 'readily' || status === 'available' || status === 'yes') {
+      return { available: true, status: 'readily' };
+    }
+
+    if (status === 'after-download' || status === 'downloadable') {
+      return {
+        available: true,
+        status: 'downloadable',
+        type: 'downloadable',
+        reason: `${browserType} is downloading the required language pack in the background. The first translation might take a few seconds.`,
+        noticeType: 'info'
+      };
+    }
+
+    if (status === 'downloading') {
+      return {
+        available: false,
+        status: 'downloading',
+        type: 'downloading',
+        reason: `The required ${browserType} translation language pack is currently downloading. Please wait for the download to complete.`,
+        noticeType: 'info'
+      };
+    }
+
+    if (status === 'requires-user-gesture') {
+      return {
+        available: false,
+        status: 'requires-user-gesture',
+        type: 'requires-user-gesture',
+        reason: `${browserType} requires a user action before the translation model can be downloaded.`,
+        noticeType: 'info'
+      };
+    }
+
+    if (status === 'no' || status === 'unsupported') {
+      return {
+        available: false,
+        reason: `Language pair (${sourceLanguage} → ${targetLanguage}) cannot be translated by the current ${browserType} on-device model.`,
+        noticeType: 'warning',
+        type: 'languagePairNotSupported'
+      };
+    }
+
+    if (status === 'download-timeout') {
+      return {
+        available: false,
+        reason: `The ${browserType} translation model could not be loaded completely. Please check the browser's language model status and try again.`,
+        noticeType: 'warning',
+        type: 'download-timeout'
+      };
+    }
+
+    if (status === 'unavailable' || status === 'no-download') {
+      return {
+        available: false,
+        reason: `The required ${browserType} translation language pack is not currently available.`,
+        noticeType: 'warning',
+        type: 'language-pack-not-installed'
+      };
+    }
+
+    return null;
   }
 
   /**
    * Check Built-in AI translation capability for a language pair.
-   *
-   * The result intentionally keeps the same structure used by
-   * the existing TranslateSense provider integration:
-   *
-   * {
-   *     available: Boolean,
-   *     reason: String,
-   *     noticeType: String,
-   *     type: String
-   * }
    *
    * @param {string} sourceLang
    * @param {string} targetLang
@@ -213,67 +270,30 @@
     targetLang,
     bypassCache = false
   ) {
-    if (
-      !bypassCache &&
-      window.TranslateSenseCore &&
-      typeof window.TranslateSenseCore.getLanguagePairCapability === 'function'
-    ) {
-      const cached =
-        window.TranslateSenseCore.getLanguagePairCapability(
-          'chrome_ai',
-          sourceLang,
-          targetLang
-        );
+    const cacheKey = getLanguagePairCacheKey(sourceLang, targetLang);
 
-      if (cached) {
-        return cached;
-      }
+    if (!bypassCache && languageAvailabilityCache.has(cacheKey)) {
+      return languageAvailabilityCache.get(cacheKey);
     }
 
     function returnWithCache(result) {
-      if (
-        window.TranslateSenseCore &&
-        typeof window.TranslateSenseCore.setLanguagePairCapability === 'function'
-      ) {
-        window.TranslateSenseCore.setLanguagePairCapability(
-          'chrome_ai',
-          sourceLang,
-          targetLang,
-          result
-        );
-      }
+      languageAvailabilityCache.set(cacheKey, result);
       return result;
     }
 
     const browserType = detectTranslateSenseAiBrowser();
 
-    /**
-     * ---------------------------------------------------------
-     * Browser support
-     * ---------------------------------------------------------
-     */
     if (browserType === 'Other') {
       return returnWithCache({
         available: false,
-        reason:
-          'TranslateSense Built-in AI translation requires Google Chrome or Microsoft Edge.',
+        reason: 'TranslateSense Built-in AI translation requires Google Chrome or Microsoft Edge.',
         noticeType: 'info',
         type: 'browser'
       });
     }
 
-    /**
-     * ---------------------------------------------------------
-     * Secure context
-     * ---------------------------------------------------------
-     *
-     * Use the browser-provided secure-context state instead of
-     * manually checking the protocol or hostname.
-     */
     if (!window.isSecureContext) {
-      const browserUrl =
-        browserType === 'Edge' ? 'edge' : 'chrome';
-
+      const browserUrl = browserType === 'Edge' ? 'edge' : 'chrome';
       return returnWithCache({
         available: false,
         reason:
@@ -284,269 +304,58 @@
       });
     }
 
-    const sourceLanguage =
-      TranslateSenseLanguageHelper.formatCode(sourceLang);
+    const sourceLanguage = TranslateSenseLanguageHelper.formatCode(sourceLang);
+    const targetLanguage = TranslateSenseLanguageHelper.formatCode(targetLang);
 
-    const targetLanguage =
-      TranslateSenseLanguageHelper.formatCode(targetLang);
-
-    /**
-     * ---------------------------------------------------------
-     * Source language
-     * ---------------------------------------------------------
-     */
-    if (!isTranslateSenseLanguageSupported(sourceLanguage)) {
+    if (!TranslateSenseLanguageHelper.isSupported(sourceLanguage)) {
       return returnWithCache({
         available: false,
-        reason:
-          `Language ${sourceLang} is not supported by ${browserType} Built-in AI translation.`,
+        reason: `Language ${sourceLang} is not supported by ${browserType} Built-in AI translation.`,
         noticeType: 'warning',
         type: 'sourceLangNotSupported'
       });
     }
 
-    /**
-     * ---------------------------------------------------------
-     * Target language
-     * ---------------------------------------------------------
-     */
-    if (!isTranslateSenseLanguageSupported(targetLanguage)) {
+    if (!TranslateSenseLanguageHelper.isSupported(targetLanguage)) {
       return returnWithCache({
         available: false,
-        reason:
-          `Language ${targetLang} is not supported by ${browserType} Built-in AI translation.`,
+        reason: `Language ${targetLang} is not supported by ${browserType} Built-in AI translation.`,
         noticeType: 'warning',
         type: 'targetLangNotSupported'
       });
     }
 
-    /**
-     * ---------------------------------------------------------
-     * Translator API detection
-     * ---------------------------------------------------------
-     */
+    // Query availability status through available API implementations
+    const rawStatus = await queryTranslatorAvailability(sourceLanguage, targetLanguage);
+
+    if (rawStatus) {
+      const normalized = normalizeAvailabilityStatus(rawStatus, browserType, sourceLanguage, targetLanguage);
+      if (normalized) {
+        return returnWithCache(normalized);
+      }
+    }
+
+    // If Translator API exists without availability method, treat as available
     const translatorApi = getTranslateSenseTranslatorApi();
-
-    /**
-     * ---------------------------------------------------------
-     * Translation API availability
-     * ---------------------------------------------------------
-     *
-     * The current window.translation API exposes canTranslate().
-     * When available, use it to determine the language-pair state.
-     */
-    if (
-      window.translation &&
-      typeof window.translation.canTranslate === 'function'
-    ) {
-      try {
-        const status =
-          await window.translation.canTranslate({
-            sourceLanguage: sourceLanguage,
-            targetLanguage: targetLanguage
-          });
-
-        /**
-         * Translation model is already available.
-         */
-        if (status === 'readily') {
-          return returnWithCache({
-            available: true
-          });
-        }
-
-        /**
-         * Translation is supported but the model/language
-         * pack needs to be downloaded.
-         */
-        if (
-          status === 'after-download' ||
-          status === 'downloadable'
-        ) {
-          return returnWithCache({
-            available: true,
-            reason:
-              `${browserType} is downloading the required language pack in the background. ` +
-              'The first translation might take a few seconds.',
-            noticeType: 'info',
-            type: 'downloadable'
-          });
-        }
-
-        /**
-         * The requested language pair is not supported.
-         */
-        if (status === 'no') {
-          return returnWithCache({
-            available: false,
-            reason:
-              `Language pair (${sourceLanguage} → ${targetLanguage}) cannot be translated by the current ${browserType} on-device model.`,
-            noticeType: 'warning',
-            type: 'languagePairNotSupported'
-          });
-        }
-
-        /**
-         * Language model is currently downloading.
-         */
-        if (status === 'downloading') {
-          return returnWithCache({
-            available: false,
-            reason:
-              `The required ${browserType} translation language pack is currently downloading. Please wait for the download to complete.`,
-            noticeType: 'info',
-            type: 'downloading'
-          });
-        }
-
-        /**
-         * Browser requires a user gesture before the model
-         * can be downloaded.
-         */
-        if (status === 'requires-user-gesture') {
-          return returnWithCache({
-            available: false,
-            reason:
-              `${browserType} requires a user action before the translation model can be downloaded.`,
-            noticeType: 'info',
-            type: 'requires-user-gesture'
-          });
-        }
-
-        /**
-         * Model download did not finish.
-         */
-        if (status === 'download-timeout') {
-          return returnWithCache({
-            available: false,
-            reason:
-              `The ${browserType} translation model could not be loaded completely. Please check the browser's language model status and try again.`,
-            noticeType: 'warning',
-            type: 'download-timeout'
-          });
-        }
-
-        /**
-         * Keep the existing fallback behavior for an
-         * unavailable/unknown language model state.
-         */
-        if (status === 'unavailable') {
-          return returnWithCache({
-            available: false,
-            reason:
-              `The required ${browserType} translation language pack is not currently available.`,
-            noticeType: 'warning',
-            type: 'language-pack-not-installed'
-          });
-        }
-      } catch (error) {
-        console.warn(
-          `[TranslateSense] ${browserType} Translator API capability check failed:`,
-          error
-        );
-
-        /**
-         * Do not immediately fail here.
-         *
-         * Another supported Translator API implementation
-         * may still be available below.
-         */
-      }
-    }
-
-    /**
-     * ---------------------------------------------------------
-     * Translator API exists but does not expose canTranslate()
-     * ---------------------------------------------------------
-     *
-     * This preserves compatibility with the other Translator API
-     * implementations already supported by TranslateSense.
-     */
     if (translatorApi) {
-      return returnWithCache({
-        available: true
-      });
+      return returnWithCache({ available: true });
     }
 
-    /**
-     * ---------------------------------------------------------
-     * Prompt API capability
-     * ---------------------------------------------------------
-     *
-     * This is only a fallback capability signal.
-     *
-     * Prompt API availability does NOT prove that the Translator
-     * API is available. Therefore this should not be used as the
-     * translation API's primary availability result.
-     */
-    if (
-      window.ai &&
-      window.ai.languageModel &&
-      typeof window.ai.languageModel.capabilities ===
-      'function'
-    ) {
-      try {
-        const capabilities =
-          await window.ai.languageModel.capabilities();
-
-        if (
-          capabilities &&
-          capabilities.available !== 'no'
-        ) {
-          return returnWithCache({
-            available: false,
-            reason:
-              `${browserType} on-device AI is available, but the Built-in Translator API is not currently available.`,
-            noticeType: 'info',
-            type: 'translation-api-not-available'
-          });
-        }
-      } catch (error) {
-        console.warn(
-          `[TranslateSense] ${browserType} LanguageModel capability check failed:`,
-          error
-        );
-      }
-    }
-
-    /**
-     * ---------------------------------------------------------
-     * Translator API unavailable
-     * ---------------------------------------------------------
-     */
-    const translationFlagUrl =
-      getTranslateSenseBrowserFlagUrl(
-        browserType,
-        'translation-api'
-      );
-
+    const flagUrl = browserType === 'Edge' ? 'edge://flags/#translation-api' : 'chrome://flags/#translation-api';
     return returnWithCache({
       available: false,
       reason:
         `${browserType} Built-in AI translation API is not available in this browser. ` +
-        `If you are using an experimental browser build, enable the Experimental translation API at ${translationFlagUrl}.`,
+        `If you are using an experimental browser build, enable the Experimental translation API at ${flagUrl}.`,
       noticeType: 'warning',
       type: 'translation-api-not-available'
     });
   }
 
   /**
-   * Cache of active translator instances per language pair.
-   * Keeps sessions alive across multiple translations and avoids repeating createTranslator() requests.
-   */
-  const activeTranslators = new Map();
-
-  /**
    * Get or create a translator instance for a language pair.
-   *
-   * @param {string} sourceLanguage
-   * @param {string} targetLanguage
-   * @returns {Promise<Object>}
    */
-  async function getOrCreateTranslateSenseTranslator(
-    sourceLanguage,
-    targetLanguage
-  ) {
+  async function getOrCreateTranslateSenseTranslator(sourceLanguage, targetLanguage) {
     const key = `${sourceLanguage}->${targetLanguage}`;
     if (activeTranslators.has(key)) {
       return activeTranslators.get(key);
@@ -575,23 +384,11 @@
   }
 
   /**
-   * Warmup translation for a language pair using a sample word (e.g. 'Hello').
-   * When triggered under a user gesture, this activates model download cleanly.
-   *
-   * @param {string} sourceLang
-   * @param {string} targetLang
-   * @param {string} [sampleText='Hello']
-   * @returns {Promise<string>}
+   * Warmup translation for a language pair using a sample word.
    */
-  async function warmupTranslateSenseAi(
-    sourceLang,
-    targetLang,
-    sampleText = 'Hello'
-  ) {
-    const sourceLanguage =
-      TranslateSenseLanguageHelper.formatCode(sourceLang);
-    const targetLanguage =
-      TranslateSenseLanguageHelper.formatCode(targetLang);
+  async function warmupTranslateSenseAi(sourceLang, targetLang, sampleText = 'Hello') {
+    const sourceLanguage = TranslateSenseLanguageHelper.formatCode(sourceLang);
+    const targetLanguage = TranslateSenseLanguageHelper.formatCode(targetLang);
 
     const translator = await getOrCreateTranslateSenseTranslator(
       sourceLanguage,
@@ -602,31 +399,15 @@
   }
 
   /**
-   * Translate one piece of text using the available
-   * TranslateSense Built-in AI Translator API.
-   *
-   * @param {string} text
-   * @param {string} sourceLang
-   * @param {string} targetLang
-   * @returns {Promise<string>}
+   * Translate one piece of text using the available Built-in AI Translator.
    */
-  async function translateSingleWithTranslateSenseAi(
-    text,
-    sourceLang,
-    targetLang
-  ) {
-    if (
-      typeof text !== 'string' ||
-      text.trim() === ''
-    ) {
+  async function translateSingleWithTranslateSenseAi(text, sourceLang, targetLang) {
+    if (typeof text !== 'string' || text.trim() === '') {
       return text;
     }
 
-    const sourceLanguage =
-      TranslateSenseLanguageHelper.formatCode(sourceLang);
-
-    const targetLanguage =
-      TranslateSenseLanguageHelper.formatCode(targetLang);
+    const sourceLanguage = TranslateSenseLanguageHelper.formatCode(sourceLang);
+    const targetLanguage = TranslateSenseLanguageHelper.formatCode(targetLang);
 
     try {
       const translator = await getOrCreateTranslateSenseTranslator(
@@ -636,87 +417,46 @@
 
       return await translator.translate(text);
     } catch (error) {
-      // Invalidate cached translator on error so it can be recreated fresh if needed
       activeTranslators.delete(`${sourceLanguage}->${targetLanguage}`);
 
-      /**
-       * Preserve AbortError so the caller can cancel the
-       * complete translation operation correctly.
-       */
       if (error && error.name === 'AbortError') {
         throw error;
       }
 
-      const browserType =
-        detectTranslateSenseAiBrowser();
-
-      console.warn(
-        `[TranslateSense] ${browserType} Built-in AI translation failed:`,
-        error
-      );
-
+      console.warn('[TranslateSense] Built-in AI translation error:', error);
       throw new Error(
-        error && error.message
-          ? error.message
-          : 'The Built-in AI translation failed.'
+        error && error.message ? error.message : 'The Built-in AI translation failed.'
       );
     }
   }
 
   /**
-   * Translate text while preserving the HTML structure handled
-   * by TranslateSenseCore.
-   *
-   * @param {string} sourceText
-   * @param {string} sourceLang
-   * @param {string} targetLang
-   * @returns {Promise<string>}
+   * Translate text while preserving HTML structure.
    */
-  async function translateTranslateSenseHtml(
-    sourceText,
-    sourceLang,
-    targetLang
-  ) {
+  async function translateTranslateSenseHtml(sourceText, sourceLang, targetLang) {
     if (
       window.TranslateSenseCore &&
-      typeof window.TranslateSenseCore
-        .translateTextPreservingHtml === 'function'
+      typeof window.TranslateSenseCore.translateTextPreservingHtml === 'function'
     ) {
       return window.TranslateSenseCore.translateTextPreservingHtml(
         sourceText,
-        function (cleanText) {
-          return translateSingleWithTranslateSenseAi(
-            cleanText,
-            sourceLang,
-            targetLang
-          );
-        }
+        (cleanText) => translateSingleWithTranslateSenseAi(cleanText, sourceLang, targetLang)
       );
     }
 
-    return translateSingleWithTranslateSenseAi(
-      sourceText,
-      sourceLang,
-      targetLang
-    );
+    return translateSingleWithTranslateSenseAi(sourceText, sourceLang, targetLang);
   }
 
   /**
-   * Get the TranslateSense Built-in AI provider logo.
-   *
-   * @returns {string}
+   * Get provider logo.
    */
   function getTranslateSenseAiLogo() {
-    const editorData =
-      window.TranslateSenseEditorData ||
+    const data =
       window.TranslateSenseBulkData ||
+      window.TranslateSenseEditorData ||
       {};
-
-    const pluginUrl = editorData.pluginUrl || '';
-
-    return pluginUrl
-      ? `${pluginUrl}assets/img/chrome_ai.png`
-      : '';
+    const pluginUrl = data.pluginUrl || '';
+    return pluginUrl ? `${pluginUrl}assets/img/chrome_ai.png` : '';
   }
 
   /**
@@ -726,109 +466,39 @@
     title: 'Built-in AI',
     icon: '🤖',
     logo: getTranslateSenseAiLogo(),
-
-    desc:
-      'Private on-device translation powered by Google Chrome and Microsoft Edge Built-in AI.',
-
+    desc: 'Private on-device translation powered by Google Chrome and Microsoft Edge Built-in AI.',
     category: 'browser',
-
     savesToDb: false,
     requiresApiKey: false,
 
-    /**
-     * Check whether Built-in AI translation is available.
-     */
-    checkAvailability: function (
-      sourceLang,
-      targetLang,
-      bypassCache = false
-    ) {
-      console.log("check availability", sourceLang, targetLang, bypassCache);
-      return checkTranslateSenseAiAvailability(
-        sourceLang,
-        targetLang,
-        bypassCache
-      );
+    checkAvailability: function (sourceLang, targetLang, bypassCache = false) {
+      return checkTranslateSenseAiAvailability(sourceLang, targetLang, bypassCache);
     },
 
-    /**
-     * Warmup / trigger translator creation and model download for language pair.
-     */
-    warmup: function (
-      sourceLang,
-      targetLang,
-      sampleText = 'Hello'
-    ) {
-      return warmupTranslateSenseAi(
-        sourceLang,
-        targetLang,
-        sampleText
-      );
-    },
-
-    /**
-     * Check whether both languages are supported by
-     * TranslateSense's Built-in AI language mapping.
-     */
-    isLanguageSupported: function (
-      sourceLang,
-      targetLang
-    ) {
+    isLanguageSupported: function (sourceLang, targetLang) {
       return (
-        isTranslateSenseLanguageSupported(
-          sourceLang
-        ) &&
-        isTranslateSenseLanguageSupported(
-          targetLang
-        )
+        TranslateSenseLanguageHelper.isSupported(sourceLang) &&
+        TranslateSenseLanguageHelper.isSupported(targetLang)
       );
     },
 
-    /**
-     * Translate items using browser-based on-device AI.
-     *
-     * Translation is performed locally in the user's browser.
-     *
-     * @param {Object} params
-     * @param {Array<Object>} params.items
-     * @param {string} params.sourceLang
-     * @param {string} params.targetLang
-     * @param {number} [params.postId]
-     * @param {Function} onProgressCallback
-     * @returns {Promise<Array<Object>>}
-     */
-    translate: async function (
-      { items, sourceLang, targetLang },
-      onProgressCallback
-    ) {
-      if (
-        !Array.isArray(items) ||
-        items.length === 0
-      ) {
+    translate: async function ({ items, sourceLang, targetLang }, onProgressCallback) {
+      if (!Array.isArray(items) || items.length === 0) {
         return [];
       }
 
       const results = [];
 
-      for (
-        let index = 0;
-        index < items.length;
-        index++
-      ) {
+      for (let index = 0; index < items.length; index++) {
         const item = items[index] || {};
-
-        const sourceText =
-          item.content ||
-          item.source ||
-          '';
+        const sourceText = item.content || item.source || '';
 
         try {
-          const translatedText =
-            await translateTranslateSenseHtml(
-              sourceText,
-              sourceLang,
-              targetLang
-            );
+          const translatedText = await translateTranslateSenseHtml(
+            sourceText,
+            sourceLang,
+            targetLang
+          );
 
           const result = {
             hash: item.hash || '',
@@ -838,35 +508,16 @@
           };
 
           results.push(result);
-
-          if (
-            typeof onProgressCallback ===
-            'function'
-          ) {
+          if (typeof onProgressCallback === 'function') {
             onProgressCallback(result);
           }
         } catch (error) {
-          /**
-           * AbortError means the user cancelled the
-           * operation. Do not convert it into a normal
-           * failed translation result.
-           */
-          if (
-            error &&
-            error.name === 'AbortError'
-          ) {
+          if (error && error.name === 'AbortError') {
             throw error;
           }
 
           const errorMessage =
-            error && error.message
-              ? error.message
-              : 'Translation failed.';
-
-          console.warn(
-            `[TranslateSense] Built-in AI translation failed for item #${index}:`,
-            error
-          );
+            error && error.message ? error.message : 'Translation failed.';
 
           const failedResult = {
             hash: item.hash || '',
@@ -877,11 +528,7 @@
           };
 
           results.push(failedResult);
-
-          if (
-            typeof onProgressCallback ===
-            'function'
-          ) {
+          if (typeof onProgressCallback === 'function') {
             onProgressCallback(failedResult);
           }
         }
@@ -890,4 +537,144 @@
       return results;
     }
   });
+
+  /**
+   * Gesture event types for model download & warmup.
+   */
+  const GESTURE_EVENTS = ['mouseup', 'mousedown', 'click', 'keydown', 'touchstart'];
+
+  function removeGestureListeners() {
+    if (!isListeningGestures) return;
+    GESTURE_EVENTS.forEach((eventName) => {
+      window.removeEventListener(eventName, handleGestureWarmup);
+      document.removeEventListener(eventName, handleGestureWarmup);
+    });
+    isListeningGestures = false;
+  }
+
+  function addGestureListeners() {
+    if (isListeningGestures || unavailableLanguage.length === 0) return;
+    GESTURE_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, handleGestureWarmup, { passive: true });
+      document.addEventListener(eventName, handleGestureWarmup, { passive: true });
+    });
+    isListeningGestures = true;
+  }
+
+  async function handleGestureWarmup() {
+    if (unavailableLanguage.length === 0) {
+      removeGestureListeners();
+      return;
+    }
+
+    if (isProcessingUnavailableQueue) return;
+    isProcessingUnavailableQueue = true;
+
+    try {
+      const remainingLanguages = [];
+
+      for (let i = 0; i < unavailableLanguage.length; i++) {
+        const targetLang = unavailableLanguage[i];
+        const cacheKey = getLanguagePairCacheKey('en', targetLang);
+
+        try {
+          await warmupTranslateSenseAi('en', targetLang, 'Hello');
+
+          const checkResult = await checkTranslateSenseAiAvailability('en', targetLang, false);
+
+          if (checkResult.available === true && checkResult.status === 'readily') {
+            languageAvailabilityCache.set(cacheKey, {
+              available: true,
+              status: 'readily'
+            });
+          }
+        } catch (err) {
+          const errMsg = String(err && err.message ? err.message : err);
+          const isGestureOrDownload =
+            errMsg.toLowerCase().includes('user gesture') ||
+            errMsg.toLowerCase().includes('download');
+
+          if (isGestureOrDownload) {
+            remainingLanguages.push(targetLang);
+          } else {
+            languageAvailabilityCache.set(cacheKey, {
+              available: false,
+              reason: errMsg,
+              noticeType: 'error'
+            });
+          }
+        }
+      }
+
+      unavailableLanguage = remainingLanguages;
+
+      if (unavailableLanguage.length === 0) {
+        removeGestureListeners();
+      }
+    } finally {
+      isProcessingUnavailableQueue = false;
+    }
+  }
+
+  /**
+   * Pre-check languages on script load when Chrome AI provider is enabled.
+   */
+  async function initChromeAiLanguagePrecheck() {
+    const bulkData = window.TranslateSenseBulkData || {};
+    const languages = bulkData.languages || [];
+
+    if (!Array.isArray(languages) || languages.length === 0) {
+      return;
+    }
+
+    const enabledProviders = bulkData.enabledProviders;
+    const isChromeAiEnabled =
+      !enabledProviders ||
+      (Array.isArray(enabledProviders) &&
+        (enabledProviders.includes('chrome_ai') ||
+          enabledProviders.includes('chrome_local_ai'))) ||
+      (typeof enabledProviders === 'object' &&
+        (enabledProviders.chrome_ai || enabledProviders.chrome_local_ai));
+
+    if (!isChromeAiEnabled) {
+      return;
+    }
+
+    for (let i = 0; i < languages.length; i++) {
+      const item = languages[i];
+      const langSlug =
+        typeof item === 'object' && item !== null ? item.slug : String(item);
+
+      if (!langSlug || langSlug.toLowerCase() === 'en') continue;
+
+      try {
+        const checkResult = await checkTranslateSenseAiAvailability('en', langSlug, false);
+
+        const isDownloadable =
+          checkResult &&
+          (checkResult.status === 'downloadable');
+
+        if (isDownloadable) {
+          if (!unavailableLanguage.includes(langSlug)) {
+            unavailableLanguage.push(langSlug);
+          }
+        }
+      } catch (err) {
+        console.warn(
+          `[TranslateSense] Initial Chrome AI availability check failed for "${langSlug}":`,
+          err
+        );
+      }
+    }
+
+    if (unavailableLanguage.length > 0) {
+      addGestureListeners();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initChromeAiLanguagePrecheck);
+  } else {
+    initChromeAiLanguagePrecheck();
+  }
 })(window);

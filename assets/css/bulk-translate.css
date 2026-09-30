@@ -1106,6 +1106,27 @@
   border: 1px solid #fecaca;
 }
 
+button.ts-trans-status-pill.ts-error-detail-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  line-height: normal;
+}
+
+button.ts-trans-status-pill.ts-error-detail-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #f87171;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(220, 38, 38, 0.15);
+}
+
 .ts-trans-strings-count {
   color: #64748b;
   font-weight: 500;
