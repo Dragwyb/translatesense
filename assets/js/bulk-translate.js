@@ -202,8 +202,14 @@
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal">
             <div class="ts-bulk-header">
-              <h2>⚡ TranslateSense Bulk Translation</h2>
-              <button class="ts-bulk-close" id="ts-bulk-close-btn">&times;</button>
+              <div class="ts-bulk-header-title">
+                <div class="ts-bulk-logo-icon">⚡</div>
+                <div class="ts-bulk-title-group">
+                  <h2>TranslateSense Bulk Translation</h2>
+                  <span class="ts-bulk-subtitle">Fast &amp; Accurate Multi-Language Content Localizer</span>
+                </div>
+              </div>
+              <button class="ts-bulk-close" id="ts-bulk-close-btn" title="Close Modal">&times;</button>
             </div>
             
             <div class="ts-bulk-body">
@@ -226,9 +232,10 @@
                   </div>
                 </div>
 
-                <p style="margin-top: 0; color: #64748b; font-size: 13px;">
-                  Selected <strong>${postIds.length}</strong> post(s). Choose target language(s) to translate into:
-                </p>
+                <div class="ts-lang-info-banner">
+                  <span class="ts-info-icon">ℹ️</span>
+                  <span>Targeting <strong class="ts-highlight-tag">${postIds.length} ${postIds.length === 1 ? 'post' : 'posts'}</strong>. Choose target language(s) to translate into:</span>
+                </div>
 
                 <div class="ts-lang-actions">
                   <div class="ts-lang-btn-group">
@@ -240,14 +247,14 @@
                   </div>
                 </div>
 
-                <div class="ts-lang-grid" id="ts-lang-grid">
+                <div class="ts-lang-grid ${allLanguages.length > 6 ? 'cols-3' : 'cols-2'}" id="ts-lang-grid">
                   ${allLanguages
           .map((lang) => {
             const isChecked = selectedTargetLangs.includes(lang.slug);
             return `
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
                           <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
-                          <span class="ts-lang-name">${lang.name}</span>
+                          <span class="ts-lang-name" title="${lang.name}">${lang.name}</span>
                           <span class="ts-lang-code">${getLanguageDisplay(lang, allLanguages)}</span>
                         </div>
                       `;
@@ -318,20 +325,20 @@
 
               return `
                           <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
-                            <div class="ts-provider-radio-wrap">
-                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
-                              <span class="ts-provider-custom-radio"></span>
-                            </div>
-                            <div class="ts-provider-icon-box">
-                              <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                            </div>
-                            <div class="ts-provider-main-info">
-                              <div class="ts-provider-title-row">
-                                <span class="ts-provider-name">${p.title}</span>
-                                ${actionHtml}
+                            <div class="ts-provider-card-top">
+                              <div class="ts-provider-icon-box">
+                                <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                               </div>
-                              <p class="ts-provider-caption">${p.desc}</p>
+                              <div class="ts-provider-header-content">
+                                <div class="ts-provider-name">${p.title}</div>
+                                ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
+                              </div>
+                              <div class="ts-provider-radio-wrap">
+                                <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                                <span class="ts-provider-custom-radio"></span>
+                              </div>
                             </div>
+                            <p class="ts-provider-caption">${p.desc}</p>
                           </div>
                         `;
             }
@@ -520,20 +527,15 @@
           }
 
           const totalTranslations = postIds.length * selectedTargetLangs.length;
-          const langTags = allLanguages
-            .filter((l) => selectedTargetLangs.includes(l.slug))
-            .map((l) => `<span class="ts-summary-tag">${getLanguageFlagHtml(l, allLanguages)} ${l.name} (${l.slug.toUpperCase()})</span>`)
-            .join(' ');
-
           const step1Label = document.getElementById('ts-summary-step1-label');
           const summaryContent = document.getElementById('ts-summary-box-content');
 
           if (step1Label) step1Label.textContent = `${selectedTargetLangs.length} Languages`;
           if (summaryContent) {
             summaryContent.innerHTML = `
-              <div><strong>Bulk Job Summary:</strong> <strong>${postIds.length}</strong> post(s) &times; <strong>${selectedTargetLangs.length}</strong> language(s) = <strong>${totalTranslations}</strong> total translations.</div>
-              <div class="ts-summary-tags" style="margin-top: 6px;">
-                ${langTags}
+              <div class="ts-summary-job-row">
+                <span class="ts-summary-job-icon">📊</span>
+                <span class="ts-summary-job-text">Bulk Job Summary: <strong>${postIds.length}</strong> post(s) &times; <strong>${selectedTargetLangs.length}</strong> language(s) = <strong class="ts-highlight-tag">${totalTranslations} total translations</strong></span>
               </div>
             `;
           }
