@@ -723,9 +723,16 @@
         throw new Error('Missing post ID for getPageContent');
       }
 
+      this.pageContentCache = this.pageContentCache || new Map();
+      const fieldsStr = Array.isArray(fields) ? fields.join(',') : (fields || '');
+      const cacheKey = `${id}_${fieldsStr}`;
+
+      if (this.pageContentCache.has(cacheKey)) {
+        return this.pageContentCache.get(cacheKey);
+      }
+
       let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id);
-      if (fields && fields.length > 0) {
-        const fieldsStr = Array.isArray(fields) ? fields.join(',') : fields;
+      if (fieldsStr) {
         url += '&fields=' + encodeURIComponent(fieldsStr);
       }
 
@@ -737,7 +744,9 @@
         },
       });
 
-      return await response.json();
+      const data = await response.json();
+      this.pageContentCache.set(cacheKey, data);
+      return data;
     }
 
     /**

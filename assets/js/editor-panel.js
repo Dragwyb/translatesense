@@ -95,6 +95,8 @@
       this.isTranslating = false;
       this.lastCompletedProvider = '';
       this.lastCompletedTargetLang = '';
+      this.sourcePageData = null;
+      this.extractedStrings = null;
 
       this.init();
     }
@@ -668,8 +670,8 @@
           return;
         }
 
-        // Fetch comprehensive source page content using TranslateSenseCore
-        if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+        // Fetch comprehensive source page content only if not already fetched
+        if (!this.sourcePageData && window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
           try {
             this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
           } catch (e) {
@@ -677,38 +679,76 @@
           }
         }
 
-        const extractRes = await fetch(restUrl + 'extract-strings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-          body: JSON.stringify({
-            post_id: this.sourcePostId,
-            target_lang: this.targetLang,
-            builder: this.editorType,
-          }),
-        });
-
-        const data = await extractRes.json();
-        let rawStrings = Array.isArray(data.strings) ? data.strings : [];
-
-        // Exclude email addresses, URLs, and asset paths from translation
-        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
-
+        // Fetch extracted strings only if not already extracted in current session
+        let rawStrings = this.extractedStrings;
         if (!rawStrings || rawStrings.length === 0) {
-          const serverRes = await this.processServerPostTranslation();
+          const extractRes = await fetch(restUrl + 'extract-strings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-WP-Nonce': nonce,
+            },
+            body: JSON.stringify({
+              post_id: this.sourcePostId,
+              target_lang: this.targetLang,
+              builder: this.editorType,
+            }),
+          });
 
-          if (serverRes.success && serverRes.edit_url) {
-            window.location.href = serverRes.edit_url;
+          const data = await extractRes.json();
+          rawStrings = Array.isArray(data.strings) ? data.strings : [];
+
+          // Exclude email addresses, URLs, and asset paths from translation
+          rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
+
+          if (!rawStrings || rawStrings.length === 0) {
+            const serverRes = await this.processServerPostTranslation();
+
+            if (serverRes.success && serverRes.edit_url) {
+              window.location.href = serverRes.edit_url;
+              return;
+            }
+
+            alert('No translatable strings found in current blocks matching XML rules.');
             return;
           }
 
-          alert('No translatable strings found in current blocks matching XML rules.');
+          this.extractedStrings = rawStrings;
+        }
+
+        // Clone strings for this translation run, preserving any existing translated values for current provider if present
+        this.strings = this.extractedStrings.map((s) => {
+          let translated = '';
+          let status = 'Pending';
+
+          if (window.TranslateSenseCore) {
+            const cached = window.TranslateSenseCore.getTranslatedString(s.name, s.value, this.selectedProvider, s.name);
+            if (cached && typeof cached === 'object' && cached.translate) {
+              translated = cached.translate;
+              status = 'Completed';
+            } else if (typeof cached === 'string' && cached.trim() !== '') {
+              translated = cached;
+              status = 'Completed';
+            }
+          }
+
+          return {
+            ...s,
+            translated: translated,
+            status: status,
+          };
+        });
+
+        // Check if all strings already have translations for this provider
+        const allDone = this.strings.length > 0 && this.strings.every((s) => s.translated && String(s.translated).trim() !== '');
+        if (allDone) {
+          this.lastCompletedProvider = this.selectedProvider;
+          this.lastCompletedTargetLang = this.targetLang;
+          this.openReviewModal();
+          this.renderReviewTableRows();
           return;
         }
 
-        this.strings = rawStrings;
         this.openReviewModal();
         await this.performBatchTranslation();
       } catch (err) {
