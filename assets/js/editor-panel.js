@@ -397,20 +397,20 @@
 
             return `
                     <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
-                      <div class="ts-provider-radio-wrap">
-                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
-                        <span class="ts-provider-custom-radio"></span>
-                      </div>
-                      <div class="ts-provider-icon-box">
-                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                      </div>
-                      <div class="ts-provider-main-info">
-                        <div class="ts-provider-title-row">
-                          <span class="ts-provider-name">${p.title}</span>
-                          ${actionHtml}
+                      <div class="ts-provider-card-top">
+                        <div class="ts-provider-icon-box">
+                          <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                         </div>
-                        <p class="ts-provider-caption">${p.desc}</p>
+                        <div class="ts-provider-header-content">
+                          <div class="ts-provider-name">${p.title}</div>
+                          ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
+                        </div>
+                        <div class="ts-provider-radio-wrap">
+                          <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                          <span class="ts-provider-custom-radio"></span>
+                        </div>
                       </div>
+                      <p class="ts-provider-caption">${p.desc}</p>
                     </div>
                   `;
           }).join('');
