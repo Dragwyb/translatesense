@@ -93,8 +93,23 @@
       this.strings = [];
       this.isExtracting = false;
       this.isTranslating = false;
+      this.lastCompletedProvider = '';
+      this.lastCompletedTargetLang = '';
 
       this.init();
+    }
+
+    /**
+     * Check if translation for given provider is already 100% completed in current session.
+     */
+    isTranslationCompleted(provider = this.selectedProvider) {
+      if (!provider || !Array.isArray(this.strings) || this.strings.length === 0) {
+        return false;
+      }
+      if (this.lastCompletedProvider !== provider || this.lastCompletedTargetLang !== this.targetLang) {
+        return false;
+      }
+      return this.strings.every((s) => s.translated && String(s.translated).trim() !== '');
     }
 
     init() {
@@ -458,6 +473,14 @@
         }
 
         closeModal();
+
+        // If translation for this provider is already 100% completed, directly show Review Modal!
+        if (this.isTranslationCompleted(this.selectedProvider)) {
+          this.openReviewModal();
+          this.renderReviewTableRows();
+          return;
+        }
+
         await this.extractAndTranslate();
       });
     }
@@ -631,6 +654,13 @@
 
     async extractAndTranslate() {
       try {
+        // If translation for this provider is already completed, directly open review modal
+        if (this.isTranslationCompleted(this.selectedProvider)) {
+          this.openReviewModal();
+          this.renderReviewTableRows();
+          return;
+        }
+
         const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
         const nonce = this.config.nonce || '';
 
@@ -794,6 +824,10 @@
           '✓ Translation Completed (100%)',
           `All ${total} strings translated successfully!`
         );
+
+        // Record successful completion for this provider and target language
+        this.lastCompletedProvider = this.selectedProvider;
+        this.lastCompletedTargetLang = this.targetLang;
 
         // Graceful 1-2 seconds delay (1400ms) before fading out overlay
         await new Promise((resolve) => setTimeout(resolve, 1400));
