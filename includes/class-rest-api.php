@@ -258,14 +258,22 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'translate_post' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
+				'permission_callback' => array( __CLASS__, 'check_translate_post_permissions' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'     => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
+						},
+					),
+					'target_lang' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return '' !== sanitize_key( (string) $value );
 						},
 					),
 				),
@@ -513,6 +521,130 @@ class Rest_Api {
 	 */
 	public static function check_extract_strings_permissions( WP_REST_Request $request ) {
 		return self::check_edit_post_permission( $request );
+	}
+
+	/**
+	 * Check permissions for translating a post.
+	 *
+	 * Translation may update an existing target translation or create a new
+	 * target post. Both operations must be authorized before translation runs.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function check_translate_post_permissions( WP_REST_Request $request ) {
+
+		$source_post_id = self::get_request_post_id( $request );
+
+		if ( ! $source_post_id ) {
+			return new WP_Error(
+				'rest_invalid_post',
+				__( 'A valid post ID is required.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$source_post = get_post( $source_post_id );
+
+		if ( ! $source_post ) {
+			return new WP_Error(
+				'rest_post_not_found',
+				__( 'The requested source post could not be found.', 'translatesense' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+			return new WP_Error(
+				'rest_forbidden_source',
+				__( 'You are not allowed to edit the source post.', 'translatesense' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+
+		$target_language = sanitize_key( (string) $request->get_param( 'target_lang' ) );
+
+		if ( empty( $target_language ) ) {
+			return new WP_Error(
+				'rest_invalid_target_language',
+				__( 'A target language is required.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$target_post_id = self::get_existing_translation_post_id(
+			$source_post_id,
+			$target_language
+		);
+
+		if ( $target_post_id ) {
+			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+				return new WP_Error(
+					'rest_forbidden_target',
+					__( 'You are not allowed to edit the target translation post.', 'translatesense' ),
+					array( 'status' => rest_authorization_required_code() )
+				);
+			}
+
+			return true;
+		}
+
+		$post_type = get_post_type_object( $source_post->post_type );
+
+		if ( ! $post_type ) {
+			return new WP_Error(
+				'rest_invalid_post_type',
+				__( 'The source post type could not be determined.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$create_posts_capability = ! empty( $post_type->cap->create_posts )
+			? $post_type->cap->create_posts
+			: 'edit_posts';
+
+		if ( ! current_user_can( $create_posts_capability ) ) {
+			return new WP_Error(
+				'rest_forbidden_create_translation',
+				__( 'You are not allowed to create the target translation post.', 'translatesense' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get an existing target translation post ID.
+	 *
+	 * @param int    $source_post_id Source post ID.
+	 * @param string $target_language Target language slug.
+	 * @return int Target post ID or 0.
+	 */
+	private static function get_existing_translation_post_id( $source_post_id, $target_language ) {
+
+		$source_post_id  = absint( $source_post_id );
+		$target_language = sanitize_key( $target_language );
+
+		if ( ! $source_post_id || empty( $target_language ) ) {
+			return 0;
+		}
+
+		if ( ! function_exists( 'pll_get_post_translations' ) ) {
+			return 0;
+		}
+
+		$translations = pll_get_post_translations( $source_post_id );
+
+		if ( ! is_array( $translations ) || empty( $translations[ $target_language ] ) ) {
+			return 0;
+		}
+
+		$target_post_id = absint( $translations[ $target_language ] );
+
+		return ( $target_post_id && get_post( $target_post_id ) )
+			? $target_post_id
+			: 0;
 	}
 
 	/**
@@ -2158,16 +2290,16 @@ class Rest_Api {
 
 		if ( ! empty( $result['target_post_id'] ) ) {
 
-			$target_post_id = absint(
-				$result['target_post_id']
+			$target_post_id            = absint( $result['target_post_id'] );
+			$authorized_target_post_id = self::get_existing_translation_post_id(
+				$post_id,
+				$target_lang
 			);
 
 			if (
 				$target_post_id > 0 &&
-				current_user_can(
-					'edit_post',
-					$target_post_id
-				)
+				$target_post_id === $authorized_target_post_id &&
+				current_user_can( 'edit_post', $target_post_id )
 			) {
 				update_post_meta(
 					$target_post_id,
