@@ -909,7 +909,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, target_post_id FROM {$table} WHERE batch_id = %s",
+				"SELECT post_id, target_post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id
 			),
 			ARRAY_A
@@ -1977,13 +1977,15 @@ class Rest_Api {
 
 		$table_translations = Hashing_Db::get_translations_table();
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$packages_count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages"
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			"SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$results_count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''"
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			"SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
 
 		$bridge = Ai_Connector_Bridge::get_instance();
 
