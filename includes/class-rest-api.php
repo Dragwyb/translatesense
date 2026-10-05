@@ -40,7 +40,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_widgets_status' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_widgets' ),
 			)
 		);
 
@@ -53,7 +53,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_xml_config' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_xml_config' ),
 			)
 		);
 
@@ -69,7 +69,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'save_xml_config' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_save_xml_config' ),
 			)
 		);
 
@@ -85,7 +85,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'generate_config_from_content' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_generate_config' ),
 			)
 		);
 
@@ -98,7 +98,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'open_mapping_sandbox' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_open_mapping_sandbox' ),
 			)
 		);
 
@@ -111,7 +111,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_gutenberg_config' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_gutenberg_config' ),
 			)
 		);
 
@@ -124,7 +124,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_editor_xml_config' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_editor_xml_config' ),
 				'args'                => array(
 					'editor'  => array(
 						'required'          => false,
@@ -149,7 +149,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_page_content' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_page_content' ),
 				'args'                => array(
 					'post_id' => array(
 						'required'          => true,
@@ -172,7 +172,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_settings' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_settings' ),
 			)
 		);
 
@@ -185,7 +185,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'update_settings' ),
-				'permission_callback' => array( __CLASS__, 'check_admin_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_update_settings' ),
 			)
 		);
 
@@ -203,7 +203,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'extract_strings' ),
-				'permission_callback' => array( __CLASS__, 'check_extract_strings_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_extract_strings' ),
 				'args'                => array(
 					'post_id' => array(
 						'required'          => true,
@@ -235,7 +235,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'translate_batch' ),
-				'permission_callback' => array( __CLASS__, 'check_translate_batch_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_translate_batch' ),
 				'args'                => array(
 					'post_id' => array(
 						'required'          => false,
@@ -258,7 +258,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'translate_post' ),
-				'permission_callback' => array( __CLASS__, 'check_translate_post_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_translate_post' ),
 				'args'                => array(
 					'post_id'     => array(
 						'required'          => true,
@@ -289,7 +289,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'bulk_start' ),
-				'permission_callback' => array( __CLASS__, 'check_bulk_start_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_start' ),
 				'args'                => array(
 					'post_ids'         => array(
 						'required'          => true,
@@ -326,7 +326,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'bulk_status' ),
-				'permission_callback' => array( __CLASS__, 'check_bulk_status_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_status' ),
 				'args'                => array(
 					'batch_id' => array(
 						'required'          => true,
@@ -357,7 +357,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'bulk_update_job' ),
-				'permission_callback' => array( __CLASS__, 'check_bulk_update_job_permissions' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_update_job' ),
 				'args'                => array(
 					'job_id' => array(
 						'required'          => true,
@@ -380,7 +380,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'mark_translated' ),
-				'permission_callback' => array( __CLASS__, 'check_edit_post_permission' ),
+				'permission_callback' => array( __CLASS__, 'permission_mark_translated' ),
 				'args'                => array(
 					'post_id' => array(
 						'required'          => true,
@@ -395,20 +395,42 @@ class Rest_Api {
 		);
 	}
 
+
 	/**
-	 * Check administrator capability.
+	 * Build a standard REST authorization error.
+	 *
+	 * This is a private helper only. Every REST route has its own public
+	 * permission callback so that each endpoint has an explicit,
+	 * independently auditable authorization policy.
+	 *
+	 * @param string   $message Error message.
+	 * @param string   $code Error code.
+	 * @param int|null $status HTTP status.
+	 * @return WP_Error
+	 */
+	private static function permission_error( $message, $code = 'rest_forbidden', $status = null ) {
+
+		if ( null === $status ) {
+			$status = rest_authorization_required_code();
+		}
+
+		return new WP_Error(
+			$code,
+			$message,
+			array( 'status' => $status )
+		);
+	}
+
+	/**
+	 * Require plugin configuration access.
 	 *
 	 * @return true|WP_Error
 	 */
-	public static function check_admin_permissions() {
+	private static function require_manage_options() {
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'You are not allowed to perform this operation.', 'translatesense' ),
-				array(
-					'status' => rest_authorization_required_code(),
-				)
+			return self::permission_error(
+				__( 'You are not allowed to manage TranslateSense configuration.', 'translatesense' )
 			);
 		}
 
@@ -416,25 +438,704 @@ class Rest_Api {
 	}
 
 	/**
-	 * Check general post editing capability.
+	 * Require edit permission for a specific post.
 	 *
-	 * Used only for endpoints that expose non-sensitive editor configuration.
+	 * @param int    $post_id Post ID.
+	 * @param string $message Error message.
+	 * @return true|WP_Error
+	 */
+	private static function require_edit_post( $post_id, $message ) {
+
+		$post_id = absint( $post_id );
+
+		if ( ! $post_id ) {
+			return self::permission_error(
+				__( 'A valid post ID is required.', 'translatesense' ),
+				'rest_invalid_post',
+				400
+			);
+		}
+
+		if ( ! get_post( $post_id ) ) {
+			return self::permission_error(
+				__( 'The requested post could not be found.', 'translatesense' ),
+				'rest_post_not_found',
+				404
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return self::permission_error( $message );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Permission: GET /widgets.
 	 *
 	 * @return true|WP_Error
 	 */
-	public static function check_edit_permissions() {
+	public static function permission_get_widgets() {
+		return self::require_manage_options();
+	}
 
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'You are not allowed to access this resource.', 'translatesense' ),
-				array(
-					'status' => rest_authorization_required_code(),
-				)
+	/**
+	 * Permission: GET /xml-config.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_get_xml_config() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /xml-config.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_save_xml_config() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /generate-config.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_generate_config() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /open-mapping-sandbox.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_open_mapping_sandbox( WP_REST_Request $request ) {
+
+		$auth = self::require_manage_options();
+
+		if ( is_wp_error( $auth ) ) {
+			return $auth;
+		}
+
+		$params  = $request->get_json_params();
+		$builder = is_array( $params ) && isset( $params['builder'] )
+			? sanitize_key( $params['builder'] )
+			: 'gutenberg';
+
+		if ( 'core' === $builder ) {
+			$builder = 'gutenberg';
+		}
+
+		if ( ! self::is_valid_builder( $builder ) ) {
+			return self::permission_error(
+				__( 'Invalid builder.', 'translatesense' ),
+				'rest_invalid_builder',
+				400
 			);
 		}
 
 		return true;
+	}
+
+	/**
+	 * Permission: GET /gutenberg-config.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_get_gutenberg_config() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: GET /editor-xml-config.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_get_editor_xml_config() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: GET /get-page-content.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_get_page_content( WP_REST_Request $request ) {
+
+		return self::require_edit_post(
+			self::get_request_post_id( $request ),
+			__( 'You are not allowed to access this post content.', 'translatesense' )
+		);
+	}
+
+	/**
+	 * Permission: GET /settings.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_get_settings() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /settings.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function permission_update_settings() {
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /extract-strings.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_extract_strings( WP_REST_Request $request ) {
+
+		return self::require_edit_post(
+			self::get_request_post_id( $request ),
+			__( 'You are not allowed to extract strings from this post.', 'translatesense' )
+		);
+	}
+
+	/**
+	 * Permission: POST /translate-batch.
+	 *
+	 * A request tied to a post is authorized against that exact post.
+	 * Arbitrary strings without a post context are administrator-only.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_translate_batch( WP_REST_Request $request ) {
+
+		$params = $request->get_json_params();
+
+		if ( ! is_array( $params ) ) {
+			return self::permission_error(
+				__( 'Invalid request data.', 'translatesense' ),
+				'rest_invalid_params',
+				400
+			);
+		}
+
+		if ( empty( $params['strings'] ) || ! is_array( $params['strings'] ) ) {
+			return self::permission_error(
+				__( 'A valid strings array is required.', 'translatesense' ),
+				'rest_invalid_strings',
+				400
+			);
+		}
+
+		if ( count( $params['strings'] ) > 500 ) {
+			return self::permission_error(
+				__( 'The translation batch contains too many items.', 'translatesense' ),
+				'rest_request_too_large',
+				400
+			);
+		}
+
+		$post_id = self::get_request_post_id( $request );
+
+		if ( $post_id ) {
+			return self::require_edit_post(
+				$post_id,
+				__( 'You are not allowed to translate this post.', 'translatesense' )
+			);
+		}
+
+		return self::require_manage_options();
+	}
+
+	/**
+	 * Permission: POST /translate-post.
+	 *
+	 * The source, existing target, or target creation capability is checked
+	 * before the translation service is allowed to execute.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_translate_post( WP_REST_Request $request ) {
+
+		$source_post_id = self::get_request_post_id( $request );
+
+		$source_auth = self::require_edit_post(
+			$source_post_id,
+			__( 'You are not allowed to edit the source post.', 'translatesense' )
+		);
+
+		if ( is_wp_error( $source_auth ) ) {
+			return $source_auth;
+		}
+
+		$source_post = get_post( $source_post_id );
+
+		$target_language = sanitize_key(
+			(string) $request->get_param( 'target_lang' )
+		);
+
+		if ( '' === $target_language ) {
+			return self::permission_error(
+				__( 'A target language is required.', 'translatesense' ),
+				'rest_invalid_target_language',
+				400
+			);
+		}
+
+		$target_post_id = self::get_existing_translation_post_id(
+			$source_post_id,
+			$target_language
+		);
+
+		if ( $target_post_id ) {
+			return self::require_edit_post(
+				$target_post_id,
+				__( 'You are not allowed to edit the target translation post.', 'translatesense' )
+			);
+		}
+
+		$post_type = get_post_type_object( $source_post->post_type );
+
+		if ( ! $post_type ) {
+			return self::permission_error(
+				__( 'The source post type could not be determined.', 'translatesense' ),
+				'rest_invalid_post_type',
+				400
+			);
+		}
+
+		$create_capability = ! empty( $post_type->cap->create_posts )
+			? $post_type->cap->create_posts
+			: 'edit_posts';
+
+		if ( ! current_user_can( $create_capability ) ) {
+			return self::permission_error(
+				__( 'You are not allowed to create the target translation post.', 'translatesense' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Permission: POST /bulk-start.
+	 *
+	 * Each source and each existing target is individually authorized.
+	 * A missing target requires the relevant post type create capability.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_start( WP_REST_Request $request ) {
+
+		$params = $request->get_json_params();
+
+		$post_ids = is_array( $params ) && isset( $params['post_ids'] )
+			? $params['post_ids']
+			: array();
+
+		$target_languages = is_array( $params ) && isset( $params['target_languages'] )
+			? $params['target_languages']
+			: array();
+
+		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
+			return self::permission_error(
+				__( 'At least one post ID is required.', 'translatesense' ),
+				'rest_invalid_posts',
+				400
+			);
+		}
+
+		if ( empty( $target_languages ) || ! is_array( $target_languages ) ) {
+			return self::permission_error(
+				__( 'At least one target language is required.', 'translatesense' ),
+				'rest_invalid_languages',
+				400
+			);
+		}
+
+		$clean_post_ids = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'absint', $post_ids )
+				)
+			)
+		);
+
+		$clean_languages = array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						static function ( $language ) {
+							return sanitize_key( (string) $language );
+						},
+						$target_languages
+					)
+				)
+			)
+		);
+
+		if ( empty( $clean_post_ids ) || empty( $clean_languages ) ) {
+			return self::permission_error(
+				__( 'Valid post IDs and target languages are required.', 'translatesense' ),
+				'rest_invalid_params',
+				400
+			);
+		}
+
+		if ( count( $clean_post_ids ) > 100 || count( $clean_languages ) > 50 ) {
+			return self::permission_error(
+				__( 'The bulk translation request is too large.', 'translatesense' ),
+				'rest_request_too_large',
+				400
+			);
+		}
+
+		foreach ( $clean_post_ids as $post_id ) {
+
+			$post = get_post( $post_id );
+
+			if ( ! $post ) {
+				return self::permission_error(
+					__( 'One or more requested posts could not be found.', 'translatesense' ),
+					'rest_post_not_found',
+					404
+				);
+			}
+
+			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to translate one or more requested posts.', 'translatesense' )
+				);
+			}
+
+			$post_type = get_post_type_object( $post->post_type );
+
+			if ( ! $post_type ) {
+				return self::permission_error(
+					__( 'A requested post has an invalid post type.', 'translatesense' ),
+					'rest_invalid_post_type',
+					400
+				);
+			}
+
+			$create_capability = ! empty( $post_type->cap->create_posts )
+				? $post_type->cap->create_posts
+				: 'edit_posts';
+
+			$translations = function_exists( 'pll_get_post_translations' )
+				? pll_get_post_translations( $post_id )
+				: array();
+
+			$translations = is_array( $translations ) ? $translations : array();
+
+			foreach ( $clean_languages as $target_language ) {
+
+				$target_post_id = ! empty( $translations[ $target_language ] )
+					? absint( $translations[ $target_language ] )
+					: 0;
+
+				if ( $target_post_id ) {
+
+					if ( ! get_post( $target_post_id ) ) {
+						return self::permission_error(
+							__( 'A translation target associated with this post could not be found.', 'translatesense' ),
+							'rest_target_post_not_found',
+							404
+						);
+					}
+
+					if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+						return self::permission_error(
+							__( 'You are not allowed to update one or more target translation posts.', 'translatesense' )
+						);
+					}
+				} elseif ( ! current_user_can( $create_capability ) ) {
+
+					return self::permission_error(
+						__( 'You are not allowed to create one or more target translation posts.', 'translatesense' )
+					);
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Permission: GET /bulk-status.
+	 *
+	 * The batch and every post/target exposed by the status response must be
+	 * accessible to the current user.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_status( WP_REST_Request $request ) {
+
+		$batch_id = sanitize_text_field(
+			(string) $request->get_param( 'batch_id' )
+		);
+		$post_id  = absint( $request->get_param( 'post_id' ) );
+
+		if ( '' === $batch_id ) {
+			return self::permission_error(
+				__( 'A valid batch ID is required.', 'translatesense' ),
+				'rest_invalid_batch',
+				400
+			);
+		}
+
+		global $wpdb;
+
+		$table = Bulk_Process::get_table_name();
+
+		if ( ! is_string( $table ) || '' === $table ) {
+			return self::permission_error(
+				__( 'The translation batch storage is unavailable.', 'translatesense' ),
+				'rest_batch_storage_error',
+				500
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT post_id, target_post_id FROM {$table} WHERE batch_id = %s",
+				$batch_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return self::permission_error(
+				__( 'Batch not found.', 'translatesense' ),
+				'rest_batch_not_found',
+				404
+			);
+		}
+
+		$source_ids = array();
+
+		foreach ( $rows as $row ) {
+
+			$source_post_id = isset( $row['post_id'] ) ? absint( $row['post_id'] ) : 0;
+			$target_post_id = isset( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
+
+			if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+				return self::permission_error(
+					__( 'A post associated with this batch could not be found.', 'translatesense' ),
+					'rest_post_not_found',
+					404
+				);
+			}
+
+			$source_ids[ $source_post_id ] = true;
+
+			if ( $target_post_id ) {
+
+				if ( ! get_post( $target_post_id ) ) {
+					return self::permission_error(
+						__( 'A target translation post associated with this batch could not be found.', 'translatesense' ),
+						'rest_target_post_not_found',
+						404
+					);
+				}
+
+				if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+					return self::permission_error(
+						__( 'You are not allowed to access a target translation in this batch.', 'translatesense' )
+					);
+				}
+			}
+		}
+
+		if ( $post_id && ! isset( $source_ids[ $post_id ] ) ) {
+			return self::permission_error(
+				__( 'The requested post does not belong to this batch.', 'translatesense' )
+			);
+		}
+
+		foreach ( array_keys( $source_ids ) as $source_post_id ) {
+			if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to access this batch.', 'translatesense' )
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Permission: POST /bulk-update-job.
+	 *
+	 * A job can only be modified when its source post is editable and any
+	 * target_post_id is the actual translation target for that job.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_update_job( WP_REST_Request $request ) {
+
+		$params = $request->get_json_params();
+
+		$job_id = absint( $request->get_param( 'job_id' ) );
+
+		if ( ! $job_id && is_array( $params ) && ! empty( $params['job_id'] ) ) {
+			$job_id = absint( $params['job_id'] );
+		}
+
+		if ( ! $job_id ) {
+			return self::permission_error(
+				__( 'A valid job ID is required.', 'translatesense' ),
+				'rest_invalid_job',
+				400
+			);
+		}
+
+		$job = Bulk_Process::get_job( $job_id );
+
+		if ( ! $job ) {
+			return self::permission_error(
+				__( 'The requested translation job could not be found.', 'translatesense' ),
+				'rest_job_not_found',
+				404
+			);
+		}
+
+		$source_post_id = ! empty( $job->post_id ) ? absint( $job->post_id ) : 0;
+
+		if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+			return self::permission_error(
+				__( 'The translation job has no valid source post.', 'translatesense' ),
+				'rest_invalid_job',
+				400
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+			return self::permission_error(
+				__( 'You are not allowed to update this translation job.', 'translatesense' )
+			);
+		}
+
+		if ( ! empty( $job->target_post_id ) ) {
+
+			$target_post_id = absint( $job->target_post_id );
+
+			if ( ! $target_post_id || ! get_post( $target_post_id ) ) {
+				return self::permission_error(
+					__( 'The translation job has an invalid target post.', 'translatesense' ),
+					'rest_invalid_target_post',
+					400
+				);
+			}
+
+			if ( ! self::is_job_target( $job, $target_post_id ) ) {
+				return self::permission_error(
+					__( 'The job target does not match the source translation relationship.', 'translatesense' )
+				);
+			}
+
+			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to update the target translation post.', 'translatesense' )
+				);
+			}
+		}
+
+		$updates = is_array( $params ) && isset( $params['data'] ) && is_array( $params['data'] )
+			? $params['data']
+			: array();
+
+		if ( isset( $updates['target_post_id'] ) ) {
+
+			$target_post_id = absint( $updates['target_post_id'] );
+
+			if ( ! $target_post_id ) {
+				return self::permission_error(
+					__( 'The target post ID is invalid.', 'translatesense' ),
+					'rest_invalid_target_post',
+					400
+				);
+			}
+
+			if ( ! get_post( $target_post_id ) ) {
+				return self::permission_error(
+					__( 'The target post could not be found.', 'translatesense' ),
+					'rest_target_post_not_found',
+					404
+				);
+			}
+
+			if ( ! self::is_job_target( $job, $target_post_id ) ) {
+				return self::permission_error(
+					__( 'The requested target post is not the translation target for this job.', 'translatesense' )
+				);
+			}
+
+			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to update the requested target translation post.', 'translatesense' )
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Verify that a candidate target is the actual translation target for a job.
+	 *
+	 * @param object $job Job row.
+	 * @param int    $target_post_id Candidate target post ID.
+	 * @return bool
+	 */
+	private static function is_job_target( $job, $target_post_id ) {
+
+		$source_post_id  = ! empty( $job->post_id ) ? absint( $job->post_id ) : 0;
+		$target_post_id  = absint( $target_post_id );
+		$target_language = '';
+
+		if ( isset( $job->target_language ) ) {
+			$target_language = sanitize_key( (string) $job->target_language );
+		} elseif ( isset( $job->target_lang ) ) {
+			$target_language = sanitize_key( (string) $job->target_lang );
+		}
+
+		if ( ! $source_post_id || ! $target_post_id || '' === $target_language ) {
+			return false;
+		}
+
+		$expected_target_id = self::get_existing_translation_post_id(
+			$source_post_id,
+			$target_language
+		);
+
+		return $expected_target_id === $target_post_id;
+	}
+
+	/**
+	 * Permission: POST /mark-translated.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_mark_translated( WP_REST_Request $request ) {
+
+		return self::require_edit_post(
+			self::get_request_post_id( $request ),
+			__( 'You are not allowed to mark this post as translated.', 'translatesense' )
+		);
 	}
 
 	/**
@@ -460,587 +1161,6 @@ class Rest_Api {
 		return 0;
 	}
 
-	/**
-	 * Check permission for a specific post.
-	 *
-	 * This is intentionally strict. A post-specific endpoint must
-	 * receive and authorize the exact post being accessed.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_edit_post_permission( WP_REST_Request $request ) {
-
-		$post_id = self::get_request_post_id( $request );
-
-		if ( ! $post_id ) {
-			return new WP_Error(
-				'rest_invalid_post',
-				__( 'A valid post ID is required.', 'translatesense' ),
-				array(
-					'status' => 400,
-				)
-			);
-		}
-
-		$post = get_post( $post_id );
-
-		if ( ! $post ) {
-			return new WP_Error(
-				'rest_post_not_found',
-				__( 'The requested post could not be found.', 'translatesense' ),
-				array(
-					'status' => 404,
-				)
-			);
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'You are not allowed to edit this post.', 'translatesense' ),
-				array(
-					'status' => rest_authorization_required_code(),
-				)
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check permissions for string extraction.
-	 *
-	 * Extraction is post-scoped. A user may extract strings only from a
-	 * post they are allowed to edit. Global XML configuration endpoints
-	 * remain administrator-only. Content_Parser::parse() must not write
-	 * global configuration as a side effect of this endpoint.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_extract_strings_permissions( WP_REST_Request $request ) {
-		return self::check_edit_post_permission( $request );
-	}
-
-	/**
-	 * Check permissions for translating a post.
-	 *
-	 * Translation may update an existing target translation or create a new
-	 * target post. Both operations must be authorized before translation runs.
-	 *
-	 * @param WP_REST_Request $request REST request.
-	 * @return true|WP_Error
-	 */
-	public static function check_translate_post_permissions( WP_REST_Request $request ) {
-
-		$source_post_id = self::get_request_post_id( $request );
-
-		if ( ! $source_post_id ) {
-			return new WP_Error(
-				'rest_invalid_post',
-				__( 'A valid post ID is required.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		$source_post = get_post( $source_post_id );
-
-		if ( ! $source_post ) {
-			return new WP_Error(
-				'rest_post_not_found',
-				__( 'The requested source post could not be found.', 'translatesense' ),
-				array( 'status' => 404 )
-			);
-		}
-
-		if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
-			return new WP_Error(
-				'rest_forbidden_source',
-				__( 'You are not allowed to edit the source post.', 'translatesense' ),
-				array( 'status' => rest_authorization_required_code() )
-			);
-		}
-
-		$target_language = sanitize_key( (string) $request->get_param( 'target_lang' ) );
-
-		if ( empty( $target_language ) ) {
-			return new WP_Error(
-				'rest_invalid_target_language',
-				__( 'A target language is required.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		$target_post_id = self::get_existing_translation_post_id(
-			$source_post_id,
-			$target_language
-		);
-
-		if ( $target_post_id ) {
-			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
-				return new WP_Error(
-					'rest_forbidden_target',
-					__( 'You are not allowed to edit the target translation post.', 'translatesense' ),
-					array( 'status' => rest_authorization_required_code() )
-				);
-			}
-
-			return true;
-		}
-
-		$post_type = get_post_type_object( $source_post->post_type );
-
-		if ( ! $post_type ) {
-			return new WP_Error(
-				'rest_invalid_post_type',
-				__( 'The source post type could not be determined.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		$create_posts_capability = ! empty( $post_type->cap->create_posts )
-			? $post_type->cap->create_posts
-			: 'edit_posts';
-
-		if ( ! current_user_can( $create_posts_capability ) ) {
-			return new WP_Error(
-				'rest_forbidden_create_translation',
-				__( 'You are not allowed to create the target translation post.', 'translatesense' ),
-				array( 'status' => rest_authorization_required_code() )
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Get an existing target translation post ID.
-	 *
-	 * @param int    $source_post_id Source post ID.
-	 * @param string $target_language Target language slug.
-	 * @return int Target post ID or 0.
-	 */
-	private static function get_existing_translation_post_id( $source_post_id, $target_language ) {
-
-		$source_post_id  = absint( $source_post_id );
-		$target_language = sanitize_key( $target_language );
-
-		if ( ! $source_post_id || empty( $target_language ) ) {
-			return 0;
-		}
-
-		if ( ! function_exists( 'pll_get_post_translations' ) ) {
-			return 0;
-		}
-
-		$translations = pll_get_post_translations( $source_post_id );
-
-		if ( ! is_array( $translations ) || empty( $translations[ $target_language ] ) ) {
-			return 0;
-		}
-
-		$target_post_id = absint( $translations[ $target_language ] );
-
-		return ( $target_post_id && get_post( $target_post_id ) )
-			? $target_post_id
-			: 0;
-	}
-
-	/**
-	 * Normalize nested translation data without stripping HTML.
-	 *
-	 * Translation payloads may contain HTML, Elementor data, Gutenberg
-	 * markup, placeholders, attributes, and JSON structures. Do not use
-	 * sanitize_text_field() or wp_strip_all_tags() for these values.
-	 *
-	 * @param mixed $value Submitted value.
-	 * @param int   $depth Recursion depth.
-	 * @return mixed
-	 */
-	private static function normalize_translation_value( $value, $depth = 0 ) {
-
-		if ( $depth > 20 ) {
-			return '';
-		}
-
-		if ( is_array( $value ) ) {
-			$normalized = array();
-
-			foreach ( $value as $key => $item ) {
-				$normalized_key                = is_int( $key ) ? $key : sanitize_key( $key );
-				$normalized[ $normalized_key ] = self::normalize_translation_value( $item, $depth + 1 );
-			}
-
-			return $normalized;
-		}
-
-		if ( is_string( $value ) ) {
-			return wp_check_invalid_utf8( $value );
-		}
-
-		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) || null === $value ) {
-			return $value;
-		}
-
-		return '';
-	}
-
-	/**
-	 * Check permissions for arbitrary batch translation.
-	 *
-	 * This endpoint accepts strings directly rather than operating
-	 * on a specific post. Therefore edit_post authorization is not
-	 * used for this endpoint.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_translate_batch_permissions( WP_REST_Request $request ) {
-
-		$params = $request->get_json_params();
-
-		if ( ! is_array( $params ) ) {
-			return new WP_Error(
-				'rest_invalid_params',
-				__( 'Invalid request data.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		if ( empty( $params['strings'] ) || ! is_array( $params['strings'] ) ) {
-			return new WP_Error(
-				'rest_invalid_strings',
-				__( 'A valid strings array is required.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		$post_id = self::get_request_post_id( $request );
-
-		if ( $post_id ) {
-			return self::check_edit_post_permission( $request );
-		}
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'A valid post ID is required for batch translation.', 'translatesense' ),
-				array( 'status' => rest_authorization_required_code() )
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check bulk translation batch start permissions.
-	 *
-	 * Every requested post must be individually authorized.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_bulk_start_permissions( WP_REST_Request $request ) {
-
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'You are not allowed to start bulk translation.', 'translatesense' ),
-				array( 'status' => rest_authorization_required_code() )
-			);
-		}
-
-		$params           = $request->get_json_params();
-		$post_ids         = is_array( $params ) && isset( $params['post_ids'] ) ? $params['post_ids'] : array();
-		$target_languages = is_array( $params ) && isset( $params['target_languages'] ) ? $params['target_languages'] : array();
-
-		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
-			return new WP_Error( 'rest_invalid_posts', __( 'At least one post ID is required.', 'translatesense' ), array( 'status' => 400 ) );
-		}
-
-		if ( empty( $target_languages ) || ! is_array( $target_languages ) ) {
-			return new WP_Error( 'rest_invalid_languages', __( 'At least one target language is required.', 'translatesense' ), array( 'status' => 400 ) );
-		}
-
-		$clean_post_ids  = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
-		$clean_languages = array_values( array_unique( array_filter( array_map( 'sanitize_key', $target_languages ) ) ) );
-
-		if ( empty( $clean_post_ids ) || empty( $clean_languages ) ) {
-			return new WP_Error( 'rest_invalid_params', __( 'Valid post IDs and target languages are required.', 'translatesense' ), array( 'status' => 400 ) );
-		}
-
-		foreach ( $clean_post_ids as $post_id ) {
-			if ( ! get_post( $post_id ) ) {
-				return new WP_Error( 'rest_post_not_found', __( 'One or more requested posts could not be found.', 'translatesense' ), array( 'status' => 404 ) );
-			}
-
-			if ( ! current_user_can( 'edit_post', $post_id ) ) {
-				return new WP_Error( 'rest_forbidden', __( 'You are not allowed to translate one or more requested posts.', 'translatesense' ), array( 'status' => rest_authorization_required_code() ) );
-			}
-		}
-
-		/* Authorize existing target translation posts before the batch can update them. */
-		$target_post_ids = self::get_existing_translation_post_ids( $clean_post_ids, $clean_languages );
-
-		foreach ( $target_post_ids as $target_post_id ) {
-			if ( ! get_post( $target_post_id ) || ! current_user_can( 'edit_post', $target_post_id ) ) {
-				return new WP_Error( 'rest_forbidden', __( 'You are not allowed to update one or more target translation posts.', 'translatesense' ), array( 'status' => rest_authorization_required_code() ) );
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Return existing Polylang translations only. Never creates or updates posts.
-	 *
-	 * @param int[]    $source_post_ids Source post IDs.
-	 * @param string[] $target_languages Target language slugs.
-	 * @return int[]
-	 */
-	private static function get_existing_translation_post_ids( $source_post_ids, $target_languages ) {
-
-		$target_post_ids = array();
-
-		if ( ! function_exists( 'pll_get_post_translations' ) ) {
-			return $target_post_ids;
-		}
-
-		foreach ( $source_post_ids as $source_post_id ) {
-			$translations = pll_get_post_translations( absint( $source_post_id ) );
-
-			if ( ! is_array( $translations ) ) {
-				continue;
-			}
-
-			foreach ( $target_languages as $target_language ) {
-				$target_language = sanitize_key( $target_language );
-
-				if ( isset( $translations[ $target_language ] ) ) {
-					$target_post_ids[] = absint( $translations[ $target_language ] );
-				}
-			}
-		}
-
-		return array_values( array_unique( array_filter( $target_post_ids ) ) );
-	}
-
-	/**
-	 * Check permissions for the bulk status REST endpoint.
-	 *
-	 * batch_id is the primary resource.
-	 *
-	 * When post_id is also supplied:
-	 *
-	 *     batch_id -> associated posts -> post_id
-	 *
-	 * The supplied post_id must actually belong to the batch.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_bulk_status_permissions( WP_REST_Request $request ) {
-
-		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
-		$post_id  = absint( $request->get_param( 'post_id' ) );
-
-		if ( '' === $batch_id ) {
-			return new WP_Error(
-				'rest_invalid_batch',
-				__( 'A valid batch ID is required.', 'translatesense' ),
-				array( 'status' => 400 )
-			);
-		}
-
-		global $wpdb;
-
-		$table = Bulk_Process::get_table_name();
-
-		/*
-		 * The table name comes from the plugin's own table-name
-		 * generator. The batch ID itself is always passed through
-		 * $wpdb->prepare().
-		 */
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-		$batch_post_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT DISTINCT post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$batch_id
-			)
-		);
-
-		if ( ! is_array( $batch_post_ids ) || empty( $batch_post_ids ) ) {
-			return new WP_Error(
-				'rest_batch_not_found',
-				__( 'Batch not found.', 'translatesense' ),
-				array( 'status' => 404 )
-			);
-		}
-
-		if ( $post_id > 0 && ! in_array( $post_id, $batch_post_ids, true ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'The requested post does not belong to this batch.', 'translatesense' ),
-				array( 'status' => rest_authorization_required_code() )
-			);
-		}
-
-		foreach ( $batch_post_ids as $batch_post_id ) {
-			$batch_post_id = absint( $batch_post_id );
-
-			if ( ! $batch_post_id || ! get_post( $batch_post_id ) ) {
-				return new WP_Error(
-					'rest_post_not_found',
-					__( 'A post associated with this batch could not be found.', 'translatesense' ),
-					array( 'status' => 404 )
-				);
-			}
-
-			if ( ! current_user_can( 'edit_post', $batch_post_id ) ) {
-				return new WP_Error(
-					'rest_forbidden',
-					__( 'You are not allowed to access this batch.', 'translatesense' ),
-					array( 'status' => rest_authorization_required_code() )
-				);
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check bulk translation job update permissions.
-	 *
-	 * Authorization is performed against the actual job and its
-	 * associated source/target posts.
-	 *
-	 * @param WP_REST_Request $request REST API request.
-	 * @return true|WP_Error
-	 */
-	public static function check_bulk_update_job_permissions( WP_REST_Request $request ) {
-
-		$params = $request->get_json_params();
-
-		$job_id = absint( $request->get_param( 'job_id' ) );
-
-		if ( ! $job_id && is_array( $params ) && ! empty( $params['job_id'] ) ) {
-			$job_id = absint( $params['job_id'] );
-		}
-
-		if ( ! $job_id ) {
-			return new WP_Error(
-				'rest_invalid_job',
-				__( 'A valid job ID is required.', 'translatesense' ),
-				array(
-					'status' => 400,
-				)
-			);
-		}
-
-		$job = Bulk_Process::get_job( $job_id );
-
-		if ( ! $job ) {
-			return new WP_Error(
-				'rest_job_not_found',
-				__( 'The requested translation job could not be found.', 'translatesense' ),
-				array(
-					'status' => 404,
-				)
-			);
-		}
-
-		/*
-		 * A job must have an authorized source post.
-		 */
-		if ( empty( $job->post_id ) ) {
-			return new WP_Error(
-				'rest_invalid_job',
-				__( 'The translation job has no valid source post.', 'translatesense' ),
-				array(
-					'status' => 400,
-				)
-			);
-		}
-
-		$source_post_id = absint( $job->post_id );
-
-		if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
-			return new WP_Error(
-				'rest_forbidden',
-				__( 'You are not allowed to update this translation job.', 'translatesense' ),
-				array(
-					'status' => rest_authorization_required_code(),
-				)
-			);
-		}
-
-		/*
-		 * Verify the existing target post, when present.
-		 */
-		if ( ! empty( $job->target_post_id ) ) {
-
-			$target_post_id = absint( $job->target_post_id );
-
-			if (
-				$target_post_id > 0 &&
-				! current_user_can( 'edit_post', $target_post_id )
-			) {
-				return new WP_Error(
-					'rest_forbidden',
-					__( 'You are not allowed to update the target post for this job.', 'translatesense' ),
-					array(
-						'status' => rest_authorization_required_code(),
-					)
-				);
-			}
-		}
-
-		/*
-		 * If the request attempts to change target_post_id,
-		 * authorize the new target as well.
-		 */
-		$updates = is_array( $params ) && isset( $params['data'] ) && is_array( $params['data'] )
-			? $params['data']
-			: array();
-
-		if ( ! empty( $updates['target_post_id'] ) ) {
-
-			$target_post_id = absint( $updates['target_post_id'] );
-
-			if ( ! $target_post_id ) {
-				return new WP_Error(
-					'rest_invalid_target_post',
-					__( 'The target post ID is invalid.', 'translatesense' ),
-					array(
-						'status' => 400,
-					)
-				);
-			}
-
-			if ( ! get_post( $target_post_id ) ) {
-				return new WP_Error(
-					'rest_target_post_not_found',
-					__( 'The target post could not be found.', 'translatesense' ),
-					array(
-						'status' => 404,
-					)
-				);
-			}
-
-			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
-				return new WP_Error(
-					'rest_forbidden',
-					__( 'You are not allowed to use this target post.', 'translatesense' ),
-					array(
-						'status' => rest_authorization_required_code(),
-					)
-				);
-			}
-		}
-
-		return true;
-	}
 
 	/**
 	 * Get widgets status endpoint.
@@ -1857,33 +1977,41 @@ class Rest_Api {
 
 		$table_translations = Hashing_Db::get_translations_table();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$packages_count = (int) $wpdb->get_var(
 			"SELECT COUNT(id) FROM {$wpdb->prefix}translatesense_packages"
-		);
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$results_count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		);
+			"SELECT COUNT(id) FROM {$table_translations} WHERE translated_string != ''"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		$bridge = Ai_Connector_Bridge::get_instance();
 
-		$active_providers = $bridge->get_active_providers();
+		$active_providers = self::redact_sensitive_values(
+			$bridge->get_active_providers()
+		);
 
 		$provider_models = array();
 
 		foreach ( $active_providers as $p_id => $p_opts ) {
 
-			$provider_models[ $p_id ] = $bridge->get_models(
-				(string) $p_id,
-				(array) $p_opts
+			$provider_models[ $p_id ] = self::redact_sensitive_values(
+				$bridge->get_models(
+					(string) $p_id,
+					(array) $p_opts
+				)
 			);
+		}
+
+		$response_settings = $settings;
+
+		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
+			$response_settings[ $secret_key ] = ! empty( $settings[ $secret_key ] );
 		}
 
 		return rest_ensure_response(
 			array(
-				'settings'         => $settings,
+				'settings'         => $response_settings,
 				'languages'        => $languages,
 				'polylang_active'  => $polylang_active,
 				'active_builders'  => Admin_Menu::get_active_builders(),
@@ -1934,16 +2062,26 @@ class Rest_Api {
 
 		$bridge = Ai_Connector_Bridge::get_instance();
 
-		$active_providers = $bridge->get_active_providers( true );
+		$active_providers = self::redact_sensitive_values(
+			$bridge->get_active_providers( true )
+		);
 
 		$provider_models = array();
 
 		foreach ( $active_providers as $p_id => $p_opts ) {
 
-			$provider_models[ $p_id ] = $bridge->get_models(
-				(string) $p_id,
-				(array) $p_opts
+			$provider_models[ $p_id ] = self::redact_sensitive_values(
+				$bridge->get_models(
+					(string) $p_id,
+					(array) $p_opts
+				)
 			);
+		}
+
+		$response_settings = $updated;
+
+		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
+			$response_settings[ $secret_key ] = ! empty( $updated[ $secret_key ] );
 		}
 
 		return rest_ensure_response(
@@ -1953,12 +2091,60 @@ class Rest_Api {
 					'Settings updated successfully.',
 					'translatesense'
 				),
-				'settings'         => $updated,
+				'settings'         => $response_settings,
 				'active_providers' => $active_providers,
 				'provider_models'  => $provider_models,
 			)
 		);
 	}
+
+
+	/**
+	 * Redact sensitive provider configuration before it is returned by REST.
+	 *
+	 * @param mixed $value Provider configuration.
+	 * @param int   $depth Recursion depth.
+	 * @return mixed
+	 */
+	private static function redact_sensitive_values( $value, $depth = 0 ) {
+
+		if ( $depth > 10 ) {
+			return null;
+		}
+
+		if ( is_array( $value ) ) {
+
+			$redacted = array();
+
+			foreach ( $value as $key => $item ) {
+
+				$key_string = is_string( $key ) ? strtolower( $key ) : '';
+
+				if (
+					false !== strpos( $key_string, 'api_key' ) ||
+					false !== strpos( $key_string, 'apikey' ) ||
+					false !== strpos( $key_string, 'access_token' ) ||
+					false !== strpos( $key_string, 'refresh_token' ) ||
+					false !== strpos( $key_string, 'client_secret' ) ||
+					false !== strpos( $key_string, 'password' ) ||
+					false !== strpos( $key_string, 'secret_key' )
+				) {
+					$redacted[ $key ] = ! empty( $item );
+					continue;
+				}
+
+				$redacted[ $key ] = self::redact_sensitive_values(
+					$item,
+					$depth + 1
+				);
+			}
+
+			return $redacted;
+		}
+
+		return $value;
+	}
+
 
 	/**
 	 * Check whether a builder slug is supported.
@@ -1993,8 +2179,19 @@ class Rest_Api {
 		}
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $key ) {
-			if ( isset( $input[ $key ] ) ) {
-				$updated[ $key ] = sanitize_text_field( $input[ $key ] );
+
+			if ( ! isset( $input[ $key ] ) ) {
+				continue;
+			}
+
+			$value = trim( (string) $input[ $key ] );
+
+			/*
+			 * REST GET exposes only a boolean for credentials. An empty
+			 * submitted value therefore means "keep the current credential".
+			 */
+			if ( '' !== $value ) {
+				$updated[ $key ] = sanitize_text_field( $value );
 			}
 		}
 
@@ -2279,6 +2476,26 @@ class Rest_Api {
 			);
 		}
 
+		$normalized_translations = self::normalize_translation_value(
+			$in_memory_translations
+		);
+
+		if ( ! is_array( $normalized_translations ) ) {
+			return new WP_Error(
+				'invalid_translations',
+				__( 'Invalid translation data.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( strlen( wp_json_encode( $normalized_translations ) ) > 1048576 ) {
+			return new WP_Error(
+				'rest_request_too_large',
+				__( 'The translation data is too large.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		$result = Translate::translate_post(
 			$post_id,
 			(string) $target_lang,
@@ -2536,6 +2753,48 @@ class Rest_Api {
 			}
 		}
 
+		$job = Bulk_Process::get_job( $job_id );
+
+		if ( ! $job ) {
+			return new WP_Error(
+				'job_not_found',
+				__( 'The requested translation job could not be found.', 'translatesense' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		if ( isset( $clean_data['status'] ) ) {
+
+			$allowed_statuses = array(
+				'pending',
+				'processing',
+				'completed',
+				'failed',
+				'cancelled',
+				'error',
+			);
+
+			if ( ! in_array( $clean_data['status'], $allowed_statuses, true ) ) {
+				return new WP_Error(
+					'invalid_status',
+					__( 'Invalid translation job status.', 'translatesense' ),
+					array( 'status' => 400 )
+				);
+			}
+		}
+
+		if (
+			isset( $clean_data['target_post_id'] ) &&
+			$clean_data['target_post_id'] > 0 &&
+			! self::is_job_target( $job, $clean_data['target_post_id'] )
+		) {
+			return new WP_Error(
+				'invalid_target_post',
+				__( 'The target post does not belong to this translation job.', 'translatesense' ),
+				array( 'status' => 403 )
+			);
+		}
+
 		if ( empty( $clean_data ) ) {
 			return new WP_Error(
 				'invalid_updates',
@@ -2554,7 +2813,11 @@ class Rest_Api {
 
 			$target_post_id = absint( $updates['target_post_id'] );
 
-			if ( ! get_post( $target_post_id ) || ! current_user_can( 'edit_post', $target_post_id ) ) {
+			if (
+				! get_post( $target_post_id ) ||
+				! self::is_job_target( $job, $target_post_id ) ||
+				! current_user_can( 'edit_post', $target_post_id )
+			) {
 				return new WP_Error(
 					'rest_forbidden',
 					__( 'You are not allowed to update the target translation post.', 'translatesense' ),
@@ -2645,5 +2908,77 @@ class Rest_Api {
 				'post_id' => $post_id,
 			)
 		);
+	}
+
+	/**
+	 * Get an existing target translation post ID.
+	 *
+	 * @param int    $source_post_id Source post ID.
+	 * @param string $target_language Target language slug.
+	 * @return int Target post ID or 0.
+	 */
+	private static function get_existing_translation_post_id( $source_post_id, $target_language ) {
+
+		$source_post_id  = absint( $source_post_id );
+		$target_language = sanitize_key( $target_language );
+
+		if ( ! $source_post_id || empty( $target_language ) ) {
+			return 0;
+		}
+
+		if ( ! function_exists( 'pll_get_post_translations' ) ) {
+			return 0;
+		}
+
+		$translations = pll_get_post_translations( $source_post_id );
+
+		if ( ! is_array( $translations ) || empty( $translations[ $target_language ] ) ) {
+			return 0;
+		}
+
+		$target_post_id = absint( $translations[ $target_language ] );
+
+		return ( $target_post_id && get_post( $target_post_id ) )
+			? $target_post_id
+			: 0;
+	}
+
+	/**
+	 * Normalize nested translation data without stripping HTML.
+	 *
+	 * Translation payloads may contain HTML, Elementor data, Gutenberg
+	 * markup, placeholders, attributes, and JSON structures. Do not use
+	 * sanitize_text_field() or wp_strip_all_tags() for these values.
+	 *
+	 * @param mixed $value Submitted value.
+	 * @param int   $depth Recursion depth.
+	 * @return mixed
+	 */
+	private static function normalize_translation_value( $value, $depth = 0 ) {
+
+		if ( $depth > 20 ) {
+			return '';
+		}
+
+		if ( is_array( $value ) ) {
+			$normalized = array();
+
+			foreach ( $value as $key => $item ) {
+				$normalized_key                = is_int( $key ) ? $key : sanitize_key( $key );
+				$normalized[ $normalized_key ] = self::normalize_translation_value( $item, $depth + 1 );
+			}
+
+			return $normalized;
+		}
+
+		if ( is_string( $value ) ) {
+			return wp_check_invalid_utf8( $value );
+		}
+
+		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) || null === $value ) {
+			return $value;
+		}
+
+		return '';
 	}
 }
