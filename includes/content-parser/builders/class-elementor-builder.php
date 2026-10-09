@@ -202,13 +202,18 @@ class Elementor_Builder extends Base_Builder {
 						$discovered_rules
 					);
 
-					// Persist newly discovered rules to custom XML and refresh in-memory cache
+					// Persist newly discovered rules to custom XML if authorized, and update in-memory rules
 					if ( ! empty( $discovered_rules ) ) {
-						Xml_Engine::append_custom_rule(
-							'elementor',
-							$widget_name,
-							$discovered_rules
-						);
+						$can_persist = current_user_can( 'manage_options' );
+						$can_persist = (bool) apply_filters( 'translatesense_can_persist_xml_rules', $can_persist, 'elementor', $widget_name, $discovered_rules );
+
+						if ( $can_persist ) {
+							Xml_Engine::append_custom_rule(
+								'elementor',
+								$widget_name,
+								$discovered_rules
+							);
+						}
 
 						foreach ( $discovered_rules as $new_path => $schema_info ) {
 							$elementor_rules[ $widget_name ]['fields'][ $new_path ] = array(
