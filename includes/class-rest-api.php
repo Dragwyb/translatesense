@@ -225,9 +225,10 @@ class Rest_Api {
 		/*
 		 * 7. Translate batch of strings.
 		 *
-		 * This endpoint operates on arbitrary submitted strings.
-		 * It therefore must not rely on an unrelated post_id for
-		 * authorization.
+		 * Translating arbitrary strings without a post context requires 'manage_options'.
+		 * When translating within a post context, non-administrators must have permission
+		 * to edit the post, and every submitted string is verified to belong to that post
+		 * (or its source post) to prevent unauthorized consumption of AI translation services.
 		 */
 		register_rest_route(
 			self::NAMESPACE,
@@ -237,13 +238,38 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'translate_batch' ),
 				'permission_callback' => array( __CLASS__, 'permission_translate_batch' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'     => array(
 						'required'          => false,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'strings'     => array(
+						'required'          => true,
+						'type'              => 'array',
+						'validate_callback' => static function ( $value ) {
+							return is_array( $value ) && ! empty( $value );
+						},
+					),
+					'target_lang' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return '' !== sanitize_key( (string) $value );
+						},
+					),
+					'source_lang' => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'provider'    => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
 					),
 				),
 			)
@@ -608,8 +634,11 @@ class Rest_Api {
 	/**
 	 * Permission: POST /translate-batch.
 	 *
-	 * A request tied to a post is authorized against that exact post.
-	 * Arbitrary strings without a post context are administrator-only.
+	 * Translating arbitrary strings without a post context requires 'manage_options'.
+	 * When translating within a post context, non-administrators must have permission
+	 * to edit the post, and every submitted string must be verified to belong to that post
+	 * (or its linked source post) to ensure AI translation services are only consumed
+	 * for authorized post content.
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 * @return true|WP_Error
@@ -642,16 +671,35 @@ class Rest_Api {
 			);
 		}
 
+		// Non-administrators MUST provide a valid post_id that they are permitted to edit.
 		$post_id = self::get_request_post_id( $request );
 
-		if ( $post_id ) {
-			return self::require_edit_post(
-				$post_id,
-				__( 'You are not allowed to translate this post.', 'translatesense' )
+		if ( ! $post_id ) {
+			return self::permission_error(
+				__( 'A valid post ID is required.', 'translatesense' ),
+				'rest_invalid_post',
+				400
 			);
 		}
 
-		return self::require_manage_options();
+		$edit_check = self::require_edit_post(
+			$post_id,
+			__( 'You are not allowed to translate this post.', 'translatesense' )
+		);
+
+		if ( is_wp_error( $edit_check ) ) {
+			return $edit_check;
+		}
+
+		if ( ! self::verify_strings_belong_to_post( $params['strings'], $post_id ) ) {
+			return self::permission_error(
+				__( 'One or more submitted strings do not belong to the specified post.', 'translatesense' ),
+				'rest_forbidden',
+				403
+			);
+		}
+
+		return false;
 	}
 
 	/**
@@ -2982,5 +3030,77 @@ class Rest_Api {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Verify that submitted strings belong to a specific post or its source post.
+	 *
+	 * Prevents unauthorized users from submitting arbitrary strings to consume
+	 * configured AI translation services.
+	 *
+	 * @param array $strings List of strings to translate.
+	 * @param int   $post_id Target or source post ID.
+	 * @param int   $source_post_id Optional explicit source post ID.
+	 * @return bool True if all strings belong to the post context, false otherwise.
+	 */
+	public static function verify_strings_belong_to_post( array $strings, int $post_id ): bool {
+
+		if ( empty( $strings ) ) {
+			return true;
+		}
+
+		$post_id = absint( $post_id );
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			return false;
+		}
+
+		$deletected_source_post_id = 0;
+
+		// 2. Resolve source post from Editor_Integration helper.
+		if ( class_exists( '\TranslateSense\Includes\Editor_Integration' ) ) {
+			$detected_source = absint( Editor_Integration::get_source_post_id( $post_id ) );
+			if ( $detected_source > 0 && get_post( $detected_source ) ) {
+				$deletected_source_post_id = $detected_source;
+			}
+		}
+
+		if ( ! $deletected_source_post_id ) {
+			return false;
+		}
+
+		$allowed_strings = array();
+
+		// Step A: Check DB packages recorded in translatesense_packages / translatesense_strings.
+		global $wpdb;
+		if ( class_exists( '\TranslateSense\Includes\Hashing_Db' ) ) {
+			$packages_table = Hashing_Db::get_packages_table();
+			$strings_table  = Hashing_Db::get_strings_table();
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$allowed_strings = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT s.source_string
+					 FROM {$packages_table} p
+					 INNER JOIN {$strings_table} s ON p.string_id = s.id
+					 WHERE p.post_id = %d",
+					$deletected_source_post_id
+				),
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		}
+
+		if ( empty( $allowed_strings ) ) {
+			return false;
+		}
+
+		// Step C: Verify each submitted string.
+		foreach ( $strings as $submitted ) {
+			if ( ! in_array( $submitted, $allowed_strings ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

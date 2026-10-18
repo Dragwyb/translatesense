@@ -380,7 +380,7 @@ class Editor_Integration {
 	 * @param int $post_id
 	 * @return int
 	 */
-	private static function get_source_post_id( $post_id ): int {
+	public static function get_source_post_id( $post_id ): int {
 		$post_id = (int) $post_id;
 		if ( $post_id <= 0 ) {
 			return 0;
