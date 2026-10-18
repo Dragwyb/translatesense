@@ -657,7 +657,7 @@ class Rest_Api {
 
 		if ( empty( $params['strings'] ) || ! is_array( $params['strings'] ) ) {
 			return self::permission_error(
-				__( 'A valid strings array is required.', 'translatesense' ),
+				__( 'A non-empty strings array is required.', 'translatesense' ),
 				'rest_invalid_strings',
 				400
 			);
@@ -671,12 +671,23 @@ class Rest_Api {
 			);
 		}
 
-		// Non-administrators MUST provide a valid post_id that they are permitted to edit.
+		foreach ( $params['strings'] as $string ) {
+			if ( ! is_string( $string ) || '' === $string ) {
+				return self::permission_error(
+					__( 'Every translation item must be a non-empty string.', 'translatesense' ),
+					'rest_invalid_strings',
+					400
+				);
+			}
+		}
+
 		$post_id = self::get_request_post_id( $request );
 
+		// Post ownership and source-string membership are mandatory for every user.
+		// Administrators and users with manage_options receive no bypass.
 		if ( ! $post_id ) {
 			return self::permission_error(
-				__( 'A valid post ID is required.', 'translatesense' ),
+				__( 'A valid post ID is required to translate strings.', 'translatesense' ),
 				'rest_invalid_post',
 				400
 			);
@@ -691,15 +702,23 @@ class Rest_Api {
 			return $edit_check;
 		}
 
-		if ( ! self::verify_strings_belong_to_post( $params['strings'], $post_id ) ) {
+		if ( true !== $edit_check ) {
 			return self::permission_error(
-				__( 'One or more submitted strings do not belong to the specified post.', 'translatesense' ),
+				__( 'You are not allowed to translate this post.', 'translatesense' ),
 				'rest_forbidden',
 				403
 			);
 		}
 
-		return false;
+		if ( ! self::verify_strings_belong_to_post( $params['strings'], $post_id ) ) {
+			return self::permission_error(
+				__( 'One or more submitted strings do not belong to the source post for this translation.', 'translatesense' ),
+				'rest_forbidden',
+				403
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -2550,7 +2569,7 @@ class Rest_Api {
 			$post_id,
 			(string) $target_lang,
 			(string) $provider,
-			(array) $in_memory_translations
+			$normalized_translations
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -3033,20 +3052,19 @@ class Rest_Api {
 	}
 
 	/**
-	 * Verify that submitted strings belong to a specific post or its source post.
+	 * Verify that every submitted string belongs to the resolved source post.
 	 *
-	 * Prevents unauthorized users from submitting arbitrary strings to consume
-	 * configured AI translation services.
+	 * This check is called by the REST permission callback before translation.
+	 * It fails closed if the source post cannot be resolved or has no stored strings.
 	 *
 	 * @param array $strings List of strings to translate.
-	 * @param int   $post_id Target or source post ID.
-	 * @param int   $source_post_id Optional explicit source post ID.
-	 * @return bool True if all strings belong to the post context, false otherwise.
+	 * @param int   $post_id Translation target post ID.
+	 * @return bool True if every string belongs to the source post, false otherwise.
 	 */
 	public static function verify_strings_belong_to_post( array $strings, int $post_id ): bool {
 
 		if ( empty( $strings ) ) {
-			return true;
+			return false;
 		}
 
 		$post_id = absint( $post_id );
@@ -3055,48 +3073,52 @@ class Rest_Api {
 			return false;
 		}
 
-		$deletected_source_post_id = 0;
-
-		// 2. Resolve source post from Editor_Integration helper.
-		if ( class_exists( '\TranslateSense\Includes\Editor_Integration' ) ) {
-			$detected_source = absint( Editor_Integration::get_source_post_id( $post_id ) );
-			if ( $detected_source > 0 && get_post( $detected_source ) ) {
-				$deletected_source_post_id = $detected_source;
-			}
-		}
-
-		if ( ! $deletected_source_post_id ) {
+		// This endpoint is used for a translation target whose content may be
+		// empty. Resolve its original source post and verify strings only against
+		// that source post's stored package records. Never fall back to the target.
+		if ( ! class_exists( Editor_Integration::class ) ) {
 			return false;
 		}
 
-		$allowed_strings = array();
+		$source_post_id = absint( Editor_Integration::get_source_post_id( $post_id ) );
 
-		// Step A: Check DB packages recorded in translatesense_packages / translatesense_strings.
+		if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+			return false;
+		}
+
+		if ( ! class_exists( Hashing_Db::class ) ) {
+			return false;
+		}
+
 		global $wpdb;
-		if ( class_exists( '\TranslateSense\Includes\Hashing_Db' ) ) {
-			$packages_table = Hashing_Db::get_packages_table();
-			$strings_table  = Hashing_Db::get_strings_table();
 
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$allowed_strings = $wpdb->get_col(
-				$wpdb->prepare(
-					"SELECT s.source_string
-					 FROM {$packages_table} p
-					 INNER JOIN {$strings_table} s ON p.string_id = s.id
-					 WHERE p.post_id = %d",
-					$deletected_source_post_id
-				),
-			);
-			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		}
+		$packages_table = esc_sql( Hashing_Db::get_packages_table() );
+		$strings_table  = esc_sql( Hashing_Db::get_strings_table() );
 
-		if ( empty( $allowed_strings ) ) {
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$query = $wpdb->prepare(
+			"SELECT DISTINCT s.source_string
+			 FROM `{$packages_table}` p
+			 INNER JOIN `{$strings_table}` s ON p.string_id = s.id
+			 WHERE p.post_id = %d",
+			$source_post_id
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! is_string( $query ) || '' === $query ) {
 			return false;
 		}
 
-		// Step C: Verify each submitted string.
+		$allowed_strings = $wpdb->get_col( $query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		if ( ! is_array( $allowed_strings ) || empty( $allowed_strings ) ) {
+			return false;
+		}
+
+		// Every submitted string must exactly match a stored source string.
+		// Strict matching prevents type coercion and partial/loose matches.
 		foreach ( $strings as $submitted ) {
-			if ( ! in_array( $submitted, $allowed_strings ) ) {
+			if ( ! in_array( $submitted, $allowed_strings, true ) ) {
 				return false;
 			}
 		}
