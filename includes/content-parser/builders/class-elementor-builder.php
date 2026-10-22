@@ -149,8 +149,16 @@ class Elementor_Builder extends Base_Builder {
 	 * @param string $lang            Language code
 	 * @param array  $extracted       Extracted string packages reference
 	 */
-	public function extract_elements_recursive( array $elements, array &$elementor_rules, int $post_id, string $lang, array &$extracted ): void {
+	public function extract_elements_recursive( array $elements, array &$elementor_rules, int $post_id, string $lang, array &$extracted, int $depth = 0 ): void {
+		if ( empty( $elements ) || $depth > 100 ) {
+			return;
+		}
+
 		foreach ( $elements as $element_node ) {
+			if ( ! is_array( $element_node ) ) {
+				continue;
+			}
+
 			$node_type   = $element_node['elType'] ?? '';
 			$widget_name = $element_node['widgetType'] ?? ( 'widget' === $node_type ? ( $element_node['name'] ?? '' ) : '' );
 
@@ -194,13 +202,18 @@ class Elementor_Builder extends Base_Builder {
 						$discovered_rules
 					);
 
-					// Persist newly discovered rules to custom XML and refresh in-memory cache
+					// Persist newly discovered rules to custom XML if authorized, and update in-memory rules
 					if ( ! empty( $discovered_rules ) ) {
-						Xml_Engine::append_custom_rule(
-							'elementor',
-							$widget_name,
-							$discovered_rules
-						);
+						$can_persist = current_user_can( 'manage_options' );
+						$can_persist = (bool) apply_filters( 'translatesense_can_persist_xml_rules', $can_persist, 'elementor', $widget_name, $discovered_rules );
+
+						if ( $can_persist ) {
+							Xml_Engine::append_custom_rule(
+								'elementor',
+								$widget_name,
+								$discovered_rules
+							);
+						}
 
 						foreach ( $discovered_rules as $new_path => $schema_info ) {
 							$elementor_rules[ $widget_name ]['fields'][ $new_path ] = array(
@@ -216,7 +229,7 @@ class Elementor_Builder extends Base_Builder {
 
 			// Traverse nested containers/elements
 			if ( ! empty( $element_node['elements'] ) && is_array( $element_node['elements'] ) ) {
-				$this->extract_elements_recursive( $element_node['elements'], $elementor_rules, $post_id, $lang, $extracted );
+				$this->extract_elements_recursive( $element_node['elements'], $elementor_rules, $post_id, $lang, $extracted, $depth + 1 );
 			}
 		}
 	}

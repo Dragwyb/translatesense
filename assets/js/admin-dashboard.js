@@ -37,6 +37,9 @@
     });
     const [languages, setLanguages] = useState([]);
     const [stats, setStats] = useState({ total_packages: 0, cached_results: 0 });
+    const [activeProviders, setActiveProviders] = useState((window.TranslateSenseData && window.TranslateSenseData.activeProviders) || {});
+    const [providerModels, setProviderModels] = useState((window.TranslateSenseData && window.TranslateSenseData.providerModels) || {});
+    const [connectorsUrl, setConnectorsUrl] = useState((window.TranslateSenseData && window.TranslateSenseData.connectorsUrl) || 'options-connectors.php');
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
@@ -106,6 +109,15 @@
         }
         if (settingsRes.stats) {
           setStats(settingsRes.stats);
+        }
+        if (settingsRes.active_providers) {
+          setActiveProviders(settingsRes.active_providers);
+        }
+        if (settingsRes.provider_models) {
+          setProviderModels(settingsRes.provider_models);
+        }
+        if (settingsRes.connectors_url) {
+          setConnectorsUrl(settingsRes.connectors_url);
         }
         if (settingsRes.active_builders) {
           setActiveBuilders(settingsRes.active_builders);
@@ -180,6 +192,8 @@
         });
         showNotice(res.message || 'Settings saved successfully!');
         if (res.settings) setSettings(res.settings);
+        if (res.active_providers) setActiveProviders(res.active_providers);
+        if (res.provider_models) setProviderModels(res.provider_models);
       } catch (err) {
         showNotice('Error updating settings: ' + (err.message || 'Network error'), 'error');
       }
@@ -374,6 +388,9 @@
           onSave: handleSaveSettings,
           languages,
           showNotice,
+          activeProviders,
+          connectorsUrl,
+          providerModels,
         })
         : activeTab === 'xml_editor'
           ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
@@ -866,13 +883,65 @@
   }
 
   // Modernized General Settings Panel Component
-  function SettingsPanel({ settings, setSettings, onSave, languages, showNotice }) {
+  function SettingsPanel({
+    settings,
+    setSettings,
+    onSave,
+    languages,
+    showNotice,
+    activeProviders = {},
+    connectorsUrl = 'options-connectors.php',
+    providerModels = {},
+  }) {
     const [showOpenAiKey, setShowOpenAiKey] = useState(false);
     const [showGeminiKey, setShowGeminiKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     const enabledProviders = settings.enabled_providers || ['chrome_ai', 'openai', 'gemini'];
     const currentDefaultProvider = settings.provider || '';
+
+    const getProviderStatus = (id) => {
+      if (activeProviders && typeof activeProviders === 'object' && activeProviders[id]) {
+        const meta = activeProviders[id];
+        return {
+          isConnected: meta.isConnected !== false,
+          connectors: Boolean(meta.connectors),
+          isProviderInstall: meta.isProviderInstall !== undefined ? Boolean(meta.isProviderInstall) : true,
+          isProviderActive: meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true,
+        };
+      }
+      const isKeyConfigured = (id === 'openai') ? Boolean(settings.openai_api_key) : (id === 'gemini') ? Boolean(settings.gemini_api_key) : true;
+      return {
+        isConnected: isKeyConfigured,
+        connectors: false,
+        isProviderInstall: false,
+        isProviderActive: false,
+      };
+    };
+
+    const openAiStatus = getProviderStatus('openai');
+    const geminiStatus = getProviderStatus('gemini');
+
+    const defaultOpenAiModels = [
+      { id: 'gpt-4o-mini', name: 'gpt-4o-mini ( Fast & Cost-Effective )' },
+      { id: 'gpt-4o', name: 'gpt-4o ( Flagship Reasoning )' },
+      { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo ( Legacy )' },
+    ];
+    const defaultGeminiModels = [
+      { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash ( High Speed & Quality )' },
+      { id: 'gemini-1.5-pro', name: 'gemini-1.5-pro ( Advanced Multilingual )' },
+      { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash ( Next-Gen Flash )' },
+    ];
+
+    const openAiModels = (providerModels && Array.isArray(providerModels.openai) && providerModels.openai.length > 0)
+      ? providerModels.openai
+      : defaultOpenAiModels;
+
+    const geminiModels = (providerModels && Array.isArray(providerModels.gemini) && providerModels.gemini.length > 0)
+      ? providerModels.gemini
+      : (providerModels && Array.isArray(providerModels.google) && providerModels.google.length > 0)
+        ? providerModels.google
+        : defaultGeminiModels;
 
     const toggleProvider = (providerId) => {
       let updated;
@@ -958,6 +1027,74 @@
       return pluginUrl ? `${pluginUrl}assets/img/${providerId}.png` : '';
     };
 
+    // Determine OpenAI badge tag class, label, description & action button
+    let openAiTagClass = 'offline';
+    let openAiTagText = 'Disabled';
+    let openAiConnectorDesc = '';
+    let openAiConnectorBtnText = '';
+
+    if (enabledProviders.includes('openai')) {
+      if (openAiStatus.connectors && openAiStatus.isProviderInstall) {
+        if (!openAiStatus.isProviderActive) {
+          openAiTagClass = 'setup-connector';
+          openAiTagText = '⚠️ Activate Provider';
+          openAiConnectorDesc = 'WordPress AI Connector plugin for OpenAI is installed but inactive. Please activate it in WordPress Connectors.';
+          openAiConnectorBtnText = '↗ Activate in WP Connectors';
+        } else if (!openAiStatus.isConnected) {
+          openAiTagClass = 'key-needed';
+          openAiTagText = '⚠️ API Key Needed';
+          openAiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your OpenAI credentials directly in WordPress Connectors.';
+          openAiConnectorBtnText = '↗ Connect in WP Connectors';
+        } else {
+          openAiTagClass = 'wp-connector';
+          openAiTagText = '⚡ WP Connector Active';
+          openAiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client. Global credentials and connections are handled securely by core.';
+          openAiConnectorBtnText = '↗ Manage in WP Connectors';
+        }
+      } else {
+        openAiTagClass = settings.openai_api_key ? 'ready' : 'key-needed';
+        openAiTagText = settings.openai_api_key ? '✓ Configured' : '⚠️ API Key Needed';
+      }
+    }
+
+    // Determine Gemini badge tag class, label, description & action button
+    let geminiTagClass = 'offline';
+    let geminiTagText = 'Disabled';
+    let geminiConnectorDesc = '';
+    let geminiConnectorBtnText = '';
+
+    if (enabledProviders.includes('gemini')) {
+      if (geminiStatus.connectors && geminiStatus.isProviderInstall) {
+        if (!geminiStatus.isProviderActive) {
+          geminiTagClass = 'setup-connector';
+          geminiTagText = '⚠️ Activate Provider';
+          geminiConnectorDesc = 'WordPress AI Connector plugin for Google Gemini is installed but inactive. Please activate it in WordPress Connectors.';
+          geminiConnectorBtnText = '↗ Activate in WP Connectors';
+        } else if (!geminiStatus.isConnected) {
+          geminiTagClass = 'key-needed';
+          geminiTagText = '⚠️ API Key Needed';
+          geminiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your Google Gemini credentials directly in WordPress Connectors.';
+          geminiConnectorBtnText = '↗ Connect in WP Connectors';
+        } else {
+          geminiTagClass = 'wp-connector';
+          geminiTagText = '⚡ WP Connector Active';
+          geminiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client (Google). Global credentials and connections are handled securely by core.';
+          geminiConnectorBtnText = '↗ Manage in WP Connectors';
+        }
+      } else {
+        geminiTagClass = settings.gemini_api_key ? 'ready' : 'key-needed';
+        geminiTagText = settings.gemini_api_key ? '✓ Configured' : '⚠️ API Key Needed';
+      }
+    }
+
+    const isOpenAiConnected = (openAiStatus.connectors && openAiStatus.isProviderInstall)
+      ? Boolean(openAiStatus.isConnected && openAiStatus.isProviderActive)
+      : Boolean(settings.openai_api_key && settings.openai_api_key.trim());
+
+    const isGeminiConnected = (geminiStatus.connectors && geminiStatus.isProviderInstall)
+      ? Boolean(geminiStatus.isConnected && geminiStatus.isProviderActive)
+      : Boolean(settings.gemini_api_key && settings.gemini_api_key.trim());
+
     return el(
       'form',
       { className: 'ts-settings-container', onSubmit: handleFormSubmit },
@@ -971,26 +1108,41 @@
           { className: 'ts-settings-card-header' },
           el(
             'div',
-            { className: 'ts-settings-card-title-group' },
-            el('h3', null, '🌐 AI Translation Engines & Models'),
-            el('p', null, 'Configure active translation engines, API authentication keys, and target neural models.')
+            { className: 'ts-settings-title-wrap' },
+            el('div', { className: 'ts-settings-globe-icon' }, '🌐'),
+            el(
+              'div',
+              { className: 'ts-settings-card-title-group' },
+              el('h3', null, 'AI Translation Engines & Models'),
+              el('p', null, 'Configure active translation engines, API authentication keys, and target neural models.')
+            )
           ),
           el(
             'div',
-            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            el('span', { style: { fontSize: '12px', fontWeight: '600', color: '#64748b' } }, 'Default Engine:'),
+            { className: 'ts-default-engine-wrap' },
+            el('span', { className: 'ts-default-engine-label' }, 'Default Engine:'),
             el(
-              'select',
-              {
-                className: 'ts-form-select',
-                style: { width: 'auto', padding: '6px 10px', fontSize: '13px', fontWeight: '600' },
-                value: currentDefaultProvider,
-                onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
-              },
-              el('option', { value: '' }, '— None (Select in modal) —'),
-              el('option', { value: 'openai' }, '🧠 OpenAI (ChatGPT)'),
-              el('option', { value: 'gemini' }, '✨ Google Gemini AI'),
-              el('option', { value: 'chrome_ai' }, '🤖 Chrome Built-in AI')
+              'div',
+              { className: 'ts-default-engine-select-box' },
+              currentDefaultProvider &&
+              el('img', {
+                src: getProviderLogo(currentDefaultProvider),
+                alt: currentDefaultProvider,
+                className: 'ts-default-engine-logo',
+                onError: (e) => { e.target.style.display = 'none'; },
+              }),
+              el(
+                'select',
+                {
+                  className: 'ts-default-engine-select',
+                  value: currentDefaultProvider,
+                  onChange: (e) => setSettings({ ...settings, provider: e.target.value }),
+                },
+                el('option', { value: '' }, '— Select Default —'),
+                el('option', { value: 'chrome_ai' }, 'Chrome Built-in AI'),
+                el('option', { value: 'openai' }, 'OpenAI (ChatGPT)'),
+                el('option', { value: 'gemini' }, 'Google Gemini AI')
+              )
             )
           )
         ),
@@ -1032,13 +1184,9 @@
                   el(
                     'span',
                     {
-                      className: `ts-provider-tag ${!enabledProviders.includes('openai') ? 'offline' : settings.openai_api_key ? 'ready' : 'key-needed'}`,
+                      className: `ts-provider-tag ${openAiTagClass}`,
                     },
-                    !enabledProviders.includes('openai')
-                      ? 'Disabled'
-                      : settings.openai_api_key
-                        ? '✓ Configured'
-                        : '⚠️ API Key Needed'
+                    openAiTagText
                   )
                 )
               ),
@@ -1057,64 +1205,89 @@
             el(
               'div',
               { className: 'ts-provider-body' },
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el(
-                  'label',
-                  null,
-                  el('span', null, 'OpenAI API Key'),
+              (openAiStatus.connectors && openAiStatus.isProviderInstall)
+                ? el(
+                  'div',
+                  { className: 'ts-connector-box' },
+                  el(
+                    'div',
+                    { className: 'ts-connector-header' },
+                    el('span', { className: 'ts-connector-icon' }, '⚡'),
+                    el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
+                  ),
+                  el('p', { className: 'ts-connector-desc' }, openAiConnectorDesc),
                   el(
                     'a',
                     {
-                      href: 'https://platform.openai.com/api-keys',
+                      href: connectorsUrl,
                       target: '_blank',
                       rel: 'noopener noreferrer',
-                      className: 'ts-input-link',
+                      className: 'ts-btn-connector',
+                      title: 'Manage directly in WordPress Connectors',
                     },
-                    'Get Key ↗'
+                    openAiConnectorBtnText
+                  )
+                )
+                : el(
+                  'div',
+                  { className: 'ts-input-group' },
+                  el(
+                    'label',
+                    null,
+                    el('span', null, 'OpenAI API Key'),
+                    el(
+                      'a',
+                      {
+                        href: 'https://platform.openai.com/api-keys',
+                        target: '_blank',
+                        rel: 'noopener noreferrer',
+                        className: 'ts-input-link',
+                      },
+                      'Get Key ↗'
+                    )
+                  ),
+                  el(
+                    'div',
+                    { className: 'ts-input-password-wrap' },
+                    el('input', {
+                      type: showOpenAiKey ? 'text' : 'password',
+                      className: 'ts-form-input',
+                      value: settings.openai_api_key || '',
+                      placeholder: 'sk-proj-...',
+                      disabled: !enabledProviders.includes('openai'),
+                      onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() }),
+                    }),
+                    el(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ts-pw-toggle-btn',
+                        title: showOpenAiKey ? 'Hide key' : 'Show key',
+                        onClick: () => setShowOpenAiKey(!showOpenAiKey),
+                      },
+                      showOpenAiKey ? '🙈' : '👁️'
+                    )
                   )
                 ),
-                el(
+              isOpenAiConnected
+                ? el(
                   'div',
-                  { className: 'ts-input-password-wrap' },
-                  el('input', {
-                    type: showOpenAiKey ? 'text' : 'password',
-                    className: 'ts-form-input',
-                    value: settings.openai_api_key || '',
-                    placeholder: 'sk-proj-...',
-                    disabled: !enabledProviders.includes('openai'),
-                    onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() }),
-                  }),
+                  { className: 'ts-input-group' },
+                  el('label', null, el('span', null, 'Translation Model')),
                   el(
-                    'button',
+                    'select',
                     {
-                      type: 'button',
-                      className: 'ts-pw-toggle-btn',
-                      title: showOpenAiKey ? 'Hide key' : 'Show key',
-                      onClick: () => setShowOpenAiKey(!showOpenAiKey),
+                      className: 'ts-form-select',
+                      value: settings.openai_model || (openAiModels[0] && openAiModels[0].id) || 'gpt-4o-mini',
+                      disabled: !enabledProviders.includes('openai'),
+                      onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
                     },
-                    showOpenAiKey ? '🙈' : '👁️'
+                    openAiModels.map((m) =>
+                      el('option', { key: m.id, value: m.id }, m.name ? (m.name === m.id ? m.id : `${m.name}`) : m.id)
+                    )
                   )
                 )
-              ),
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el('label', null, el('span', null, 'Translation Model')),
-                el(
-                  'select',
-                  {
-                    className: 'ts-form-select',
-                    value: settings.openai_model || 'gpt-4o-mini',
-                    disabled: !enabledProviders.includes('openai'),
-                    onChange: (e) => setSettings({ ...settings, openai_model: e.target.value }),
-                  },
-                  el('option', { value: 'gpt-4o-mini' }, 'gpt-4o-mini (⚡ Fast & Cost-Effective) — Recommended'),
-                  el('option', { value: 'gpt-4o' }, 'gpt-4o (🧠 Flagship Reasoning)'),
-                  el('option', { value: 'gpt-3.5-turbo' }, 'gpt-3.5-turbo (Legacy)')
-                )
-              )
+                : null
             )
           ),
 
@@ -1150,13 +1323,9 @@
                   el(
                     'span',
                     {
-                      className: `ts-provider-tag ${!enabledProviders.includes('gemini') ? 'offline' : settings.gemini_api_key ? 'ready' : 'key-needed'}`,
+                      className: `ts-provider-tag ${geminiTagClass}`,
                     },
-                    !enabledProviders.includes('gemini')
-                      ? 'Disabled'
-                      : settings.gemini_api_key
-                        ? '✓ Configured'
-                        : '⚠️ API Key Needed'
+                    geminiTagText
                   )
                 )
               ),
@@ -1175,64 +1344,89 @@
             el(
               'div',
               { className: 'ts-provider-body' },
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el(
-                  'label',
-                  null,
-                  el('span', null, 'Gemini API Key'),
+              (geminiStatus.connectors && geminiStatus.isProviderInstall)
+                ? el(
+                  'div',
+                  { className: 'ts-connector-box' },
+                  el(
+                    'div',
+                    { className: 'ts-connector-header' },
+                    el('span', { className: 'ts-connector-icon' }, '⚡'),
+                    el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
+                  ),
+                  el('p', { className: 'ts-connector-desc' }, geminiConnectorDesc),
                   el(
                     'a',
                     {
-                      href: 'https://aistudio.google.com/app/apikey',
+                      href: connectorsUrl,
                       target: '_blank',
                       rel: 'noopener noreferrer',
-                      className: 'ts-input-link',
+                      className: 'ts-btn-connector',
+                      title: 'Manage directly in WordPress Connectors',
                     },
-                    'Get Key ↗'
+                    geminiConnectorBtnText
+                  )
+                )
+                : el(
+                  'div',
+                  { className: 'ts-input-group' },
+                  el(
+                    'label',
+                    null,
+                    el('span', null, 'Gemini API Key'),
+                    el(
+                      'a',
+                      {
+                        href: 'https://aistudio.google.com/app/apikey',
+                        target: '_blank',
+                        rel: 'noopener noreferrer',
+                        className: 'ts-input-link',
+                      },
+                      'Get Key ↗'
+                    )
+                  ),
+                  el(
+                    'div',
+                    { className: 'ts-input-password-wrap' },
+                    el('input', {
+                      type: showGeminiKey ? 'text' : 'password',
+                      className: 'ts-form-input',
+                      value: settings.gemini_api_key || '',
+                      placeholder: 'AIzaSy...',
+                      disabled: !enabledProviders.includes('gemini'),
+                      onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() }),
+                    }),
+                    el(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ts-pw-toggle-btn',
+                        title: showGeminiKey ? 'Hide key' : 'Show key',
+                        onClick: () => setShowGeminiKey(!showGeminiKey),
+                      },
+                      showGeminiKey ? '🙈' : '👁️'
+                    )
                   )
                 ),
-                el(
+              isGeminiConnected
+                ? el(
                   'div',
-                  { className: 'ts-input-password-wrap' },
-                  el('input', {
-                    type: showGeminiKey ? 'text' : 'password',
-                    className: 'ts-form-input',
-                    value: settings.gemini_api_key || '',
-                    placeholder: 'AIzaSy...',
-                    disabled: !enabledProviders.includes('gemini'),
-                    onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() }),
-                  }),
+                  { className: 'ts-input-group' },
+                  el('label', null, el('span', null, 'Translation Model')),
                   el(
-                    'button',
+                    'select',
                     {
-                      type: 'button',
-                      className: 'ts-pw-toggle-btn',
-                      title: showGeminiKey ? 'Hide key' : 'Show key',
-                      onClick: () => setShowGeminiKey(!showGeminiKey),
+                      className: 'ts-form-select',
+                      value: settings.gemini_model || (geminiModels[0] && geminiModels[0].id) || 'gemini-1.5-flash',
+                      disabled: !enabledProviders.includes('gemini'),
+                      onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
                     },
-                    showGeminiKey ? '🙈' : '👁️'
+                    geminiModels.map((m) =>
+                      el('option', { key: m.id, value: m.id }, m.name ? (m.name === m.id ? m.id : `${m.name}`) : m.id)
+                    )
                   )
                 )
-              ),
-              el(
-                'div',
-                { className: 'ts-input-group' },
-                el('label', null, el('span', null, 'Translation Model')),
-                el(
-                  'select',
-                  {
-                    className: 'ts-form-select',
-                    value: settings.gemini_model || 'gemini-1.5-flash',
-                    disabled: !enabledProviders.includes('gemini'),
-                    onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
-                  },
-                  el('option', { value: 'gemini-1.5-flash' }, 'gemini-1.5-flash (⚡ High Speed & Quota) — Recommended'),
-                  el('option', { value: 'gemini-1.5-pro' }, 'gemini-1.5-pro (🧠 Advanced Multilingual)'),
-                  el('option', { value: 'gemini-2.0-flash' }, 'gemini-2.0-flash (🚀 Next-Gen Flash)')
-                )
-              )
+                : null
             )
           ),
 
@@ -1289,9 +1483,40 @@
               { className: 'ts-provider-body' },
               el(
                 'div',
-                { style: { padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#475569' } },
-                el('div', { style: { fontWeight: '700', color: '#0f172a', marginBottom: '4px' } }, '🔒 On-Device Processing'),
-                'No API keys required. Operates directly in supporting browsers with automatic fallback to cloud engines.'
+                { className: 'ts-chrome-features-wrap' },
+                el(
+                  'div',
+                  { className: 'ts-feature-item' },
+                  el('div', { className: 'ts-feature-icon-circle blue' }, '🛡️'),
+                  el(
+                    'div',
+                    { className: 'ts-feature-text' },
+                    el('span', { className: 'ts-feature-title' }, 'On-Device Processing'),
+                    el('span', { className: 'ts-feature-subtext' }, 'No API keys required. Operates directly in supporting browsers.')
+                  )
+                ),
+                el(
+                  'div',
+                  { className: 'ts-feature-item' },
+                  el('div', { className: 'ts-feature-icon-circle green' }, '🔒'),
+                  el(
+                    'div',
+                    { className: 'ts-feature-text' },
+                    el('span', { className: 'ts-feature-title' }, '100% Local Processing'),
+                    el('span', { className: 'ts-feature-subtext' }, 'Your data stays on your device.')
+                  )
+                ),
+                el(
+                  'div',
+                  { className: 'ts-feature-item' },
+                  el('div', { className: 'ts-feature-icon-circle amber' }, '⚡'),
+                  el(
+                    'div',
+                    { className: 'ts-feature-text' },
+                    el('span', { className: 'ts-feature-title' }, 'Zero Latency & Zero Cost'),
+                    el('span', { className: 'ts-feature-subtext' }, 'Fast, private and always available.')
+                  )
+                )
               )
             )
           )

@@ -17,7 +17,6 @@ class Activator {
 	 */
 	public static function activate() {
 		self::create_tables();
-		self::create_uploads_directory();
 		self::set_default_options();
 		self::save_config_to_db();
 		self::schedule_cleanup_cron();
@@ -88,8 +87,8 @@ class Activator {
             progress_status varchar(100) DEFAULT '',
             total_strings int(11) NOT NULL DEFAULT 0,
             completed_strings int(11) NOT NULL DEFAULT 0,
-            sent_ai_request_data longtext DEFAULT NULL,
-            received_ai_request_data longtext DEFAULT NULL,
+            sent_data longtext DEFAULT NULL,
+            receive_data longtext DEFAULT NULL,
             error_message text DEFAULT NULL,
             target_post_id bigint(20) unsigned DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -110,18 +109,7 @@ class Activator {
 		dbDelta( $sql_bulk );
 	}
 
-	/**
-	 * Ensure custom config directory exists.
-	 */
-	public static function create_uploads_directory() {
-		$upload_dir = wp_upload_dir();
-		$custom_dir = trailingslashit( $upload_dir['basedir'] ) . 'translatesense-configs';
 
-		if ( ! file_exists( $custom_dir ) ) {
-			wp_mkdir_p( $custom_dir );
-			file_put_contents( $custom_dir . '/index.html', '' );
-		}
-	}
 
 	/**
 	 * Initialize default plugin options.

@@ -16,7 +16,6 @@ class Editor_Integration {
 	public static function init() {
 		// Save _translatesense_source_id when new translation post is created via Polylang '+' icon
 		add_action( 'save_post', array( __CLASS__, 'save_source_post_id_on_create' ), 10, 3 );
-		add_action( 'wp_insert_post', array( __CLASS__, 'save_source_post_id_on_create' ), 10, 3 );
 
 		// Gutenberg Block Editor
 		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_block_editor_assets' ) );
@@ -36,14 +35,70 @@ class Editor_Integration {
 
 	/**
 	 * Automatically save _translatesense_source_id when creating a translation post via from_post query parameter.
+	 *
+	 * @param int           $post_id Post ID.
+	 * @param \WP_Post|null $post    Post object.
+	 * @param bool          $update  Whether this is an existing post being updated.
 	 */
 	public static function save_source_post_id_on_create( $post_id, $post = null, $update = false ) {
-		if ( isset( $_GET['from_post'] ) && ! empty( $_GET['from_post'] ) ) { // phpcs:ignore
-			$from_post_id = (int) $_GET['from_post']; // phpcs:ignore
-			if ( $from_post_id > 0 ) {
-				update_post_meta( $post_id, '_translatesense_source_id', $from_post_id );
-				update_post_meta( $post_id, '_show_initial_prompt_modal', '1' );
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		// Do not overwrite existing source ID
+		$existing_source_id = get_post_meta( $post_id, '_translatesense_source_id', true );
+		if ( ! empty( $existing_source_id ) ) {
+			return;
+		}
+
+		$from_post_id = 0;
+
+		// 1. First check Polylang official translations map if Polylang is active
+		if ( Polylang_Bridge::is_polylang_active() ) {
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+			$default_lang = Polylang_Bridge::get_default_language();
+			if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== (int) $post_id ) {
+				$candidate_id = (int) $translations[ $default_lang ];
+				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
+					$from_post_id = $candidate_id;
+				}
 			}
+		}
+
+		// 2. If not resolved from Polylang, verify from_post query parameter with valid nonce and permission checks
+		if ( ! $from_post_id && isset( $_GET['from_post'] ) && ! empty( $_GET['from_post'] ) ) {
+			$nonce          = isset( $_REQUEST['_wpnonce'] ) ? sanitize_key( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
+			$is_valid_nonce = false;
+
+			if ( ! empty( $nonce ) ) {
+				if (
+					wp_verify_nonce( $nonce, 'new-post-translation' )
+					|| wp_verify_nonce( $nonce, 'update-post_' . $post_id )
+					|| wp_verify_nonce( $nonce, 'add-post' )
+				) {
+					$is_valid_nonce = true;
+				}
+			}
+
+			if ( $is_valid_nonce ) {
+				$candidate_id = absint( $_GET['from_post'] );
+				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
+					$from_post_id = $candidate_id;
+				}
+			}
+		}
+
+		if ( $from_post_id > 0 ) {
+			update_post_meta( $post_id, '_translatesense_source_id', $from_post_id );
+			update_post_meta( $post_id, '_show_initial_prompt_modal', '1' );
 		}
 	}
 
@@ -242,17 +297,18 @@ class Editor_Integration {
 				'sourcePostId'           => $source_post_id,
 				'sourceLanguage'         => $source_language,
 				'sourceEditorType'       => $source_editor_type,
-				'fromPost'         => isset( $_GET['from_post'] ) ? (int) $_GET['from_post'] : 0, // phpcs:ignore
+				'fromPost'               => $source_post_id,
 				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'                  => wp_create_nonce( 'wp_rest' ),
 				'polylangActive'         => Polylang_Bridge::is_polylang_active(),
 				'currentLanguage'        => Polylang_Bridge::get_post_language( $post_id ),
 				'languages'              => Polylang_Bridge::get_languages(),
 				'defaultProvider'        => $settings['provider'] ?? '',
-				'enabledProviders'       => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'enabledProviders'       => class_exists( '\TranslateSense\Includes\Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
 				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
 				'settingsUrl'            => Admin_Menu::get_dashboard_url( 'settings' ),
+				'connectorsUrl'          => admin_url( 'options-connectors.php' ),
 				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),
 				'hasGeminiKey'           => ! empty( $settings['gemini_api_key'] ),
 			),
@@ -317,30 +373,56 @@ class Editor_Integration {
 		self::enqueue_universal_editor_assets( $post_id, 'elementor' );
 	}
 
-	private static function get_source_post_id( $post_id ) {
-		// Resolve source post ID and its editor type
-		$source_post_id = 0;
-
-		if ( $post_id ) {
-			$source_post_id = (int) get_post_meta( $post_id, '_translatesense_source_id', true );
-			if ( ! $source_post_id && isset( $_GET['from_post'] ) ) { // phpcs:ignore
-				$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
-				update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
-			}
-			// If still empty, check Polylang default language translation
-			if ( ! $source_post_id && Polylang_Bridge::is_polylang_active() ) {
-				$translations = Polylang_Bridge::get_post_translations( $post_id );
-				$default_lang = Polylang_Bridge::get_default_language();
-				if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== (int) $post_id ) {
-					$source_post_id = (int) $translations[ $default_lang ];
-					update_post_meta( $post_id, '_translatesense_source_id', $source_post_id );
-				}
-			}
-		} elseif ( isset( $_GET['from_post'] ) ) { // phpcs:ignore
-			$source_post_id = (int) $_GET['from_post']; // phpcs:ignore
+	/**
+	 * Get the source post ID for translation.
+	 * Read-only resolution — never modifies the database during read/GET requests.
+	 *
+	 * @param int $post_id
+	 * @return int
+	 */
+	public static function get_source_post_id( $post_id ): int {
+		$post_id = (int) $post_id;
+		if ( $post_id <= 0 ) {
+			return 0;
 		}
 
-		return $source_post_id;
+		// 1. Check saved post meta
+		$source_post_id = (int) get_post_meta( $post_id, '_translatesense_source_id', true );
+		if ( $source_post_id > 0 && get_post( $source_post_id ) && current_user_can( 'edit_post', $source_post_id ) ) {
+			return $source_post_id;
+		}
+
+		// 2. Check Polylang default language translation
+		if ( Polylang_Bridge::is_polylang_active() ) {
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+			$default_lang = Polylang_Bridge::get_default_language();
+			if ( ! empty( $translations[ $default_lang ] ) && (int) $translations[ $default_lang ] !== $post_id ) {
+				$candidate_id = (int) $translations[ $default_lang ];
+				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
+					return $candidate_id;
+				}
+			}
+
+			foreach ( $translations as $lang => $trans_id ) {
+				$trans_id = (int) $trans_id;
+				if ( $trans_id > 0 && $trans_id !== $post_id && get_post( $trans_id ) && current_user_can( 'edit_post', $trans_id ) ) {
+					return $trans_id;
+				}
+			}
+		}
+
+		// 3. Fallback to query parameter only with valid nonce and permission verification
+		if ( isset( $_GET['from_post'] ) && ! empty( $_GET['from_post'] ) && isset( $_GET['_wpnonce'] ) ) {
+			$nonce = sanitize_key( wp_unslash( $_GET['_wpnonce'] ) );
+			if ( wp_verify_nonce( $nonce, 'new-post-translation' ) ) {
+				$candidate_id = absint( $_GET['from_post'] );
+				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
+					return $candidate_id;
+				}
+			}
+		}
+
+		return 0;
 	}
 
 	/**

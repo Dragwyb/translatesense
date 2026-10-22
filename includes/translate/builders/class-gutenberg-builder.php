@@ -56,10 +56,21 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 */
-	public static function translate_blocks_tree( array &$blocks, array $rules, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+	public static function translate_blocks_tree( array &$blocks, array $rules, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+		if ( empty( $blocks ) || $depth > 100 ) {
+			return;
+		}
+
 		foreach ( $blocks as &$block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+
 			$name = $block['blockName'] ?? '';
 			if ( empty( $name ) ) {
+				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+					self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
+				}
 				continue;
 			}
 
@@ -79,13 +90,14 @@ class Gutenberg_Builder extends Base_Builder {
 									$source_lang,
 									$target_lang,
 									$post_id,
-									$custom_opts
+									$custom_opts,
+									0
 								);
 							}
 						}
 					}
 
-					if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+					if ( empty( $found_strings ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) && is_array( $block['innerContent'] ) ) {
 						foreach ( $block['innerContent'] as &$inner_content ) {
 							if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
 								self::translate_attribute_value_recursive(
@@ -95,7 +107,8 @@ class Gutenberg_Builder extends Base_Builder {
 									$source_lang,
 									$target_lang,
 									$post_id,
-									$custom_opts
+									$custom_opts,
+									0
 								);
 							}
 						}
@@ -103,14 +116,14 @@ class Gutenberg_Builder extends Base_Builder {
 				}
 			}
 
-			if ( ! empty( $block['innerBlocks'] ) ) {
-				self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts );
+			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+				self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
 			}
 		}
 	}
 
 	/**
-	 * Helper: Recursively translate block attribute value.
+	 * Helper: Recursively translate block attribute value with depth protection.
 	 *
 	 * @param mixed  $val
 	 * @param mixed  $schema_info
@@ -119,8 +132,13 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param string $target_lang
 	 * @param int    $post_id
 	 * @param array  $custom_opts
+	 * @param int    $depth
 	 */
-	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+		if ( $depth > 20 ) {
+			return;
+		}
+
 		if ( is_string( $val ) ) {
 			if ( '' !== trim( $val ) ) {
 				$res = Translate::translate_string(
@@ -152,7 +170,8 @@ class Gutenberg_Builder extends Base_Builder {
 					$source_lang,
 					$target_lang,
 					$post_id,
-					$custom_opts
+					$custom_opts,
+					$depth + 1
 				);
 			}
 			unset( $item );
@@ -170,7 +189,8 @@ class Gutenberg_Builder extends Base_Builder {
 						$source_lang,
 						$target_lang,
 						$post_id,
-						$custom_opts
+						$custom_opts,
+						$depth + 1
 					);
 				}
 			}
@@ -183,7 +203,8 @@ class Gutenberg_Builder extends Base_Builder {
 					$source_lang,
 					$target_lang,
 					$post_id,
-					$custom_opts
+					$custom_opts,
+					$depth + 1
 				);
 			}
 			unset( $sub_val );

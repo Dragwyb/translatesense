@@ -4,7 +4,7 @@ Tags: translation, polylang, multilingual, translate, ai translation
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.0.0
+Stable tag: 0.0.8
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,47 @@ Yes, Translate Sense is designed to work in synergy with the Polylang multilingu
 Currently, Gutenberg (WordPress Block Editor) and Elementor are fully supported with custom XML rule generators.
 
 == Changelog ==
+
+= 0.0.8 =
+* Validate trnslate batch strings are valid strings from source post.
+
+= 0.0.7 =
+* Added manage option check in newly discovered elementor xml rule config update.
+
+= 0.0.6 =
+* Improve bulk translation rest route permission check.
+
+= 0.0.5 =
+* Improve bulk translation rest route permission check.
+* Improve bulk translation chrome built in ai language available check.
+* Improve bulk translation modal styling.
+* Improve editor page transaltion provider modal stylig.
+* Improve page editor progress overlay visibility.
+
+= 0.0.4 =
+* Improve rest route permission callback checks.
+* Fixed PHP error method not found.
+
+= 0.0.3 =
+* Improve rest route permission callback checks.
+
+= 0.0.2 =
+* Update permission callback in bulk status route.
+* Added nonce verification in save_post hook callback.
+* Use provider isProviderConfigured methods with transient instead of get option.
+
+= 0.0.1 =
+* Added WordPress 7.0 connectors provider support If provider install.
+* Dynamic provider models showing.
+* Added Redirect and Manage API key and Provider Activate button for WP 7.0 connectors.
+* Remove creating and update config in upload directory.
+* Update permission check in routes.
+* Added depth check in array recursive.
+* Improve error handling.
+* Removed unused code.
+* Dashboard style improvement.
+* Fixed translate string save issue and AI provider translation issues.
+* Prevent saving translate posts in package.
 
 = 0.0.0 =
 * Initial release.

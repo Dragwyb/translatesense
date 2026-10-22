@@ -104,18 +104,28 @@ class Admin_Menu {
 			true
 		);
 
+		$bridge           = Ai_Connector_Bridge::get_instance();
+		$active_providers = $bridge->get_active_providers();
+		$provider_models  = array();
+		foreach ( $active_providers as $p_id => $p_opts ) {
+			$provider_models[ $p_id ] = $bridge->get_models( (string) $p_id, (array) $p_opts );
+		}
+
 		// Localize Script (Step 1.1)
 		wp_localize_script(
 			'translatesense-admin-js',
 			'TranslateSenseData',
 			array(
-				'restUrl'        => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'          => wp_create_nonce( 'wp_rest' ),
-				'polylangActive' => Polylang_Bridge::is_polylang_active(),
-				'languages'      => Polylang_Bridge::get_languages(),
-				'activeBuilders' => self::get_active_builders(),
-				'pluginUrl'      => TRANSLATESENSE_PLUGIN_URL,
-				'version'        => TRANSLATESENSE_VERSION,
+				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'           => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
+				'languages'       => Polylang_Bridge::get_languages(),
+				'activeBuilders'  => self::get_active_builders(),
+				'activeProviders' => $active_providers,
+				'providerModels'  => $provider_models,
+				'connectorsUrl'   => esc_url_raw( admin_url( 'options-connectors.php' ) ),
+				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
+				'version'         => TRANSLATESENSE_VERSION,
 			)
 		);
 	}

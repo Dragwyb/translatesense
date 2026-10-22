@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       TranslateSense
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
- * Version:           0.0.0
+ * Version:           0.0.8
  * Author:            aniketji007
  * Author URI:        https://github.com/Aniketji007
  * License:           GPL-2.0+
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'TRANSLATESENSE_VERSION', '0.0.0' );
+define( 'TRANSLATESENSE_VERSION', '0.0.8' );
 define( 'TRANSLATESENSE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

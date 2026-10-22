@@ -58,20 +58,30 @@ class Elementor_Builder extends Base_Builder {
 	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 */
-	public static function translate_elements_tree( array &$elements, array $rules, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+	public static function translate_elements_tree( array &$elements, array $rules, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+		if ( empty( $elements ) || $depth > 100 ) {
+			return;
+		}
+
 		foreach ( $elements as &$element ) {
+			if ( ! is_array( $element ) ) {
+				continue;
+			}
+
 			$el_type     = $element['elType'] ?? '';
 			$widget_type = $element['widgetType'] ?? '';
 
 			if ( 'widget' === $el_type && ! empty( $widget_type ) && isset( $rules[ $widget_type ] ) ) {
 				$fields = $rules[ $widget_type ]['fields'] ?? array();
-				foreach ( $fields as $path => $f_info ) {
-					self::translate_nested_setting( $element['settings'], (string) $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+				if ( is_array( $fields ) && isset( $element['settings'] ) && is_array( $element['settings'] ) ) {
+					foreach ( $fields as $path => $f_info ) {
+						self::translate_nested_setting( $element['settings'], (string) $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+					}
 				}
 			}
 
 			if ( ! empty( $element['elements'] ) && is_array( $element['elements'] ) ) {
-				self::translate_elements_tree( $element['elements'], $rules, $source_lang, $target_lang, $post_id, $custom_opts );
+				self::translate_elements_tree( $element['elements'], $rules, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
 			}
 		}
 	}
@@ -91,7 +101,7 @@ class Elementor_Builder extends Base_Builder {
 		$delimiter = false !== strpos( $path, '>' ) ? '>' : ( false !== strpos( $path, '.' ) ? '.' : '' );
 		$segments  = empty( $delimiter ) ? array( $path ) : explode( $delimiter, $path );
 
-		self::translate_path_recursive( $settings, $segments, 0, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+		self::translate_path_recursive( $settings, $segments, 0, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts, 0 );
 	}
 
 	/**
@@ -105,9 +115,10 @@ class Elementor_Builder extends Base_Builder {
 	 * @param string $target_lang
 	 * @param int    $post_id
 	 * @param array  $custom_opts
+	 * @param int    $depth
 	 */
-	public static function translate_path_recursive( &$data, array $segments, int $index, string $widget_type, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
-		if ( ! is_array( $data ) || ! isset( $segments[ $index ] ) ) {
+	public static function translate_path_recursive( &$data, array $segments, int $index, string $widget_type, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+		if ( ! is_array( $data ) || ! isset( $segments[ $index ] ) || $depth > 20 ) {
 			return;
 		}
 
@@ -117,7 +128,7 @@ class Elementor_Builder extends Base_Builder {
 		// Case 1: Sequential list / repeater items collection ([ 0 => [...], 1 => [...] ])
 		if ( array_keys( $data ) === range( 0, count( $data ) - 1 ) ) {
 			foreach ( $data as &$item ) {
-				self::translate_path_recursive( $item, $segments, $index, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+				self::translate_path_recursive( $item, $segments, $index, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
 			}
 			unset( $item );
 			return;
@@ -138,14 +149,14 @@ class Elementor_Builder extends Base_Builder {
 					$data[ $current_key ] = $res['translated'];
 				}
 			} elseif ( is_array( $data[ $current_key ] ) ) {
-					// Check if $data[$current_key] is a repeater collection
+				// Check if $data[$current_key] is a repeater collection
 				if ( array_keys( $data[ $current_key ] ) === range( 0, count( $data[ $current_key ] ) - 1 ) ) {
 					foreach ( $data[ $current_key ] as &$sub_item ) {
-						self::translate_path_recursive( $sub_item, $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+						self::translate_path_recursive( $sub_item, $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
 					}
 					unset( $sub_item );
 				} else {
-					self::translate_path_recursive( $data[ $current_key ], $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
+					self::translate_path_recursive( $data[ $current_key ], $segments, $index + 1, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
 				}
 			}
 		}

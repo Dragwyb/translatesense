@@ -63,35 +63,7 @@ class Polylang_Bridge {
 	 */
 	public static function get_languages() {
 		if ( ! self::is_polylang_active() ) {
-			// Fallback mock languages if Polylang isn't enabled yet
-			$site_lang = get_locale();
-			$slug      = substr( $site_lang, 0, 2 );
-			return array(
-				array(
-					'slug'       => $slug,
-					'name'       => 'Site Default (' . $slug . ')',
-					'locale'     => $site_lang,
-					'is_default' => true,
-				),
-				array(
-					'slug'       => 'es',
-					'name'       => 'Spanish (Demo)',
-					'locale'     => 'es_ES',
-					'is_default' => false,
-				),
-				array(
-					'slug'       => 'fr',
-					'name'       => 'French (Demo)',
-					'locale'     => 'fr_FR',
-					'is_default' => false,
-				),
-				array(
-					'slug'       => 'de',
-					'name'       => 'German (Demo)',
-					'locale'     => 'de_DE',
-					'is_default' => false,
-				),
-			);
+			return array();
 		}
 
 		$languages    = pll_languages_list( array( 'fields' => array() ) );

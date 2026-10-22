@@ -48,15 +48,16 @@
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
   function getRegisteredProviders() {
-    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
     const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
-    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+    const enabledProviders = config.enabledProviders || {};
+    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
     let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
       providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledProviders.length === 0) {
+      if (providers.length === 0 && enabledKeys.length === 0) {
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
@@ -66,7 +67,7 @@
         { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
         { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
       ];
-      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
     }
     return providers.map((p) => ({
       ...p,
@@ -86,13 +87,31 @@
       this.fromPost = this.config.fromPost || 0;
       this.targetLang = this.config.currentLanguage || 'en';
       const defaultProv = this.config.defaultProvider || '';
-      const enabledProviders = Array.isArray(this.config.enabledProviders) ? this.config.enabledProviders : [];
-      this.selectedProvider = (defaultProv && (enabledProviders.length === 0 || enabledProviders.includes(defaultProv))) ? defaultProv : '';
+      const enabledProviders = this.config.enabledProviders || {};
+      const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
+      this.selectedProvider = (defaultProv && (enabledKeys.length === 0 || enabledKeys.includes(defaultProv))) ? defaultProv : '';
       this.strings = [];
       this.isExtracting = false;
       this.isTranslating = false;
+      this.lastCompletedProvider = '';
+      this.lastCompletedTargetLang = '';
+      this.sourcePageData = null;
+      this.extractedStrings = null;
 
       this.init();
+    }
+
+    /**
+     * Check if translation for given provider is already 100% completed in current session.
+     */
+    isTranslationCompleted(provider = this.selectedProvider) {
+      if (!provider || !Array.isArray(this.strings) || this.strings.length === 0) {
+        return false;
+      }
+      if (this.lastCompletedProvider !== provider || this.lastCompletedTargetLang !== this.targetLang) {
+        return false;
+      }
+      return this.strings.every((s) => s.translated && String(s.translated).trim() !== '');
     }
 
     init() {
@@ -309,50 +328,106 @@
             <div class="ts-provider-list">
               ${(() => {
           const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
-          const isProviderMissingKey = (id) => {
-            if (id === 'openai') return !this.config.hasOpenAiKey;
-            if (id === 'gemini') return !this.config.hasGeminiKey;
-            return false;
+          const connectorsUrl = this.config.connectorsUrl || 'options-connectors.php';
+          const enabledProviders = this.config.enabledProviders || {};
+
+          const getProviderStatus = (id) => {
+            if (enabledProviders && typeof enabledProviders === 'object' && !Array.isArray(enabledProviders) && enabledProviders[id]) {
+              const meta = enabledProviders[id];
+              const isConn = meta.isConnected !== false;
+              const isCore = Boolean(meta.connectors);
+              const isInstall = meta.isProviderInstall !== undefined ? Boolean(meta.isProviderInstall) : true;
+              const isActive = meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true;
+              return {
+                isConnected: isConn,
+                connectors: isCore,
+                isProviderInstall: isInstall,
+                isProviderActive: isActive,
+                targetUrl: isCore ? connectorsUrl : settingsUrl,
+              };
+            }
+            const isMissing = (id === 'openai') ? !this.config.hasOpenAiKey : (id === 'gemini') ? !this.config.hasGeminiKey : false;
+            return {
+              isConnected: !isMissing,
+              connectors: false,
+              isProviderInstall: false,
+              isProviderActive: false,
+              targetUrl: settingsUrl,
+            };
+          };
+
+          const isProviderAvailable = (id) => {
+            if (id === 'chrome_ai' || id === 'chrome_local_ai') return true;
+            const st = getProviderStatus(id);
+            if (st.connectors && st.isProviderInstall) {
+              return Boolean(st.isProviderActive && st.isConnected);
+            }
+            return Boolean(st.isConnected);
           };
 
           const defaultProv = this.config.defaultProvider || '';
-          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && !isProviderMissingKey(p.id)))
+          let currentSelected = (this.selectedProvider && providersList.some((p) => p.id === this.selectedProvider && isProviderAvailable(p.id)))
             ? this.selectedProvider
-            : (defaultProv && providersList.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id)) ? defaultProv : '');
+            : (defaultProv && providersList.some((p) => p.id === defaultProv && isProviderAvailable(p.id)) ? defaultProv : '');
 
           if (!currentSelected) {
-            const firstAvailable = providersList.find((p) => !isProviderMissingKey(p.id));
+            const firstAvailable = providersList.find((p) => isProviderAvailable(p.id));
             if (firstAvailable) currentSelected = firstAvailable.id;
           }
           this.selectedProvider = currentSelected;
 
           return providersList.map((p) => {
-            const isMissingKey = isProviderMissingKey(p.id);
-            const isSelected = Boolean(!isMissingKey && currentSelected && p.id === currentSelected);
+            const status = getProviderStatus(p.id);
             const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-            const badgeHtml = isFrontend
-              ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-              : '';
-            const actionHtml = isMissingKey
-              ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
-              : badgeHtml;
+            const isConnector = Boolean(status.connectors && status.isProviderInstall);
+
+            let isAvailable = false;
+            let actionHtml = '';
+
+            if (isFrontend) {
+              isAvailable = true;
+              actionHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+            } else if (isConnector) {
+              if (!status.isProviderActive) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+              } else if (!status.isConnected) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+              } else {
+                isAvailable = true;
+                actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+              }
+            } else {
+              // Legacy direct API
+              if (!status.isConnected) {
+                isAvailable = false;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+              } else {
+                isAvailable = true;
+                actionHtml = '';
+              }
+            }
+
+            const isSelected = Boolean(isAvailable && currentSelected && p.id === currentSelected);
+            const isDisabled = !isAvailable;
 
             return `
-                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
-                      <div class="ts-provider-radio-wrap">
-                        <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
-                        <span class="ts-provider-custom-radio"></span>
-                      </div>
-                      <div class="ts-provider-icon-box">
-                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                      </div>
-                      <div class="ts-provider-main-info">
-                        <div class="ts-provider-title-row">
-                          <span class="ts-provider-name">${p.title}</span>
-                          ${actionHtml}
+                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
+                      <div class="ts-provider-card-top">
+                        <div class="ts-provider-icon-box">
+                          <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                         </div>
-                        <p class="ts-provider-caption">${p.desc}</p>
+                        <div class="ts-provider-header-content">
+                          <div class="ts-provider-name">${p.title}</div>
+                          ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
+                        </div>
+                        <div class="ts-provider-radio-wrap">
+                          <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                          <span class="ts-provider-custom-radio"></span>
+                        </div>
                       </div>
+                      <p class="ts-provider-caption">${p.desc}</p>
                     </div>
                   `;
           }).join('');
@@ -400,6 +475,14 @@
         }
 
         closeModal();
+
+        // If translation for this provider is already 100% completed, directly show Review Modal!
+        if (this.isTranslationCompleted(this.selectedProvider)) {
+          this.openReviewModal();
+          this.renderReviewTableRows();
+          return;
+        }
+
         await this.extractAndTranslate();
       });
     }
@@ -573,6 +656,13 @@
 
     async extractAndTranslate() {
       try {
+        // If translation for this provider is already completed, directly open review modal
+        if (this.isTranslationCompleted(this.selectedProvider)) {
+          this.openReviewModal();
+          this.renderReviewTableRows();
+          return;
+        }
+
         const restUrl = this.config.restUrl || '/wp-json/translatesense/v1/';
         const nonce = this.config.nonce || '';
 
@@ -580,8 +670,8 @@
           return;
         }
 
-        // Fetch comprehensive source page content using TranslateSenseCore
-        if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+        // Fetch comprehensive source page content only if not already fetched
+        if (!this.sourcePageData && window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
           try {
             this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
           } catch (e) {
@@ -589,38 +679,76 @@
           }
         }
 
-        const extractRes = await fetch(restUrl + 'extract-strings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce,
-          },
-          body: JSON.stringify({
-            post_id: this.sourcePostId,
-            target_lang: this.targetLang,
-            builder: this.editorType,
-          }),
-        });
-
-        const data = await extractRes.json();
-        let rawStrings = Array.isArray(data.strings) ? data.strings : [];
-
-        // Exclude email addresses, URLs, and asset paths from translation
-        rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
-
+        // Fetch extracted strings only if not already extracted in current session
+        let rawStrings = this.extractedStrings;
         if (!rawStrings || rawStrings.length === 0) {
-          const serverRes = await this.processServerPostTranslation();
+          const extractRes = await fetch(restUrl + 'extract-strings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-WP-Nonce': nonce,
+            },
+            body: JSON.stringify({
+              post_id: this.sourcePostId,
+              target_lang: this.targetLang,
+              builder: this.editorType,
+            }),
+          });
 
-          if (serverRes.success && serverRes.edit_url) {
-            window.location.href = serverRes.edit_url;
+          const data = await extractRes.json();
+          rawStrings = Array.isArray(data.strings) ? data.strings : [];
+
+          // Exclude email addresses, URLs, and asset paths from translation
+          rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
+
+          if (!rawStrings || rawStrings.length === 0) {
+            const serverRes = await this.processServerPostTranslation();
+
+            if (serverRes.success && serverRes.edit_url) {
+              window.location.href = serverRes.edit_url;
+              return;
+            }
+
+            alert('No translatable strings found in current blocks matching XML rules.');
             return;
           }
 
-          alert('No translatable strings found in current blocks matching XML rules.');
+          this.extractedStrings = rawStrings;
+        }
+
+        // Clone strings for this translation run, preserving any existing translated values for current provider if present
+        this.strings = this.extractedStrings.map((s) => {
+          let translated = '';
+          let status = 'Pending';
+
+          if (window.TranslateSenseCore) {
+            const cached = window.TranslateSenseCore.getTranslatedString(s.name, s.value, this.selectedProvider, s.name);
+            if (cached && typeof cached === 'object' && cached.translate) {
+              translated = cached.translate;
+              status = 'Completed';
+            } else if (typeof cached === 'string' && cached.trim() !== '') {
+              translated = cached;
+              status = 'Completed';
+            }
+          }
+
+          return {
+            ...s,
+            translated: translated,
+            status: status,
+          };
+        });
+
+        // Check if all strings already have translations for this provider
+        const allDone = this.strings.length > 0 && this.strings.every((s) => s.translated && String(s.translated).trim() !== '');
+        if (allDone) {
+          this.lastCompletedProvider = this.selectedProvider;
+          this.lastCompletedTargetLang = this.targetLang;
+          this.openReviewModal();
+          this.renderReviewTableRows();
           return;
         }
 
-        this.strings = rawStrings;
         this.openReviewModal();
         await this.performBatchTranslation();
       } catch (err) {
@@ -736,6 +864,10 @@
           '✓ Translation Completed (100%)',
           `All ${total} strings translated successfully!`
         );
+
+        // Record successful completion for this provider and target language
+        this.lastCompletedProvider = this.selectedProvider;
+        this.lastCompletedTargetLang = this.targetLang;
 
         // Graceful 1-2 seconds delay (1400ms) before fading out overlay
         await new Promise((resolve) => setTimeout(resolve, 1400));

@@ -196,7 +196,7 @@
      * Sync enabled providers from localized WordPress global configurations.
      */
     syncEnabledProviders() {
-      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || window.TranslateSenseData || {};
+      const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
       if (Array.isArray(config.enabledProviders) && config.enabledProviders.length > 0) {
         this.enabledProviders = config.enabledProviders;
       }
@@ -314,9 +314,10 @@
      * @param {string} providerId
      * @param {string} [sourceLang='en']
      * @param {string} [targetLang='es']
+     * @param {boolean} [bypassCache=false]
      * @returns {Promise<{ available: boolean, reason?: string, noticeType?: string }>}
      */
-    async validateProvider(providerId, sourceLang = 'en', targetLang = 'es') {
+    async validateProvider(providerId, sourceLang = 'en', targetLang = 'es', bypassCache = false) {
       const provider = this.getProvider(providerId);
       if (!provider) {
         return { available: false, reason: `Provider "${providerId}" is not registered.`, noticeType: 'error' };
@@ -326,7 +327,7 @@
         return { available: false, reason: `Provider "${provider.title}" is disabled in settings.`, noticeType: 'warning' };
       }
 
-      // Check language support
+      // Check language support definition
       if (typeof provider.isLanguageSupported === 'function') {
         const supported = provider.isLanguageSupported(sourceLang, targetLang);
         if (!supported) {
@@ -340,7 +341,7 @@
 
       // Run provider-specific availability check (e.g. browser on-device AI check, API key presence)
       try {
-        const check = await provider.checkAvailability(sourceLang, targetLang);
+        const check = await provider.checkAvailability(sourceLang, targetLang, bypassCache);
         return check || { available: true };
       } catch (err) {
         return { available: false, reason: err.message || 'Provider availability check failed.', noticeType: 'error' };
@@ -722,9 +723,16 @@
         throw new Error('Missing post ID for getPageContent');
       }
 
+      this.pageContentCache = this.pageContentCache || new Map();
+      const fieldsStr = Array.isArray(fields) ? fields.join(',') : (fields || '');
+      const cacheKey = `${id}_${fieldsStr}`;
+
+      if (this.pageContentCache.has(cacheKey)) {
+        return this.pageContentCache.get(cacheKey);
+      }
+
       let url = restUrl + 'get-page-content?post_id=' + encodeURIComponent(id);
-      if (fields && fields.length > 0) {
-        const fieldsStr = Array.isArray(fields) ? fields.join(',') : fields;
+      if (fieldsStr) {
         url += '&fields=' + encodeURIComponent(fieldsStr);
       }
 
@@ -736,7 +744,9 @@
         },
       });
 
-      return await response.json();
+      const data = await response.json();
+      this.pageContentCache.set(cacheKey, data);
+      return data;
     }
 
     /**

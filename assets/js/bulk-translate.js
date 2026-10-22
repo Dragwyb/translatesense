@@ -46,12 +46,13 @@
     const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
     const pluginUrl = config.pluginUrl || '';
     const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
-    const enabledProviders = Array.isArray(config.enabledProviders) ? config.enabledProviders : [];
+    const enabledProviders = config.enabledProviders || {};
+    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
     let providers = [];
     if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
       providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledProviders.length === 0) {
+      if (providers.length === 0 && enabledKeys.length === 0) {
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
@@ -61,7 +62,7 @@
         { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
         { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
       ];
-      providers = enabledProviders.length > 0 ? defaultList.filter((p) => enabledProviders.includes(p.id)) : defaultList;
+      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
     }
     return providers.map((p) => ({
       ...p,
@@ -145,15 +146,46 @@
       const providers = getRegisteredProviders();
       const defaultProv = config.defaultProvider || '';
       const settingsUrl = config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
-      const isProviderMissingKey = (id) => {
-        if (id === 'openai') return !config.hasOpenAiKey;
-        if (id === 'gemini') return !config.hasGeminiKey;
-        return false;
+      const connectorsUrl = config.connectorsUrl || 'options-connectors.php';
+      const enabledProviders = config.enabledProviders || {};
+
+      const getProviderStatus = (id) => {
+        if (enabledProviders && typeof enabledProviders === 'object' && !Array.isArray(enabledProviders) && enabledProviders[id]) {
+          const meta = enabledProviders[id];
+          const isConn = meta.isConnected !== false;
+          const isCore = Boolean(meta.connectors);
+          const isInstall = meta.isProviderInstall !== undefined ? Boolean(meta.isProviderInstall) : true;
+          const isActive = meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true;
+          return {
+            isConnected: isConn,
+            connectors: isCore,
+            isProviderInstall: isInstall,
+            isProviderActive: isActive,
+            targetUrl: isCore ? connectorsUrl : settingsUrl,
+          };
+        }
+        const isMissing = (id === 'openai') ? !config.hasOpenAiKey : (id === 'gemini') ? !config.hasGeminiKey : false;
+        return {
+          isConnected: !isMissing,
+          connectors: false,
+          isProviderInstall: false,
+          isProviderActive: false,
+          targetUrl: settingsUrl,
+        };
       };
 
-      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && !isProviderMissingKey(p.id))) ? defaultProv : '';
+      const isProviderAvailable = (id) => {
+        if (id === 'chrome_ai' || id === 'chrome_local_ai') return true;
+        const st = getProviderStatus(id);
+        if (st.connectors && st.isProviderInstall) {
+          return Boolean(st.isProviderActive && st.isConnected);
+        }
+        return Boolean(st.isConnected);
+      };
+
+      let selectedProviderId = (defaultProv && providers.some((p) => p.id === defaultProv && isProviderAvailable(p.id))) ? defaultProv : '';
       if (!selectedProviderId) {
-        const firstAvail = providers.find((p) => !isProviderMissingKey(p.id));
+        const firstAvail = providers.find((p) => isProviderAvailable(p.id));
         if (firstAvail) selectedProviderId = firstAvail.id;
       }
 
@@ -170,8 +202,14 @@
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal">
             <div class="ts-bulk-header">
-              <h2>⚡ TranslateSense Bulk Translation</h2>
-              <button class="ts-bulk-close" id="ts-bulk-close-btn">&times;</button>
+              <div class="ts-bulk-header-title">
+                <div class="ts-bulk-logo-icon">⚡</div>
+                <div class="ts-bulk-title-group">
+                  <h2>TranslateSense Bulk Translation</h2>
+                  <span class="ts-bulk-subtitle">Fast &amp; Accurate Multi-Language Content Localizer</span>
+                </div>
+              </div>
+              <button class="ts-bulk-close" id="ts-bulk-close-btn" title="Close Modal">&times;</button>
             </div>
             
             <div class="ts-bulk-body">
@@ -194,9 +232,10 @@
                   </div>
                 </div>
 
-                <p style="margin-top: 0; color: #64748b; font-size: 13px;">
-                  Selected <strong>${postIds.length}</strong> post(s). Choose target language(s) to translate into:
-                </p>
+                <div class="ts-lang-info-banner">
+                  <span class="ts-info-icon">ℹ️</span>
+                  <span>Targeting <strong class="ts-highlight-tag">${postIds.length} ${postIds.length === 1 ? 'post' : 'posts'}</strong>. Choose target language(s) to translate into:</span>
+                </div>
 
                 <div class="ts-lang-actions">
                   <div class="ts-lang-btn-group">
@@ -208,14 +247,14 @@
                   </div>
                 </div>
 
-                <div class="ts-lang-grid" id="ts-lang-grid">
+                <div class="ts-lang-grid ${allLanguages.length > 6 ? 'cols-3' : 'cols-2'}" id="ts-lang-grid">
                   ${allLanguages
           .map((lang) => {
             const isChecked = selectedTargetLangs.includes(lang.slug);
             return `
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
                           <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
-                          <span class="ts-lang-name">${lang.name}</span>
+                          <span class="ts-lang-name" title="${lang.name}">${lang.name}</span>
                           <span class="ts-lang-code">${getLanguageDisplay(lang, allLanguages)}</span>
                         </div>
                       `;
@@ -250,32 +289,56 @@
                   <div class="ts-provider-list">
                     ${providers.map(
             (p) => {
-              const isMissingKey = isProviderMissingKey(p.id);
-              const isSelected = !isMissingKey && p.id === selectedProviderId;
+              const status = getProviderStatus(p.id);
               const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-              const badgeHtml = isLocalFrontend
-                ? '<span class="ts-provider-badge on-device">⚡ On-Device</span>'
-                : '';
-              const actionHtml = isMissingKey
-                ? `<a href="${settingsUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`
-                : badgeHtml;
+              const isConnector = Boolean(status.connectors && status.isProviderInstall);
+
+              let isAvailable = false;
+              let actionHtml = '';
+
+              if (isLocalFrontend) {
+                isAvailable = true;
+                actionHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+              } else if (isConnector) {
+                if (!status.isProviderActive) {
+                  isAvailable = false;
+                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+                } else if (!status.isConnected) {
+                  isAvailable = false;
+                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+                } else {
+                  isAvailable = true;
+                  actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+                }
+              } else {
+                if (!status.isConnected) {
+                  isAvailable = false;
+                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+                } else {
+                  isAvailable = true;
+                  actionHtml = '';
+                }
+              }
+
+              const isSelected = Boolean(isAvailable && p.id === selectedProviderId);
+              const isDisabled = !isAvailable;
 
               return `
-                          <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isMissingKey ? 'disabled' : ''}" data-provider="${p.id}" ${isMissingKey ? 'data-disabled="true"' : ''}>
-                            <div class="ts-provider-radio-wrap">
-                              <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isMissingKey ? 'disabled' : ''} class="ts-provider-radio-input" />
-                              <span class="ts-provider-custom-radio"></span>
-                            </div>
-                            <div class="ts-provider-icon-box">
-                              <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                            </div>
-                            <div class="ts-provider-main-info">
-                              <div class="ts-provider-title-row">
-                                <span class="ts-provider-name">${p.title}</span>
-                                ${actionHtml}
+                          <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
+                            <div class="ts-provider-card-top">
+                              <div class="ts-provider-icon-box">
+                                <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
                               </div>
-                              <p class="ts-provider-caption">${p.desc}</p>
+                              <div class="ts-provider-header-content">
+                                <div class="ts-provider-name">${p.title}</div>
+                                ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
+                              </div>
+                              <div class="ts-provider-radio-wrap">
+                                <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                                <span class="ts-provider-custom-radio"></span>
+                              </div>
                             </div>
+                            <p class="ts-provider-caption">${p.desc}</p>
                           </div>
                         `;
             }
@@ -382,6 +445,7 @@
       `;
 
       let pollingTimer = null;
+      const sourceLangCode = 'en';
 
       // Close modal handler
       const closeBtn = document.getElementById('ts-bulk-close-btn');
@@ -463,20 +527,15 @@
           }
 
           const totalTranslations = postIds.length * selectedTargetLangs.length;
-          const langTags = allLanguages
-            .filter((l) => selectedTargetLangs.includes(l.slug))
-            .map((l) => `<span class="ts-summary-tag">${getLanguageFlagHtml(l, allLanguages)} ${l.name} (${l.slug.toUpperCase()})</span>`)
-            .join(' ');
-
           const step1Label = document.getElementById('ts-summary-step1-label');
           const summaryContent = document.getElementById('ts-summary-box-content');
 
           if (step1Label) step1Label.textContent = `${selectedTargetLangs.length} Languages`;
           if (summaryContent) {
             summaryContent.innerHTML = `
-              <div><strong>Bulk Job Summary:</strong> <strong>${postIds.length}</strong> post(s) &times; <strong>${selectedTargetLangs.length}</strong> language(s) = <strong>${totalTranslations}</strong> total translations.</div>
-              <div class="ts-summary-tags" style="margin-top: 6px;">
-                ${langTags}
+              <div class="ts-summary-job-row">
+                <span class="ts-summary-job-icon">📊</span>
+                <span class="ts-summary-job-text">Bulk Job Summary: <strong>${postIds.length}</strong> post(s) &times; <strong>${selectedTargetLangs.length}</strong> language(s) = <strong class="ts-highlight-tag">${totalTranslations} total translations</strong></span>
               </div>
             `;
           }
@@ -532,7 +591,7 @@
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
           const selectedProvider = checkedRadio && !checkedRadio.disabled ? checkedRadio.value : selectedProviderId;
 
-          if (!selectedProvider || isProviderMissingKey(selectedProvider)) {
+          if (!selectedProvider || !getProviderStatus(selectedProvider).isConnected) {
             alert('Please choose an active translation engine with a configured API key before starting.');
             return;
           }
@@ -587,16 +646,19 @@
               translations: {},
             };
             selectedTargetLangs.forEach(function (lang) {
+              let initialStatus = 'pending';
+              let initialError = '';
+
               postResultsMap[pIdStr].translations[lang] = {
                 targetLang: lang,
                 targetPostId: null,
                 targetTitle: '',
-                status: 'pending',
+                status: initialStatus,
                 completedStrings: 0,
                 totalStrings: 0,
                 editUrl: '',
                 viewUrl: '',
-                error: '',
+                error: initialError,
               };
             });
           });
@@ -649,7 +711,10 @@
                 } else if (isDone) {
                   statusBadge = '<span class="ts-trans-status-pill success">✓ Completed</span>';
                 } else if (isFail) {
-                  statusBadge = '<span class="ts-trans-status-pill failed">✕ Failed</span>';
+                  const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
+                  statusBadge = isUnsupported
+                    ? `<button type="button" class="ts-trans-status-pill failed ts-error-detail-btn" data-lang="${escapeHtml(langDisplayName)}" data-error="${escapeHtml(trans.error || 'Language is not supported by Chrome Local AI.')}" title="Click to view detailed reason">✕ Language Not Supported ℹ️</button>`
+                    : '<span class="ts-trans-status-pill failed">✕ Failed</span>';
                 } else if (isRunning) {
                   statusBadge = '<span class="ts-trans-status-pill running">⏳ In Progress</span>';
                 } else {
@@ -662,7 +727,10 @@
                 } else if (isDone && trans.completedStrings) {
                   metaInfo = `<span class="ts-trans-strings-count">${trans.completedStrings} strings</span>`;
                 } else if (isFail && trans.error) {
-                  metaInfo = `<span class="ts-trans-error-msg">${escapeHtml(trans.error)}</span>`;
+                  const isUnsupported = trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable');
+                  if (!isUnsupported) {
+                    metaInfo = `<span class="ts-trans-error-msg">${escapeHtml(trans.error)}</span>`;
+                  }
                 } else if (trans.targetPostId) {
                   metaInfo = `<span class="ts-trans-target-id">#${trans.targetPostId}</span>`;
                 }
@@ -686,7 +754,12 @@
                   actionsHtml += `<span class="ts-action-link-btn disabled">👁 View</span><span class="ts-action-link-btn disabled">✏️ Edit</span>`;
                 }
 
-                const displayTitle = trans.targetTitle || (isAlreadyExists ? (trans.targetTitle || postData.postTitle) : (isDone ? (trans.targetTitle || postData.postTitle) : (isRunning ? 'Translating content...' : `Waiting in queue (${langDisplayName})`)));
+                const displayTitle = trans.targetTitle
+                  || (isAlreadyExists ? (trans.targetTitle || postData.postTitle)
+                    : (isDone ? (trans.targetTitle || postData.postTitle)
+                      : (isFail ? (postData.postTitle || `Post #${pId}`)
+                        : (isRunning ? 'Translating content...'
+                          : `Waiting in queue (${langDisplayName})`))));
 
                 html += `
                   <div class="ts-translation-item ${trans.status}">
@@ -694,7 +767,7 @@
                       <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${getLanguageFlagHtml(langObj || langSlug, allLanguages)} (${langUpper})</span>
                     </div>
                     <div class="ts-trans-details-col">
-                      <div class="ts-trans-title ${isFail ? 'error' : ''}">
+                      <div class="ts-trans-title">
                         ${escapeHtml(displayTitle)}
                       </div>
                       <div class="ts-trans-meta">
@@ -719,6 +792,55 @@
             if (resultsCounterEl) {
               resultsCounterEl.textContent = `${completedTranslationsCount}/${totalTranslationsCount} Completed`;
             }
+          }
+
+          // Global delegation for error details button click
+          if (resultsListEl && !resultsListEl._hasErrorDetailListener) {
+            resultsListEl._hasErrorDetailListener = true;
+            resultsListEl.addEventListener('click', function (e) {
+              const errorBtn = e.target.closest('.ts-error-detail-btn');
+              if (!errorBtn) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const langName = errorBtn.getAttribute('data-lang') || 'Language';
+              const errorMsg = errorBtn.getAttribute('data-error') || 'This language is not supported by the local AI engine.';
+
+              let modalRoot = document.getElementById('ts-error-modal-root');
+              if (!modalRoot) {
+                modalRoot = document.createElement('div');
+                modalRoot.id = 'ts-error-modal-root';
+                document.body.appendChild(modalRoot);
+              }
+
+              modalRoot.innerHTML = `
+                <div class="ts-bulk-overlay" style="z-index: 1000000;">
+                  <div class="ts-bulk-modal" style="max-width: 480px;">
+                    <div class="ts-bulk-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+                      <h2>⚠️ ${escapeHtml(langName)} Notice</h2>
+                      <button type="button" class="ts-bulk-close" id="ts-err-modal-close">&times;</button>
+                    </div>
+                    <div class="ts-bulk-body" style="padding: 22px;">
+                      <p style="margin-top: 0; font-size: 13.5px; color: #334155; line-height: 1.6;">
+                        ${escapeHtml(errorMsg)}
+                      </p>
+                    </div>
+                    <div class="ts-bulk-footer" style="padding: 12px 20px;">
+                      <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">OK</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              function closeModal() {
+                if (modalRoot) modalRoot.innerHTML = '';
+              }
+
+              const closeBtn = document.getElementById('ts-err-modal-close');
+              const okBtn = document.getElementById('ts-err-modal-ok');
+              if (closeBtn) closeBtn.addEventListener('click', closeModal);
+              if (okBtn) okBtn.addEventListener('click', closeModal);
+            });
           }
 
           // Initial render of results skeleton
@@ -817,6 +939,67 @@
             }
           }
 
+          // For Chrome AI, filter and only proceed with supported languages
+          let effectiveTargetLangs = [...selectedTargetLangs];
+          if (isChromeAi && window.TranslateSenseCore) {
+            const supported = [];
+            const unsupported = [];
+
+            for (let i = 0; i < selectedTargetLangs.length; i++) {
+              const lang = selectedTargetLangs[i];
+              const check = await window.TranslateSenseCore.validateProvider('chrome_ai', sourceLangCode, lang, false);
+              if (check && check.available === false) {
+                unsupported.push({
+                  lang: lang,
+                  reason: check.reason || `Language ${lang.toUpperCase()} is not supported by Chrome Built-in AI.`
+                });
+              } else {
+                supported.push(lang);
+              }
+            }
+
+            if (unsupported.length > 0) {
+              if (supported.length === 0) {
+                const unsuppList = unsupported.map((u) => u.lang.toUpperCase()).join(', ');
+                alert('None of the selected languages are supported by Chrome Local AI: ' + unsuppList);
+                unsupported.forEach(function (uItem) {
+                  const uLang = uItem.lang;
+                  const reason = uItem.reason;
+                  postIds.forEach(function (pid) {
+                    const pIdStr = String(pid);
+                    if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
+                      const trans = postResultsMap[pIdStr].translations[uLang];
+                      trans.status = 'failed';
+                      trans.error = reason;
+                      trans.targetTitle = postResultsMap[pIdStr].postTitle || `Post #${pid}`;
+                    }
+                  });
+                });
+                renderResultsUI();
+                onBulkProgressComplete(false, 'Translation stopped: Selected languages are not supported by Chrome Built-in AI.', 0, postIds.length * selectedTargetLangs.length);
+                return;
+              }
+
+              console.warn('[TranslateSense] Excluding unsupported Chrome AI languages from bulk translation:', unsupported);
+              effectiveTargetLangs = supported;
+
+              unsupported.forEach(function (uItem) {
+                const uLang = uItem.lang;
+                const reason = uItem.reason;
+                postIds.forEach(function (pid) {
+                  const pIdStr = String(pid);
+                  if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
+                    const trans = postResultsMap[pIdStr].translations[uLang];
+                    trans.status = 'failed';
+                    trans.error = reason;
+                    trans.targetTitle = postResultsMap[pIdStr].postTitle || `Post #${pid}`;
+                  }
+                });
+              });
+              renderResultsUI();
+            }
+          }
+
           const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
           const nonce = config.nonce || '';
 
@@ -831,7 +1014,7 @@
               },
               body: JSON.stringify({
                 post_ids: postIds,
-                target_languages: selectedTargetLangs,
+                target_languages: effectiveTargetLangs,
                 provider: selectedProvider,
               }),
             });
@@ -1004,10 +1187,10 @@
           // WORKFLOW B: Chrome Local AI In-Memory String Translation Workflow
           // Runs on-device inside browser, creates translated post and sets strings in backend.
           // =========================================================================
-          let totalBatchStrings = 0;
           let completedBatchStrings = 0;
           let completedJobsCount = 0;
-          const totalJobsCount = jobsList.length;
+          let failedJobsCount = 0;
+          const totalJobsCount = jobsList.length || 1;
 
           if (statusBadgeEl) {
             statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
@@ -1015,6 +1198,20 @@
           if (statusLabelEl) {
             statusLabelEl.textContent = 'LOCAL AI RUNNING';
           }
+
+          function updateBulkProgressUI(currentJobIndex, jobFraction = 0) {
+            const safeFraction = Math.max(0, Math.min(1, jobFraction));
+            const progressRatio = (currentJobIndex + safeFraction) / totalJobsCount;
+            const pct = Math.min(100, Math.round(progressRatio * 100));
+
+            if (barFill) barFill.style.width = pct + '%';
+            if (percentText) percentText.textContent = pct + '%';
+            if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
+            if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalJobsCount - (completedJobsCount + failedJobsCount))}</strong> Pending Posts`;
+          }
+
+          // Initial progress state (0%)
+          updateBulkProgressUI(0, 0);
 
           for (let jobIndex = 0; jobIndex < jobsList.length; jobIndex++) {
             const job = jobsList[jobIndex];
@@ -1056,6 +1253,7 @@
               transObj.viewUrl = job.view_url || (job.target_post_id ? `/?p=${job.target_post_id}` : '');
               renderResultsUI();
               completedJobsCount++;
+              updateBulkProgressUI(jobIndex + 1, 0);
               continue;
             }
 
@@ -1066,6 +1264,7 @@
             if (statusText) {
               statusText.textContent = `Extracting strings for ${postTitle} (${targetLang.toUpperCase()}) [${jobIndex + 1}/${totalJobsCount}]...`;
             }
+            updateBulkProgressUI(jobIndex, 0.05);
 
             try {
               // 1. Extract strings for this post one by one passing editor_type
@@ -1086,9 +1285,6 @@
               let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
               rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
 
-              totalBatchStrings += rawStrings.length;
-              if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
-
               if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
                 postResultsMap[postId].translations[targetLang].totalStrings = rawStrings.length;
                 renderResultsUI();
@@ -1096,6 +1292,7 @@
 
               // Local in-memory dictionary for pre-translated strings
               const inMemoryTranslations = {};
+              let jobStringsCompleted = 0;
 
               if (rawStrings.length > 0) {
                 if (statusText) {
@@ -1114,11 +1311,10 @@
                     if (resItem.hash) inMemoryTranslations[resItem.hash] = resItem.translated;
                   }
                   completedBatchStrings++;
-                  const strPct = totalBatchStrings > 0 ? Math.round((completedBatchStrings / totalBatchStrings) * 100) : 0;
-                  if (barFill) barFill.style.width = strPct + '%';
-                  if (percentText) percentText.textContent = strPct + '%';
-                  if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
-                  if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalBatchStrings - completedBatchStrings)}</strong> Pending Strings`;
+                  jobStringsCompleted++;
+                  const strRatio = rawStrings.length > 0 ? (jobStringsCompleted / rawStrings.length) : 1;
+                  // Map string translation to 0.05 -> 0.90 of this job's slice
+                  updateBulkProgressUI(jobIndex, 0.05 + (strRatio * 0.85));
                 };
 
                 // Run client-side Chrome AI translation
@@ -1138,6 +1334,7 @@
               if (statusText) {
                 statusText.textContent = `Saving translated Post #${postId} (${targetLang.toUpperCase()})...`;
               }
+              updateBulkProgressUI(jobIndex, 0.95);
 
               const postResponse = await fetch(restUrl + 'translate-post', {
                 method: 'POST',
@@ -1180,13 +1377,14 @@
                     total_strings: rawStrings.length,
                     completed_strings: rawStrings.length,
                     target_post_id: postRes.target_post_id,
-                    sent_ai_request_data: indexedStrings,
-                    received_ai_request_data: indexedTranslated,
+                    sent_data: indexedStrings,
+                    receive_data: indexedTranslated,
                   },
                 }),
               });
 
               completedJobsCount++;
+              updateBulkProgressUI(jobIndex + 1, 0);
 
               // Update Result Item
               if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
@@ -1202,6 +1400,7 @@
               }
             } catch (err) {
               console.error(`[TranslateSense] Chrome AI error for post #${postId}:`, err);
+              failedJobsCount++;
 
               await fetch(restUrl + 'bulk-update-job', {
                 method: 'POST',
@@ -1225,12 +1424,20 @@
                 transObj.error = err.message || 'Error';
                 renderResultsUI();
               }
+
+              // Complete progress slice for this failed post so progress count reaches 100%
+              updateBulkProgressUI(jobIndex + 1, 0);
             }
           }
 
+          const isOverallSuccess = (failedJobsCount === 0 || completedJobsCount > 0);
+          const finalMsg = failedJobsCount > 0
+            ? `Chrome Local AI Bulk Translation Finished (${completedJobsCount} succeeded, ${failedJobsCount} failed of ${totalJobsCount} total).`
+            : `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`;
+
           onBulkProgressComplete(
-            true,
-            `🎉 Chrome Local AI Bulk Translation Complete! (${completedJobsCount}/${totalJobsCount} jobs processed)`,
+            isOverallSuccess,
+            finalMsg,
             completedJobsCount,
             totalJobsCount
           );

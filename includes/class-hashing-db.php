@@ -58,11 +58,16 @@ class Hashing_Db {
 	 *
 	 * Uses atomic MySQL ON DUPLICATE KEY UPDATE to minimize queries and prevent race conditions.
 	 *
-	 * @param string $source_string
+	 * @param string $filter_string Clean/filtered string used for hash computation.
+	 * @param string $source_string Original source string (defaults to $filter_string if omitted).
 	 * @return int String ID or 0 on failure
 	 */
-	public static function get_or_create_string_id( string $filter_string, string $source_string ): int {
+	public static function get_or_create_string_id( string $filter_string, string $source_string = '' ): int {
 		global $wpdb;
+
+		if ( '' === $source_string ) {
+			$source_string = $filter_string;
+		}
 
 		if ( '' === trim( $source_string ) ) {
 			return 0;
@@ -398,6 +403,32 @@ class Hashing_Db {
 		);
 
 		return ! empty( $results ) ? $results : array();
+	}
+
+	/**
+	 * Check if a post has packages recorded in the translatesense_packages table.
+	 *
+	 * @param int $post_id
+	 * @return bool
+	 */
+	public static function has_post_packages( int $post_id ): bool {
+		global $wpdb;
+
+		if ( $post_id <= 0 ) {
+			return false;
+		}
+
+		$packages_table = self::get_packages_table();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$exists = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT 1 FROM {$packages_table} WHERE post_id = %d LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$post_id
+			)
+		);
+
+		return ! empty( $exists );
 	}
 
 	/**

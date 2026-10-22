@@ -161,28 +161,73 @@ class Content_Parser {
 			return array();
 		}
 
-		return $parser->parse( $content, $post_id, $lang );
-	}
+		$extracted = array();
 
-	/**
-	 * Parse a post object or ID directly.
-	 *
-	 * @param int    $post_id
-	 * @param string $lang
-	 * @param string $builder
-	 * @return array
-	 */
-	public static function parse_post( int $post_id, string $lang = '', string $builder = '' ): array {
-		if ( ! $post_id ) {
-			return array();
+		// Save and append core post fields (post_title, post_name, post_excerpt)
+		if ( $post_id > 0 && ! empty( $lang ) && class_exists( Hashing_Db::class ) ) {
+			$post_obj = get_post( $post_id );
+			if ( $post_obj ) {
+				$existing_names = array_column( (array) $extracted, 'name' );
+
+				// 1. Post Title
+				$title = $post_obj->post_title;
+				if ( ! empty( $title ) && '' !== trim( (string) $title ) && ! in_array( 'post_title', $existing_names, true ) ) {
+					$title_hash = Hashing_Db::generate_hash( 'post_title', $title );
+					$string_id  = Hashing_Db::get_or_create_string_id( $title, $title );
+					if ( $string_id > 0 ) {
+						Hashing_Db::record_package( $post_id, $lang, $title_hash, $builder, 'post_title', 'Post/Page Title', $title, $title, $string_id );
+						$extracted[] = array(
+							'hash'      => $title_hash,
+							'name'      => 'post_title',
+							'key'       => 'Post/Page Title',
+							'source'    => $title,
+							'value'     => $title,
+							'string_id' => $string_id,
+						);
+					}
+				}
+
+				// 2. Post Name (Slug)
+				$slug = $post_obj->post_name;
+				if ( ! empty( $slug ) && '' !== trim( (string) $slug ) && ! in_array( 'post_name', $existing_names, true ) ) {
+					$slug_hash = Hashing_Db::generate_hash( 'post_name', $slug );
+					$string_id = Hashing_Db::get_or_create_string_id( $slug, $slug );
+					if ( $string_id > 0 ) {
+						Hashing_Db::record_package( $post_id, $lang, $slug_hash, $builder, 'post_name', 'Post/Page Slug', $slug, $slug, $string_id );
+						$extracted[] = array(
+							'hash'      => $slug_hash,
+							'name'      => 'post_name',
+							'key'       => 'Post/Page Slug',
+							'source'    => $slug,
+							'value'     => $slug,
+							'string_id' => $string_id,
+						);
+					}
+				}
+
+				// 3. Post Excerpt
+				$excerpt = $post_obj->post_excerpt;
+				if ( ! empty( $excerpt ) && '' !== trim( (string) $excerpt ) && ! in_array( 'post_excerpt', $existing_names, true ) ) {
+					$excerpt_hash = Hashing_Db::generate_hash( 'post_excerpt', $excerpt );
+					$string_id    = Hashing_Db::get_or_create_string_id( $excerpt, $excerpt );
+					if ( $string_id > 0 ) {
+						Hashing_Db::record_package( $post_id, $lang, $excerpt_hash, $builder, 'post_excerpt', 'Post/Page Excerpt', $excerpt, $excerpt, $string_id );
+						$extracted[] = array(
+							'hash'      => $excerpt_hash,
+							'name'      => 'post_excerpt',
+							'key'       => 'Post/Page Excerpt',
+							'source'    => $excerpt,
+							'value'     => $excerpt,
+							'string_id' => $string_id,
+						);
+					}
+				}
+			}
 		}
 
-		$post = get_post( $post_id );
-		if ( ! $post ) {
-			return array();
-		}
+		$extracted = array_merge( $extracted, $parser->parse( $content, $post_id, $lang ) );
 
-		return self::parse( $post->post_content, $post_id, $lang, $builder );
+		return array_values( (array) $extracted );
 	}
 
 	public static function is_save_package( $post_id ): bool {
@@ -204,8 +249,30 @@ class Content_Parser {
 
 		$is_translated_post = get_post_meta( $post_id, '_translatesense_source_id', true );
 
-		if ( ! empty( $is_translated_post ) && $is_translated_post !== intval( $post_id ) ) {
+		if ( ! empty( $is_translated_post ) && intval( $is_translated_post ) !== intval( $post_id ) ) {
 			return false;
+		}
+
+		if ( get_post_meta( $post_id, '_translatesense_translated', true ) ) {
+			return false;
+		}
+
+		// Check all linked Polylang translation posts
+		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) && Polylang_Bridge::is_polylang_active() ) {
+			$default_lang = Polylang_Bridge::get_default_language();
+			$translations = Polylang_Bridge::get_post_translations( $post_id );
+
+			if ( ! empty( $translations ) && is_array( $translations ) ) {
+				foreach ( $translations as $lang => $linked_post_id ) {
+					$linked_post_id = (int) $linked_post_id;
+					if ( $linked_post_id > 0 && $linked_post_id !== (int) $post_id ) {
+						// If any linked post is in Polylang default language and already has packages saved, return false
+						if ( $lang === $default_lang && class_exists( Hashing_Db::class ) && Hashing_Db::has_post_packages( $linked_post_id ) ) {
+							return false;
+						}
+					}
+				}
+			}
 		}
 
 		$post = get_post( $post_id );

@@ -30,8 +30,11 @@ class Bulk_Translate {
 		if ( $current_screen && ! empty( $current_screen->post_type ) ) {
 			return $current_screen->post_type;
 		}
-		if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore
-			return sanitize_key( $_GET['post_type'] ); // phpcs:ignore
+		if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$type = sanitize_key( wp_unslash( $_GET['post_type'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( post_type_exists( $type ) ) {
+				return $type;
+			}
 		}
 		return 'post';
 	}
@@ -129,9 +132,10 @@ class Bulk_Translate {
 				'defaultLanguage'  => Polylang_Bridge::get_default_language(),
 				'languages'        => Polylang_Bridge::get_languages(),
 				'defaultProvider'  => $settings['provider'] ?? '',
-				'enabledProviders' => $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ),
+				'enabledProviders' => class_exists( '\TranslateSense\Includes\Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
 				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
 				'settingsUrl'      => Admin_Menu::get_dashboard_url( 'settings' ),
+				'connectorsUrl'    => admin_url( 'options-connectors.php' ),
 				'hasOpenAiKey'     => ! empty( $settings['openai_api_key'] ),
 				'hasGeminiKey'     => ! empty( $settings['gemini_api_key'] ),
 			)
