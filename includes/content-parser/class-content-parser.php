@@ -37,19 +37,56 @@ class Content_Parser {
 	private static $initialized = false;
 
 	/**
+	 * Temporary in-memory cache of existing post content before update.
+	 *
+	 * @var array<int, string>
+	 */
+	private static $existing_post_content = array();
+
+	/**
 	 * Initialize the Content Parser subsystem and register hooks.
 	 */
 	public static function init(): void {
 		self::init_builders();
 
-		// Hook into post save lifecycle to parse and hash content automatically
+		// Hook before post update to capture existing post_content before it is overwritten in DB
+		add_action( 'pre_post_update', array( __CLASS__, 'capture_pre_post_content' ), 10, 2 );
+		add_action( 'post_updated', array( __CLASS__, 'capture_post_updated' ), 10, 3 );
+
+		// Hook into post save lifecycle to check for content modifications
 		add_action( 'save_post', array( __CLASS__, 'handle_save_post' ), 25, 2 );
 
-		// Hook into elementor post save lifecycle to parse the hash content automatically
+		// Hook into elementor post save lifecycle to check for element modifications
 		add_action( 'elementor/document/before_save', array( __CLASS__, 'handle_elementor_save_post' ), 10, 2 );
 
 		// Hook into permanent post deletion lifecycle to purge package data
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_delete_post' ), 10, 1 );
+	}
+
+	/**
+	 * Capture existing post_content before WordPress updates the database record.
+	 *
+	 * @param int   $post_id Post ID being updated.
+	 * @param array $data    Array of post data (optional).
+	 */
+	public static function capture_pre_post_content( int $post_id, array $data = array() ): void {
+		if ( ! isset( self::$existing_post_content[ $post_id ] ) ) {
+			$post = get_post( $post_id );
+			if ( $post && isset( $post->post_content ) ) {
+				self::$existing_post_content[ $post_id ] = (string) $post->post_content;
+			}
+		}
+	}
+
+	/**
+	 * Capture existing post_content from post_updated hook ($post_before).
+	 *
+	 * @param int      $post_id     Post ID.
+	 * @param \WP_Post $post_after  Post object following the update.
+	 * @param \WP_Post $post_before Post object before the update.
+	 */
+	public static function capture_post_updated( int $post_id, \WP_Post $post_after, \WP_Post $post_before ): void {
+		self::$existing_post_content[ $post_id ] = (string) $post_before->post_content;
 	}
 
 	/**
@@ -286,10 +323,11 @@ class Content_Parser {
 
 	/**
 	 * Handle Elementor document save action.
-	 * Removes old package records for the post and re-parses new strings into packages.
+	 * Compares new update data with existing saved data for _elementor_data.
+	 * If they are not the same, triggers delete_post_packages (does not re-parse content).
 	 *
-	 * @param \Elementor\Core\DocumentTypes\Page $document Elementor document
-	 * @param array                              $data     Post data
+	 * @param \Elementor\Core\DocumentTypes\Page|\Elementor\Core\Base\Document $document Elementor document
+	 * @param array                                                            $data     Post data
 	 */
 	public static function handle_elementor_save_post( $document, $data ): void {
 
@@ -297,7 +335,7 @@ class Content_Parser {
 			return;
 		}
 
-		if ( ! $document || ! $document instanceof \Elementor\Core\DocumentTypes\Page ) {
+		if ( ! $document || ! is_object( $document ) || ! method_exists( $document, 'get_id' ) ) {
 			return;
 		}
 
@@ -307,29 +345,51 @@ class Content_Parser {
 			return;
 		}
 
-		$post = get_post( $post_id );
-
 		// Detect source language
 		$lang = '';
 		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) ) {
 			$lang = Polylang_Bridge::get_post_language( $post_id );
 		}
 
-		// Detect editor type / builder
-		$builder = self::detect_builder( $post->post_content, $post_id );
-
-		// Remove old package records for this post before storing new parsed strings
-		if ( class_exists( Hashing_Db::class ) ) {
-			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		// Extract new elements data from payload
+		$new_elements = null;
+		if ( isset( $data['elements'] ) ) {
+			$new_elements = $data['elements'];
+		} elseif ( isset( $data[0] ) || isset( $data['elType'] ) ) {
+			$new_elements = $data;
+		} else {
+			// No element tree in payload (e.g. settings-only update), element data did not change
+			return;
 		}
 
-		// Parse updated post content and store new string packages
-		self::parse( $post->post_content, $post_id, $lang, $builder );
+		$new_data_array = is_string( $new_elements ) ? json_decode( $new_elements, true ) : $new_elements;
+
+		// Get existing saved _elementor_data from post meta
+		$existing_raw        = get_post_meta( $post_id, '_elementor_data', true );
+		$existing_data_array = is_string( $existing_raw ) && '' !== trim( $existing_raw )
+			? json_decode( $existing_raw, true )
+			: ( is_array( $existing_raw ) ? $existing_raw : null );
+
+		// Compare new and existing _elementor_data
+		$is_changed = false;
+		if ( empty( $new_data_array ) && empty( $existing_data_array ) ) {
+			$is_changed = false;
+		} elseif ( empty( $new_data_array ) || empty( $existing_data_array ) ) {
+			$is_changed = true;
+		} else {
+			$is_changed = ( $new_data_array != $existing_data_array );
+		}
+
+		// If new or existing data not same, trigger only delete_post_packages (do not parse here)
+		if ( $is_changed && class_exists( Hashing_Db::class ) ) {
+			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, 'elementor' );
+		}
 	}
 
 	/**
 	 * Handle WordPress save_post action.
-	 * Removes old package records for the post and re-parses new strings into packages.
+	 * Compares new update data with existing saved data for post_content.
+	 * If they are not the same, triggers delete_post_packages (does not re-parse content).
 	 *
 	 * @param int           $post_id Post ID
 	 * @param \WP_Post|null $post    Post object
@@ -337,6 +397,7 @@ class Content_Parser {
 	public static function handle_save_post( int $post_id, $post = null ): void {
 
 		if ( ! self::is_save_package( $post_id ) ) {
+			unset( self::$existing_post_content[ $post_id ] );
 			return;
 		}
 
@@ -344,27 +405,49 @@ class Content_Parser {
 			$post = get_post( $post_id );
 		}
 
+		if ( ! $post ) {
+			unset( self::$existing_post_content[ $post_id ] );
+			return;
+		}
+
 		// Detect source language
 		$lang = '';
-
 		if ( class_exists( 'TranslateSense\Includes\Polylang_Bridge' ) ) {
 			$lang = Polylang_Bridge::get_post_language( $post_id );
 		}
 
 		if ( ! $lang ) {
+			unset( self::$existing_post_content[ $post_id ] );
 			return;
 		}
 
 		// Detect editor type / builder
 		$builder = self::detect_builder( $post->post_content, $post_id );
 
-		// Remove old package records for this post before storing new parsed strings
-		if ( class_exists( Hashing_Db::class ) ) {
-			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		// Elementor content (_elementor_data) is handled in handle_elementor_save_post
+		if ( 'elementor' === $builder ) {
+			unset( self::$existing_post_content[ $post_id ] );
+			return;
 		}
 
-		// Parse updated post content and store new string packages
-		self::parse( $post->post_content, $post_id, $lang, $builder );
+		$existing_content = self::$existing_post_content[ $post_id ] ?? null;
+		unset( self::$existing_post_content[ $post_id ] );
+
+		// If there is no existing content recorded (e.g. brand new post), do nothing
+		if ( null === $existing_content ) {
+			return;
+		}
+
+		$new_content = (string) $post->post_content;
+
+		// Normalize line breaks for accurate comparison
+		$normalized_new      = str_replace( "\r\n", "\n", $new_content );
+		$normalized_existing = str_replace( "\r\n", "\n", (string) $existing_content );
+
+		// If new or existing data not same, trigger only delete_post_packages (do not parse here)
+		if ( $normalized_new !== $normalized_existing && class_exists( Hashing_Db::class ) ) {
+			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		}
 	}
 
 	/**
