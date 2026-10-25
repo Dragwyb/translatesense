@@ -145,8 +145,13 @@
           ? [...currentAttrs]
           : { ...currentAttrs };
 
-        Object.keys(keySchema).forEach((kName) => {
-          const kInfo = keySchema[kName] || {};
+        // If keySchema directly contains a wildcard '*', unwrap it to access item keys
+        const effectiveSchema = (keySchema['*'] && keySchema['*'].children)
+          ? keySchema['*'].children
+          : keySchema;
+
+        Object.keys(effectiveSchema).forEach((kName) => {
+          const kInfo = effectiveSchema[kName] || {};
           if (newAttrs[kName] === undefined || newAttrs[kName] === null) return;
 
           const val = newAttrs[kName];
@@ -181,11 +186,31 @@
           }
 
           if (Array.isArray(val)) {
-            const childSchema = kInfo.children || keySchema;
+            // Determine schema for items inside this array.
+            // If kInfo has key="*", use children of "*" as item schema.
+            let itemSchema = null;
+            if (kInfo && kInfo.children) {
+              if (kInfo.children['*'] && kInfo.children['*'].children) {
+                itemSchema = kInfo.children['*'].children;
+              } else if (kInfo.children['*']) {
+                itemSchema = kInfo.children['*'];
+              } else {
+                itemSchema = kInfo.children;
+              }
+            } else {
+              itemSchema = effectiveSchema;
+            }
+
             let arrayChanged = false;
             const newArr = val.map((arrItem) => {
-              if (arrItem && typeof arrItem === 'object') {
-                const result = updateAttributeTree(arrItem, childSchema, blockName);
+              if (typeof arrItem === 'string' && arrItem.trim() !== '') {
+                const transVal = findTranslation(arrItem, blockName);
+                if (transVal && transVal !== arrItem) {
+                  arrayChanged = true;
+                  return transVal;
+                }
+              } else if (arrItem && typeof arrItem === 'object') {
+                const result = updateAttributeTree(arrItem, itemSchema, blockName);
                 if (result.changed) {
                   arrayChanged = true;
                   return result.updated;
@@ -202,7 +227,19 @@
           }
 
           if (val && typeof val === 'object') {
-            const childSchema = kInfo.children || keySchema;
+            let childSchema = null;
+            if (kInfo && kInfo.children) {
+              if (kInfo.children['*'] && kInfo.children['*'].children) {
+                childSchema = kInfo.children['*'].children;
+              } else if (kInfo.children['*']) {
+                childSchema = kInfo.children['*'];
+              } else {
+                childSchema = kInfo.children;
+              }
+            } else {
+              childSchema = effectiveSchema;
+            }
+
             const result = updateAttributeTree(val, childSchema, blockName);
             if (result.changed) {
               newAttrs[kName] = result.updated;
