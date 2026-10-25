@@ -55,10 +55,9 @@ class Activator {
             widget_key varchar(100) NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            UNIQUE KEY package_hash_unique (package_hash),
-            KEY post_index (post_id),
+            UNIQUE KEY post_package_unique (post_id, package_hash),
             KEY string_index (string_id)
-        ) {$charset_collate};";
+        } {$charset_collate};";
 
 		// 3. Custom translations table (Linked directly to strings)
 		$table_translations = $wpdb->prefix . 'translatesense_translations';
