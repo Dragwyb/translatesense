@@ -158,8 +158,9 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$existing_id = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT id FROM {$packages_table} WHERE package_hash = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$package_hash
+				"SELECT id FROM {$packages_table} WHERE package_hash = %s AND post_id = %d LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$package_hash,
+				$post_id
 			)
 		);
 
