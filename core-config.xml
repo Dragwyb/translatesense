@@ -228,10 +228,19 @@
             <key name="materialTitle" />
             <key name="toolsTitle" />
         </gutenberg-block>
+        <gutenberg-block name="essential-blocks/accordion">
+            <key name="accordionLists">
+                <key name="*">
+                    <key name="title" />
+                </key>
+            </key>
+        </gutenberg-block>
         <gutenberg-block name="essential-blocks/accordion-item">
             <key name="title" />
             <key name="accordionLists">
-                <key name="title" />
+                <key name="*">
+                    <key name="title" />
+                </key>
             </key>
         </gutenberg-block>
         <gutenberg-block name="essential-blocks/button">

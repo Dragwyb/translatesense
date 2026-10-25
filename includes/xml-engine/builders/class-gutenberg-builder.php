@@ -71,17 +71,42 @@ class Gutenberg_Builder extends Base_Builder {
 		$section = $dom->createElement( $this->section_name );
 		$block   = $dom->createElement( 'gutenberg-block' );
 		$block->setAttribute( 'name', $name );
-		foreach ( $field_details as $key => $info ) {
-			$k_node = $dom->createElement( 'key' );
-			$k_node->setAttribute( 'name', (string) $key );
-			$k_node->setAttribute( 'type', $info['type'] ?? 'text' );
-			$k_node->setAttribute( 'editor_type', $info['editor_type'] ?? 'VISUAL' );
-			$block->appendChild( $k_node );
-		}
+		$this->append_dom_keys_recursive( $dom, $block, $field_details );
 		$section->appendChild( $block );
 		$root->appendChild( $section );
 
 		return $dom->saveXML();
+	}
+
+	/**
+	 * Recursively append DOM key nodes according to field schema.
+	 *
+	 * @param DOMDocument $dom
+	 * @param DOMElement  $parent
+	 * @param array       $field_details
+	 * @return void
+	 */
+	private function append_dom_keys_recursive( DOMDocument $dom, DOMElement $parent, array $field_details ): void {
+		foreach ( $field_details as $key => $info ) {
+			$k_node = $dom->createElement( 'key' );
+			$k_node->setAttribute( 'name', (string) $key );
+
+			if ( ! empty( $info['type'] ) && 'array' !== $info['type'] && 'object' !== $info['type'] ) {
+				$k_node->setAttribute( 'type', (string) $info['type'] );
+			}
+			if ( ! empty( $info['editor_type'] ) ) {
+				$k_node->setAttribute( 'editor_type', (string) $info['editor_type'] );
+			}
+			if ( ! empty( $info['noTranslate'] ) ) {
+				$k_node->setAttribute( 'noTranslate', 'true' );
+			}
+
+			if ( isset( $info['children'] ) && is_array( $info['children'] ) && ! empty( $info['children'] ) ) {
+				$this->append_dom_keys_recursive( $dom, $k_node, $info['children'] );
+			}
+
+			$parent->appendChild( $k_node );
+		}
 	}
 
 	/**
@@ -183,21 +208,41 @@ class Gutenberg_Builder extends Base_Builder {
 			$found_block->addAttribute( 'name', $name );
 		}
 
+		$this->append_simplexml_keys_recursive( $found_block, $field_details );
+	}
+
+	/**
+	 * Recursively append key nodes into SimpleXML parent.
+	 *
+	 * @param SimpleXMLElement $parent
+	 * @param array            $field_details
+	 * @return void
+	 */
+	private function append_simplexml_keys_recursive( SimpleXMLElement $parent, array $field_details ): void {
 		foreach ( $field_details as $f_key => $f_info ) {
-			$key_exists = false;
-			if ( isset( $found_block->key ) ) {
-				foreach ( $found_block->key as $k ) {
-					if ( (string) $k['name'] === $f_key ) {
-						$key_exists = true;
+			$found_node = null;
+			if ( isset( $parent->key ) ) {
+				foreach ( $parent->key as $k ) {
+					if ( (string) $k['name'] === (string) $f_key ) {
+						$found_node = $k;
 						break;
 					}
 				}
 			}
-			if ( ! $key_exists ) {
-				$k_node = $found_block->addChild( 'key' );
-				$k_node->addAttribute( 'name', $f_key );
-				$k_node->addAttribute( 'type', $f_info['type'] ?? 'text' );
-				$k_node->addAttribute( 'editor_type', $f_info['editor_type'] ?? 'VISUAL' );
+			if ( ! $found_node ) {
+				$found_node = $parent->addChild( 'key' );
+				$found_node->addAttribute( 'name', (string) $f_key );
+			}
+
+			if ( ! empty( $f_info['type'] ) && 'array' !== $f_info['type'] && 'object' !== $f_info['type'] && ! isset( $found_node['type'] ) ) {
+				$found_node->addAttribute( 'type', (string) $f_info['type'] );
+			}
+			if ( ! empty( $f_info['editor_type'] ) && ! isset( $found_node['editor_type'] ) ) {
+				$found_node->addAttribute( 'editor_type', (string) $f_info['editor_type'] );
+			}
+
+			if ( isset( $f_info['children'] ) && is_array( $f_info['children'] ) && ! empty( $f_info['children'] ) ) {
+				$this->append_simplexml_keys_recursive( $found_node, $f_info['children'] );
 			}
 		}
 	}

@@ -211,22 +211,8 @@ class Detector {
 			$attrs        = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
 			$no_translate = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
 
-			$new_fields = array();
-
-			// Scan attributes
-			foreach ( $attrs as $attr_key => $attr_val ) {
-				if ( is_string( $attr_val ) && ! empty( trim( $attr_val ) ) ) {
-					// If attribute is not yet in XML config or contains dummy text
-					if ( false !== stripos( $attr_val, self::$dummy_text ) ) {
-						if ( ! in_array( $attr_key, $no_translate, true ) ) {
-							$new_fields[ $attr_key ] = array(
-								'type'        => ( strlen( $attr_val ) > 60 ) ? 'text' : 'title',
-								'editor_type' => ( strlen( $attr_val ) > 60 || false !== strpos( $attr_val, '<' ) ) ? 'VISUAL' : 'LINE',
-							);
-						}
-					}
-				}
-			}
+			// Scan attributes recursively supporting nested array items (with key="*") and objects
+			$new_fields = self::extract_translatable_gutenberg_attrs( $attrs, true, $no_translate );
 
 			// If new fields found, register into custom XML
 			if ( ! empty( $new_fields ) ) {
@@ -342,19 +328,12 @@ class Detector {
 				}
 
 				$attrs = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
-				foreach ( $attrs as $attr_key => $attr_val ) {
-					if ( is_string( $attr_val ) && ! empty( trim( $attr_val ) ) ) {
-						$is_dummy = ( false !== stripos( $attr_val, self::$dummy_text ) );
-						if ( $is_dummy || false !== stripos( $attr_val, 'translate this content' ) ) {
-							if ( ! isset( $found_items[ $block_name ] ) ) {
-								$found_items[ $block_name ] = array();
-							}
-							$found_items[ $block_name ][ $attr_key ] = array(
-								'type'        => ( strlen( $attr_val ) > 60 ) ? 'text' : 'title',
-								'editor_type' => ( strlen( $attr_val ) > 60 || false !== strpos( $attr_val, '<' ) ) ? 'VISUAL' : 'LINE',
-							);
-						}
+				$extracted = self::extract_translatable_gutenberg_attrs( $attrs, false );
+				if ( ! empty( $extracted ) ) {
+					if ( ! isset( $found_items[ $block_name ] ) ) {
+						$found_items[ $block_name ] = array();
 					}
+					$found_items[ $block_name ] = array_merge( $found_items[ $block_name ], $extracted );
 				}
 
 				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
@@ -372,9 +351,7 @@ class Detector {
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n";
 		foreach ( $found_items as $b_name => $fields ) {
 			$generated_xml .= '        <gutenberg-block name="' . esc_attr( $b_name ) . "\">\n";
-			foreach ( $fields as $f_key => $f_info ) {
-				$generated_xml .= '            <key name="' . esc_attr( $f_key ) . '" type="' . esc_attr( $f_info['type'] ) . '" editor_type="' . esc_attr( $f_info['editor_type'] ) . "\" />\n";
-			}
+			$generated_xml .= self::format_gutenberg_keys_xml( $fields, '            ' );
 			$generated_xml .= "        </gutenberg-block>\n";
 		}
 		$generated_xml .= "    </gutenberg-blocks>\n</wpml-config>";
@@ -384,6 +361,128 @@ class Detector {
 			'found_items' => $found_items,
 			'xml_snippet' => $generated_xml,
 		);
+	}
+
+	/**
+	 * Recursively extract translatable field hierarchy from Gutenberg block attributes.
+	 *
+	 * - If attribute value is a string with text / dummy marker: returns leaf key.
+	 * - If attribute value is a sequential array (list of items): wraps unique item keys in key="*".
+	 * - If attribute value is an associative array (object): saves direct nested keys inside key.
+	 *
+	 * @param array $attrs
+	 * @param bool  $require_dummy
+	 * @param array $no_translate
+	 * @param int   $depth
+	 * @return array
+	 */
+	public static function extract_translatable_gutenberg_attrs( array $attrs, bool $require_dummy = false, array $no_translate = array(), int $depth = 0 ): array {
+		if ( empty( $attrs ) || $depth > 10 ) {
+			return array();
+		}
+
+		$fields = array();
+
+		foreach ( $attrs as $key => $val ) {
+			$str_key = (string) $key;
+			if ( in_array( $str_key, $no_translate, true ) ) {
+				continue;
+			}
+
+			// 1. Direct string attribute
+			if ( is_string( $val ) && '' !== trim( $val ) ) {
+				$is_dummy = ( false !== stripos( $val, self::$dummy_text ) )
+					|| ( false !== stripos( $val, 'translate this content' ) )
+					|| ( false !== stripos( $val, 'translate_me_dummy_text' ) );
+				$is_text  = ! preg_match( '/^#[0-9a-f]{3,8}$/i', $val ) && ! filter_var( $val, FILTER_VALIDATE_URL );
+
+				if ( $is_dummy || ( ! $require_dummy && $is_text ) ) {
+					$fields[ $str_key ] = array(
+						'type'        => ( strlen( $val ) > 60 ) ? 'text' : 'title',
+						'editor_type' => ( strlen( $val ) > 60 || false !== strpos( $val, '<' ) ) ? 'VISUAL' : 'LINE',
+					);
+				}
+			}
+			// 2. Array value (sequential list of items OR associative object)
+			elseif ( is_array( $val ) && ! empty( $val ) ) {
+				$is_sequential = ( array_keys( $val ) === range( 0, count( $val ) - 1 ) );
+
+				if ( $is_sequential ) {
+					// Sequential list of items: collect unique item keys across all items and wrap in key="*"
+					$item_fields = array();
+					foreach ( $val as $item ) {
+						if ( is_array( $item ) ) {
+							$extracted_item = self::extract_translatable_gutenberg_attrs( $item, $require_dummy, array(), $depth + 1 );
+							foreach ( $extracted_item as $item_k => $item_info ) {
+								if ( ! isset( $item_fields[ $item_k ] ) ) {
+									$item_fields[ $item_k ] = $item_info;
+								} elseif ( ! empty( $item_info['children'] ) ) {
+									$item_fields[ $item_k ]['children'] = array_merge(
+										$item_fields[ $item_k ]['children'] ?? array(),
+										$item_info['children']
+									);
+								}
+							}
+						} elseif ( is_string( $item ) && '' !== trim( $item ) ) {
+							$is_dummy = ( false !== stripos( $item, self::$dummy_text ) );
+							if ( $is_dummy || ! $require_dummy ) {
+								$item_fields['*'] = array(
+									'type'        => 'text',
+									'editor_type' => 'LINE',
+								);
+							}
+						}
+					}
+
+					if ( ! empty( $item_fields ) ) {
+						$fields[ $str_key ] = array(
+							'type'     => 'array',
+							'children' => array(
+								'*' => array(
+									'type'     => 'array',
+									'children' => $item_fields,
+								),
+							),
+						);
+					}
+				} else {
+					// Associative array (direct object): save direct nested keys inside key
+					$nested_fields = self::extract_translatable_gutenberg_attrs( $val, $require_dummy, array(), $depth + 1 );
+					if ( ! empty( $nested_fields ) ) {
+						$fields[ $str_key ] = array(
+							'type'     => 'object',
+							'children' => $nested_fields,
+						);
+					}
+				}
+			}
+		}
+
+		return $fields;
+	}
+
+	/**
+	 * Helper: Format hierarchical keys into clean Gutenberg XML indentation.
+	 *
+	 * @param array  $fields
+	 * @param string $indent
+	 * @return string
+	 */
+	public static function format_gutenberg_keys_xml( array $fields, string $indent = '            ' ): string {
+		$xml = '';
+		foreach ( $fields as $f_key => $f_info ) {
+			$has_children = ! empty( $f_info['children'] ) && is_array( $f_info['children'] );
+			if ( $has_children ) {
+				$xml .= $indent . '<key name="' . esc_attr( (string) $f_key ) . "\">\n";
+				$xml .= self::format_gutenberg_keys_xml( $f_info['children'], $indent . '    ' );
+				$xml .= $indent . "</key>\n";
+			} else {
+				$type        = ! empty( $f_info['type'] ) ? ' type="' . esc_attr( $f_info['type'] ) . '"' : '';
+				$editor_type = ! empty( $f_info['editor_type'] ) ? ' editor_type="' . esc_attr( $f_info['editor_type'] ) . '"' : '';
+				$xml        .= $indent . '<key name="' . esc_attr( (string) $f_key ) . '"' . $type . $editor_type . " />\n";
+			}
+		}
+		return $xml;
 	}
 
 	/**

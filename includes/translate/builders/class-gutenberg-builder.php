@@ -159,13 +159,15 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 
 		$children_schema = is_array( $schema_info ) ? ( $schema_info['children'] ?? null ) : null;
+		$has_wildcard    = ! empty( $children_schema ) && isset( $children_schema['*'] );
+		$item_schema     = $has_wildcard ? ( $children_schema['*']['children'] ?? $children_schema['*'] ) : ( $children_schema ?? $schema_info );
 
-		// Sequential list of items
+		// 1. Sequential list of items (e.g. repeaters like accordionLists = [ { title: '...' }, ... ])
 		if ( array_keys( $val ) === range( 0, count( $val ) - 1 ) ) {
 			foreach ( $val as &$item ) {
 				self::translate_attribute_value_recursive(
 					$item,
-					$children_schema ?? $schema_info,
+					$item_schema,
 					$block_name,
 					$source_lang,
 					$target_lang,
@@ -178,9 +180,11 @@ class Gutenberg_Builder extends Base_Builder {
 			return;
 		}
 
-		// Associative dictionary
-		if ( ! empty( $children_schema ) && is_array( $children_schema ) ) {
-			foreach ( $children_schema as $child_key => $child_schema ) {
+		// 2. Associative dictionary (e.g. object item = { title: '...' } or settings = { title: '...' })
+		$effective_children = $has_wildcard ? ( $children_schema['*']['children'] ?? $children_schema ) : $children_schema;
+
+		if ( ! empty( $effective_children ) && is_array( $effective_children ) ) {
+			foreach ( $effective_children as $child_key => $child_schema ) {
 				if ( isset( $val[ $child_key ] ) ) {
 					self::translate_attribute_value_recursive(
 						$val[ $child_key ],
