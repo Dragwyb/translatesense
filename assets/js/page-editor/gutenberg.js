@@ -106,35 +106,47 @@
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
+      if (!window.TranslateSenseCore) return [];
 
-      if (!window.TranslateSenseCore) return;
+      const blockRules = await window.TranslateSenseCore.getEditorConfig(
+        'gutenberg',
+        this.blockRulesCache
+      );
+      this.blockRulesCache = blockRules;
 
-      const blockRules = await window.TranslateSenseCore.getEditorConfig('gutenberg', this.blockRulesCache);
-
-      // Helper to find translation for a string value
+      // Helper to find a translation for a string value.
       const findTranslation = (strVal, blockName = '') => {
         if (typeof strVal !== 'string' || strVal.trim() === '') return null;
+
         const clean = strVal.trim();
+        const trans = window.TranslateSenseCore.getTranslatedString(
+          blockName,
+          clean,
+          this.provider,
+          blockName
+        );
 
-        // 1. Check via TranslateSenseCore using block_name + string value hash
-        if (window.TranslateSenseCore) {
-          const trans = window.TranslateSenseCore.getTranslatedString(blockName, clean, this.provider, blockName);
-          if (trans && trans.translate && trans.translate !== clean) return trans.translate;
-        }
-
-        return null;
+        return trans && trans.translate && trans.translate !== clean
+          ? trans.translate
+          : null;
       };
 
       /**
-       * Recursively update block attributes matching XML key schema.
+       * Recursively update attributes matching the configured block schema.
+       * Returns a new attribute object without mutating nested source objects.
        */
       const updateAttributeTree = (currentAttrs, keySchema, blockName) => {
-        if (!currentAttrs || !keySchema) return { updated: currentAttrs, changed: false };
+        if (!currentAttrs || !keySchema) {
+          return { updated: currentAttrs, changed: false };
+        }
+
         let hasChanged = false;
-        let newAttrs = Array.isArray(currentAttrs) ? [...currentAttrs] : { ...currentAttrs };
+        const newAttrs = Array.isArray(currentAttrs)
+          ? [...currentAttrs]
+          : { ...currentAttrs };
 
         Object.keys(keySchema).forEach((kName) => {
-          const kInfo = keySchema[kName];
+          const kInfo = keySchema[kName] || {};
           if (newAttrs[kName] === undefined || newAttrs[kName] === null) return;
 
           const val = newAttrs[kName];
@@ -145,34 +157,38 @@
               newAttrs[kName] = transVal;
               hasChanged = true;
             }
-          } else if (val instanceof wp.richText.RichTextData) {
-            const originalHTML = val.originalHTML;
+            return;
+          }
 
-            if (originalHTML && '' !== originalHTML) {
-              const transVal = findTranslation(originalHTML, blockName);
-              if (transVal && transVal !== originalHTML) {
-                newAttrs[kName] = transVal;
-                hasChanged = true;
-              }
+          // RichTextData support. Check the constructor safely because the
+          // RichTextData export may not exist in every WordPress version.
+          const RichTextData = window.wp && window.wp.richText
+            ? window.wp.richText.RichTextData
+            : null;
+
+          if (
+            RichTextData &&
+            val instanceof RichTextData &&
+            typeof val.originalHTML === 'string' &&
+            val.originalHTML !== ''
+          ) {
+            const transVal = findTranslation(val.originalHTML, blockName);
+            if (transVal && transVal !== val.originalHTML) {
+              newAttrs[kName] = transVal;
+              hasChanged = true;
             }
+            return;
+          }
 
-          } else if (Array.isArray(val)) {
-            // Nested array structure
+          if (Array.isArray(val)) {
             const childSchema = kInfo.children || keySchema;
             let arrayChanged = false;
-
             const newArr = val.map((arrItem) => {
-              if (typeof arrItem === 'string') {
-                const transItem = findTranslation(arrItem, blockName);
-                if (transItem) {
+              if (arrItem && typeof arrItem === 'object') {
+                const result = updateAttributeTree(arrItem, childSchema, blockName);
+                if (result.changed) {
                   arrayChanged = true;
-                  return transItem;
-                }
-              } else if (typeof arrItem === 'object' && arrItem !== null) {
-                const res = updateAttributeTree(arrItem, childSchema, blockName);
-                if (res.changed) {
-                  arrayChanged = true;
-                  return res.updated;
+                  return result.updated;
                 }
               }
               return arrItem;
@@ -182,12 +198,14 @@
               newAttrs[kName] = newArr;
               hasChanged = true;
             }
-          } else if (typeof val === 'object') {
-            // Nested object structure
+            return;
+          }
+
+          if (val && typeof val === 'object') {
             const childSchema = kInfo.children || keySchema;
-            const res = updateAttributeTree(val, childSchema, blockName);
-            if (res.changed) {
-              newAttrs[kName] = res.updated;
+            const result = updateAttributeTree(val, childSchema, blockName);
+            if (result.changed) {
+              newAttrs[kName] = result.updated;
               hasChanged = true;
             }
           }
@@ -196,30 +214,86 @@
         return { updated: newAttrs, changed: hasChanged };
       };
 
-      const traverse = (blockList) => {
-        if (!Array.isArray(blockList)) return blockList;
+      // Store paths for changed blocks. After resetBlocks(), use those paths to
+      // locate the inserted blocks and dispatch updateBlockAttributes() against
+      // their real clientIds. This mirrors the update path that works when you
+      // call updateBlockAttributes() manually in the console.
+      const changedBlocks = [];
 
-        blockList.forEach((block) => {
+      const traverse = (blockList, parentPath = []) => {
+        if (!Array.isArray(blockList)) return;
+
+        blockList.forEach((block, index) => {
+          const path = [...parentPath, index];
           const blockName = block.name;
           const attrs = block.attributes || {};
+          const rule = blockRules && blockRules[blockName];
 
-          // Check if we have XML rules for this block
-          const rule = blockRules[blockName];
           if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
-            const res = updateAttributeTree(attrs, rule.keys, blockName);
-            if (res.changed) {
-              block.attributes = res.updated;
+            const result = updateAttributeTree(attrs, rule.keys, blockName);
+            if (result.changed) {
+              block.attributes = result.updated;
+              changedBlocks.push({ path, attributes: result.updated, name: blockName });
             }
           }
 
-          // Traverse inner blocks
-          if (block.innerBlocks && block.innerBlocks.length > 0) {
-            traverse(block.innerBlocks);
+          if (Array.isArray(block.innerBlocks) && block.innerBlocks.length > 0) {
+            traverse(block.innerBlocks, path);
           }
         });
       };
 
       traverse(blocks);
+      return changedBlocks;
+    },
+
+    /**
+     * Re-dispatch translated attributes through Gutenberg's data store after
+     * the parsed block tree has been inserted. Some third-party blocks do not
+     * visibly refresh from resetBlocks() alone, but do refresh when their
+     * attributes are dispatched with updateBlockAttributes().
+     */
+    applyChangedBlockAttributes(changedBlocks) {
+      if (!Array.isArray(changedBlocks) || changedBlocks.length === 0) return;
+
+      const blockEditorSelect = window.wp.data.select('core/block-editor');
+      const blockEditorDispatch = window.wp.data.dispatch('core/block-editor');
+
+      if (
+        !blockEditorSelect ||
+        !blockEditorDispatch ||
+        typeof blockEditorSelect.getBlocks !== 'function' ||
+        typeof blockEditorDispatch.updateBlockAttributes !== 'function'
+      ) {
+        return;
+      }
+
+      const getBlockAtPath = (rootBlocks, path) => {
+        let list = rootBlocks;
+        let block = null;
+
+        for (let i = 0; i < path.length; i++) {
+          if (!Array.isArray(list) || !list[path[i]]) return null;
+          block = list[path[i]];
+          list = block.innerBlocks;
+        }
+
+        return block;
+      };
+
+      const currentBlocks = blockEditorSelect.getBlocks();
+
+      changedBlocks.forEach((change) => {
+        const currentBlock = getBlockAtPath(currentBlocks, change.path);
+        if (!currentBlock || currentBlock.name !== change.name || !currentBlock.clientId) {
+          return;
+        }
+
+        blockEditorDispatch.updateBlockAttributes(
+          currentBlock.clientId,
+          change.attributes
+        );
+      });
     },
 
     /**
@@ -239,12 +313,23 @@
         const parsedBlocks = window.wp.blocks.parse(sourceData.content);
 
         if (parsedBlocks && parsedBlocks.length > 0) {
-          await this.updateBlocks(parsedBlocks, strings);
+          const changedBlocks = await this.updateBlocks(parsedBlocks, strings);
 
-          if (window.wp.data.dispatch('core/block-editor') && typeof window.wp.data.dispatch('core/block-editor').resetBlocks === 'function') {
-            window.wp.data.dispatch('core/block-editor').resetBlocks(parsedBlocks);
-          } else if (window.wp.data.dispatch('core/editor') && typeof window.wp.data.dispatch('core/editor').resetEditorBlocks === 'function') {
-            window.wp.data.dispatch('core/editor').resetEditorBlocks(parsedBlocks);
+          const blockEditorDispatch = window.wp.data.dispatch('core/block-editor');
+          const editorDispatch = window.wp.data.dispatch('core/editor');
+
+          if (blockEditorDispatch && typeof blockEditorDispatch.resetBlocks === 'function') {
+            // First insert the parsed and translated block tree.
+            blockEditorDispatch.resetBlocks(parsedBlocks);
+
+            // Then explicitly dispatch translated attributes through Gutenberg's
+            // store so third-party blocks receive normal attribute updates.
+            this.applyChangedBlockAttributes(changedBlocks);
+          } else if (editorDispatch && typeof editorDispatch.resetEditorBlocks === 'function') {
+            editorDispatch.resetEditorBlocks(parsedBlocks);
+
+            // Use the block-editor store if it is available after the fallback.
+            this.applyChangedBlockAttributes(changedBlocks);
           }
         }
       } else {
