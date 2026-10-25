@@ -436,7 +436,7 @@ class Xml_Engine {
 		for ( $i = 0; $i < $dom_nodes->length; $i++ ) {
 			$child = $dom_nodes->item( $i );
 			if ( XML_ELEMENT_NODE === $child->nodeType ) {
-				$child_name = $child->getAttribute( 'name' );
+				$child_name = $child->getAttribute( 'type' );
 				if ( ! $child_name && 'custom-fields' === $section_name ) {
 					$child_name = trim( $child->textContent );
 				}

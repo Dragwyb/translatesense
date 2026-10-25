@@ -75,7 +75,7 @@ class Gutenberg_Builder extends Base_Builder {
 				continue;
 			}
 
-			$name = $block['blockName'] ?? '';
+			$name = $block['blockName'] ?? $block['name'] ?? '';
 			if ( empty( $name ) ) {
 				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
 					$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted, $depth + 1 );

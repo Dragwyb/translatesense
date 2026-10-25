@@ -47,7 +47,7 @@ class Gutenberg_Builder extends Base_Builder {
 	public function extract_widget_snippet( SimpleXMLElement $xml, string $name ) {
 		if ( isset( $xml->{'gutenberg-blocks'}->{'gutenberg-block'} ) ) {
 			foreach ( $xml->{'gutenberg-blocks'}->{'gutenberg-block'} as $blk ) {
-				if ( (string) $blk['name'] === $name ) {
+				if ( (string) $blk['type'] === $name ) {
 					return self::wrap_node_in_config( $blk, $this->section_name );
 				}
 			}
@@ -70,7 +70,7 @@ class Gutenberg_Builder extends Base_Builder {
 
 		$section = $dom->createElement( $this->section_name );
 		$block   = $dom->createElement( 'gutenberg-block' );
-		$block->setAttribute( 'name', $name );
+		$block->setAttribute( 'type', $name );
 		$this->append_dom_keys_recursive( $dom, $block, $field_details );
 		$section->appendChild( $block );
 		$root->appendChild( $section );
@@ -198,14 +198,14 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 		$found_block = null;
 		foreach ( $xml->{$this->section_name}->{'gutenberg-block'} as $blk ) {
-			if ( (string) $blk['name'] === $name ) {
+			if ( (string) $blk['type'] === $name ) {
 				$found_block = $blk;
 				break;
 			}
 		}
 		if ( ! $found_block ) {
 			$found_block = $xml->{$this->section_name}->addChild( 'gutenberg-block' );
-			$found_block->addAttribute( 'name', $name );
+			$found_block->addAttribute( 'type', $name );
 		}
 
 		$this->append_simplexml_keys_recursive( $found_block, $field_details );
@@ -258,10 +258,14 @@ class Gutenberg_Builder extends Base_Builder {
 	public function parse_rules( SimpleXMLElement $xml, array &$rules, string $source = 'core' ): void {
 		if ( isset( $xml->{$this->section_name}->{'gutenberg-block'} ) ) {
 			foreach ( $xml->{$this->section_name}->{'gutenberg-block'} as $block ) {
-				$name = (string) $block['name'];
+				$name = (string) $block['type'];
+				if ( empty( $name ) ) {
+					continue;
+				}
 				if ( ! isset( $rules['gutenberg'][ $name ] ) ) {
 					$rules['gutenberg'][ $name ] = array(
 						'name'         => $name,
+						'type'         => $name,
 						'source'       => $source,
 						'keys'         => array(),
 						'no_translate' => array(),

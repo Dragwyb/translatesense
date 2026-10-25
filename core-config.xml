@@ -2,33 +2,33 @@
 <wpml-config>
     <!-- Gutenberg Block Mapping -->
     <gutenberg-blocks>
-        <gutenberg-block name="core/paragraph">
+        <gutenberg-block type="core/paragraph">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/image">
+        <gutenberg-block type="core/image">
             <key name="alt" />
             <key name="caption" />
         </gutenberg-block>
-        <gutenberg-block name="core/heading">
+        <gutenberg-block type="core/heading">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/list-item">
+        <gutenberg-block type="core/list-item">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/quote">
+        <gutenberg-block type="core/quote">
             <key name="citation" />
         </gutenberg-block>
-        <gutenberg-block name="core/details">
+        <gutenberg-block type="core/details">
             <key name="summary" />
         </gutenberg-block>
-        <gutenberg-block name="core/preformatted">
+        <gutenberg-block type="core/preformatted">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/pullquote">
+        <gutenberg-block type="core/pullquote">
             <key name="citation" />
             <key name="value" />
         </gutenberg-block>
-        <gutenberg-block name="core/table">
+        <gutenberg-block type="core/table">
             <key name="caption" />
             <key name="body">
                 <key name="cells">
@@ -46,57 +46,57 @@
                 </key>
             </key>
         </gutenberg-block>
-        <gutenberg-block name="core/verse">
+        <gutenberg-block type="core/verse">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/freeform">
+        <gutenberg-block type="core/freeform">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/media-text">
+        <gutenberg-block type="core/media-text">
             <key name="mediaAlt" />
         </gutenberg-block>
-        <gutenberg-block name="core/button">
+        <gutenberg-block type="core/button">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="core/more">
+        <gutenberg-block type="core/more">
             <key name="customText" />
         </gutenberg-block>
-        <gutenberg-block name="core/search">
+        <gutenberg-block type="core/search">
             <key name="label" />
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="core/post-terms">
+        <gutenberg-block type="core/post-terms">
             <key name="prefix" />
             <key name="suffix" />
         </gutenberg-block>
-        <gutenberg-block name="core/read-more">
+        <gutenberg-block type="core/read-more">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="core/text-columns">
+        <gutenberg-block type="core/text-columns">
             <key name="content">
                 <key name="children" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="core/accordion-heading">
+        <gutenberg-block type="core/accordion-heading">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="core/file">
+        <gutenberg-block type="core/file">
             <key name="downloadButtonText" />
         </gutenberg-block>
-        <gutenberg-block name="core/icon">
+        <gutenberg-block type="core/icon">
             <key name="ariaLabel" />
         </gutenberg-block>
-        <gutenberg-block name="tadv/classic-paragraph">
+        <gutenberg-block type="tadv/classic-paragraph">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/advanced-heading">
+        <gutenberg-block type="uagb/advanced-heading">
             <key name="headingTitle" />
             <key name="headingDesc" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/buttons-child">
+        <gutenberg-block type="uagb/buttons-child">
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/info-box">
+        <gutenberg-block type="uagb/info-box">
             <key name="infoBoxTitle" />
             <key name="headingDesc" />
             <key name="tempHeadingDesc" />
@@ -106,99 +106,99 @@
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="uagb/call-to-action">
+        <gutenberg-block type="uagb/call-to-action">
             <key name="ctaTitle" />
             <key name="description" />
             <key name="tempDesc" />
             <key name="ctaText" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/blockquote">
+        <gutenberg-block type="uagb/blockquote">
             <key name="author" />
             <key name="descriptionText" />
             <key name="authorImage">
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="uagb/content-timeline">
+        <gutenberg-block type="uagb/content-timeline">
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/content-timeline-child">
+        <gutenberg-block type="uagb/content-timeline-child">
             <key name="time_desc" />
             <key name="time_heading" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/counter">
+        <gutenberg-block type="uagb/counter">
             <key name="numberPrefix" />
             <key name="heading" />
             <key name="iconImage">
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="uagb/faq-child">
+        <gutenberg-block type="uagb/faq-child">
             <key name="question" />
             <key name="answer" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/forms">
+        <gutenberg-block type="uagb/forms">
             <key name="afterSubmitEmailSubject" />
             <key name="captchaMessage" />
             <key name="confirmationMessage" />
             <key name="failedMessage" />
             <key name="formLabel" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/forms-name">
+        <gutenberg-block type="uagb/forms-name">
             <key name="placeholder" />
             <key name="name" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/forms-email">
+        <gutenberg-block type="uagb/forms-email">
             <key name="placeholder" />
             <key name="name" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/forms-textarea">
+        <gutenberg-block type="uagb/forms-textarea">
             <key name="placeholder" />
             <key name="textareaName" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/icon-list-child">
+        <gutenberg-block type="uagb/icon-list-child">
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/inline-notice">
+        <gutenberg-block type="uagb/inline-notice">
             <key name="noticeTitle" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/marketing-button">
+        <gutenberg-block type="uagb/marketing-button">
             <key name="heading" />
             <key name="prefix" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/modal">
+        <gutenberg-block type="uagb/modal">
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/restaurant-menu-child">
+        <gutenberg-block type="uagb/restaurant-menu-child">
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/container">
+        <gutenberg-block type="uagb/container">
             <key name="description" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/star-rating">
+        <gutenberg-block type="uagb/star-rating">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/table-of-contents">
+        <gutenberg-block type="uagb/table-of-contents">
             <key name="emptyHeadingTeaxt" />
             <key name="headingTitle" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/tabs-child">
+        <gutenberg-block type="uagb/tabs-child">
             <key name="header" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/team">
+        <gutenberg-block type="uagb/team">
             <key name="description_text" />
             <key name="prefix" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/testimonial">
+        <gutenberg-block type="uagb/testimonial">
             <key name="test_block">
                 <key name="company" />
                 <key name="description" />
                 <key name="name" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="uagb/review">
+        <gutenberg-block type="uagb/review">
             <key name="summaryDescription" />
             <key name="summaryTitle" />
             <key name="parts">
@@ -209,11 +209,11 @@
             <key name="rTitle" />
             <key name="schema" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/how-to-step">
+        <gutenberg-block type="uagb/how-to-step">
             <key name="description" />
             <key name="name" />
         </gutenberg-block>
-        <gutenberg-block name="uagb/how-to">
+        <gutenberg-block type="uagb/how-to">
             <key name="headingDesc" />
             <key name="headingTitle" />
             <key name="timeNeeded" />
@@ -228,14 +228,14 @@
             <key name="materialTitle" />
             <key name="toolsTitle" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/accordion">
+        <gutenberg-block type="essential-blocks/accordion">
             <key name="accordionLists">
                 <key name="*">
                     <key name="title" />
                 </key>
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/accordion-item">
+        <gutenberg-block type="essential-blocks/accordion-item">
             <key name="title" />
             <key name="accordionLists">
                 <key name="*">
@@ -243,60 +243,60 @@
                 </key>
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/button">
+        <gutenberg-block type="essential-blocks/button">
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/call-to-action">
+        <gutenberg-block type="essential-blocks/call-to-action">
             <key name="buttonText" />
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/countdown">
+        <gutenberg-block type="essential-blocks/countdown">
             <key name="daysLabel" />
             <key name="hoursLabel" />
             <key name="minutesLabel" />
             <key name="secondsLabel" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/number-counter">
+        <gutenberg-block type="essential-blocks/number-counter">
             <key name="counterTitle" />
             <key name="hoursLabel" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/dual-button">
+        <gutenberg-block type="essential-blocks/dual-button">
             <key name="buttonTextOne" />
             <key name="buttonTextTwo" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/flipbox">
+        <gutenberg-block type="essential-blocks/flipbox">
             <key name="backContent" />
             <key name="backTitle" />
             <key name="buttonText" />
             <key name="frontContent" />
             <key name="frontTitle" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/advanced-heading">
+        <gutenberg-block type="essential-blocks/advanced-heading">
             <key name="subtitleText" />
             <key name="titleText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/advanced-tabs">
+        <gutenberg-block type="essential-blocks/advanced-tabs">
             <key name="tabTitles">
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/infobox">
+        <gutenberg-block type="essential-blocks/infobox">
             <key name="description" />
             <key name="subTitle" />
             <key name="title" />
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/interactive-promo">
+        <gutenberg-block type="essential-blocks/interactive-promo">
             <key name="content" />
             <key name="header" />
             <key name="imageAltTag" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/notice">
+        <gutenberg-block type="essential-blocks/notice">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/pricing-table">
+        <gutenberg-block type="essential-blocks/pricing-table">
             <key name="buttonText" />
             <key name="mainPrice" />
             <key name="pricePeriod" />
@@ -306,12 +306,12 @@
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/progress-bar">
+        <gutenberg-block type="essential-blocks/progress-bar">
             <key name="title" />
             <key name="suffix" />
             <key name="prefix" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/slider">
+        <gutenberg-block type="essential-blocks/slider">
             <key name="images">
                 <key name="alt" />
                 <key name="buttonText" />
@@ -319,12 +319,12 @@
                 <key name="title" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/social">
+        <gutenberg-block type="essential-blocks/social">
             <key name="socialDetails">
                 <key name="title" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/social-share">
+        <gutenberg-block type="essential-blocks/social-share">
             <key name="profilesOnly">
                 <key name="iconText" />
             </key>
@@ -332,7 +332,7 @@
                 <key name="iconText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/team-member">
+        <gutenberg-block type="essential-blocks/team-member">
             <key name="description" />
             <key name="jobTitle" />
             <key name="name" />
@@ -343,23 +343,23 @@
                 <key name="title" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/testimonial">
+        <gutenberg-block type="essential-blocks/testimonial">
             <key name="companyName" />
             <key name="description" />
             <key name="userName" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/toggle-content">
+        <gutenberg-block type="essential-blocks/toggle-content">
             <key name="primaryLabelText" />
             <key name="secondaryLabelText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/typing-text">
+        <gutenberg-block type="essential-blocks/typing-text">
             <key name="prefix" />
             <key name="suffix" />
             <key name="typedText">
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/table-of-contents">
+        <gutenberg-block type="essential-blocks/table-of-contents">
             <key name="title" />
             <key name="deleteHeaderList">
                 <key name="label" />
@@ -369,63 +369,63 @@
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/feature-list">
+        <gutenberg-block type="essential-blocks/feature-list">
             <key name="features">
                 <key name="content" />
                 <key name="title" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/advanced-image">
+        <gutenberg-block type="essential-blocks/advanced-image">
             <key name="image">
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/advanced-video">
+        <gutenberg-block type="essential-blocks/advanced-video">
             <key name="image">
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/popup">
+        <gutenberg-block type="essential-blocks/popup">
             <key name="btnText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form">
+        <gutenberg-block type="essential-blocks/form">
             <key name="buttonText" />
             <key name="formTitle" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-text-field">
+        <gutenberg-block type="essential-blocks/form-text-field">
             <key name="labelText" />
             <key name="placeholderText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-email-field">
+        <gutenberg-block type="essential-blocks/form-email-field">
             <key name="labelText" />
             <key name="placeholderText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-textarea-field">
+        <gutenberg-block type="essential-blocks/form-textarea-field">
             <key name="labelText" />
             <key name="placeholderText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-number-field">
+        <gutenberg-block type="essential-blocks/form-number-field">
             <key name="labelText" />
             <key name="placeholderText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-select-field">
+        <gutenberg-block type="essential-blocks/form-select-field">
             <key name="options">
                 <key name="name" />
             </key>
             <key name="labelText" />
         </gutenberg-block>
-        <gutenberg-block name="essential-blocks/form-checkbox-field">
+        <gutenberg-block type="essential-blocks/form-checkbox-field">
             <key name="options">
                 <key name="name" />
             </key>
             <key name="labelText" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/pane">
+        <gutenberg-block type="kadence/pane">
             <key name="title">
                 <key name="*" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="kadence/advancedgallery">
+        <gutenberg-block type="kadence/advancedgallery">
             <key name="imagesData">
                 <key name="alt" />
             </key>
@@ -433,17 +433,17 @@
                 <key name="alt" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="kadence/singlebtn">
+        <gutenberg-block type="kadence/singlebtn">
             <key name="iconTitle" />
             <key name="text" />
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/advancedheading">
+        <gutenberg-block type="kadence/advancedheading">
             <key name="content" />
             <key name="iconTitle" />
             <key name="iconTooltip" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/countdown">
+        <gutenberg-block type="kadence/countdown">
             <key name="secondsLabel" />
             <key name="minutesLabel" />
             <key name="hoursLabel" />
@@ -451,33 +451,33 @@
             <key name="postLabel" />
             <key name="preLabel" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/accordion-item">
+        <gutenberg-block type="themeisle-blocks/accordion-item">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/form-input">
+        <gutenberg-block type="themeisle-blocks/form-input">
             <key name="helpText" />
             <key name="placeholder" />
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/form-textarea">
+        <gutenberg-block type="themeisle-blocks/form-textarea">
             <key name="helpText" />
             <key name="placeholder" />
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/icon-list-item">
+        <gutenberg-block type="themeisle-blocks/icon-list-item">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/advanced-heading">
+        <gutenberg-block type="themeisle-blocks/advanced-heading">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/circle-counter">
+        <gutenberg-block type="themeisle-blocks/circle-counter">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/flip">
+        <gutenberg-block type="themeisle-blocks/flip">
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/review">
+        <gutenberg-block type="themeisle-blocks/review">
             <key name="links">
                 <key name="label" />
             </key>
@@ -494,36 +494,36 @@
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/slider">
+        <gutenberg-block type="themeisle-blocks/slider">
             <key name="images">
                 <key name="caption" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/progress-bar">
+        <gutenberg-block type="themeisle-blocks/progress-bar">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/button">
+        <gutenberg-block type="themeisle-blocks/button">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="themeisle-blocks/tabs-item">
+        <gutenberg-block type="themeisle-blocks/tabs-item">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/listitem">
+        <gutenberg-block type="kadence/listitem">
             <key name="iconTitle" />
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/testimonial">
+        <gutenberg-block type="kadence/testimonial">
             <key name="occupation" />
             <key name="name" />
             <key name="content" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/countup">
+        <gutenberg-block type="kadence/countup">
             <key name="suffix" />
             <key name="prefix" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/form">
+        <gutenberg-block type="kadence/form">
             <key name="submitLabel" />
             <key name="submit">
                 <key name="label" />
@@ -546,7 +546,7 @@
                 <key name="errorMessage" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="kadence/infobox">
+        <gutenberg-block type="kadence/infobox">
             <key name="learnMore" />
             <key name="contentText" />
             <key name="title" />
@@ -554,157 +554,157 @@
                 <key name="title" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="kadence/image">
+        <gutenberg-block type="kadence/image">
             <key name="title" />
             <key name="alt" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/lottie">
+        <gutenberg-block type="kadence/lottie">
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/progress-bar">
+        <gutenberg-block type="kadence/progress-bar">
             <key name="numberSuffix" />
             <key name="numberPrefix" />
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/tableofcontents">
+        <gutenberg-block type="kadence/tableofcontents">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="kadence/tabs">
+        <gutenberg-block type="kadence/tabs">
             <key name="titles">
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="stackable/heading">
+        <gutenberg-block type="stackable/heading">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/text">
+        <gutenberg-block type="stackable/text">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/button">
+        <gutenberg-block type="stackable/button">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/subtitle">
+        <gutenberg-block type="stackable/subtitle">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/image">
+        <gutenberg-block type="stackable/image">
             <key name="imageAlt" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/icon-list-item">
+        <gutenberg-block type="stackable/icon-list-item">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/tab-labels">
+        <gutenberg-block type="stackable/tab-labels">
             <key name="tabLabels">
                 <key name="label" />
             </key>
             <key name="tabText" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/count-up">
+        <gutenberg-block type="stackable/count-up">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/countdown">
+        <gutenberg-block type="stackable/countdown">
             <key name="secondText" />
             <key name="minuteText" />
             <key name="hourText" />
             <key name="dayText" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/number-box">
+        <gutenberg-block type="stackable/number-box">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/posts">
+        <gutenberg-block type="stackable/posts">
             <key name="readmoreText" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/progress-bar">
+        <gutenberg-block type="stackable/progress-bar">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/table-of-contents">
+        <gutenberg-block type="stackable/table-of-contents">
             <key name="titleText" />
             <key name="headings">
                 <key name="content" />
             </key>
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="stackable/timeline">
+        <gutenberg-block type="stackable/timeline">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/accordion">
+        <gutenberg-block type="gutenverse/accordion">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/button">
+        <gutenberg-block type="gutenverse/button">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/icon-list-item">
+        <gutenberg-block type="gutenverse/icon-list-item">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/advanced-heading">
+        <gutenberg-block type="gutenverse/advanced-heading">
             <key name="subText" />
             <key name="focusText" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/heading">
+        <gutenberg-block type="gutenverse/heading">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/icon-box">
+        <gutenberg-block type="gutenverse/icon-box">
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/image-box">
+        <gutenberg-block type="gutenverse/image-box">
             <key name="description" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/tabs">
+        <gutenberg-block type="gutenverse/tabs">
             <key name="tabs">
                 <key name="text" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/team">
+        <gutenberg-block type="gutenverse/team">
             <key name="job" />
             <key name="name" />
         </gutenberg-block>
-        <gutenberg-block name="gutenverse/testimonials">
+        <gutenberg-block type="gutenverse/testimonials">
             <key name="testimonialDataRichText">
                 <key name="description" />
                 <key name="name" />
                 <key name="comment" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="ub/content-toggle-panel-block">
+        <gutenberg-block type="ub/content-toggle-panel-block">
             <key name="panelTitle" />
         </gutenberg-block>
-        <gutenberg-block name="ub/button">
+        <gutenberg-block type="ub/button">
             <key name="buttons">
                 <key name="buttonText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="ub/expand-portion">
+        <gutenberg-block type="ub/expand-portion">
             <key name="clickText" />
         </gutenberg-block>
-        <gutenberg-block name="ub/testimonial">
+        <gutenberg-block type="ub/testimonial">
             <key name="ub_testimonial_author_role" />
             <key name="ub_testimonial_author" />
             <key name="ub_testimonial_text" />
         </gutenberg-block>
-        <gutenberg-block name="ub/call-to-action-block">
+        <gutenberg-block type="ub/call-to-action-block">
             <key name="ub_cta_button_text" />
             <key name="ub_cta_content_text" />
             <key name="ub_call_to_action_headline_text" />
         </gutenberg-block>
-        <gutenberg-block name="ub/click-to-tweet">
+        <gutenberg-block type="ub/click-to-tweet">
             <key name="ubTweet" />
         </gutenberg-block>
-        <gutenberg-block name="ub/tabbed-content-block">
+        <gutenberg-block type="ub/tabbed-content-block">
             <key name="tabsTitle">
                 <key name="*" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="ub/star-rating-block">
+        <gutenberg-block type="ub/star-rating-block">
             <key name="reviewText" />
         </gutenberg-block>
-        <gutenberg-block name="ub/table-of-contents-block">
+        <gutenberg-block type="ub/table-of-contents-block">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="ub/progress-bar">
+        <gutenberg-block type="ub/progress-bar">
             <key name="detail" />
         </gutenberg-block>
-        <gutenberg-block name="ub/review">
+        <gutenberg-block type="ub/review">
             <key name="parts">
                 <key name="label" />
             </key>
@@ -713,12 +713,12 @@
             <key name="itemName" />
             <key name="authorName" />
         </gutenberg-block>
-        <gutenberg-block name="ub/content-filter-block">
+        <gutenberg-block type="ub/content-filter-block">
             <key name="filterArray">
                 <key name="category" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="ub/how-to">
+        <gutenberg-block type="ub/how-to">
             <key name="resultIntro" />
             <key name="howToYield" />
             <key name="section">
@@ -731,54 +731,54 @@
             <key name="introduction" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="ub/advanced-heading">
+        <gutenberg-block type="ub/advanced-heading">
             <key name="content" />
         </gutenberg-block>
-        <gutenberg-block name="ub/counter">
+        <gutenberg-block type="ub/counter">
             <key name="label" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/button">
+        <gutenberg-block type="qi-blocks/button">
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/accordion">
+        <gutenberg-block type="qi-blocks/accordion">
             <key name="accordionItemsRepeater">
                 <key name="itemTitle" />
                 <key name="itemText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/advanced-text">
+        <gutenberg-block type="qi-blocks/advanced-text">
             <key name="text" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/author-info">
+        <gutenberg-block type="qi-blocks/author-info">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/banner">
+        <gutenberg-block type="qi-blocks/banner">
             <key name="text" />
             <key name="subtitle" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/call-to-action">
+        <gutenberg-block type="qi-blocks/call-to-action">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/clients-list">
+        <gutenberg-block type="qi-blocks/clients-list">
             <key name="clientItemsRepeater">
                 <key name="clientText" />
                 <key name="clientTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/counter">
+        <gutenberg-block type="qi-blocks/counter">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/faq">
+        <gutenberg-block type="qi-blocks/faq">
             <key name="faqItemsRepeater">
                 <key name="itemText" />
                 <key name="itemTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/how-to">
+        <gutenberg-block type="qi-blocks/how-to">
             <key name="text" />
             <key name="subtitle" />
             <key name="title" />
@@ -787,20 +787,20 @@
                 <key name="stepTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/icon-with-text">
+        <gutenberg-block type="qi-blocks/icon-with-text">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/info-box">
+        <gutenberg-block type="qi-blocks/info-box">
             <key name="text" />
             <key name="title" />
             <key name="subtitle" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/message-box">
+        <gutenberg-block type="qi-blocks/message-box">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/pricing-table">
+        <gutenberg-block type="qi-blocks/pricing-table">
             <key name="pricingTableItemsRepeater">
                 <key name="itemText" />
             </key>
@@ -810,26 +810,26 @@
             <key name="price" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/process">
+        <gutenberg-block type="qi-blocks/process">
             <key name="processItemsRepeater">
                 <key name="itemText" />
                 <key name="itemTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/progress-bar-circle">
+        <gutenberg-block type="qi-blocks/progress-bar-circle">
             <key name="text" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/progress-bar-horizontal">
+        <gutenberg-block type="qi-blocks/progress-bar-horizontal">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/progress-bar-vertical">
+        <gutenberg-block type="qi-blocks/progress-bar-vertical">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/search">
+        <gutenberg-block type="qi-blocks/search">
             <key name="buttonText" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/section-title">
+        <gutenberg-block type="qi-blocks/section-title">
             <key name="subtitleIcon">
                 <key name="html" />
             </key>
@@ -837,28 +837,28 @@
             <key name="subtitle" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/table-of-contents">
+        <gutenberg-block type="qi-blocks/table-of-contents">
             <key name="text" />
             <key name="subtitle" />
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/tabs-horizontal">
+        <gutenberg-block type="qi-blocks/tabs-horizontal">
             <key name="tabsHorizontalItemsRepeater">
                 <key name="itemTitle" />
                 <key name="itemText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/tabs-vertical">
+        <gutenberg-block type="qi-blocks/tabs-vertical">
             <key name="tabsVerticalItemsRepeater">
                 <key name="itemTitle" />
                 <key name="itemText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/team-member">
+        <gutenberg-block type="qi-blocks/team-member">
             <key name="role" />
             <key name="name" />
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/testimonials-list">
+        <gutenberg-block type="qi-blocks/testimonials-list">
             <key name="testimonialsListItemsRepeater">
                 <key name="itemAuthorOccupation" />
                 <key name="itemAuthor" />
@@ -866,22 +866,22 @@
                 <key name="itemTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/text-marquee">
+        <gutenberg-block type="qi-blocks/text-marquee">
             <key name="items">
                 <key name="itemText" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="qi-blocks/timeline">
+        <gutenberg-block type="qi-blocks/timeline">
             <key name="timelineRepeater">
                 <key name="itemText" />
                 <key name="itemDate" />
                 <key name="itemTitle" />
             </key>
         </gutenberg-block>
-        <gutenberg-block name="rank-math/toc-block">
+        <gutenberg-block type="rank-math/toc-block">
             <key name="title" />
         </gutenberg-block>
-        <gutenberg-block name="core/cover">
+        <gutenberg-block type="core/cover">
             <key name="alt" />
         </gutenberg-block>
     </gutenberg-blocks>

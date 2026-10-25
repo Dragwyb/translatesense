@@ -350,7 +350,7 @@ class Detector {
 
 		$generated_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n";
 		foreach ( $found_items as $b_name => $fields ) {
-			$generated_xml .= '        <gutenberg-block name="' . esc_attr( $b_name ) . "\">\n";
+			$generated_xml .= '        <gutenberg-block type="' . esc_attr( $b_name ) . "\">\n";
 			$generated_xml .= self::format_gutenberg_keys_xml( $fields, '            ' );
 			$generated_xml .= "        </gutenberg-block>\n";
 		}

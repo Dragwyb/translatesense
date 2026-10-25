@@ -262,15 +262,15 @@
 
         blockList.forEach((block, index) => {
           const path = [...parentPath, index];
-          const blockName = block.name;
+          const blockType = block.name || block.type || '';
           const attrs = block.attributes || {};
-          const rule = blockRules && blockRules[blockName];
+          const rule = blockRules && (blockRules[blockType] || blockRules[block.name]);
 
           if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
-            const result = updateAttributeTree(attrs, rule.keys, blockName);
+            const result = updateAttributeTree(attrs, rule.keys, blockType);
             if (result.changed) {
               block.attributes = result.updated;
-              changedBlocks.push({ path, attributes: result.updated, name: blockName });
+              changedBlocks.push({ path, attributes: result.updated, name: blockType, type: blockType });
             }
           }
 
@@ -322,7 +322,7 @@
 
       changedBlocks.forEach((change) => {
         const currentBlock = getBlockAtPath(currentBlocks, change.path);
-        if (!currentBlock || currentBlock.name !== change.name || !currentBlock.clientId) {
+        if (!currentBlock || currentBlock.name !== change.type || !currentBlock.clientId) {
           return;
         }
 
