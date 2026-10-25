@@ -230,6 +230,9 @@
         </gutenberg-block>
         <gutenberg-block name="essential-blocks/accordion-item">
             <key name="title" />
+            <key name="accordionLists">
+                <key name="title" />
+            </key>
         </gutenberg-block>
         <gutenberg-block name="essential-blocks/button">
             <key name="buttonText" />
