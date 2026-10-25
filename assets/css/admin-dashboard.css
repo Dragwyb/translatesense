@@ -1041,6 +1041,10 @@
   color: var(--ts-gray-800);
 }
 
+.ts-lang-tag img{
+  width: 16px;
+}
+
 .ts-lang-tag.default {
   background: #eff6ff;
   border-color: #bfdbfe;
