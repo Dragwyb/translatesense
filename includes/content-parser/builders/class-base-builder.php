@@ -187,27 +187,36 @@ abstract class Base_Builder {
 	}
 
 	/**
-	 * Helper for nested keys with `>` or `.` delimiter.
+	 * Recursively extract translatable strings from children nodes of a block.
 	 *
-	 * @param array  $arr
-	 * @param string $path
-	 * @return mixed
+	 * @param array  $rules            Array of rules for this builder (children nodes rules)
+	 * @param array  $childrens      Array of children nodes
+	 * @param int    $post_id          Post ID for hashing and recording
+	 * @param string $lang             Source language code
+	 * @param array  &$extracted       Reference to extracted strings array
+	 * @param string $name             Parent/current block/widget name
+	 * @param string $path_key         Path to current key to identify the string in context
 	 */
-	protected function get_nested_val( array $arr, string $path ) {
-		$delimiter = false !== strpos( $path, '>' ) ? '>' : ( false !== strpos( $path, '.' ) ? '.' : '' );
-		if ( empty( $delimiter ) ) {
-			return $arr[ $path ] ?? null;
+	protected function extract_strings_from_node_childrens( array $rules, array $childrens, int $post_id, string $lang, array &$extracted, string $name = '', string $path_key = '' ): void {
+		if ( empty( $childrens ) || empty( $rules ) ) {
+			return;
 		}
 
-		$keys = explode( $delimiter, $path );
-		$cur  = $arr;
-		foreach ( $keys as $k ) {
-			if ( is_array( $cur ) && isset( $cur[ $k ] ) ) {
-				$cur = $cur[ $k ];
-			} else {
-				return null;
+		$rule_keys = array_keys( $rules );
+
+		foreach ( $rule_keys as $r_key ) {
+			$cur_path = empty( $path_key ) ? $r_key : $path_key . '>' . $r_key;
+			if ( isset( $childrens[ $r_key ] ) && is_string( $childrens[ $r_key ] ) && '' !== trim( $childrens[ $r_key ] ) ) {
+				$this->record_extracted_string( $post_id, $lang, $name, $cur_path, $childrens[ $r_key ], $extracted );
+			}
+
+			$rules_childrens = isset( $rules[ $r_key ]['children'] ) ? $rules[ $r_key ]['children'] : array();
+
+			if ( isset( $childrens[ $r_key ] ) && is_array( $childrens[ $r_key ] ) && ! empty( $rules_childrens ) ) {
+				foreach ( $childrens[ $r_key ] as $child ) {
+					$this->extract_strings_from_node_childrens( $rules_childrens, $child, $post_id, $lang, $extracted, $name, $cur_path );
+				}
 			}
 		}
-		return $cur;
 	}
 }

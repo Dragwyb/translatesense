@@ -87,17 +87,28 @@ class Gutenberg_Builder extends Base_Builder {
 
 			// Match XML configured keys for the block
 			if ( isset( $gutenberg_rules[ $name ]['keys'] ) && ! empty( $gutenberg_rules[ $name ]['keys'] ) ) {
+
 				$keys = $gutenberg_rules[ $name ]['keys'];
 
 				$found_strings = array();
+
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $no_translate[ $k_name ] ) ) {
 						continue;
 					}
+
 					if ( isset( $block['attrs'][ $k_name ] ) && is_string( $block['attrs'][ $k_name ] ) && '' !== trim( $block['attrs'][ $k_name ] ) ) {
 						$val             = $block['attrs'][ $k_name ];
 						$found_strings[] = $val;
 						$this->record_extracted_string( $post_id, $lang, $name, $k_name, $val, $extracted );
+					}
+
+					$attr_childrens = isset( $gutenberg_rules[ $name ]['keys'][ $k_name ]['children'] ) ? $gutenberg_rules[ $name ]['keys'][ $k_name ]['children'] : array();
+
+					if ( isset( $block['attrs'][ $k_name ] ) && is_array( $block['attrs'][ $k_name ] ) && ! empty( $attr_childrens ) ) {
+						foreach ( $block['attrs'][ $k_name ] as $attr_child ) {
+							$this->extract_strings_from_node_childrens( $attr_childrens, $attr_child, $post_id, $lang, $extracted, $name, $k_name );
+						}
 					}
 				}
 
