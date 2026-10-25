@@ -208,10 +208,8 @@ class Detector {
 				continue;
 			}
 
-			$attrs         = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
-			$existing_keys = isset( $gutenberg_rules[ $block_name ] ) ? array_keys( $gutenberg_rules[ $block_name ]['keys'] ) : array();
-			$no_translate  = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
-			$ignore_keys   = array_merge( $existing_keys, $no_translate );
+			$attrs        = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
+			$no_translate = isset( $gutenberg_rules[ $block_name ]['no_translate'] ) ? array_keys( $gutenberg_rules[ $block_name ]['no_translate'] ) : array();
 
 			$new_fields = array();
 
@@ -219,7 +217,7 @@ class Detector {
 			foreach ( $attrs as $attr_key => $attr_val ) {
 				if ( is_string( $attr_val ) && ! empty( trim( $attr_val ) ) ) {
 					// If attribute is not yet in XML config or contains dummy text
-					if ( ! in_array( $attr_key, $ignore_keys, true ) || false !== stripos( $attr_val, self::$dummy_text ) ) {
+					if ( false !== stripos( $attr_val, self::$dummy_text ) ) {
 						if ( ! in_array( $attr_key, $no_translate, true ) ) {
 							$new_fields[ $attr_key ] = array(
 								'type'        => ( strlen( $attr_val ) > 60 ) ? 'text' : 'title',

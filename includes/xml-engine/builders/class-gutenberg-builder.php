@@ -234,10 +234,8 @@ class Gutenberg_Builder extends Base_Builder {
 						$key_data = self::parse_key_node_recursive( $key_node, '', $rules['gutenberg'][ $name ]['no_translate'] );
 						if ( null !== $key_data ) {
 							$rules['gutenberg'][ $name ]['keys'][ $key_name ] = $key_data;
-						} else {
-							if ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
+						} elseif ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
 								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
-							}
 						}
 					}
 				}
@@ -312,7 +310,7 @@ class Gutenberg_Builder extends Base_Builder {
 					$count += self::count_leaf_keys( $info['children'] );
 				}
 			} else {
-				$count++;
+				++$count;
 			}
 		}
 		return $count;
