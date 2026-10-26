@@ -40,28 +40,6 @@
     return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
   }
 
-  // Helper to dynamically get active enabled providers registered on TranslateSenseCore
-  async function getRegisteredProviders() {
-    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-    const enabledProviders = config.enabledProviders || {};
-    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
-
-    let providers = [];
-    if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledKeys.length === 0) {
-        providers = window.TranslateSenseCore.getProviders(false);
-      }
-    }
-
-    const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
-    if (chromeAiIndex > -1) {
-      providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(config.sourceLanguage || 'en', config.targetLanguage || 'ru', true);
-    }
-
-    return providers
-  }
-
   // Universal TranslateSense Editor Controller (Pure Vanilla JS)
   class TranslateSenseEditor {
     constructor() {
@@ -73,6 +51,20 @@
       this.sourceEditorType = this.config.sourceEditorType || '';
       this.fromPost = this.config.fromPost || 0;
       this.targetLang = this.config.currentLanguage || 'en';
+
+      // 1. Initialize private TranslateSenseCore instance
+      this.core = typeof window.TranslateSenseCore === 'function' ? new window.TranslateSenseCore() : (window.TranslateSenseCore || null);
+
+      // 2. Register all providers onto this private core instance
+      if (window.TranslateSenseProviders && typeof window.TranslateSenseProviders.register === 'function') {
+        window.TranslateSenseProviders.register(this.core);
+      }
+
+      // 3. Register all page editors onto this private core instance
+      if (window.TranslateSensePageEditors && typeof window.TranslateSensePageEditors.register === 'function') {
+        this.pageEditorManager = window.TranslateSensePageEditors.register(this.core);
+      }
+
       const defaultProv = this.config.defaultProvider || '';
       const enabledProviders = this.config.enabledProviders || {};
       const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
@@ -86,6 +78,33 @@
       this.extractedStrings = null;
 
       this.init();
+    }
+
+    /**
+     * Helper to dynamically get active enabled providers registered on this core instance
+     */
+    async getRegisteredProviders(targetLang = this.targetLang) {
+      const enabledProviders = this.config.enabledProviders || {};
+      const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
+
+      let providers = [];
+      if (this.core && typeof this.core.getProviders === 'function') {
+        providers = this.core.getProviders(true);
+        if (providers.length === 0 && enabledKeys.length === 0) {
+          providers = this.core.getProviders(false);
+        }
+      }
+
+      const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
+      if (chromeAiIndex > -1 && typeof providers[chromeAiIndex].checkAvailability === 'function') {
+        providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(
+          this.config.sourceLanguage || this.config.defaultLanguage || 'en',
+          targetLang || this.targetLang || 'es',
+          true
+        );
+      }
+
+      return providers;
     }
 
     /**
@@ -292,7 +311,7 @@
       const existingModal = document.getElementById('ts-universal-provider-modal');
       if (existingModal) existingModal.remove();
 
-      const providersList = await getRegisteredProviders();
+      const providersList = await this.getRegisteredProviders();
 
       const modalContainer = document.createElement('div');
       modalContainer.id = 'ts-universal-provider-modal';
@@ -548,7 +567,7 @@
      * Get details for currently selected provider.
      */
     async getSelectedProviderInfo() {
-      const providers = await getRegisteredProviders();
+      const providers = await this.getRegisteredProviders();
       return providers.find((p) => p.id === this.selectedProvider) || {
         id: this.selectedProvider,
         title: this.selectedProvider.toUpperCase(),
@@ -728,9 +747,9 @@
         }
 
         // Fetch comprehensive source page content only if not already fetched
-        if (!this.sourcePageData && window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+        if (!this.sourcePageData && this.core && typeof this.core.getPageContent === 'function') {
           try {
-            this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
+            this.sourcePageData = await this.core.getPageContent(this.sourcePostId);
           } catch (e) {
             console.warn('[TranslateSense] Could not fetch source page content:', e);
           }
@@ -778,8 +797,8 @@
           let translated = '';
           let status = 'Pending';
 
-          if (window.TranslateSenseCore) {
-            const cached = window.TranslateSenseCore.getTranslatedString(s.name, s.value, this.selectedProvider, s.name);
+          if (this.core) {
+            const cached = this.core.getTranslatedString(s.name, s.value, this.selectedProvider, s.name);
             if (cached && typeof cached === 'object' && cached.translate) {
               translated = cached.translate;
               status = 'Completed';
@@ -840,9 +859,9 @@
         const onProgress = (result) => {
           this.strings = this.strings.map((item) => {
             if (item.value === result.source || (result.hash && item.hash === result.hash)) {
-              if (window.TranslateSenseCore) {
-                window.TranslateSenseCore.saveSourceString(item.name, item.value, item.name);
-                window.TranslateSenseCore.saveTranslatedString(
+              if (this.core) {
+                this.core.saveSourceString(item.name, item.value, item.name);
+                this.core.saveTranslatedString(
                   item.name,
                   item.source,
                   item.value,
@@ -873,16 +892,18 @@
           );
         };
 
-        await window.TranslateSenseCore.translate(
-          this.selectedProvider,
-          {
-            items: itemsToTranslate,
-            sourceLang: this.sourceLanguage || 'en',
-            targetLang: this.targetLang,
-            postId: this.postId || this.config.postId || 0,
-          },
-          onProgress
-        );
+        if (this.core) {
+          await this.core.translate(
+            this.selectedProvider,
+            {
+              items: itemsToTranslate,
+              sourceLang: this.sourceLanguage || 'en',
+              targetLang: this.targetLang,
+              postId: this.postId || this.config.postId || 0,
+            },
+            onProgress
+          );
+        }
 
         // Compute Statistics (based on original source characters)
         const elapsedMs = performance.now() - startTime;
@@ -1211,9 +1232,9 @@
      */
     async applyTranslationsToEditor() {
       // Ensure sourcePageData is fetched if not present
-      if (!this.sourcePageData && this.sourcePostId && window.TranslateSenseCore && typeof window.TranslateSenseCore.getPageContent === 'function') {
+      if (!this.sourcePageData && this.sourcePostId && this.core && typeof this.core.getPageContent === 'function') {
         try {
-          this.sourcePageData = await window.TranslateSenseCore.getPageContent(this.sourcePostId);
+          this.sourcePageData = await this.core.getPageContent(this.sourcePostId);
         } catch (e) {
           console.warn('[TranslateSense] Could not fetch source page content:', e);
         }
@@ -1252,8 +1273,8 @@
         mediaBtn.className = 'disabled';
       }
 
-      if (window.TranslateSenseCore && typeof window.TranslateSenseCore.applyToPageEditor === 'function') {
-        const result = await window.TranslateSenseCore.applyToPageEditor(this.editorType, {
+      if (this.core && typeof this.core.applyToPageEditor === 'function') {
+        const result = await this.core.applyToPageEditor(this.editorType, {
           strings: this.strings,
           sourcePageData: this.sourcePageData,
           options: {
@@ -1264,6 +1285,14 @@
         if (result && result.success) {
           console.log(`[TranslateSense] Successfully applied ${result.count} translated strings to ${result.editor} editor.`);
         }
+      } else if (this.pageEditorManager) {
+        await this.pageEditorManager.apply({
+          strings: this.strings,
+          editorType: this.editorType,
+          options: {
+            sourcePageData: this.sourcePageData, provider: this.selectedProvider
+          },
+        });
       } else if (window.TranslateSenseLiveUpdater) {
         await window.TranslateSenseLiveUpdater.apply({
           strings: this.strings,

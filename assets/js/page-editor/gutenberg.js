@@ -106,9 +106,10 @@
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
-      if (!window.TranslateSenseCore) return [];
+      const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
+      if (!core || typeof core.getEditorConfig !== 'function') return [];
 
-      const blockRules = await window.TranslateSenseCore.getEditorConfig(
+      const blockRules = await core.getEditorConfig(
         'gutenberg',
         this.blockRulesCache
       );
@@ -119,7 +120,7 @@
         if (typeof strVal !== 'string' || strVal.trim() === '') return null;
 
         const clean = strVal.trim();
-        const trans = window.TranslateSenseCore.getTranslatedString(
+        const trans = core.getTranslatedString(
           blockName,
           clean,
           this.provider,
@@ -340,6 +341,7 @@
       if (!this.isActive() || !Array.isArray(strings)) return;
 
       this.provider = options.provider;
+      if (options.core) this.core = options.core;
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Post Title, Excerpt & Slug from translated source strings
@@ -392,13 +394,20 @@
     },
   };
 
-  // Register Gutenberg on TranslateSenseCore
-  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
-    window.TranslateSenseCore.registerPageEditor('gutenberg', {
+  // Register Gutenberg on a TranslateSenseCore instance
+  GutenbergUpdater.register = function (core) {
+    if (!core || typeof core.registerPageEditor !== 'function') return;
+    this.core = core;
+    core.registerPageEditor('gutenberg', {
       title: 'Gutenberg Block Editor',
       isActive: () => GutenbergUpdater.isActive(),
       apply: (strings, options) => GutenbergUpdater.apply(strings, options),
     });
+  };
+
+  // Backward compatibility: If window.TranslateSenseCore is an instantiated object
+  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
+    GutenbergUpdater.register(window.TranslateSenseCore);
   }
 
   window.TranslateSenseGutenbergUpdater = GutenbergUpdater;

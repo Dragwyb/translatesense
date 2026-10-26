@@ -217,43 +217,59 @@
     return base ? `${base}assets/img/${id}.png` : '';
   };
 
-  // 1. Register OpenAI Provider
-  window.TranslateSenseCore.registerProvider('openai', {
-    title: 'OpenAI (GPT-4o)',
-    icon: '🧠',
-    logo: getProviderLogo('openai'),
-    desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
-    category: 'ai',
-    savesToDb: true,
-    requiresApiKey: true,
+  function registerAiServicesProviders(core) {
+    if (!core || typeof core.registerProvider !== 'function') {
+      return;
+    }
 
-    checkAvailability: function () {
-      return { available: true };
-    },
+    // 1. Register OpenAI Provider
+    core.registerProvider('openai', {
+      title: 'OpenAI (GPT-4o)',
+      icon: '🧠',
+      logo: getProviderLogo('openai'),
+      desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
+      category: 'ai',
+      savesToDb: true,
+      requiresApiKey: true,
 
-    translate: function (params, onProgressCallback) {
-      const runner = new AIServiceRunner('openai', { concurrencyLimit: 4, maxTokensPerBatch: 500 });
-      return runner.run(params, onProgressCallback);
-    },
-  });
+      checkAvailability: function () {
+        return { available: true };
+      },
 
-  // 2. Register Gemini AI Provider
-  window.TranslateSenseCore.registerProvider('gemini', {
-    title: 'Gemini AI',
-    icon: '✨',
-    logo: getProviderLogo('gemini'),
-    desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
-    category: 'ai',
-    savesToDb: true,
-    requiresApiKey: true,
+      translate: function (params, onProgressCallback) {
+        const runner = new AIServiceRunner('openai', { concurrencyLimit: 4, maxTokensPerBatch: 500 });
+        return runner.run(params, onProgressCallback);
+      },
+    });
 
-    checkAvailability: function () {
-      return { available: true };
-    },
+    // 2. Register Gemini AI Provider
+    core.registerProvider('gemini', {
+      title: 'Gemini AI',
+      icon: '✨',
+      logo: getProviderLogo('gemini'),
+      desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
+      category: 'ai',
+      savesToDb: true,
+      requiresApiKey: true,
 
-    translate: function (params, onProgressCallback) {
-      const runner = new AIServiceRunner('gemini', { concurrencyLimit: 4, maxTokensPerBatch: 600 });
-      return runner.run(params, onProgressCallback);
-    },
-  });
+      checkAvailability: function () {
+        return { available: true };
+      },
+
+      translate: function (params, onProgressCallback) {
+        const runner = new AIServiceRunner('gemini', { concurrencyLimit: 4, maxTokensPerBatch: 600 });
+        return runner.run(params, onProgressCallback);
+      },
+    });
+  }
+
+  // Export module for provider registration
+  window.TranslateSenseAiServices = {
+    register: registerAiServicesProviders,
+  };
+
+  // Backward compatibility: If window.TranslateSenseCore is an instantiated object with registerProvider
+  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerProvider === 'function') {
+    registerAiServicesProviders(window.TranslateSenseCore);
+  }
 })(window);

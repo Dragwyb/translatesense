@@ -111,11 +111,20 @@ class Bulk_Translate {
 			true
 		);
 
-		// 4. Bulk Translation Script
+		// 4. Providers Aggregator / Register
+		wp_enqueue_script(
+			'translatesense-providers',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
+			array( 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 5. Bulk Translation Script
 		wp_enqueue_script(
 			'translatesense-bulk',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'jquery', 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
+			array( 'jquery', 'translatesense-core', 'translatesense-providers' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);

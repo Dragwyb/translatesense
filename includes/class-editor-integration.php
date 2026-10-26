@@ -238,7 +238,16 @@ class Editor_Integration {
 			true
 		);
 
-		// 5. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Classic)
+		// 5. Providers Aggregator / Register
+		wp_enqueue_script(
+			'translatesense-providers',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
+			array( 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		// 6. Live Editor Updaters (Meta fields, Gutenberg, Elementor, Classic)
 		wp_enqueue_script(
 			'translatesense-live-meta-fields',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/page-editor/meta-fields' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
@@ -275,11 +284,11 @@ class Editor_Integration {
 			true
 		);
 
-		// 5. Universal Editor Panel (Pure Vanilla JS)
+		// 7. Universal Editor Panel (Pure Vanilla JS)
 		wp_enqueue_script(
 			'translatesense-editor-panel',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor-panel' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate', 'translatesense-page-editor' ),
+			array( 'translatesense-core', 'translatesense-providers', 'translatesense-page-editor' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);

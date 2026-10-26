@@ -41,30 +41,37 @@
     return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
   }
 
-  // Helper to dynamically get active enabled providers registered on TranslateSenseCore
-  async function getRegisteredProviders(targetLang = 'es') {
-    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || {};
-    const enabledProviders = config.enabledProviders || {};
-    const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
-
-    let providers = [];
-    if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getProviders === 'function') {
-      providers = window.TranslateSenseCore.getProviders(true);
-      if (providers.length === 0 && enabledKeys.length === 0) {
-        providers = window.TranslateSenseCore.getProviders(false);
-      }
-    }
-
-    const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
-    if (chromeAiIndex > -1 && typeof providers[chromeAiIndex].checkAvailability === 'function') {
-      providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(config.defaultLanguage || config.sourceLanguage || 'en', targetLang || config.targetLanguage || 'es', true);
-    }
-
-    return providers;
-  }
-
   function initBulkTranslate() {
     const config = window.TranslateSenseBulkData || {};
+
+    // 1. Initialize private TranslateSenseCore instance
+    const core = typeof window.TranslateSenseCore === 'function' ? new window.TranslateSenseCore() : (window.TranslateSenseCore || null);
+
+    // 2. Register all providers onto this private core instance
+    if (window.TranslateSenseProviders && typeof window.TranslateSenseProviders.register === 'function') {
+      window.TranslateSenseProviders.register(core);
+    }
+
+    // Helper to dynamically get active enabled providers registered on this core instance
+    async function getRegisteredProviders(targetLang = 'es') {
+      const enabledProviders = config.enabledProviders || {};
+      const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
+
+      let providers = [];
+      if (core && typeof core.getProviders === 'function') {
+        providers = core.getProviders(true);
+        if (providers.length === 0 && enabledKeys.length === 0) {
+          providers = core.getProviders(false);
+        }
+      }
+
+      const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
+      if (chromeAiIndex > -1 && typeof providers[chromeAiIndex].checkAvailability === 'function') {
+        providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(config.defaultLanguage || config.sourceLanguage || 'en', targetLang || config.targetLanguage || 'es', true);
+      }
+
+      return providers;
+    }
 
     // Ensure button is inserted next to Filter submit or Apply button if not rendered by hook
     const postQuerySubmit = document.getElementById('post-query-submit');
@@ -1065,13 +1072,13 @@
 
           // For Chrome AI, filter and only proceed with supported languages
           let effectiveTargetLangs = [...selectedTargetLangs];
-          if (isChromeAi && window.TranslateSenseCore) {
+          if (isChromeAi && core) {
             const supported = [];
             const unsupported = [];
 
             for (let i = 0; i < selectedTargetLangs.length; i++) {
               const lang = selectedTargetLangs[i];
-              const check = await window.TranslateSenseCore.validateProvider('chrome_ai', sourceLangCode, lang, false);
+              const check = await core.validateProvider('chrome_ai', sourceLangCode, lang, false);
               if (check && check.available === false) {
                 unsupported.push({
                   lang: lang,
@@ -1442,16 +1449,18 @@
                 };
 
                 // Run client-side Chrome AI translation
-                await window.TranslateSenseCore.translate(
-                  'chrome_ai',
-                  {
-                    items: itemsToTranslate,
-                    sourceLang: 'en',
-                    targetLang: targetLang,
-                    postId: postId,
-                  },
-                  onStringProgress
-                );
+                if (core) {
+                  await core.translate(
+                    'chrome_ai',
+                    {
+                      items: itemsToTranslate,
+                      sourceLang: 'en',
+                      targetLang: targetLang,
+                      postId: postId,
+                    },
+                    onStringProgress
+                  );
+                }
               }
 
               // 2. Directly create translated post passing in_memory_translations map

@@ -59,8 +59,9 @@
       if (typeof strVal !== 'string' || !strVal.trim()) return null;
       const clean = strVal.trim();
 
-      if (window.TranslateSenseCore && typeof window.TranslateSenseCore.getTranslatedString === 'function') {
-        const trans = window.TranslateSenseCore.getTranslatedString(widgetType, clean, this.provider, widgetType);
+      const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
+      if (core && typeof core.getTranslatedString === 'function') {
+        const trans = core.getTranslatedString(widgetType, clean, this.provider, widgetType);
         if (trans && trans.translate && trans.translate !== clean) return trans.translate;
       }
 
@@ -93,7 +94,10 @@
     async translateElementTree(elements) {
       if (!Array.isArray(elements)) return elements;
 
-      const widgetRules = await window.TranslateSenseCore.getEditorConfig('elementor', this.widgetRulesCache);
+      const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
+      const widgetRules = (core && typeof core.getEditorConfig === 'function')
+        ? await core.getEditorConfig('elementor', this.widgetRulesCache)
+        : (this.widgetRulesCache || {});
 
       const clonedTree = JSON.parse(JSON.stringify(elements));
 
@@ -338,7 +342,9 @@
      * 6. Marks document modified and updates metadata.
      */
     async apply(strings, options = {}) {
-      if (!window.TranslateSenseCore) return;
+      if (options.core) this.core = options.core;
+      const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
+      if (!core) return;
 
       if (!this.isActive() || !Array.isArray(strings)) return;
 
@@ -397,13 +403,20 @@
     },
   };
 
-  // Register Elementor on TranslateSenseCore
-  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
-    window.TranslateSenseCore.registerPageEditor('elementor', {
+  // Register Elementor on a TranslateSenseCore instance
+  ElementorUpdater.register = function (core) {
+    if (!core || typeof core.registerPageEditor !== 'function') return;
+    this.core = core;
+    core.registerPageEditor('elementor', {
       title: 'Elementor Visual Builder',
       isActive: () => ElementorUpdater.isActive(),
       apply: (strings, options) => ElementorUpdater.apply(strings, options),
     });
+  };
+
+  // Backward compatibility: If window.TranslateSenseCore is an instantiated object
+  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
+    ElementorUpdater.register(window.TranslateSenseCore);
   }
 
   window.TranslateSenseElementorUpdater = ElementorUpdater;

@@ -699,7 +699,7 @@
       }
 
       try {
-        await editor.apply(strings, { ...options, sourcePageData });
+        await editor.apply(strings, { ...options, sourcePageData, core: this });
         return { success: true, editor: editor.id, count: strings.length };
       } catch (error) {
         console.error(`[TranslateSense] Error applying translation to editor "${editor.id}":`, error);
@@ -789,6 +789,6 @@
     }
   }
 
-  // Create singleton instance
-  window.TranslateSenseCore = new TranslateSenseCore();
+  // Export class definition on window (instantiated internally per session for security)
+  window.TranslateSenseCore = TranslateSenseCore;
 })(window);

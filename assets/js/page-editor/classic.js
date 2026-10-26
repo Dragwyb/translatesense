@@ -153,13 +153,20 @@
     },
   };
 
-  // Register Classic Editor on TranslateSenseCore
-  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
-    window.TranslateSenseCore.registerPageEditor('classic', {
+  // Register Classic Editor on a TranslateSenseCore instance
+  ClassicUpdater.register = function (core) {
+    if (!core || typeof core.registerPageEditor !== 'function') return;
+    this.core = core;
+    core.registerPageEditor('classic', {
       title: 'Classic WordPress Editor',
       isActive: () => ClassicUpdater.isActive(),
       apply: (strings, options) => ClassicUpdater.apply(strings, options),
     });
+  };
+
+  // Backward compatibility: If window.TranslateSenseCore is an instantiated object
+  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerPageEditor === 'function') {
+    ClassicUpdater.register(window.TranslateSenseCore);
   }
 
   window.TranslateSenseClassicUpdater = ClassicUpdater;

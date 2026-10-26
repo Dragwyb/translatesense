@@ -902,84 +902,106 @@
   }
 
   /**
-   * Register TranslateSense Built-in AI provider.
+   * Register TranslateSense Built-in AI provider on a TranslateSenseCore instance.
+   *
+   * @param {TranslateSenseCore} core
    */
-  window.TranslateSenseCore.registerProvider('chrome_ai', {
-    title: 'Built-in AI',
-    icon: '🤖',
-    logo: getTranslateSenseAiLogo(),
-    desc: `Private on-device translation powered by ${browserType === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'} Built-in AI.`,
-    category: 'browser',
-    browserType: browserType.toLowerCase(),
-    savesToDb: false,
-    requiresApiKey: false,
+  function registerChromeAiProvider(core) {
+    if (!core || typeof core.registerProvider !== 'function') {
+      return;
+    }
 
-    checkAvailability: function (sourceLang, targetLang, bypassCache = false) {
-      return checkTranslateSenseAiAvailability(sourceLang, targetLang, bypassCache);
-    },
+    core.registerProvider('chrome_ai', {
+      title: 'Built-in AI',
+      icon: '🤖',
+      logo: getTranslateSenseAiLogo(),
+      desc: `Private on-device translation powered by ${browserType === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'} Built-in AI.`,
+      category: 'browser',
+      browserType: browserType.toLowerCase(),
+      savesToDb: false,
+      requiresApiKey: false,
 
-    isLanguageSupported: function (sourceLang, targetLang) {
-      return (
-        TranslateSenseLanguageHelper.isSupported(sourceLang) &&
-        TranslateSenseLanguageHelper.isSupported(targetLang)
-      );
-    },
+      checkAvailability: function (sourceLang, targetLang, bypassCache = false) {
+        return checkTranslateSenseAiAvailability(sourceLang, targetLang, bypassCache);
+      },
 
-    translate: async function ({ items, sourceLang, targetLang }, onProgressCallback) {
-      if (!Array.isArray(items) || items.length === 0) {
-        return [];
-      }
+      isLanguageSupported: function (sourceLang, targetLang) {
+        return (
+          TranslateSenseLanguageHelper.isSupported(sourceLang) &&
+          TranslateSenseLanguageHelper.isSupported(targetLang)
+        );
+      },
 
-      const results = [];
+      translate: async function ({ items, sourceLang, targetLang }, onProgressCallback) {
+        if (!Array.isArray(items) || items.length === 0) {
+          return [];
+        }
 
-      for (let index = 0; index < items.length; index++) {
-        const item = items[index] || {};
-        const sourceText = item.content || item.source || '';
+        const results = [];
 
-        try {
-          const translatedText = await translateTranslateSenseHtml(
-            sourceText,
-            sourceLang,
-            targetLang
-          );
+        for (let index = 0; index < items.length; index++) {
+          const item = items[index] || {};
+          const sourceText = item.content || item.source || '';
 
-          const result = {
-            hash: item.hash || '',
-            source: sourceText,
-            translated: translatedText,
-            status: 'Local AI Completed'
-          };
+          try {
+            const translatedText = await translateTranslateSenseHtml(
+              sourceText,
+              sourceLang,
+              targetLang
+            );
 
-          results.push(result);
-          if (typeof onProgressCallback === 'function') {
-            onProgressCallback(result);
-          }
-        } catch (error) {
-          if (error && error.name === 'AbortError') {
-            throw error;
-          }
+            const result = {
+              hash: item.hash || '',
+              source: sourceText,
+              translated: translatedText,
+              status: 'Local AI Completed'
+            };
 
-          const errorMessage =
-            error && error.message ? error.message : 'Translation failed.';
+            results.push(result);
+            if (typeof onProgressCallback === 'function') {
+              onProgressCallback(result);
+            }
+          } catch (error) {
+            if (error && error.name === 'AbortError') {
+              throw error;
+            }
 
-          const failedResult = {
-            hash: item.hash || '',
-            source: sourceText,
-            translated: sourceText,
-            status: 'Failed',
-            error: errorMessage
-          };
+            const errorMessage =
+              error && error.message ? error.message : 'Translation failed.';
 
-          results.push(failedResult);
-          if (typeof onProgressCallback === 'function') {
-            onProgressCallback(failedResult);
+            const failedResult = {
+              hash: item.hash || '',
+              source: sourceText,
+              translated: sourceText,
+              status: 'Failed',
+              error: errorMessage
+            };
+
+            results.push(failedResult);
+            if (typeof onProgressCallback === 'function') {
+              onProgressCallback(failedResult);
+            }
           }
         }
-      }
 
-      return results;
-    }
-  });
+        return results;
+      }
+    });
+  }
+
+  // Export module for provider registration
+  window.TranslateSenseChromeAi = {
+    register: registerChromeAiProvider,
+    checkAvailability: checkTranslateSenseAiAvailability,
+    translateHtml: translateTranslateSenseHtml,
+    getLogo: getTranslateSenseAiLogo,
+    browserType: browserType.toLowerCase()
+  };
+
+  // Backward compatibility: If window.TranslateSenseCore is an instantiated object with registerProvider
+  if (window.TranslateSenseCore && typeof window.TranslateSenseCore.registerProvider === 'function') {
+    registerChromeAiProvider(window.TranslateSenseCore);
+  }
 
   /**
    * Gesture event types for model download & warmup.
