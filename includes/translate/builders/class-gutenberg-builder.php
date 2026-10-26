@@ -147,13 +147,8 @@ class Gutenberg_Builder extends Base_Builder {
 		$blocks = parse_blocks( $source_post->post_content );
 		$rules  = Xml_Engine::get_all_rules( 'gutenberg' );
 
-		// var_dump( $source_post->post_content );
-
 		self::translate_blocks_tree( $blocks, $rules, $source_lang, $target_lang, $source_post->ID, $custom_opts );
 
-		var_dump( serialize_blocks( $blocks ) );
-
-		return '';
 		return serialize_blocks( $blocks );
 	}
 
