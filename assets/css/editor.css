@@ -803,19 +803,19 @@
 }
 
 .ts-provider-row.disabled {
-  opacity: 0.65;
   cursor: not-allowed;
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  transform: none !important;
   box-shadow: none !important;
+  background: #fffbfc;
+  border: 1.5px solid #fecaca;
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.04);
 }
 
 .ts-provider-row.disabled:hover {
-  border-color: #e2e8f0;
-  background: #f8fafc;
+  border-color: #fca5a5;
+  background: #fff5f5;
   transform: none !important;
-  box-shadow: none !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
 }
 
 .ts-add-api-key-btn {
@@ -832,6 +832,7 @@
   text-decoration: none !important;
   transition: all 0.2s ease;
   white-space: nowrap;
+  line-height: 1.4em;
 }
 
 .ts-add-api-key-btn:hover {
@@ -944,16 +945,18 @@
 
 /* On-Device Badge */
 .ts-provider-badge {
-  font-size: 10px;
-  font-weight: 800;
-  padding: 2.5px 9px;
   border-radius: 20px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   display: inline-flex;
   align-items: center;
-  line-height: 1.4;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  line-height: 1.4em;
 }
 
 .ts-provider-badge.on-device {
@@ -1154,21 +1157,6 @@
   box-shadow: 0 0 0 1px #6366f1, 0 4px 14px -2px rgba(99, 102, 241, 0.18);
 }
 
-.ts-provider-row.disabled {
-  cursor: not-allowed;
-  background: #fffbfc;
-  border: 1.5px solid #fecaca;
-  transform: none !important;
-  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.04);
-}
-
-.ts-provider-row.disabled:hover {
-  border-color: #fca5a5;
-  background: #fff5f5;
-  transform: none !important;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
-}
-
 .ts-provider-row.disabled .ts-provider-custom-radio {
   border-color: #e2e8f0;
   background: #f1f5f9;
@@ -1222,7 +1210,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 }
 
 .ts-provider-name {
