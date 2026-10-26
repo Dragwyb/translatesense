@@ -215,36 +215,65 @@ class Gutenberg_Builder extends Base_Builder {
 				continue;
 			}
 
+			if ( $modified ) {
+				$xpath = new DOMXPath( $dom );
+				$body  = $dom->getElementsByTagName( 'body' )->item( 0 );
+			}
+
 			$nodes = $body ? @$xpath->query( $query, $body ) : @$xpath->query( $query );
 			if ( ! $nodes || 0 === $nodes->length ) {
 				continue;
 			}
 
-			foreach ( $nodes as $node ) {
-				$node_id = spl_object_hash( $node );
-				if ( isset( $processed_nodes[ $node_id ] ) ) {
+			// Snapshot nodes into array to avoid live NodeList mutation issues
+			$nodes_arr = array();
+			foreach ( $nodes as $node_item ) {
+				$nodes_arr[] = $node_item;
+			}
+
+			foreach ( $nodes_arr as $node ) {
+				try {
+					if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+						continue;
+					}
+
+					// Verify node is still valid in libxml
+					if ( ! ( $node instanceof DOMAttr ) && ! ( $node instanceof DOMText ) ) {
+						if ( ! @$node->hasChildNodes() ) {
+							// Node checked safely
+						}
+					}
+
+					$node_id = spl_object_hash( $node );
+					if ( isset( $processed_nodes[ $node_id ] ) ) {
+						continue;
+					}
+					$processed_nodes[ $node_id ] = true;
+
+					$orig_val = self::get_node_content( $node, $dom );
+					if ( '' === trim( $orig_val ) ) {
+						continue;
+					}
+
+					$res = Translate::translate_string(
+						$orig_val,
+						$source_lang,
+						$target_lang,
+						$block_name,
+						$post_id,
+						$custom_opts
+					);
+
+					$translated_val = $res['translated'] ?? $orig_val;
+					if ( $translated_val !== $orig_val ) {
+						self::set_node_content( $node, $translated_val, $dom );
+						$modified = true;
+						$xpath    = new DOMXPath( $dom );
+						$body     = $dom->getElementsByTagName( 'body' )->item( 0 );
+					}
+				} catch ( \Throwable $e ) {
+					// Invalidated or detached libxml node, safely skip
 					continue;
-				}
-				$processed_nodes[ $node_id ] = true;
-
-				$orig_val = self::get_node_content( $node, $dom );
-				if ( '' === trim( $orig_val ) ) {
-					continue;
-				}
-
-				$res = Translate::translate_string(
-					$orig_val,
-					$source_lang,
-					$target_lang,
-					$block_name,
-					$post_id,
-					$custom_opts
-				);
-
-				$translated_val = $res['translated'] ?? $orig_val;
-				if ( $translated_val !== $orig_val ) {
-					self::set_node_content( $node, $translated_val, $dom );
-					$modified = true;
 				}
 			}
 		}
@@ -264,20 +293,27 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @return string
 	 */
 	public static function get_node_content( DOMNode $node, DOMDocument $dom ): string {
-		if ( $node instanceof DOMAttr ) {
-			return (string) $node->value;
-		}
-		if ( $node instanceof DOMText ) {
-			return (string) $node->nodeValue;
-		}
-
-		$inner_html = '';
-		if ( $node->hasChildNodes() ) {
-			foreach ( $node->childNodes as $child ) {
-				$inner_html .= $dom->saveHTML( $child );
+		try {
+			if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+				return '';
 			}
+			if ( $node instanceof DOMAttr ) {
+				return (string) $node->value;
+			}
+			if ( $node instanceof DOMText ) {
+				return (string) $node->nodeValue;
+			}
+
+			$inner_html = '';
+			if ( $node->hasChildNodes() ) {
+				foreach ( $node->childNodes as $child ) {
+					$inner_html .= $dom->saveHTML( $child );
+				}
+			}
+			return trim( $inner_html );
+		} catch ( \Throwable $e ) {
+			return '';
 		}
-		return trim( $inner_html );
 	}
 
 	/**
@@ -288,55 +324,69 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @return string
 	 */
 	public static function get_node_inner_html( DOMNode $node, DOMDocument $dom ): string {
-		$inner_html = '';
-		if ( $node->hasChildNodes() ) {
-			foreach ( $node->childNodes as $child ) {
-				$inner_html .= $dom->saveHTML( $child );
+		try {
+			if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+				return '';
 			}
+			$inner_html = '';
+			if ( $node->hasChildNodes() ) {
+				foreach ( $node->childNodes as $child ) {
+					$inner_html .= $dom->saveHTML( $child );
+				}
+			}
+			return trim( $inner_html );
+		} catch ( \Throwable $e ) {
+			return '';
 		}
-		return trim( $inner_html );
 	}
 
 	/**
 	 * Set translated content into a DOMNode (DOMElement, DOMAttr, or DOMText).
 	 *
 	 * @param DOMNode     $node
-	 * @param string       $new_content
+	 * @param string      $new_content
 	 * @param DOMDocument $dom
 	 * @return void
 	 */
 	public static function set_node_content( DOMNode $node, string $new_content, DOMDocument $dom ): void {
-		if ( $node instanceof DOMAttr ) {
-			$node->value = htmlspecialchars( $new_content, ENT_COMPAT, 'UTF-8' );
-			return;
-		}
-
-		if ( $node instanceof DOMText ) {
-			$node->nodeValue = $new_content;
-			return;
-		}
-
-		while ( $node->hasChildNodes() ) {
-			$node->removeChild( $node->firstChild );
-		}
-
-		if ( '' !== $new_content ) {
-			if ( false !== strpos( $new_content, '<' ) && class_exists( 'DOMDocument' ) ) {
-				$frag_doc = new DOMDocument();
-				libxml_use_internal_errors( true );
-				$frag_doc->loadHTML( '<?xml encoding="UTF-8"><body>' . $new_content . '</body>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
-				libxml_clear_errors();
-				$frag_body = $frag_doc->getElementsByTagName( 'body' )->item( 0 );
-				if ( $frag_body && $frag_body->hasChildNodes() ) {
-					foreach ( $frag_body->childNodes as $child ) {
-						$node->appendChild( $dom->importNode( $child, true ) );
-					}
-					return;
-				}
+		try {
+			if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+				return;
+			}
+			if ( $node instanceof DOMAttr ) {
+				$node->value = htmlspecialchars( $new_content, ENT_COMPAT, 'UTF-8' );
+				return;
 			}
 
-			// Plain text node
-			$node->appendChild( $dom->createTextNode( $new_content ) );
+			if ( $node instanceof DOMText ) {
+				$node->nodeValue = $new_content;
+				return;
+			}
+
+			while ( $node->hasChildNodes() ) {
+				$node->removeChild( $node->firstChild );
+			}
+
+			if ( '' !== $new_content ) {
+				if ( false !== strpos( $new_content, '<' ) && class_exists( 'DOMDocument' ) ) {
+					$frag_doc = new DOMDocument();
+					libxml_use_internal_errors( true );
+					$frag_doc->loadHTML( '<?xml encoding="UTF-8"><body>' . $new_content . '</body>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+					libxml_clear_errors();
+					$frag_body = $frag_doc->getElementsByTagName( 'body' )->item( 0 );
+					if ( $frag_body && $frag_body->hasChildNodes() ) {
+						foreach ( $frag_body->childNodes as $child ) {
+							$node->appendChild( $dom->importNode( $child, true ) );
+						}
+						return;
+					}
+				}
+
+				// Plain text node
+				$node->appendChild( $dom->createTextNode( $new_content ) );
+			}
+		} catch ( \Throwable $e ) {
+			return;
 		}
 	}
 

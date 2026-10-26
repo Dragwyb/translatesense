@@ -202,15 +202,22 @@ class Gutenberg_Builder extends Base_Builder {
 			$label = is_array( $xp_entry ) && ! empty( $xp_entry['label'] ) ? (string) $xp_entry['label'] : $query;
 
 			foreach ( $nodes as $node ) {
-				$node_id = spl_object_hash( $node );
-				if ( isset( $processed_nodes[ $node_id ] ) ) {
-					continue;
-				}
-				$processed_nodes[ $node_id ] = true;
+				try {
+					if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+						continue;
+					}
+					$node_id = spl_object_hash( $node );
+					if ( isset( $processed_nodes[ $node_id ] ) ) {
+						continue;
+					}
+					$processed_nodes[ $node_id ] = true;
 
-				$node_val = $this->get_node_extracted_value( $node, $dom );
-				if ( '' !== trim( $node_val ) ) {
-					$this->record_extracted_string( $post_id, $lang, $block_name, $label, $node_val, $extracted );
+					$node_val = $this->get_node_extracted_value( $node, $dom );
+					if ( '' !== trim( $node_val ) ) {
+						$this->record_extracted_string( $post_id, $lang, $block_name, $label, $node_val, $extracted );
+					}
+				} catch ( \Throwable $e ) {
+					continue;
 				}
 			}
 		}
@@ -224,20 +231,27 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @return string
 	 */
 	public function get_node_extracted_value( DOMNode $node, DOMDocument $dom ): string {
-		if ( $node instanceof DOMAttr ) {
-			return (string) $node->value;
-		}
-		if ( $node instanceof DOMText ) {
-			return (string) $node->nodeValue;
-		}
-
-		$inner_html = '';
-		if ( $node->hasChildNodes() ) {
-			foreach ( $node->childNodes as $child ) {
-				$inner_html .= $dom->saveHTML( $child );
+		try {
+			if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+				return '';
 			}
+			if ( $node instanceof DOMAttr ) {
+				return (string) $node->value;
+			}
+			if ( $node instanceof DOMText ) {
+				return (string) $node->nodeValue;
+			}
+
+			$inner_html = '';
+			if ( $node->hasChildNodes() ) {
+				foreach ( $node->childNodes as $child ) {
+					$inner_html .= $dom->saveHTML( $child );
+				}
+			}
+			return trim( $inner_html );
+		} catch ( \Throwable $e ) {
+			return '';
 		}
-		return trim( $inner_html );
 	}
 
 	/**

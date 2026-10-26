@@ -217,13 +217,20 @@ class Dom_Filter {
 	 * @return string
 	 */
 	public static function get_inner_html( DOMNode $node, DOMDocument $dom ): string {
-		$inner_html = '';
-		if ( $node->hasChildNodes() ) {
-			foreach ( $node->childNodes as $child ) {
-				$inner_html .= $dom->saveHTML( $child );
+		try {
+			if ( ! $node || ! ( $node instanceof DOMNode ) ) {
+				return '';
 			}
+			$inner_html = '';
+			if ( $node->hasChildNodes() ) {
+				foreach ( $node->childNodes as $child ) {
+					$inner_html .= $dom->saveHTML( $child );
+				}
+			}
+			return trim( $inner_html );
+		} catch ( \Throwable $e ) {
+			return '';
 		}
-		return trim( $inner_html );
 	}
 
 	/**
