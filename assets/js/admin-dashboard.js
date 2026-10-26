@@ -649,6 +649,25 @@
           'span',
           { className: 'ts-badge ts-badge-no-translate' },
           `🚫 ${widget.no_translate_count} No Translate`
+        ),
+        ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
+        el(
+          'span',
+          {
+            className: 'ts-badge ts-badge-xpath',
+            title: widget.xpaths && widget.xpaths.length > 0
+              ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
+              : `XPath: ${widget.xpath}`,
+            style: {
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #a7f3d0',
+              fontWeight: 500,
+            },
+          },
+          widget.xpaths && widget.xpaths.length > 1
+            ? `🎯 ${widget.xpaths.length} XPaths`
+            : `🎯 ${(widget.xpath || (widget.xpaths && widget.xpaths[0] && widget.xpaths[0].value) || '').slice(0, 22)}`
         )
       ),
       el(
@@ -713,6 +732,25 @@
             'span',
             { className: 'ts-badge ts-badge-no-translate' },
             `🚫 ${widget.no_translate_count} No Translate`
+          ),
+          ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
+          el(
+            'span',
+            {
+              className: 'ts-badge ts-badge-xpath',
+              title: widget.xpaths && widget.xpaths.length > 0
+                ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
+                : `XPath: ${widget.xpath}`,
+              style: {
+                background: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #a7f3d0',
+                fontWeight: 500,
+              },
+            },
+            widget.xpaths && widget.xpaths.length > 1
+              ? `🎯 ${widget.xpaths.length} XPaths`
+              : `🎯 ${(widget.xpath || (widget.xpaths && widget.xpaths[0] && widget.xpaths[0].value) || '').slice(0, 22)}`
           )
         )
       ),
@@ -757,25 +795,130 @@
     );
   }
 
+  // Helpers for extracting and injecting child <xpath> tags into Gutenberg blocks
+  function extractXpathsFromXml(xmlStr) {
+    if (!xmlStr) return '';
+    const regex = /<xpath\b([^>]*)>([\s\S]*?)<\/xpath>/gi;
+    const items = [];
+    let m;
+    while ((m = regex.exec(xmlStr)) !== null) {
+      const attrs = m[1].trim();
+      const val = m[2].trim();
+      if (attrs) {
+        items.push('<xpath ' + attrs + '>' + val + '</xpath>');
+      } else {
+        items.push(val);
+      }
+    }
+    return items.join('\n');
+  }
+
+  function injectXpathsIntoXml(xmlStr, xpathsText, builderType) {
+    if (!xmlStr || builderType !== 'gutenberg') return xmlStr;
+    const lines = (xpathsText || '').split('\n').map((l) => l.trim()).filter(Boolean);
+
+    const blockRegex = /(<gutenberg-block\b[^>]*>)([\s\S]*?)(<\/gutenberg-block>)/i;
+    const match = xmlStr.match(blockRegex);
+    if (!match) return xmlStr;
+
+    let openTag = match[1].replace(/\s+xpath=(?:"[^"]*"|'[^']*')/i, '');
+    if (!/\btranslate=/i.test(openTag)) {
+      openTag = openTag.replace(/>$/, ' translate="1">');
+    }
+
+    let inner = match[2];
+    inner = inner.replace(/^\s*<xpath\b[^>]*>[\s\S]*?<\/xpath>\s*/gim, '');
+
+    const xpathTags = lines.map((line) => {
+      if (/^<xpath\b/i.test(line)) {
+        return '            ' + line;
+      }
+      const attrMatch = line.match(/^([a-z_-]+="[^"]*")\s+(.*)$/i);
+      if (attrMatch) {
+        return '            <xpath ' + attrMatch[1] + '>' + attrMatch[2] + '</xpath>';
+      }
+      return '            <xpath>' + line + '</xpath>';
+    });
+
+    const xpathBlock = xpathTags.length > 0 ? '\n' + xpathTags.join('\n') + '\n            ' : '\n            ';
+    const firstKeyIdx = inner.search(/<key\b/i);
+    if (firstKeyIdx !== -1) {
+      inner = inner.slice(0, firstKeyIdx).trimEnd() + xpathBlock + inner.slice(firstKeyIdx).trimStart();
+    } else {
+      inner = xpathBlock + inner.trim();
+    }
+
+    return xmlStr.slice(0, match.index) + openTag + inner + '\n        ' + match[3] + xmlStr.slice(match.index + match[0].length);
+  }
+
   // XML Config Modal Component
   function XmlConfigModal({ widget, builder, xmlCode, onClose, onSave }) {
+    const isGutenberg = builder === 'gutenberg';
     const [editorCode, setEditorCode] = useState(xmlCode || '');
 
+    const getInitialXpaths = () => {
+      if (widget && widget.xpaths && widget.xpaths.length > 0) {
+        return widget.xpaths
+          .map((x) => {
+            const attrs = Object.keys(x)
+              .filter((k) => k !== 'value')
+              .map((k) => `${k}="${x[k]}"`)
+              .join(' ');
+            return attrs ? `<xpath ${attrs}>${x.value}</xpath>` : x.value;
+          })
+          .join('\n');
+      }
+      if (widget && widget.xpath) {
+        return widget.xpath;
+      }
+      return extractXpathsFromXml(xmlCode);
+    };
+
+    const [xpathValue, setXpathValue] = useState(isGutenberg ? getInitialXpaths() : '');
+
     useEffect(() => {
+      let initialCode = '';
       if (widget) {
         if (widget.xml_snippet) {
-          setEditorCode(widget.xml_snippet);
+          initialCode = widget.xml_snippet;
         } else if ('gutenberg' === builder) {
-          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <gutenberg-blocks>\n        <gutenberg-block type="${widget.id}">\n            <key name="content" type="text" editor_type="VISUAL" />\n        </gutenberg-block>\n    </gutenberg-blocks>\n</wpml-config>`);
+          initialCode = `<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <gutenberg-blocks>\n        <gutenberg-block type="${widget.id}" translate="1">\n            <key name="content" type="text" editor_type="VISUAL" />\n        </gutenberg-block>\n    </gutenberg-blocks>\n</wpml-config>`;
         } else if ('elementor' === builder) {
-          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <elementor-widgets>\n        <widget name="${widget.id}">\n            <fields>\n                <field type="title" editor_type="LINE">title</field>\n            </fields>\n        </widget>\n    </elementor-widgets>\n</wpml-config>`);
+          initialCode = `<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <elementor-widgets>\n        <widget name="${widget.id}">\n            <fields>\n                <field type="title" editor_type="LINE">title</field>\n            </fields>\n        </widget>\n    </elementor-widgets>\n</wpml-config>`;
         } else {
-          setEditorCode(`<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <custom-fields>\n        <custom-field action="translate">${widget.id}</custom-field>\n    </custom-fields>\n</wpml-config>`);
+          initialCode = `<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <custom-fields>\n        <custom-field action="translate">${widget.id}</custom-field>\n    </custom-fields>\n</wpml-config>`;
         }
       } else {
-        setEditorCode(xmlCode || '');
+        initialCode = xmlCode || '';
       }
-    }, [widget, builder, xmlCode]);
+
+      if (isGutenberg) {
+        const detectedXpaths = extractXpathsFromXml(initialCode) || getInitialXpaths();
+        if (detectedXpaths && !extractXpathsFromXml(initialCode)) {
+          initialCode = injectXpathsIntoXml(initialCode, detectedXpaths, builder);
+        }
+        setXpathValue(detectedXpaths || '');
+      }
+      setEditorCode(initialCode);
+    }, [widget, builder, xmlCode, isGutenberg]);
+
+    const handleXpathChange = (newXpath) => {
+      setXpathValue(newXpath);
+      setEditorCode((prevCode) => injectXpathsIntoXml(prevCode, newXpath, builder));
+    };
+
+    const handleEditorChange = (newCode) => {
+      setEditorCode(newCode);
+      if (isGutenberg) {
+        const detected = extractXpathsFromXml(newCode);
+        setXpathValue(detected);
+      }
+    };
+
+    const handleSaveClick = () => {
+      const finalXml = isGutenberg ? injectXpathsIntoXml(editorCode, xpathValue, builder) : editorCode;
+      onSave(finalXml);
+    };
 
     return el(
       'div',
@@ -795,12 +938,58 @@
           el(
             'p',
             { style: { fontSize: '13px', color: '#64748b', marginTop: 0 } },
-            `Specify translation mappings for ${builder.toUpperCase()} widgets/blocks. When saved, this updates ${builder}-config.xml.`
+            isGutenberg
+              ? 'Specify translation mappings and child <xpath> tags for GUTENBERG. When saved, this updates the active configuration.'
+              : `Specify translation mappings for ${builder.toUpperCase()}. When saved, this updates the active configuration.`
+          ),
+          isGutenberg &&
+          el(
+            'div',
+            { style: { marginBottom: '14px' } },
+            el(
+              'label',
+              {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#334155',
+                  marginBottom: '6px',
+                },
+              },
+              '🎯 Child <xpath> Selectors (One per line)'
+            ),
+            el('textarea', {
+              className: 'ts-input',
+              rows: 3,
+              style: {
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '12px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                boxSizing: 'border-box',
+                fontFamily: 'monospace',
+                background: '#f8fafc',
+                resize: 'vertical',
+                lineHeight: '1.5',
+              },
+              placeholder: '//h3[contains(@class, "eb-cia-title")]\n//p[contains(@class, "eb-cia-description")]\n<xpath type="link">//a/@href</xpath>',
+              value: xpathValue,
+              onChange: (e) => handleXpathChange(e.target.value),
+            }),
+            el(
+              'span',
+              { style: { display: 'block', fontSize: '11px', color: '#64748b', marginTop: '4px' } },
+              'Each line becomes a child <xpath> tag under <gutenberg-block>. Attributes like type="link" are fully supported.'
+            )
           ),
           el('textarea', {
             className: 'ts-xml-editor',
             value: editorCode,
-            onChange: (e) => setEditorCode(e.target.value),
+            onChange: (e) => handleEditorChange(e.target.value),
             spellCheck: 'false',
           })
         ),
@@ -812,7 +1001,7 @@
             'button',
             {
               className: 'ts-btn ts-btn-primary',
-              onClick: () => onSave(editorCode),
+              onClick: handleSaveClick,
             },
             '💾 Save Config'
           )

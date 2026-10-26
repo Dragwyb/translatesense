@@ -71,6 +71,46 @@ class Gutenberg_Builder extends Base_Builder {
 		$section = $dom->createElement( $this->section_name );
 		$block   = $dom->createElement( 'gutenberg-block' );
 		$block->setAttribute( 'type', $name );
+		$translate = isset( $field_details['translate'] ) ? (string) $field_details['translate'] : '1';
+		$block->setAttribute( 'translate', $translate );
+
+		// Append child <xpath> tags
+		$xpaths = array();
+		if ( ! empty( $field_details['__xpaths__'] ) && is_array( $field_details['__xpaths__'] ) ) {
+			$xpaths = $field_details['__xpaths__'];
+		} elseif ( ! empty( $field_details['xpaths'] ) && is_array( $field_details['xpaths'] ) ) {
+			$xpaths = $field_details['xpaths'];
+		} elseif ( ! empty( $field_details['xpath'] ) ) {
+			if ( is_array( $field_details['xpath'] ) ) {
+				$xpaths = $field_details['xpath'];
+			} else {
+				$lines = explode( "\n", (string) $field_details['xpath'] );
+				foreach ( $lines as $line ) {
+					$line = trim( $line );
+					if ( '' !== $line ) {
+						$xpaths[] = array( 'value' => $line );
+					}
+				}
+			}
+		}
+
+		foreach ( $xpaths as $xp ) {
+			$xp_val = is_array( $xp ) ? ( $xp['value'] ?? $xp['xpath'] ?? '' ) : (string) $xp;
+			$xp_val = trim( $xp_val );
+			if ( '' === $xp_val ) {
+				continue;
+			}
+			$xp_node = $dom->createElement( 'xpath', htmlspecialchars( $xp_val ) );
+			if ( is_array( $xp ) ) {
+				foreach ( $xp as $attr_k => $attr_v ) {
+					if ( ! in_array( $attr_k, array( 'value', 'xpath' ), true ) && is_scalar( $attr_v ) && '' !== (string) $attr_v ) {
+						$xp_node->setAttribute( (string) $attr_k, (string) $attr_v );
+					}
+				}
+			}
+			$block->appendChild( $xp_node );
+		}
+
 		$this->append_dom_keys_recursive( $dom, $block, $field_details );
 		$section->appendChild( $block );
 		$root->appendChild( $section );
@@ -88,6 +128,9 @@ class Gutenberg_Builder extends Base_Builder {
 	 */
 	private function append_dom_keys_recursive( DOMDocument $dom, DOMElement $parent, array $field_details ): void {
 		foreach ( $field_details as $key => $info ) {
+			if ( in_array( $key, array( 'xpath', 'xpaths', '__xpaths__', 'translate' ), true ) ) {
+				continue;
+			}
 			$k_node = $dom->createElement( 'key' );
 			$k_node->setAttribute( 'name', (string) $key );
 
@@ -118,6 +161,56 @@ class Gutenberg_Builder extends Base_Builder {
 	 */
 	public function sync_node( DOMElement $existing_block, SimpleXMLElement $new_block ): void {
 		$owner_doc = $existing_block->ownerDocument;
+
+		if ( isset( $new_block['translate'] ) ) {
+			$existing_block->setAttribute( 'translate', (string) $new_block['translate'] );
+		}
+
+		// Remove legacy xpath attribute if present
+		if ( $existing_block->hasAttribute( 'xpath' ) ) {
+			$existing_block->removeAttribute( 'xpath' );
+		}
+
+		// Sync child <xpath> elements
+		// 1. Remove existing <xpath> elements
+		$nodes_to_remove = array();
+		$child_nodes     = $existing_block->childNodes;
+		for ( $i = 0; $i < $child_nodes->length; $i++ ) {
+			$child = $child_nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $child->nodeType && 'xpath' === $child->nodeName ) {
+				$nodes_to_remove[] = $child;
+			}
+		}
+		foreach ( $nodes_to_remove as $node ) {
+			$existing_block->removeChild( $node );
+		}
+
+		// 2. Add new <xpath> elements from $new_block
+		if ( isset( $new_block->xpath ) ) {
+			// Find first key node to insert xpath elements before it
+			$first_key_node     = null;
+			$remaining_children = $existing_block->childNodes;
+			for ( $i = 0; $i < $remaining_children->length; $i++ ) {
+				$child = $remaining_children->item( $i );
+				if ( XML_ELEMENT_NODE === $child->nodeType && 'key' === $child->nodeName ) {
+					$first_key_node = $child;
+					break;
+				}
+			}
+
+			foreach ( $new_block->xpath as $xp_elem ) {
+				$xp_dom = dom_import_simplexml( $xp_elem );
+				if ( $xp_dom ) {
+					$imported_xp = $owner_doc->importNode( $xp_dom, true );
+					if ( $first_key_node ) {
+						$existing_block->insertBefore( $imported_xp, $first_key_node );
+					} else {
+						$existing_block->appendChild( $imported_xp );
+					}
+				}
+			}
+		}
+
 		$this->sync_keys_recursive( $existing_block, $new_block, $owner_doc );
 	}
 
@@ -208,6 +301,54 @@ class Gutenberg_Builder extends Base_Builder {
 			$found_block->addAttribute( 'type', $name );
 		}
 
+		$translate = isset( $field_details['translate'] ) ? (string) $field_details['translate'] : '1';
+		if ( ! isset( $found_block['translate'] ) ) {
+			$found_block->addAttribute( 'translate', $translate );
+		}
+
+		$xpaths = array();
+		if ( ! empty( $field_details['__xpaths__'] ) && is_array( $field_details['__xpaths__'] ) ) {
+			$xpaths = $field_details['__xpaths__'];
+		} elseif ( ! empty( $field_details['xpaths'] ) && is_array( $field_details['xpaths'] ) ) {
+			$xpaths = $field_details['xpaths'];
+		} elseif ( ! empty( $field_details['xpath'] ) ) {
+			if ( is_array( $field_details['xpath'] ) ) {
+				$xpaths = $field_details['xpath'];
+			} else {
+				$lines = explode( "\n", (string) $field_details['xpath'] );
+				foreach ( $lines as $line ) {
+					$line = trim( $line );
+					if ( '' !== $line ) {
+						$xpaths[] = array( 'value' => $line );
+					}
+				}
+			}
+		}
+
+		$existing_xps = array();
+		if ( isset( $found_block->xpath ) ) {
+			foreach ( $found_block->xpath as $cur_xp ) {
+				$existing_xps[] = trim( (string) $cur_xp );
+			}
+		}
+
+		foreach ( $xpaths as $xp ) {
+			$xp_val = is_array( $xp ) ? ( $xp['value'] ?? $xp['xpath'] ?? '' ) : (string) $xp;
+			$xp_val = trim( $xp_val );
+			if ( '' === $xp_val || in_array( $xp_val, $existing_xps, true ) ) {
+				continue;
+			}
+			$xp_node = $found_block->addChild( 'xpath', htmlspecialchars( $xp_val ) );
+			if ( is_array( $xp ) ) {
+				foreach ( $xp as $attr_k => $attr_v ) {
+					if ( ! in_array( $attr_k, array( 'value', 'xpath' ), true ) && is_scalar( $attr_v ) && '' !== (string) $attr_v ) {
+						$xp_node->addAttribute( (string) $attr_k, (string) $attr_v );
+					}
+				}
+			}
+			$existing_xps[] = $xp_val;
+		}
+
 		$this->append_simplexml_keys_recursive( $found_block, $field_details );
 	}
 
@@ -220,6 +361,9 @@ class Gutenberg_Builder extends Base_Builder {
 	 */
 	private function append_simplexml_keys_recursive( SimpleXMLElement $parent, array $field_details ): void {
 		foreach ( $field_details as $f_key => $f_info ) {
+			if ( in_array( $f_key, array( 'xpath', 'xpaths', '__xpaths__', 'translate' ), true ) ) {
+				continue;
+			}
 			$found_node = null;
 			if ( isset( $parent->key ) ) {
 				foreach ( $parent->key as $k ) {
@@ -262,15 +406,45 @@ class Gutenberg_Builder extends Base_Builder {
 				if ( empty( $name ) ) {
 					continue;
 				}
+
+				$xpaths = array();
+				if ( isset( $block->xpath ) ) {
+					foreach ( $block->xpath as $xpath_node ) {
+						$xpath_val = trim( (string) $xpath_node );
+						if ( '' === $xpath_val ) {
+							continue;
+						}
+						$entry = array(
+							'value' => $xpath_val,
+						);
+						foreach ( $xpath_node->attributes() as $attr_name => $attr_val ) {
+							$entry[ (string) $attr_name ] = (string) $attr_val;
+						}
+						$xpaths[] = $entry;
+					}
+				}
+
 				if ( ! isset( $rules['gutenberg'][ $name ] ) ) {
 					$rules['gutenberg'][ $name ] = array(
 						'name'         => $name,
 						'type'         => $name,
 						'source'       => $source,
+						'translate'    => isset( $block['translate'] ) ? (string) $block['translate'] : '1',
+						'xpaths'       => $xpaths,
+						'xpath'        => ! empty( $xpaths ) ? $xpaths[0]['value'] : '',
 						'keys'         => array(),
 						'no_translate' => array(),
 					);
+				} else {
+					if ( ! empty( $xpaths ) ) {
+						$rules['gutenberg'][ $name ]['xpaths'] = $xpaths;
+						$rules['gutenberg'][ $name ]['xpath']  = $xpaths[0]['value'];
+					}
+					if ( isset( $block['translate'] ) ) {
+						$rules['gutenberg'][ $name ]['translate'] = (string) $block['translate'];
+					}
 				}
+
 				if ( ! isset( $rules['gutenberg'][ $name ]['no_translate'] ) ) {
 					$rules['gutenberg'][ $name ]['no_translate'] = array();
 				}
@@ -284,7 +458,7 @@ class Gutenberg_Builder extends Base_Builder {
 						if ( null !== $key_data ) {
 							$rules['gutenberg'][ $name ]['keys'][ $key_name ] = $key_data;
 						} elseif ( isset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] ) ) {
-								unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
+							unset( $rules['gutenberg'][ $name ]['keys'][ $key_name ] );
 						}
 					}
 				}

@@ -31,6 +31,21 @@ class Xml_Engine {
 	const OPTION_ALL_XML = 'translatesense_all_xml';
 
 	/**
+	 * Transient key for merged XML configuration.
+	 */
+	const TRANSIENT_MERGED_XML = 'translatesense_merged_xml_config';
+
+	/**
+	 * Transient key for active plugins list & fingerprint.
+	 */
+	const TRANSIENT_ACTIVE_PLUGINS = 'translatesense_active_plugins_list';
+
+	/**
+	 * Transient prefix for builder-specific merged XML.
+	 */
+	const TRANSIENT_MERGED_BUILDER = 'translatesense_merged_xml_';
+
+	/**
 	 * Cached builder instances.
 	 *
 	 * @var array<string, Base_Builder>|null
@@ -45,10 +60,13 @@ class Xml_Engine {
 	private static $parsed_rules = null;
 
 	/**
-	 * Initialize engine.
+	 * Initialize engine and hook lifecycle events.
 	 */
 	public static function init() {
-		// Configuration is stored in and retrieved from the database option table.
+		add_action( 'activated_plugin', array( __CLASS__, 'invalidate_transients' ) );
+		add_action( 'deactivated_plugin', array( __CLASS__, 'invalidate_transients' ) );
+		add_action( 'switch_theme', array( __CLASS__, 'invalidate_transients' ) );
+		add_action( 'upgrader_process_complete', array( __CLASS__, 'invalidate_transients' ) );
 	}
 
 	/**
@@ -115,8 +133,360 @@ class Xml_Engine {
 	}
 
 	/**
+	 * Invalidate cached transients.
+	 */
+	public static function invalidate_transients(): void {
+		delete_transient( self::TRANSIENT_MERGED_XML );
+		delete_transient( self::TRANSIENT_ACTIVE_PLUGINS );
+		foreach ( self::BUILDERS as $b ) {
+			delete_transient( self::TRANSIENT_MERGED_BUILDER . $b );
+		}
+		self::$parsed_rules = null;
+	}
+
+	/**
+	 * Get current list and theme of active plugins.
+	 *
+	 * @return array{plugins: array, theme: string}
+	 */
+	public static function get_active_plugins_list(): array {
+		$plugins = (array) get_option( 'active_plugins', array() );
+		if ( is_multisite() ) {
+			$sitewide = (array) get_site_option( 'active_sitewide_plugins', array() );
+			$plugins  = array_unique( array_merge( $plugins, array_keys( $sitewide ) ) );
+		}
+		sort( $plugins );
+		$theme = (string) get_stylesheet();
+
+		return array(
+			'plugins' => $plugins,
+			'theme'   => $theme,
+		);
+	}
+
+	/**
+	 * Generate hash fingerprint of current active plugins and theme.
+	 *
+	 * @return string
+	 */
+	public static function get_active_plugins_fingerprint(): string {
+		return md5( wp_json_encode( self::get_active_plugins_list() ) );
+	}
+
+	/**
+	 * Check if active plugins or theme have changed compared to transient.
+	 *
+	 * @return bool
+	 */
+	public static function has_active_plugins_changed(): bool {
+		$cached = get_transient( self::TRANSIENT_ACTIVE_PLUGINS );
+		if ( false === $cached || ! is_array( $cached ) ) {
+			return true;
+		}
+		$current = self::get_active_plugins_list();
+		if ( ! isset( $cached['plugins'] ) || ! isset( $cached['theme'] ) ) {
+			return true;
+		}
+		return ( $cached['plugins'] !== $current['plugins'] || $cached['theme'] !== $current['theme'] );
+	}
+
+	/**
+	 * Retrieve wpml-config.xml content from all active plugins and themes.
+	 *
+	 * @return array<string, string> Map of plugin/theme identifier to XML content
+	 */
+	public static function get_active_plugins_wpml_configs(): array {
+		$configs     = array();
+		$active_info = self::get_active_plugins_list();
+		$plugin_base = defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : WP_CONTENT_DIR . '/plugins';
+
+		foreach ( $active_info['plugins'] as $plugin_file ) {
+			$dir_name = dirname( $plugin_file );
+			if ( '.' === $dir_name || '' === $dir_name ) {
+				$xml_file = trailingslashit( $plugin_base ) . 'wpml-config.xml';
+			} else {
+				$xml_file = trailingslashit( $plugin_base ) . $dir_name . '/wpml-config.xml';
+			}
+
+			if ( file_exists( $xml_file ) && is_readable( $xml_file ) ) {
+				$content = file_get_contents( $xml_file );
+				if ( ! empty( $content ) ) {
+					$configs[ $plugin_file ] = $content;
+				}
+			}
+		}
+
+		// Check active theme/child theme
+		$theme_xml = get_stylesheet_directory() . '/wpml-config.xml';
+		if ( file_exists( $theme_xml ) && is_readable( $theme_xml ) ) {
+			$content = file_get_contents( $theme_xml );
+			if ( ! empty( $content ) ) {
+				$configs[ 'theme:' . $active_info['theme'] ] = $content;
+			}
+		}
+
+		// Check parent theme if distinct
+		if ( get_template_directory() !== get_stylesheet_directory() ) {
+			$parent_xml = get_template_directory() . '/wpml-config.xml';
+			if ( file_exists( $parent_xml ) && is_readable( $parent_xml ) ) {
+				$content = file_get_contents( $parent_xml );
+				if ( ! empty( $content ) ) {
+					$configs['parent-theme'] = $content;
+				}
+			}
+		}
+
+		return $configs;
+	}
+
+	/**
+	 * Find or create child element under parent.
+	 *
+	 * @param DOMDocument $dom
+	 * @param DOMElement  $parent
+	 * @param string      $tag_name
+	 * @return DOMElement
+	 */
+	private static function get_or_create_dom_child( DOMDocument $dom, DOMElement $parent, string $tag_name ): DOMElement {
+		$nodes = $parent->childNodes;
+		for ( $i = 0; $i < $nodes->length; $i++ ) {
+			$node = $nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $node->nodeType && $node->nodeName === $tag_name ) {
+				return $node;
+			}
+		}
+		$new_elem = $dom->createElement( $tag_name );
+		return $parent->appendChild( $new_elem );
+	}
+
+	/**
+	 * Find DOM child element with matching attribute.
+	 *
+	 * @param DOMElement $parent
+	 * @param string     $tag_name
+	 * @param string     $attr_name
+	 * @param string     $attr_val
+	 * @return DOMElement|null
+	 */
+	private static function find_dom_child_by_attribute( DOMElement $parent, string $tag_name, string $attr_name, string $attr_val ) {
+		$nodes = $parent->childNodes;
+		for ( $i = 0; $i < $nodes->length; $i++ ) {
+			$node = $nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $node->nodeType && $node->nodeName === $tag_name ) {
+				if ( $node->getAttribute( $attr_name ) === $attr_val ) {
+					return $node;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find DOM child element with matching text content.
+	 *
+	 * @param DOMElement $parent
+	 * @param string     $tag_name
+	 * @param string     $text_val
+	 * @return DOMElement|null
+	 */
+	private static function find_dom_child_by_text( DOMElement $parent, string $tag_name, string $text_val ) {
+		$nodes = $parent->childNodes;
+		for ( $i = 0; $i < $nodes->length; $i++ ) {
+			$node = $nodes->item( $i );
+			if ( XML_ELEMENT_NODE === $node->nodeType && $node->nodeName === $tag_name ) {
+				if ( trim( $node->textContent ) === $text_val ) {
+					return $node;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Merge multiple WPML configuration XML strings into a single consolidated XML.
+	 *
+	 * @param array<string> $xml_strings Array of XML strings to merge.
+	 * @return string Consolidated XML string.
+	 */
+	public static function merge_wpml_xml_documents( array $xml_strings ): string {
+		$xml_strings = array_filter( array_map( 'trim', $xml_strings ) );
+		if ( empty( $xml_strings ) ) {
+			return self::get_default_builder_skeleton( 'all' );
+		}
+
+		$dom                     = new DOMDocument( '1.0', 'UTF-8' );
+		$dom->preserveWhiteSpace = false;
+		$dom->formatOutput       = true;
+
+		// Initialize root skeleton
+		$dom->loadXML( self::get_default_builder_skeleton( 'all' ) );
+		$root = $dom->documentElement;
+
+		$gb_builder = self::get_builder( 'gutenberg' );
+		$ew_builder = self::get_builder( 'elementor' );
+		$cf_builder = self::get_builder( 'classic' );
+
+		$gb_section = self::get_or_create_dom_child( $dom, $root, 'gutenberg-blocks' );
+		$ew_section = self::get_or_create_dom_child( $dom, $root, 'elementor-widgets' );
+		$cf_section = self::get_or_create_dom_child( $dom, $root, 'custom-fields' );
+
+		foreach ( $xml_strings as $xml_str ) {
+			libxml_use_internal_errors( true );
+			$sxml = simplexml_load_string( $xml_str );
+			if ( ! $sxml ) {
+				libxml_clear_errors();
+				continue;
+			}
+
+			foreach ( $sxml->children() as $section ) {
+				$section_name = $section->getName();
+
+				if ( 'gutenberg-blocks' === $section_name && isset( $section->{'gutenberg-block'} ) ) {
+					foreach ( $section->{'gutenberg-block'} as $block ) {
+						$b_type = (string) $block['type'];
+						if ( empty( $b_type ) ) {
+							continue;
+						}
+						$existing = self::find_dom_child_by_attribute( $gb_section, 'gutenberg-block', 'type', $b_type );
+						if ( $existing && $gb_builder ) {
+							$gb_builder->sync_node( $existing, $block );
+						} else {
+							$node_dom = dom_import_simplexml( $block );
+							$gb_section->appendChild( $dom->importNode( $node_dom, true ) );
+						}
+					}
+				} elseif ( 'elementor-widgets' === $section_name && isset( $section->widget ) ) {
+					foreach ( $section->widget as $widget ) {
+						$w_name = (string) $widget['name'];
+						if ( empty( $w_name ) ) {
+							continue;
+						}
+						$existing = self::find_dom_child_by_attribute( $ew_section, 'widget', 'name', $w_name );
+						if ( $existing && $ew_builder ) {
+							$ew_builder->sync_node( $existing, $widget );
+						} else {
+							$node_dom = dom_import_simplexml( $widget );
+							$ew_section->appendChild( $dom->importNode( $node_dom, true ) );
+						}
+					}
+				} elseif ( 'custom-fields' === $section_name && isset( $section->{'custom-field'} ) ) {
+					foreach ( $section->{'custom-field'} as $cf ) {
+						$cf_name = trim( (string) $cf );
+						if ( empty( $cf_name ) ) {
+							continue;
+						}
+						$existing = self::find_dom_child_by_text( $cf_section, 'custom-field', $cf_name );
+						if ( $existing && $cf_builder ) {
+							$cf_builder->sync_node( $existing, $cf );
+						} else {
+							$node_dom = dom_import_simplexml( $cf );
+							$cf_section->appendChild( $dom->importNode( $node_dom, true ) );
+						}
+					}
+				} else {
+					// Generic WPML sections: <admin-texts>, <taxonomies>, <custom-types>, <shortcodes>, etc.
+					$existing_sec = null;
+					$root_nodes   = $root->childNodes;
+					for ( $j = 0; $j < $root_nodes->length; $j++ ) {
+						$r_node = $root_nodes->item( $j );
+						if ( XML_ELEMENT_NODE === $r_node->nodeType && $r_node->nodeName === $section_name ) {
+							$existing_sec = $r_node;
+							break;
+						}
+					}
+					if ( ! $existing_sec ) {
+						$sec_dom = dom_import_simplexml( $section );
+						$root->appendChild( $dom->importNode( $sec_dom, true ) );
+					} else {
+						foreach ( $section->children() as $sub_item ) {
+							$sub_name  = $sub_item->getName();
+							$sub_id    = isset( $sub_item['name'] ) ? (string) $sub_item['name'] : ( isset( $sub_item['type'] ) ? (string) $sub_item['type'] : trim( (string) $sub_item ) );
+							$found_sub = null;
+							if ( $sub_id ) {
+								$found_sub = self::find_dom_child_by_attribute( $existing_sec, $sub_name, 'name', $sub_id )
+									?? self::find_dom_child_by_attribute( $existing_sec, $sub_name, 'type', $sub_id )
+									?? self::find_dom_child_by_text( $existing_sec, $sub_name, $sub_id );
+							}
+							if ( ! $found_sub ) {
+								$sub_dom = dom_import_simplexml( $sub_item );
+								$existing_sec->appendChild( $dom->importNode( $sub_dom, true ) );
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return $dom->saveXML();
+	}
+
+	/**
+	 * Retrieve consolidated merged XML configuration with active plugin checking and transient caching.
+	 *
+	 * @param bool $force_refresh Whether to force refresh from files and options.
+	 * @return string
+	 */
+	public static function get_merged_config( bool $force_refresh = false ): string {
+		$active_changed = self::has_active_plugins_changed();
+		if ( ! $force_refresh && ! $active_changed ) {
+			$cached_xml = get_transient( self::TRANSIENT_MERGED_XML );
+			if ( ! empty( $cached_xml ) && is_string( $cached_xml ) ) {
+				return $cached_xml;
+			}
+		}
+
+		// 1. Core / Default XML
+		$core_xml  = '';
+		$core_path = self::get_master_xml_path();
+		if ( file_exists( $core_path ) ) {
+			$core_xml = (string) file_get_contents( $core_path );
+		}
+
+		// 2. Active plugins & theme WPML configs
+		$plugin_configs = self::get_active_plugins_wpml_configs();
+
+		// 3. User custom / added XML configs
+		$custom_xmls = array();
+		$saved_all   = get_option( self::OPTION_ALL_XML, '' );
+		if ( ! empty( $saved_all ) && trim( $saved_all ) !== trim( $core_xml ) ) {
+			$custom_xmls[] = $saved_all;
+		}
+		foreach ( self::BUILDERS as $b ) {
+			$b_xml = get_option( 'translatesense_' . $b . '_xml', '' );
+			if ( ! empty( $b_xml ) ) {
+				$custom_xmls[] = $b_xml;
+			}
+		}
+
+		// Merge order: core -> active plugins -> user custom
+		$all_sources = array_merge(
+			array( $core_xml ),
+			array_values( $plugin_configs ),
+			$custom_xmls
+		);
+
+		$merged_xml = self::merge_wpml_xml_documents( $all_sources );
+
+		// Format XML
+		$dom                     = new DOMDocument( '1.0' );
+		$dom->preserveWhiteSpace = false;
+		$dom->formatOutput       = true;
+		if ( @$dom->loadXML( $merged_xml ) ) {
+			$formatted_xml = $dom->saveXML();
+		} else {
+			$formatted_xml = $merged_xml;
+		}
+
+		// Save to transients
+		set_transient( self::TRANSIENT_MERGED_XML, $formatted_xml, DAY_IN_SECONDS );
+		set_transient( self::TRANSIENT_ACTIVE_PLUGINS, self::get_active_plugins_list(), DAY_IN_SECONDS );
+
+		return $formatted_xml;
+	}
+
+	/**
 	 * Get XML configuration for a specific editor or all editors combined.
-	 * Always retrieves configuration from the WordPress options table.
+	 * Transparently handles active plugin configs, custom additions, and transients.
 	 *
 	 * @param string $editor 'all', 'gutenberg', 'elementor', 'classic', or 'core'
 	 * @return string
@@ -129,44 +499,43 @@ class Xml_Engine {
 
 		// 1. Unified 'all' configuration
 		if ( 'all' === $editor ) {
-			$saved = get_option( self::OPTION_ALL_XML, '' );
-			if ( ! empty( $saved ) ) {
-				return $saved;
-			}
-
-			// Fallback: prime option table from master XML file
-			$path = self::get_master_xml_path();
-			if ( file_exists( $path ) ) {
-				$file_xml = file_get_contents( $path );
-				if ( ! empty( $file_xml ) ) {
-					update_option( self::OPTION_ALL_XML, $file_xml );
-					return $file_xml;
-				}
-			}
-
-			return self::get_default_builder_skeleton( 'all' );
+			return self::get_merged_config();
 		}
 
 		// 2. Specific builder configuration (gutenberg, elementor, classic)
+		if ( self::has_active_plugins_changed() ) {
+			self::invalidate_transients();
+		}
+
+		$transient_builder_key = self::TRANSIENT_MERGED_BUILDER . $editor;
+		$cached_builder_xml    = get_transient( $transient_builder_key );
+		if ( ! empty( $cached_builder_xml ) && is_string( $cached_builder_xml ) ) {
+			return $cached_builder_xml;
+		}
+
 		$option_key = 'translatesense_' . $editor . '_xml';
 		$saved      = get_option( $option_key, '' );
 		if ( ! empty( $saved ) ) {
+			set_transient( $transient_builder_key, $saved, DAY_IN_SECONDS );
 			return $saved;
 		}
 
-		// Extract editor-specific section from unified 'all' configuration in option table
+		// Extract editor-specific section from unified merged configuration
 		$all_xml = self::get_config( 'all' );
 		if ( ! empty( $all_xml ) ) {
 			$builder_obj = self::get_builder( $editor );
 			if ( $builder_obj ) {
 				$extracted = $builder_obj->extract_section( $all_xml );
 				if ( ! empty( $extracted ) ) {
+					set_transient( $transient_builder_key, $extracted, DAY_IN_SECONDS );
 					return $extracted;
 				}
 			}
 		}
 
-		return self::get_default_builder_skeleton( $editor );
+		$default_skel = self::get_default_builder_skeleton( $editor );
+		set_transient( $transient_builder_key, $default_skel, DAY_IN_SECONDS );
+		return $default_skel;
 	}
 
 	/**
@@ -276,8 +645,9 @@ class Xml_Engine {
 			update_option( $option_key, $formatted_xml );
 		}
 
-		// Reset in-memory cache
+		// Reset in-memory cache and transients
 		self::$parsed_rules = null;
+		self::invalidate_transients();
 
 		return true;
 	}
@@ -501,6 +871,11 @@ class Xml_Engine {
 		}
 
 		$editor = ! empty( $editor ) ? sanitize_key( (string) $editor ) : 'all';
+
+		if ( self::has_active_plugins_changed() ) {
+			self::invalidate_transients();
+			$force_reload = true;
+		}
 
 		if ( null !== self::$parsed_rules && ! $force_reload ) {
 			if ( 'all' === $editor || 'core' === $editor ) {
