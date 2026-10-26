@@ -10,7 +10,6 @@ use TranslateSense\Includes\Translate\Translate;
 use DOMDocument;
 use DOMXPath;
 use DOMNode;
-use DOMElement;
 use DOMAttr;
 use DOMText;
 
@@ -24,10 +23,111 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Gutenberg_Builder extends Base_Builder {
 
 	/**
+	 * In-memory cache for registered block default string attributes.
+	 *
+	 * Maps block name to an associative array of [ attr_name => default_string_value ].
+	 *
+	 * @var array<string, array<string, string>>
+	 */
+	private static array $block_default_attributes_cache = array();
+
+	/**
 	 * Get builder slug.
 	 */
 	public function get_builder_slug(): string {
 		return 'gutenberg';
+	}
+
+	/**
+	 * Retrieve registered default string attributes for a given block type from cache or WP_Block_Type_Registry.
+	 *
+	 * @param string $block_name Block type name (e.g. 'core/paragraph', 'essential-blocks/call-to-action').
+	 * @return array<string, string> Map of attribute name => default string value.
+	 */
+	public static function get_block_default_attributes( string $block_name ): array {
+		if ( isset( self::$block_default_attributes_cache[ $block_name ] ) ) {
+			return self::$block_default_attributes_cache[ $block_name ];
+		}
+
+		if ( ! class_exists( '\WP_Block_Type_Registry' ) ) {
+			self::$block_default_attributes_cache[ $block_name ] = array();
+			return array();
+		}
+
+		$registry = \WP_Block_Type_Registry::get_instance();
+		if ( ! $registry || ! method_exists( $registry, 'get_registered' ) ) {
+			self::$block_default_attributes_cache[ $block_name ] = array();
+			return array();
+		}
+
+		$block_type = $registry->get_registered( $block_name );
+
+		if ( ! $block_type || empty( $block_type->attributes ) || ! is_array( $block_type->attributes ) ) {
+			self::$block_default_attributes_cache[ $block_name ] = array();
+			return array();
+		}
+
+		$defaults = array();
+
+		if ( isset( $block_type->attributes ) && ! empty( $block_type->attributes ) ) {
+			$defaults = $block_type->attributes;
+		}
+
+		self::$block_default_attributes_cache[ $block_name ] = $defaults;
+		return $defaults;
+	}
+
+	/**
+	 * Clear the block default attributes cache.
+	 *
+	 * @return void
+	 */
+	public static function clear_block_default_attributes_cache(): void {
+		self::$block_default_attributes_cache = array();
+	}
+
+	/**
+	 * Process missing default attributes for a Gutenberg block.
+	 *
+	 * If an attribute with a registered default string is missing from $block['attrs'],
+	 * look up its translation in the translation store using the existing block-name and string hash.
+	 * If a valid translation exists, set it explicitly in $block['attrs'].
+	 *
+	 * @param array  $block        Parsed block array (passed by reference).
+	 * @param string $block_name   Block type name.
+	 * @param string $source_lang  Source language code.
+	 * @param string $target_lang  Target language code.
+	 * @param int    $post_id      Post ID.
+	 * @param array  $custom_opts  Custom options including in_memory_translations.
+	 * @return void
+	 */
+	public static function apply_missing_default_attributes( array &$block_attrs, string $block_name, string $attr_name, $attr_val, array $k_info, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+
+		if ( empty( $block_name ) ) {
+			return;
+		}
+
+		if ( ! isset( $block_attrs ) || ! is_array( $block_attrs ) ) {
+			return;
+		}
+
+		if ( empty( $attr_val ) ) {
+			return;
+		}
+
+		$block_attrs[ $attr_name ] = $attr_val;
+
+		self::translate_attribute_value_recursive(
+			$block_attrs[ $attr_name ],
+			$k_info,
+			$block_name,
+			$attr_val,
+			$source_lang,
+			$target_lang,
+			$post_id,
+			$custom_opts,
+			0
+		);
 	}
 
 	/**
@@ -47,8 +147,13 @@ class Gutenberg_Builder extends Base_Builder {
 		$blocks = parse_blocks( $source_post->post_content );
 		$rules  = Xml_Engine::get_all_rules( 'gutenberg' );
 
+		// var_dump( $source_post->post_content );
+
 		self::translate_blocks_tree( $blocks, $rules, $source_lang, $target_lang, $source_post->ID, $custom_opts );
 
+		var_dump( serialize_blocks( $blocks ) );
+
+		return '';
 		return serialize_blocks( $blocks );
 	}
 
@@ -80,6 +185,10 @@ class Gutenberg_Builder extends Base_Builder {
 				continue;
 			}
 
+			if ( ! isset( $block['attrs'] ) || ! is_array( $block['attrs'] ) ) {
+				$block['attrs'] = array();
+			}
+
 			if ( isset( $rules[ $name ] ) ) {
 				$keys   = $rules[ $name ]['keys'] ?? array();
 				$xpaths = array();
@@ -90,22 +199,27 @@ class Gutenberg_Builder extends Base_Builder {
 				}
 
 				$found_strings = array();
-
+				$defaults_attr = self::get_block_default_attributes( $name );
 				// 1. Translate block attributes from XML configured keys
-				if ( ! empty( $keys ) && isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
+				if ( ! empty( $keys ) ) {
 					foreach ( $keys as $k_name => $k_info ) {
+						$current_defaults_attr = $defaults_attr[ $k_name ] ?? '';
 						if ( isset( $block['attrs'][ $k_name ] ) ) {
 							$found_strings[] = $block['attrs'][ $k_name ];
 							self::translate_attribute_value_recursive(
 								$block['attrs'][ $k_name ],
 								$k_info,
 								$name,
+								$current_defaults_attr,
 								$source_lang,
 								$target_lang,
 								$post_id,
 								$custom_opts,
 								0
 							);
+						} elseif ( ! empty( $current_defaults_attr ) ) {
+							// 1b. Apply missing default attributes for registered block type
+							self::apply_missing_default_attributes( $block['attrs'], $name, $k_name, $current_defaults_attr, $k_info, $source_lang, $target_lang, $post_id, $custom_opts );
 						}
 					}
 				}
@@ -150,6 +264,7 @@ class Gutenberg_Builder extends Base_Builder {
 									$inner_content,
 									array(),
 									$name,
+									'',
 									$source_lang,
 									$target_lang,
 									$post_id,
@@ -396,13 +511,14 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param mixed  $val
 	 * @param mixed  $schema_info
 	 * @param string $block_name
+	 * @param string $current_defaults_attr
 	 * @param string $source_lang
 	 * @param string $target_lang
 	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @param int    $depth
 	 */
-	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, $current_defaults_attr, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
 		if ( $depth > 20 ) {
 			return;
 		}
@@ -432,11 +548,12 @@ class Gutenberg_Builder extends Base_Builder {
 
 		// 1. Sequential list of items (e.g. repeaters like accordionLists = [ { title: '...' }, ... ])
 		if ( array_keys( $val ) === range( 0, count( $val ) - 1 ) ) {
-			foreach ( $val as &$item ) {
+			foreach ( $val as $index => &$item ) {
 				self::translate_attribute_value_recursive(
 					$item,
 					$item_schema,
 					$block_name,
+					$current_defaults_attr[ $index ] ?? null,
 					$source_lang,
 					$target_lang,
 					$post_id,
@@ -453,16 +570,30 @@ class Gutenberg_Builder extends Base_Builder {
 
 		if ( ! empty( $effective_children ) && is_array( $effective_children ) ) {
 			foreach ( $effective_children as $child_key => $child_schema ) {
+				$current_defaults_attr = $defaults_attr[ $child_key ] ?? '';
 				if ( isset( $val[ $child_key ] ) ) {
 					self::translate_attribute_value_recursive(
 						$val[ $child_key ],
 						$child_schema,
 						$block_name,
+						$current_defaults_attr,
 						$source_lang,
 						$target_lang,
 						$post_id,
 						$custom_opts,
 						$depth + 1
+					);
+				} elseif ( ! empty( $current_defaults_attr ) ) {
+					self::apply_missing_default_attributes(
+						$val,
+						$block_name,
+						$child_key,
+						$current_defaults_attr,
+						$child_schema,
+						$source_lang,
+						$target_lang,
+						$post_id,
+						$custom_opts
 					);
 				}
 			}
@@ -472,6 +603,7 @@ class Gutenberg_Builder extends Base_Builder {
 					$sub_val,
 					null,
 					$block_name,
+					$current_defaults_attr[ $k ] ?? null,
 					$source_lang,
 					$target_lang,
 					$post_id,

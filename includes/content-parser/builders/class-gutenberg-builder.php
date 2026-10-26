@@ -11,6 +11,7 @@ use DOMNode;
 use DOMElement;
 use DOMAttr;
 use DOMText;
+use TranslateSense\Includes\Translate\Builders\Gutenberg_Builder as Translate_Gutenberg_Builder;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -101,15 +102,17 @@ class Gutenberg_Builder extends Base_Builder {
 			$found_strings = array();
 
 			// 1. Match XML configured keys for block attributes
-			if ( ! empty( $keys ) && isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
+			if ( ! empty( $keys ) ) {
+				$block_attrs = ( isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) ? $block['attrs'] : array();
+
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $no_translate[ $k_name ] ) ) {
 						continue;
 					}
 
-					if ( isset( $block['attrs'][ $k_name ] ) ) {
+					if ( isset( $block_attrs[ $k_name ] ) ) {
 						$this->extract_attribute_strings_recursive(
-							$block['attrs'][ $k_name ],
+							$block_attrs[ $k_name ],
 							$k_info,
 							$post_id,
 							$lang,
@@ -119,6 +122,23 @@ class Gutenberg_Builder extends Base_Builder {
 							$k_name,
 							$no_translate
 						);
+					} elseif ( ! array_key_exists( $k_name, $block_attrs ) ) {
+						// Missing default attribute: if key is missing from attrs, check registered defaults
+						$defaults = Translate_Gutenberg_Builder::get_block_default_attributes( $name );
+						if ( isset( $defaults[ $k_name ] ) && is_string( $defaults[ $k_name ] ) && '' !== trim( $defaults[ $k_name ] ) ) {
+							$default_val = $defaults[ $k_name ];
+							$this->extract_attribute_strings_recursive(
+								$default_val,
+								$k_info,
+								$post_id,
+								$lang,
+								$extracted,
+								$found_strings,
+								$name,
+								$k_name,
+								$no_translate
+							);
+						}
 					}
 				}
 			}
