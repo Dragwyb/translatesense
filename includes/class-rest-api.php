@@ -1306,6 +1306,9 @@ class Rest_Api {
 				? ( 'custom' === $source ? 'custom' : 'supported' )
 				: 'unsupported';
 
+			$xpath  = $is_supported ? ( $rules[ $name ]['xpath'] ?? '' ) : '';
+			$xpaths = $is_supported ? ( $rules[ $name ]['xpaths'] ?? array() ) : array();
+
 			$result[] = array(
 				'id'                 => $name,
 				'name'               => $info['title'],
@@ -1315,6 +1318,8 @@ class Rest_Api {
 				'field_count'        => $field_count,
 				'no_translate_count' => $no_translate_count,
 				'fields'             => $keys,
+				'xpath'              => $xpath,
+				'xpaths'             => $xpaths,
 				'xml_snippet'        => Xml_Engine::get_widget_xml_snippet(
 					'gutenberg',
 					$name
@@ -1568,7 +1573,6 @@ class Rest_Api {
 	 * @return WP_REST_Response
 	 */
 	public static function get_xml_config( WP_REST_Request $request ) {
-
 		$builder = $request->get_param( 'builder' )
 			? sanitize_key(
 				$request->get_param( 'builder' )
@@ -2925,7 +2929,6 @@ class Rest_Api {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public static function mark_translated( WP_REST_Request $request ) {
-
 		$post_id = self::get_request_post_id(
 			$request
 		);
