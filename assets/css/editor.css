@@ -906,8 +906,8 @@
 }
 
 .ts-provider-logo-img {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -1184,8 +1184,8 @@
 }
 
 .ts-provider-icon-box {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
