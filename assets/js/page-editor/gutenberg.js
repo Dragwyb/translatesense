@@ -272,6 +272,59 @@
         return { updated: newAttrs, changed: hasChanged };
       };
 
+      /**
+       * Evaluate configured XPath expressions against an HTML string of innerContent
+       * and replace target element/attribute contents with their translations.
+       */
+      const updateInnerContentWithXPath = (htmlStr, xpaths, blockName) => {
+        if (typeof htmlStr !== 'string' || !htmlStr.trim() || !Array.isArray(xpaths) || xpaths.length === 0) {
+          return htmlStr;
+        }
+
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlStr, 'text/html');
+          let changed = false;
+          const processedNodes = new Set();
+
+          xpaths.forEach((xp) => {
+            const query = typeof xp === 'object' && xp !== null ? (xp.value || xp.xpath || '') : String(xp);
+            if (!query || !query.trim()) return;
+
+            try {
+              const result = doc.evaluate(query, doc.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+              for (let i = 0; i < result.snapshotLength; i++) {
+                const node = result.snapshotItem(i);
+                if (!node || processedNodes.has(node)) continue;
+                processedNodes.add(node);
+
+                if (node.nodeType === Node.ATTRIBUTE_NODE) {
+                  const origVal = node.value;
+                  const transVal = findTranslation(origVal, blockName);
+                  if (transVal && transVal !== origVal) {
+                    node.value = transVal;
+                    changed = true;
+                  }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                  const origHtml = node.innerHTML;
+                  const transVal = findTranslation(origHtml, blockName) || findTranslation(node.textContent, blockName);
+                  if (transVal && transVal !== origHtml && transVal !== node.textContent) {
+                    node.innerHTML = transVal;
+                    changed = true;
+                  }
+                }
+              }
+            } catch (evalErr) {
+              // Silently ignore unsupported or malformed xpath queries in DOMParser
+            }
+          });
+
+          return changed ? doc.body.innerHTML : htmlStr;
+        } catch (e) {
+          return htmlStr;
+        }
+      };
+
       // Store paths for changed blocks. After resetBlocks(), use those paths to
       // locate the inserted blocks and dispatch updateBlockAttributes() against
       // their real clientIds. This mirrors the update path that works when you
@@ -292,6 +345,30 @@
             if (result.changed) {
               block.attributes = result.updated;
               changedBlocks.push({ path, attributes: result.updated, name: blockType, type: blockType });
+            }
+          }
+
+          // Check XPath rules for innerContent
+          const xpaths = (rule && (rule.xpaths || (rule.xpath ? [{ value: rule.xpath }] : []))) || [];
+          if (xpaths.length > 0 && Array.isArray(block.innerContent) && block.innerContent.length > 0) {
+            let innerChanged = false;
+            block.innerContent = block.innerContent.map((chunk) => {
+              if (typeof chunk === 'string' && chunk.trim() !== '') {
+                const updated = updateInnerContentWithXPath(chunk, xpaths, blockType);
+                if (updated !== chunk) {
+                  innerChanged = true;
+                  return updated;
+                }
+              }
+              return chunk;
+            });
+
+            if (innerChanged) {
+              const joined = block.innerContent.filter((c) => typeof c === 'string').join('');
+              block.innerHTML = joined;
+              if (typeof block.originalContent !== 'undefined') {
+                block.originalContent = joined;
+              }
             }
           }
 

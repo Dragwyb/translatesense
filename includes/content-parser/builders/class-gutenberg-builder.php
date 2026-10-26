@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Content_Parser\Builders;
 
 use TranslateSense\Includes\Xml_Engine\Xml_Engine;
+use DOMDocument;
+use DOMXPath;
+use DOMNode;
+use DOMElement;
+use DOMAttr;
+use DOMText;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -84,14 +90,18 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 
 			$no_translate = $gutenberg_rules[ $name ]['no_translate'] ?? array();
+			$keys         = $gutenberg_rules[ $name ]['keys'] ?? array();
+			$xpaths       = array();
+			if ( ! empty( $gutenberg_rules[ $name ]['xpaths'] ) && is_array( $gutenberg_rules[ $name ]['xpaths'] ) ) {
+				$xpaths = $gutenberg_rules[ $name ]['xpaths'];
+			} elseif ( ! empty( $gutenberg_rules[ $name ]['xpath'] ) ) {
+				$xpaths = array( array( 'value' => (string) $gutenberg_rules[ $name ]['xpath'] ) );
+			}
 
-			// Match XML configured keys for the block
-			if ( isset( $gutenberg_rules[ $name ]['keys'] ) && ! empty( $gutenberg_rules[ $name ]['keys'] ) ) {
+			$found_strings = array();
 
-				$keys = $gutenberg_rules[ $name ]['keys'];
-
-				$found_strings = array();
-
+			// 1. Match XML configured keys for block attributes
+			if ( ! empty( $keys ) && isset( $block['attrs'] ) && is_array( $block['attrs'] ) ) {
 				foreach ( $keys as $k_name => $k_info ) {
 					if ( isset( $no_translate[ $k_name ] ) ) {
 						continue;
@@ -111,8 +121,27 @@ class Gutenberg_Builder extends Base_Builder {
 						);
 					}
 				}
+			}
 
-				if ( empty( $found_strings ) && empty( $no_translate ) && isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) && is_array( $block['innerContent'] ) ) {
+			// 2. Process innerContent: use XPath if configured and DOM classes exist; otherwise use fallback
+			if ( isset( $block['innerContent'] ) && is_array( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
+				if ( ! empty( $xpaths ) ) {
+					if ( class_exists( 'DOMDocument' ) && class_exists( 'DOMXPath' ) ) {
+						foreach ( $block['innerContent'] as $inner_content ) {
+							if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+								$this->extract_xpath_strings_from_html(
+									$inner_content,
+									$xpaths,
+									$post_id,
+									$lang,
+									$name,
+									$extracted,
+									$no_translate
+								);
+							}
+						}
+					}
+				} elseif ( empty( $found_strings ) && empty( $no_translate ) && ! empty( $keys ) ) {
 					foreach ( $block['innerContent'] as $inner_content ) {
 						if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
 							$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
@@ -126,6 +155,89 @@ class Gutenberg_Builder extends Base_Builder {
 				$this->extract_blocks_recursive( $block['innerBlocks'], $gutenberg_rules, $post_id, $lang, $extracted, $depth + 1 );
 			}
 		}
+	}
+
+	/**
+	 * Extract translatable strings from an HTML chunk of innerContent using DOMDocument and XPath expressions.
+	 *
+	 * @param string $html
+	 * @param array  $xpaths
+	 * @param int    $post_id
+	 * @param string $lang
+	 * @param string $block_name
+	 * @param array  &$extracted
+	 * @param array  $no_translate
+	 */
+	public function extract_xpath_strings_from_html( string $html, array $xpaths, int $post_id, string $lang, string $block_name, array &$extracted, array $no_translate = array() ): void {
+		if ( ! class_exists( 'DOMDocument' ) || ! class_exists( 'DOMXPath' ) || '' === trim( $html ) || empty( $xpaths ) ) {
+			return;
+		}
+
+		$dom = new DOMDocument();
+		libxml_use_internal_errors( true );
+		$wrapped = '<?xml encoding="UTF-8"><body>' . $html . '</body>';
+		$loaded  = $dom->loadHTML( $wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		libxml_clear_errors();
+
+		if ( ! $loaded ) {
+			return;
+		}
+
+		$xpath           = new DOMXPath( $dom );
+		$body            = $dom->getElementsByTagName( 'body' )->item( 0 );
+		$processed_nodes = array();
+
+		foreach ( $xpaths as $xp_entry ) {
+			$query = is_array( $xp_entry ) ? ( $xp_entry['value'] ?? $xp_entry['xpath'] ?? '' ) : (string) $xp_entry;
+			$query = trim( $query );
+			if ( '' === $query || isset( $no_translate[ $query ] ) ) {
+				continue;
+			}
+
+			$nodes = $body ? @$xpath->query( $query, $body ) : @$xpath->query( $query );
+			if ( ! $nodes || 0 === $nodes->length ) {
+				continue;
+			}
+
+			$label = is_array( $xp_entry ) && ! empty( $xp_entry['label'] ) ? (string) $xp_entry['label'] : $query;
+
+			foreach ( $nodes as $node ) {
+				$node_id = spl_object_hash( $node );
+				if ( isset( $processed_nodes[ $node_id ] ) ) {
+					continue;
+				}
+				$processed_nodes[ $node_id ] = true;
+
+				$node_val = $this->get_node_extracted_value( $node, $dom );
+				if ( '' !== trim( $node_val ) ) {
+					$this->record_extracted_string( $post_id, $lang, $block_name, $label, $node_val, $extracted );
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get translatable string value from a DOMNode.
+	 *
+	 * @param DOMNode     $node
+	 * @param DOMDocument $dom
+	 * @return string
+	 */
+	public function get_node_extracted_value( DOMNode $node, DOMDocument $dom ): string {
+		if ( $node instanceof DOMAttr ) {
+			return (string) $node->value;
+		}
+		if ( $node instanceof DOMText ) {
+			return (string) $node->nodeValue;
+		}
+
+		$inner_html = '';
+		if ( $node->hasChildNodes() ) {
+			foreach ( $node->childNodes as $child ) {
+				$inner_html .= $dom->saveHTML( $child );
+			}
+		}
+		return trim( $inner_html );
 	}
 
 	/**

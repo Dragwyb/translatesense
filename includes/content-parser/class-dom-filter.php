@@ -82,9 +82,10 @@ class Dom_Filter {
 		}
 
 		// If no HTML tags present, return decoded clean text directly
-		if ( false === strpos( $decoded, '<' ) ) {
-			self::$cache[ $cache_key ] = $decoded;
-			return $decoded;
+		if ( false === strpos( $decoded, '<' ) || ! class_exists( 'DOMDocument' ) ) {
+			$res = self::has_text_content( $decoded ) ? $decoded : false;
+			self::$cache[ $cache_key ] = $res;
+			return $res;
 		}
 
 		$dom = new DOMDocument();
