@@ -77,22 +77,29 @@
     updatePostAttributes(strings) {
       if (!window.wp.data.dispatch('core/editor')) return;
 
+      const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
+
       const editData = {};
       strings.forEach((s) => {
-        const field = s.name || '';
+        const field = s.name || s.key || s.field || '';
         let isTranslated = null;
 
-        if (['post_title', 'post_excerpt', 'post_name'].includes(field)) {
-          isTranslated = window.TranslateSenseCore.getTranslatedString(field, s.source, this.provider, field);
+        if (['post_title', 'title', 'post_excerpt', 'excerpt', 'post_name', 'slug'].includes(field)) {
+          if (core && typeof core.getTranslatedString === 'function') {
+            isTranslated = core.getTranslatedString(field, s.source || s.value, this.provider, field);
+          }
+          if ((!isTranslated || !isTranslated.translate) && (s.translated || s.translate)) {
+            isTranslated = { translate: s.translated || s.translate };
+          }
         }
 
         if (!isTranslated || !isTranslated.translate) return;
 
-        if (field === 'post_title') {
+        if (field === 'post_title' || field === 'title') {
           editData.title = isTranslated.translate;
-        } else if (field === 'post_excerpt') {
+        } else if (field === 'post_excerpt' || field === 'excerpt') {
           editData.excerpt = isTranslated.translate;
-        } else if (field === 'post_name') {
+        } else if (field === 'post_name' || field === 'slug') {
           editData.slug = isTranslated.translate;
         }
       });
@@ -120,16 +127,29 @@
         if (typeof strVal !== 'string' || strVal.trim() === '') return null;
 
         const clean = strVal.trim();
-        const trans = core.getTranslatedString(
-          blockName,
-          clean,
-          this.provider,
-          blockName
-        );
+        let trans = null;
+        if (core && typeof core.getTranslatedString === 'function') {
+          trans = core.getTranslatedString(
+            blockName,
+            clean,
+            this.provider,
+            blockName
+          );
+        }
 
-        return trans && trans.translate && trans.translate !== clean
-          ? trans.translate
-          : null;
+        if (trans && trans.translate && trans.translate !== clean) {
+          return trans.translate;
+        }
+
+        // Direct fallback from strings array if present
+        if (Array.isArray(strings)) {
+          const matched = strings.find((s) => (s.source === clean || s.value === clean) && s.translated && s.translated !== clean);
+          if (matched) {
+            return matched.translated;
+          }
+        }
+
+        return null;
       };
 
       /**
@@ -340,8 +360,12 @@
     async apply(strings, options = {}) {
       if (!this.isActive() || !Array.isArray(strings)) return;
 
-      this.provider = options.provider;
-      if (options.core) this.core = options.core;
+      this.provider = options.provider || (options.options && options.options.provider) || this.provider;
+      if (options.core) {
+        this.core = options.core;
+      } else if (options.options && options.options.core) {
+        this.core = options.options.core;
+      }
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Post Title, Excerpt & Slug from translated source strings

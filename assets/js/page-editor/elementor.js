@@ -65,6 +65,11 @@
         if (trans && trans.translate && trans.translate !== clean) return trans.translate;
       }
 
+      if (Array.isArray(this.currentStrings)) {
+        const matched = this.currentStrings.find((s) => (s.source === clean || s.value === clean) && s.translated && s.translated !== clean);
+        if (matched) return matched.translated;
+      }
+
       return null;
     },
 
@@ -342,7 +347,12 @@
      * 6. Marks document modified and updates metadata.
      */
     async apply(strings, options = {}) {
-      if (options.core) this.core = options.core;
+      if (options.core) {
+        this.core = options.core;
+      } else if (options.options && options.options.core) {
+        this.core = options.options.core;
+      }
+      this.currentStrings = strings;
       const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
       if (!core) return;
 
@@ -350,7 +360,7 @@
 
       const el = this.getElementorScope();
       const $e = this.getCommandEngine();
-      this.provider = options.provider;
+      this.provider = options.provider || (options.options && options.options.provider) || this.provider;
       const sourceData = options.sourcePageData || (options.options && options.options.sourcePageData) || null;
 
       // 1. Update Page Title from translated strings or source

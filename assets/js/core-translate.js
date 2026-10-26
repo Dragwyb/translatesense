@@ -133,6 +133,14 @@
     }
 
     /**
+     * Static fallback guard for getTranslatedString to prevent runtime crashes if called statically.
+     */
+    static getTranslatedString(id, sourceValue = '', provider = null, widgetOrBlockName = '') {
+      console.warn('[TranslateSense] TranslateSenseCore.getTranslatedString called on class constructor instead of instance.');
+      return '';
+    }
+
+    /**
      * Get translated string by ID, source value, and optional provider.
      * 
      * @param {string} id Unique identifier or field name
@@ -390,7 +398,7 @@
      * @param {string} str
      * @returns {boolean}
      */
-    isEmailOrUrl(str) {
+    static isEmailOrUrl(str) {
       if (!str || typeof str !== 'string') return false;
       const clean = str.trim();
       if (!clean) return false;
@@ -410,6 +418,10 @@
       return false;
     }
 
+    isEmailOrUrl(str) {
+      return TranslateSenseCore.isEmailOrUrl(str);
+    }
+
     /**
      * Mask inline URLs, email addresses, and protocols with unique protected placeholder tokens.
      * Prevents translation engines from translating or corrupting links embedded inside text.
@@ -417,7 +429,7 @@
      * @param {string} text Plain text segment.
      * @returns {{ maskedText: string, tokenMap: Object }}
      */
-    maskUrlsAndEmails(text) {
+    static maskUrlsAndEmails(text) {
       if (!text || typeof text !== 'string') {
         return { maskedText: text || '', tokenMap: {} };
       }
@@ -456,6 +468,10 @@
       return { maskedText, tokenMap };
     }
 
+    maskUrlsAndEmails(text) {
+      return TranslateSenseCore.maskUrlsAndEmails(text);
+    }
+
     /**
      * Restore masked URL and email placeholder tokens with their original values.
      * 
@@ -463,7 +479,7 @@
      * @param {Object} tokenMap Map of token => original string.
      * @returns {string} Text with original URLs and emails restored.
      */
-    unmaskUrlsAndEmails(text, tokenMap) {
+    static unmaskUrlsAndEmails(text, tokenMap) {
       if (!text || typeof text !== 'string' || !tokenMap || typeof tokenMap !== 'object') {
         return text || '';
       }
@@ -480,6 +496,10 @@
       return restored;
     }
 
+    unmaskUrlsAndEmails(text, tokenMap) {
+      return TranslateSenseCore.unmaskUrlsAndEmails(text, tokenMap);
+    }
+
     /**
      * Helper: Translate text preserving exact HTML tags, structure, and inline URLs/emails.
      * Splits sourceText into HTML tags/comments and plain text segments, masks inline URLs/emails,
@@ -489,7 +509,7 @@
      * @param {Function} translateCallback Async or sync callback: async (cleanText: string) => translatedText
      * @returns {Promise<string>} Translated string with exact HTML tags, spacing, and URLs preserved.
      */
-    async translateTextPreservingHtml(sourceText, translateCallback) {
+    static async translateTextPreservingHtml(sourceText, translateCallback) {
       if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
         return sourceText || '';
       }
@@ -522,15 +542,15 @@
 
           if (cleanText) {
             // If the entire text segment is just a URL or email, preserve it directly
-            if (this.isEmailOrUrl(cleanText)) {
+            if (TranslateSenseCore.isEmailOrUrl(cleanText)) {
               result += leadingSpace + cleanText + trailingSpace;
             } else {
               // Mask inline URLs and email addresses so they are not altered by translation
-              const { maskedText, tokenMap } = this.maskUrlsAndEmails(cleanText);
+              const { maskedText, tokenMap } = TranslateSenseCore.maskUrlsAndEmails(cleanText);
               let translated = await translateCallback(maskedText);
 
               if (translated !== undefined && translated !== null) {
-                translated = this.unmaskUrlsAndEmails(translated, tokenMap);
+                translated = TranslateSenseCore.unmaskUrlsAndEmails(translated, tokenMap);
               } else {
                 translated = cleanText;
               }
@@ -544,6 +564,10 @@
       }
 
       return result;
+    }
+
+    async translateTextPreservingHtml(sourceText, translateCallback) {
+      return TranslateSenseCore.translateTextPreservingHtml(sourceText, translateCallback);
     }
 
     /**
