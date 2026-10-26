@@ -1,12 +1,6 @@
 /**
  * TranslateSense - Universal Page Editor Panel (editor-panel.js)
  * 
- * 100% Pure Vanilla JavaScript (NO React, NO wp.element, NO useState).
- * Features:
- * 1. Source Post / Parent Post detection via _translatesense_source_id & from_post query parameter
- * 2. Editor-type detection for source post (Elementor, Gutenberg, Classic)
- * 3. Page load auto-translate prompt modal with editor-specific guidance
- * 4. Context-aware Translate button triggers across all editors
  */
 
 (function (window, document) {
@@ -47,10 +41,8 @@
   }
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
-  function getRegisteredProviders() {
+  async function getRegisteredProviders() {
     const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-    const pluginUrl = config.pluginUrl || '';
-    const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
     const enabledProviders = config.enabledProviders || {};
     const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
@@ -61,18 +53,13 @@
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
-    if (!providers || providers.length === 0) {
-      const defaultList = [
-        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-      ];
-      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
+
+    const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
+    if (chromeAiIndex > -1) {
+      providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(config.sourceLanguage || 'en', config.targetLanguage || 'ru', true);
     }
-    return providers.map((p) => ({
-      ...p,
-      logo: p.logo || getLogo(p.id),
-    }));
+
+    return providers
   }
 
   // Universal TranslateSense Editor Controller (Pure Vanilla JS)
@@ -299,17 +286,19 @@
     /**
      * Open Pure Vanilla JS Provider Selection Modal (Grid View).
      */
-    openProviderModal() {
+    async openProviderModal() {
       if (this.editorType !== this.sourceEditorType) return;
 
       const existingModal = document.getElementById('ts-universal-provider-modal');
       if (existingModal) existingModal.remove();
 
-      const providersList = getRegisteredProviders();
+      const providersList = await getRegisteredProviders();
 
       const modalContainer = document.createElement('div');
       modalContainer.id = 'ts-universal-provider-modal';
       modalContainer.className = 'ts-strings-review-modal';
+      let ErrorModals = '';
+      let proidersAvailable = false;
       modalContainer.innerHTML = `
         <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
           <div class="ts-review-header">
@@ -383,14 +372,14 @@
 
             let isAvailable = false;
             let actionHtml = '';
-
+            let containerErrorBtn = false;
             if (isFrontend) {
-              isAvailable = true;
-              actionHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+              isAvailable = p.isSupported && false === p.isSupported.available ? false : true;
+              actionHtml = !isAvailable ? `<button class="ts-add-api-key-btn ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>` : '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
             } else if (isConnector) {
               if (!status.isProviderActive) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡Activate Provider</a>`;
               } else if (!status.isConnected) {
                 isAvailable = false;
                 actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
@@ -409,11 +398,41 @@
               }
             }
 
+            if (isAvailable && !proidersAvailable) {
+              proidersAvailable = true;
+            }
+
+            if (p.isSupported && false === p.isSupported.available && p.isSupported.reason && '' !== p.isSupported.reason) {
+              containerErrorBtn = true;
+              const errorTitle = p.isSupported.reasonTitle || p.isSupported.title || p.title;
+              ErrorModals += `
+                <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
+                  <div class="ts-review-header">
+                    <div class="ts-review-header-title">
+                      <div class="ts-header-icon-box">
+                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
+                      </div>
+                      <div>
+                        <h3>${errorTitle}</h3>
+                      </div>
+                    </div>
+                    <button class="ts-bulk-close" title="Close">✕</button>
+                  </div>
+                  <div class="ts-review-body">
+                    <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
+                  </div>
+                  <div class="ts-review-footer">
+                    ${p.isSupported.actionHtml ? p.isSupported.actionHtml : ''}
+                    <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">Back</button>
+                  </div>
+                </div>
+              `;
+            }
+
             const isSelected = Boolean(isAvailable && currentSelected && p.id === currentSelected);
             const isDisabled = !isAvailable;
 
-            return `
-                    <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
+            return `<div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''} ${containerErrorBtn ? 'ts-provider-error-btn' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
                       <div class="ts-provider-card-top">
                         <div class="ts-provider-icon-box">
                           <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
@@ -436,11 +455,12 @@
           </div>
           <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-provider-modal-cancel">Cancel</button>
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-provider-modal-start">
+            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Translation'}">
               <span>🚀</span> Start Translation
             </button>
           </div>
         </div>
+        ${ErrorModals}
       `;
 
       document.body.appendChild(modalContainer);
@@ -459,13 +479,52 @@
         });
       });
 
+      // Error Modal Box
+      modalContainer.querySelectorAll('.ts-provider-error-btn').forEach((errorBtn) => {
+        errorBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetModal = errorBtn.dataset.provider;
+          if (targetModal) {
+            const modal = document.querySelector("#ts-error-" + targetModal);
+            if (modal) {
+              modal.classList.remove('hide');
+              modalContainer.querySelector('.ts-review-container').classList.add('hide');
+            }
+          }
+        });
+      });
+
+      // Error Modals Back & Close buttons
+      modalContainer.querySelectorAll('.ts-error-container').forEach((errorModal) => {
+        const backBtn = errorModal.querySelector('.ts-bulk-btn-secondary');
+        const errCloseBtn = errorModal.querySelector('.ts-bulk-close');
+        if (backBtn) {
+          backBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            errorModal.classList.add('hide');
+            const mainContainer = modalContainer.querySelector('.ts-review-container');
+            if (mainContainer) mainContainer.classList.remove('hide');
+          });
+        }
+        if (errCloseBtn) {
+          errCloseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            errorModal.classList.add('hide');
+            const mainContainer = modalContainer.querySelector('.ts-review-container');
+            if (mainContainer) mainContainer.classList.remove('hide');
+          });
+        }
+      });
+
       // Close handlers
       const closeModal = () => modalContainer.remove();
-      document.getElementById('ts-provider-modal-close').addEventListener('click', closeModal);
-      document.getElementById('ts-provider-modal-cancel').addEventListener('click', closeModal);
+      modalContainer.querySelector('#ts-provider-modal-close').addEventListener('click', closeModal);
+      modalContainer.querySelector('#ts-provider-modal-cancel').addEventListener('click', closeModal);
 
       // Start Translation Action
-      document.getElementById('ts-provider-modal-start').addEventListener('click', async () => {
+      modalContainer.querySelector('#ts-provider-modal-start').addEventListener('click', async (e) => {
+        if (!proidersAvailable) return;
+
         const checked = modalContainer.querySelector('input[name="ts_provider_choice"]:checked');
         if (checked && !checked.disabled) this.selectedProvider = checked.value;
 
@@ -478,7 +537,7 @@
 
         // If translation for this provider is already 100% completed, directly show Review Modal!
         if (this.isTranslationCompleted(this.selectedProvider)) {
-          this.openReviewModal();
+          await this.openReviewModal();
           this.renderReviewTableRows();
           return;
         }
@@ -490,8 +549,8 @@
     /**
      * Get details for currently selected provider.
      */
-    getSelectedProviderInfo() {
-      const providers = getRegisteredProviders();
+    async getSelectedProviderInfo() {
+      const providers = await getRegisteredProviders();
       return providers.find((p) => p.id === this.selectedProvider) || {
         id: this.selectedProvider,
         title: this.selectedProvider.toUpperCase(),
@@ -505,17 +564,17 @@
      * @param {number} totalStrings Total strings to translate.
      * @param {string} initialStatus Status text.
      */
-    showTranslationProgressModal(totalStrings = 0, initialStatus = 'Extracting strings...') {
+    async showTranslationProgressModal(totalStrings = 0, initialStatus = 'Extracting strings...') {
       this.closeTranslationProgressModal(true);
 
       // Ensure review modal exists so overlay sits directly on top of it
       let reviewContainer = document.querySelector('#ts-universal-review-modal .ts-review-container');
       if (!reviewContainer) {
-        this.openReviewModal();
+        await this.openReviewModal();
         reviewContainer = document.querySelector('#ts-universal-review-modal .ts-review-container');
       }
 
-      const providerInfo = this.getSelectedProviderInfo();
+      const providerInfo = await this.getSelectedProviderInfo();
       const overlay = document.createElement('div');
       overlay.id = 'ts-translation-progress-modal';
       overlay.className = 'ts-review-progress-overlay';
@@ -658,7 +717,7 @@
       try {
         // If translation for this provider is already completed, directly open review modal
         if (this.isTranslationCompleted(this.selectedProvider)) {
-          this.openReviewModal();
+          await this.openReviewModal();
           this.renderReviewTableRows();
           return;
         }
@@ -744,12 +803,12 @@
         if (allDone) {
           this.lastCompletedProvider = this.selectedProvider;
           this.lastCompletedTargetLang = this.targetLang;
-          this.openReviewModal();
+          await this.openReviewModal();
           this.renderReviewTableRows();
           return;
         }
 
-        this.openReviewModal();
+        await this.openReviewModal();
         await this.performBatchTranslation();
       } catch (err) {
         this.closeTranslationProgressModal(true);
@@ -906,7 +965,7 @@
     /**
      * Open Pure Vanilla JS Strings Review Modal with Header Stats Bar.
      */
-    openReviewModal() {
+    async openReviewModal() {
       let modalContainer = document.getElementById('ts-universal-review-modal');
       if (modalContainer) return; // Keep existing if already opened
 
@@ -923,7 +982,7 @@
         stringCount: this.strings.length,
       };
 
-      const providerInfo = this.getSelectedProviderInfo();
+      const providerInfo = await this.getSelectedProviderInfo();
 
       modalContainer = document.createElement('div');
       modalContainer.id = 'ts-universal-review-modal';

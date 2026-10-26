@@ -55,29 +55,369 @@
   const activeTranslators = new Map();
 
   /**
+   * Detailed map of supported language codes to human-readable names.
+   */
+  const CHROME_AI_LANGUAGE_NAMES = {
+    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+    pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', zh: 'Chinese', 'zh-hant': 'Traditional Chinese',
+    ar: 'Arabic', hi: 'Hindi', bn: 'Bengali', cs: 'Czech', da: 'Danish',
+    el: 'Greek', fi: 'Finnish', hr: 'Croatian', hu: 'Hungarian', id: 'Indonesian',
+    iw: 'Hebrew', kn: 'Kannada', ko: 'Korean', lt: 'Lithuanian', mr: 'Marathi',
+    nl: 'Dutch', no: 'Norwegian', pl: 'Polish', ro: 'Romanian', sk: 'Slovak',
+    sl: 'Slovenian', sv: 'Swedish', ta: 'Tamil', te: 'Telugu', th: 'Thai',
+    tr: 'Turkish', uk: 'Ukrainian', vi: 'Vietnamese', bg: 'Bulgarian'
+  };
+
+  /**
+   * Escape HTML entities to prevent injection in generated guidance HTML.
+   *
+   * @param {*} text
+   * @returns {string}
+   */
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * Get human-readable language label (e.g., 'English (en)').
+   *
+   * @param {string} code
+   * @returns {string}
+   */
+  function getLanguageDisplayName(code) {
+    if (!code) return '';
+    const clean = String(code).toLowerCase().trim();
+    const formatted = TranslateSenseLanguageHelper.formatCode(clean);
+    const name = CHROME_AI_LANGUAGE_NAMES[formatted] || CHROME_AI_LANGUAGE_NAMES[clean];
+    return name ? `${name} (${clean})` : clean.toUpperCase();
+  }
+
+  /**
+   * Detect detailed browser identity and configuration URL scheme.
+   *
+   * @returns {{ name: string, type: 'Chrome'|'Edge'|'Other', scheme: string }}
+   */
+  function getDetailedBrowserInfo() {
+    const nav = window.navigator || {};
+    const userAgent = nav.userAgent || '';
+    const brands =
+      nav.userAgentData && Array.isArray(nav.userAgentData.brands)
+        ? nav.userAgentData.brands
+        : [];
+
+    if (brands.some((b) => b.brand === 'Microsoft Edge') || userAgent.indexOf('Edg/') !== -1) {
+      return {
+        name: 'Microsoft Edge',
+        type: 'Edge',
+        scheme: 'edge'
+      };
+    }
+
+    if (
+      brands.some((b) => b.brand === 'Google Chrome') ||
+      (userAgent.indexOf('Chrome/') !== -1 && userAgent.indexOf('Edg/') === -1)
+    ) {
+      if (nav.brave && typeof nav.brave.isBrave === 'function') {
+        return {
+          name: 'Brave Browser',
+          type: 'Other',
+          scheme: 'brave'
+        };
+      }
+      if (userAgent.indexOf('OPR/') !== -1 || userAgent.indexOf('Opera/') !== -1) {
+        return {
+          name: 'Opera',
+          type: 'Other',
+          scheme: 'opera'
+        };
+      }
+      if (userAgent.indexOf('Vivaldi/') !== -1) {
+        return {
+          name: 'Vivaldi',
+          type: 'Other',
+          scheme: 'chrome'
+        };
+      }
+      return {
+        name: 'Google Chrome',
+        type: 'Chrome',
+        scheme: 'chrome'
+      };
+    }
+
+    if (userAgent.indexOf('Firefox/') !== -1) {
+      return {
+        name: 'Mozilla Firefox',
+        type: 'Other',
+        scheme: 'about'
+      };
+    }
+
+    if (userAgent.indexOf('Safari/') !== -1 && userAgent.indexOf('Chrome/') === -1) {
+      return {
+        name: 'Apple Safari',
+        type: 'Other',
+        scheme: ''
+      };
+    }
+
+    return {
+      name: 'Unsupported Browser',
+      type: 'Other',
+      scheme: 'chrome'
+    };
+  }
+
+  /**
    * Detect the browser supported by TranslateSense Built-in AI.
    *
    * @returns {string} Chrome|Edge|Other
    */
   function detectTranslateSenseAiBrowser() {
-    const navigatorObject = window.navigator;
+    return getDetailedBrowserInfo().type;
+  }
 
-    if (
-      navigatorObject.userAgentData &&
-      Array.isArray(navigatorObject.userAgentData.brands)
-    ) {
-      const brands = navigatorObject.userAgentData.brands;
-      if (brands.some((b) => b.brand === 'Microsoft Edge')) return 'Edge';
-      if (brands.some((b) => b.brand === 'Google Chrome')) return 'Chrome';
+  /**
+   * Get a clean, professional error/status title for a reason type.
+   *
+   * @param {string} reasonType
+   * @param {Object} [context={}]
+   * @returns {string}
+   */
+  function getTranslateSenseAiReasonTitle(reasonType, context = {}) {
+    switch (reasonType) {
+      case 'browser':
+        return 'Browser Not Supported';
+      case 'notSecure':
+        return 'Secure Context (HTTPS) Required';
+      case 'translation-api-not-available':
+        return 'Translation API Not Enabled';
+      case 'downloadable':
+        return 'Language Pack Downloadable';
+      case 'downloading':
+        return 'Language Pack Downloading';
+      case 'requires-user-gesture':
+        return 'User Action Required';
+      case 'languagePairNotSupported':
+        return 'Language Pair Not Supported';
+      case 'download-timeout':
+        return 'Model Download Timed Out';
+      case 'language-pack-not-installed':
+        return 'Language Pack Unavailable';
+      case 'sourceLangNotSupported':
+        return 'Source Language Not Supported';
+      case 'targetLangNotSupported':
+        return 'Target Language Not Supported';
+      case 'warmup-error':
+      default:
+        return 'Translation Initialization Error';
+    }
+  }
+
+  /**
+   * Generate action button HTML link based on browserType.
+   *
+   * @param {string} [type='docs'] 'docs' | 'languages' | 'setup'
+   * @param {string} [browserType]
+   * @returns {string} HTML string
+   */
+  function getTranslateSenseAiActionHtml(type = 'docs', browserType) {
+    const browserInfo = getDetailedBrowserInfo();
+    const resolvedBrowserType = browserType || browserInfo.type;
+    const isEdge = resolvedBrowserType === 'Edge';
+    const isChrome = resolvedBrowserType === 'Chrome';
+
+    let url;
+    let label;
+
+    if (isEdge) {
+      url = 'https://learn.microsoft.com/en-us/microsoft-edge/web-platform/translator-api';
+      if (type === 'languages') {
+        label = 'Supported Languages &#x2197;';
+      } else if (type === 'setup') {
+        label = 'Edge AI Setup Guide &#x2197;';
+      } else {
+        label = 'Edge AI Docs &#x2197;';
+      }
+    } else {
+      if (type === 'languages') {
+        url = 'https://developer.chrome.com/docs/ai/translator-api#supported_languages';
+        label = 'Supported Languages &#x2197;';
+      } else if (type === 'setup') {
+        url = 'https://developer.chrome.com/docs/ai/translator-api';
+        label = isChrome ? 'Chrome AI Setup Guide &#x2197;' : 'Local AI Setup Guide &#x2197;';
+      } else {
+        url = 'https://developer.chrome.com/docs/ai/translator-api';
+        label = isChrome ? 'Chrome AI Docs &#x2197;' : 'Local AI Docs &#x2197;';
+      }
     }
 
-    const userAgent = navigatorObject.userAgent || '';
-    if (userAgent.indexOf('Edg/') !== -1) return 'Edge';
-    if (userAgent.indexOf('Chrome/') !== -1 && userAgent.indexOf('Edg/') === -1) {
-      return 'Chrome';
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ts-bulk-btn ts-bulk-btn-primary">${label}</a>`;
+  }
+
+  /**
+   * Build structured HTML guidance (clean, professional ul/li steps with dynamic browser guidance, URLs, and docs).
+   *
+   * @param {string} reasonType
+   * @param {Object} [context={}]
+   * @returns {string} HTML string
+   */
+  function buildTranslateSenseAiReasonHtml(reasonType, context = {}) {
+    const browserInfo = getDetailedBrowserInfo();
+    const browserType = context.browserType || browserInfo.type;
+    const browserName = context.browserName || (browserType === 'Edge' ? 'Microsoft Edge' : (browserType === 'Chrome' ? 'Google Chrome' : browserInfo.name));
+    const scheme = context.scheme || browserInfo.scheme || (browserType === 'Edge' ? 'edge' : 'chrome');
+    const sourceDisplay = getLanguageDisplayName(context.sourceLanguage || context.sourceLang || 'en');
+    const targetDisplay = getLanguageDisplayName(context.targetLanguage || context.targetLang || '');
+    const currentOrigin = escapeHtml(context.currentOrigin || (window.location && window.location.origin ? window.location.origin : 'http://your-site.local'));
+    const rawError = escapeHtml(context.error || context.reason || '');
+
+    const copyOnClick = "if(navigator.clipboard){navigator.clipboard.writeText(this.textContent.trim());const orig=this.style.outline;this.style.outline='2px solid #4f46e5';setTimeout(()=>{this.style.outline=orig;},1200);}";
+    const makeCode = (url) => `<code class="ts-code-pill" onclick="${copyOnClick}" title="Click to copy url to clipboard">${escapeHtml(url)}</code>`;
+    const makeDocLink = (url, label) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="ts-doc-link">${escapeHtml(label)} &#x2197;</a>`;
+
+    const refDocUrl = browserType === 'Edge'
+      ? 'https://learn.microsoft.com/en-us/microsoft-edge/web-platform/translator-api'
+      : 'https://developer.chrome.com/docs/ai/translator-api';
+    const langDocUrl = browserType === 'Edge'
+      ? 'https://learn.microsoft.com/en-us/microsoft-edge/web-platform/translator-api'
+      : 'https://developer.chrome.com/docs/ai/translator-api#supported_languages';
+
+    const refDocLink = makeDocLink(refDocUrl, `${escapeHtml(browserName)} Local AI Translation Reference`);
+    const langDocLink = makeDocLink(langDocUrl, `${escapeHtml(browserName)} Supported Languages Reference`);
+
+    let steps = [];
+
+    switch (reasonType) {
+      case 'browser':
+        steps = [
+          `Built-in AI runs locally on your device and requires <strong>Google Chrome</strong> (v131+) or <strong>Microsoft Edge</strong> (v131+).`,
+          `To use local AI, please open your WordPress dashboard in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.`,
+          `<strong>Alternative:</strong> If you prefer to stay in ${escapeHtml(browserName)}, choose <strong>OpenAI</strong> or <strong>Google Gemini AI</strong> to translate without any special browser requirements.`,
+          `Reference: ${refDocLink}`
+        ];
+        break;
+
+      case 'notSecure':
+        steps = [
+          `The browser blocks offline AI models on insecure (<code>http://</code>) connections to protect your privacy.`,
+          `<strong>Recommended:</strong> Open your WordPress site using a secure address with an SSL certificate (<strong>HTTPS</strong>).`,
+          `<strong>For Local Development:</strong>
+            <div style="margin-top:6px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;line-height:1.6;">
+              1. Open this flag in a new tab: ${makeCode(`${scheme}://flags/#unsafely-treat-insecure-origin-as-secure`)}<br/>
+              2. Change it to <strong>Enabled</strong>, add your site origin ${makeCode(currentOrigin)}, and click <strong>Relaunch</strong>.
+            </div>`,
+          `<strong>Alternative:</strong> Switch to <strong>OpenAI</strong> or <strong>Gemini AI</strong>, which work on both HTTP and HTTPS.`
+        ];
+        break;
+
+      case 'translation-api-not-available':
+        steps = [
+          `<strong>Step 1 (Enable Translation):</strong> Open ${makeCode(`${scheme}://flags/#translation-api`)} and set it to <strong>Enabled</strong>.`,
+          `<strong>Step 2 (Enable AI Model):</strong> Open ${makeCode(`${scheme}://flags/#optimization-guide-on-device-model`)} and set it to <strong>Enabled BypassPrefRequirement</strong>.`,
+          `<strong>Step 3 (Relaunch):</strong> Click the <strong>Relaunch</strong> button at the bottom of the flags page to apply changes.`,
+          `<strong>Step 4 (Download Model):</strong> Open ${makeCode(`${scheme}://components`)}, locate <em>Optimization Guide On Device Model</em>, and click <strong>Check for update</strong>.`,
+          `Reference: ${refDocLink}`
+        ];
+        break;
+
+      case 'downloadable':
+        steps = [
+          `Translation from <strong>${sourceDisplay}</strong> to <strong>${targetDisplay}</strong> is supported.`,
+          `The translation model (~20MB–100MB) will download automatically in the background when translation starts.`,
+          `Ensure your device is connected to the internet, then click <strong>Start Translation</strong> to begin.`
+        ];
+        break;
+
+      case 'downloading':
+        steps = [
+          `${escapeHtml(browserName)} is currently downloading the language pack for <strong>${sourceDisplay} &rarr; ${targetDisplay}</strong>.`,
+          `Downloads usually take 15–45 seconds depending on your connection speed.`,
+          `Please leave this tab open. It will automatically switch to ready once completed.`
+        ];
+        break;
+
+      case 'requires-user-gesture':
+        steps = [
+          `${escapeHtml(browserName)} requires your authorization before downloading the offline translation model.`,
+          `<strong>To authorize:</strong> Simply click anywhere inside this dialog or press any key on your keyboard.`,
+          `TranslateSense is listening and will immediately start the download upon your interaction.`
+        ];
+        break;
+
+      case 'languagePairNotSupported':
+        steps = [
+          `The local model does not currently support translating directly between <strong>${sourceDisplay}</strong> and <strong>${targetDisplay}</strong>.`,
+          `<strong>Solution:</strong> Switch to <strong>Google Gemini AI</strong> or <strong>OpenAI (GPT-4o)</strong> in the provider list for 100+ supported languages.`,
+          `Reference: ${langDocLink}`
+        ];
+        break;
+
+      case 'download-timeout':
+        steps = [
+          `The translation model could not complete downloading.`,
+          `Ensure you have at least <strong>22 GB free disk space</strong> on your system drive.`,
+          `Open ${makeCode(`${scheme}://components`)}, locate <em>Optimization Guide On Device Model</em>, and click <strong>Check for update</strong>.`,
+          `Restart ${escapeHtml(browserName)} and try again.`,
+          `Reference: ${refDocLink}`
+        ];
+        break;
+
+      case 'language-pack-not-installed':
+        steps = [
+          `The required language pack for <strong>${sourceDisplay} &rarr; ${targetDisplay}</strong> is not installed in the browser.`,
+          `Verify that flags at ${makeCode(`${scheme}://flags/#translation-api`)} and ${makeCode(`${scheme}://flags/#optimization-guide-on-device-model`)} are Enabled.`,
+          `Open ${makeCode(`${scheme}://components`)} and ensure all Translation components are updated.`,
+          `<strong>Alternative:</strong> Use <strong>Gemini AI</strong> or <strong>OpenAI</strong> to translate immediately without downloading files.`,
+          `Reference: ${refDocLink}`
+        ];
+        break;
+
+      case 'sourceLangNotSupported':
+        steps = [
+          `The source language (<code>${escapeHtml(context.sourceLang || context.sourceLanguage)}</code>) is not supported by Built-in AI.`,
+          `Select <strong>Google Gemini AI</strong> or <strong>OpenAI (GPT-4o)</strong> for full support of this language.`,
+          `Reference: ${langDocLink}`
+        ];
+        break;
+
+      case 'targetLangNotSupported':
+        steps = [
+          `The target language (<code>${escapeHtml(context.targetLang || context.targetLanguage)}</code>) is not supported by Built-in AI.`,
+          `Select <strong>Google Gemini AI</strong> or <strong>OpenAI (GPT-4o)</strong> for full support of this language.`,
+          `Reference: ${langDocLink}`
+        ];
+        break;
+
+      case 'warmup-error':
+      default:
+        steps = [
+          rawError ? `Error details: <code>${rawError}</code>` : `An unexpected error occurred while initializing Built-in AI.`,
+          `Verify translation flags are enabled at ${makeCode(`${scheme}://flags/#translation-api`)}.`,
+          `Restart ${escapeHtml(browserName)} and try again.`,
+          `<strong>Alternative:</strong> Switch to <strong>OpenAI</strong> or <strong>Gemini AI</strong> to continue translating without local setup.`,
+          `Reference: ${refDocLink}`
+        ];
+        break;
     }
 
-    return 'Other';
+    const itemsHtml = steps
+      .map((s) => `<li class="ts-guidance-step">${s}</li>`)
+      .join('');
+
+    return `
+      <div class="ts-guidance-container">
+        <ul class="ts-guidance-list">
+          ${itemsHtml}
+        </ul>
+      </div>
+    `.trim();
   }
 
   /**
@@ -187,68 +527,122 @@
     return null;
   }
 
-  /**
-   * Normalize availability status response into standard TranslateSense result object.
-   */
   function normalizeAvailabilityStatus(status, browserType, sourceLanguage, targetLanguage) {
     if (!status) return null;
+
+    const browserInfo = getDetailedBrowserInfo();
+    const resolvedBrowserType = browserType || browserInfo.type;
 
     if (status === 'readily' || status === 'available' || status === 'yes') {
       return { available: true, status: 'readily' };
     }
 
     if (status === 'after-download' || status === 'downloadable') {
+      const reason = `${resolvedBrowserType} is downloading the required language pack in the background. The first translation might take a few seconds.`;
       return {
         available: true,
         status: 'downloadable',
         type: 'downloadable',
-        reason: `${browserType} is downloading the required language pack in the background. The first translation might take a few seconds.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('downloadable'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('downloadable', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', resolvedBrowserType),
         noticeType: 'info'
       };
     }
 
     if (status === 'downloading') {
+      const reason = `The required ${resolvedBrowserType} translation language pack is currently downloading. Please wait for the download to complete.`;
       return {
         available: false,
         status: 'downloading',
         type: 'downloading',
-        reason: `The required ${browserType} translation language pack is currently downloading. Please wait for the download to complete.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('downloading'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('downloading', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', resolvedBrowserType),
         noticeType: 'info'
       };
     }
 
     if (status === 'requires-user-gesture') {
+      const reason = `${resolvedBrowserType} requires a user action before the translation model can be downloaded.`;
       return {
         available: false,
         status: 'requires-user-gesture',
         type: 'requires-user-gesture',
-        reason: `${browserType} requires a user action before the translation model can be downloaded.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('requires-user-gesture'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('requires-user-gesture', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', resolvedBrowserType),
         noticeType: 'info'
       };
     }
 
     if (status === 'no' || status === 'unsupported') {
+      const reason = `Language pair (${sourceLanguage} → ${targetLanguage}) cannot be translated by the current ${resolvedBrowserType} on-device model.`;
       return {
         available: false,
-        reason: `Language pair (${sourceLanguage} → ${targetLanguage}) cannot be translated by the current ${browserType} on-device model.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('languagePairNotSupported'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('languagePairNotSupported', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('languages', resolvedBrowserType),
         noticeType: 'warning',
         type: 'languagePairNotSupported'
       };
     }
 
     if (status === 'download-timeout') {
+      const reason = `The ${resolvedBrowserType} translation model could not be loaded completely. Please check the browser's language model status and try again.`;
       return {
         available: false,
-        reason: `The ${browserType} translation model could not be loaded completely. Please check the browser's language model status and try again.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('download-timeout'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('download-timeout', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', resolvedBrowserType),
         noticeType: 'warning',
         type: 'download-timeout'
       };
     }
 
     if (status === 'unavailable' || status === 'no-download') {
+      const reason = `The required ${resolvedBrowserType} translation language pack is not currently available.`;
       return {
         available: false,
-        reason: `The required ${browserType} translation language pack is not currently available.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('language-pack-not-installed'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('language-pack-not-installed', {
+          browserType: resolvedBrowserType,
+          sourceLanguage,
+          targetLanguage,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', resolvedBrowserType),
         noticeType: 'warning',
         type: 'language-pack-not-installed'
       };
@@ -281,12 +675,21 @@
       return result;
     }
 
-    const browserType = detectTranslateSenseAiBrowser();
+    const browserInfo = getDetailedBrowserInfo();
+    const browserType = browserInfo.type;
 
     if (browserType === 'Other') {
+      const reason = 'TranslateSense Built-in AI translation requires Google Chrome or Microsoft Edge.';
       return returnWithCache({
         available: false,
-        reason: 'TranslateSense Built-in AI translation requires Google Chrome or Microsoft Edge.',
+        reasonTitle: getTranslateSenseAiReasonTitle('browser'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('browser', {
+          browserType: 'Other',
+          browserName: browserInfo.name,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', browserType),
         noticeType: 'info',
         type: 'browser'
       });
@@ -294,11 +697,21 @@
 
     if (!window.isSecureContext) {
       const browserUrl = browserType === 'Edge' ? 'edge' : 'chrome';
+      const reason =
+        `${browserType} Built-in AI translation requires a secure connection (HTTPS) or localhost. ` +
+        `For local development, configure ${browserUrl}://flags/#unsafely-treat-insecure-origin-as-secure.`;
       return returnWithCache({
         available: false,
-        reason:
-          `${browserType} Built-in AI translation requires a secure connection (HTTPS) or localhost. ` +
-          `For local development, configure ${browserUrl}://flags/#unsafely-treat-insecure-origin-as-secure.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('notSecure'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('notSecure', {
+          browserType,
+          browserName: browserInfo.name,
+          scheme: browserUrl,
+          currentOrigin: window.location.origin,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('docs', browserType),
         noticeType: 'warning',
         type: 'notSecure'
       });
@@ -308,18 +721,36 @@
     const targetLanguage = TranslateSenseLanguageHelper.formatCode(targetLang);
 
     if (!TranslateSenseLanguageHelper.isSupported(sourceLanguage)) {
+      const reason = `Language ${sourceLang} is not supported by ${browserType} Built-in AI translation.`;
       return returnWithCache({
         available: false,
-        reason: `Language ${sourceLang} is not supported by ${browserType} Built-in AI translation.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('sourceLangNotSupported'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('sourceLangNotSupported', {
+          browserType,
+          sourceLanguage,
+          sourceLang,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('languages', browserType),
         noticeType: 'warning',
         type: 'sourceLangNotSupported'
       });
     }
 
     if (!TranslateSenseLanguageHelper.isSupported(targetLanguage)) {
+      const reason = `Language ${targetLang} is not supported by ${browserType} Built-in AI translation.`;
       return returnWithCache({
         available: false,
-        reason: `Language ${targetLang} is not supported by ${browserType} Built-in AI translation.`,
+        reasonTitle: getTranslateSenseAiReasonTitle('targetLangNotSupported'),
+        reason: reason,
+        reasonHTML: buildTranslateSenseAiReasonHtml('targetLangNotSupported', {
+          browserType,
+          targetLanguage,
+          targetLang,
+          reason
+        }),
+        actionHtml: getTranslateSenseAiActionHtml('languages', browserType),
         noticeType: 'warning',
         type: 'targetLangNotSupported'
       });
@@ -342,11 +773,23 @@
     }
 
     const flagUrl = browserType === 'Edge' ? 'edge://flags/#translation-api' : 'chrome://flags/#translation-api';
+    const reason =
+      `${browserType} Built-in AI translation API is not available in this browser. ` +
+      `If you are using an experimental browser build, enable the Experimental translation API at ${flagUrl}.`;
+
     return returnWithCache({
       available: false,
-      reason:
-        `${browserType} Built-in AI translation API is not available in this browser. ` +
-        `If you are using an experimental browser build, enable the Experimental translation API at ${flagUrl}.`,
+      reasonTitle: getTranslateSenseAiReasonTitle('translation-api-not-available'),
+      reason: reason,
+      reasonHTML: buildTranslateSenseAiReasonHtml('translation-api-not-available', {
+        browserType,
+        browserName: browserInfo.name,
+        scheme: browserInfo.scheme,
+        sourceLanguage,
+        targetLanguage,
+        reason
+      }),
+      actionHtml: getTranslateSenseAiActionHtml('setup', browserType),
       noticeType: 'warning',
       type: 'translation-api-not-available'
     });
@@ -599,7 +1042,14 @@
           } else {
             languageAvailabilityCache.set(cacheKey, {
               available: false,
+              reasonTitle: getTranslateSenseAiReasonTitle('warmup-error'),
               reason: errMsg,
+              reasonHTML: buildTranslateSenseAiReasonHtml('warmup-error', {
+                browserType,
+                targetLanguage: targetLang,
+                error: errMsg
+              }),
+              actionHtml: getTranslateSenseAiActionHtml('docs', browserType),
               noticeType: 'error'
             });
           }
