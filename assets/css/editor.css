@@ -79,8 +79,8 @@
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.68);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 999999;
   display: flex;
   align-items: center;
@@ -169,19 +169,6 @@
   align-items: center;
   gap: 6px;
   line-height: 1.4;
-}
-
-.ts-lang-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #eef2ff;
-  color: #4338ca;
-  font-weight: 700;
-  font-size: 11.5px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid #c7d2fe;
 }
 
 .ts-bulk-close {
@@ -474,7 +461,7 @@
 }
 
 .ts-status-tag::before {
-  content: '';
+  content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -561,9 +548,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.548);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 80;
   display: flex;
   align-items: center;
@@ -725,7 +712,7 @@
 }
 
 .ts-progress-track-fill::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -759,211 +746,6 @@
   border-radius: 12px;
   font-weight: 600;
   color: #475569;
-}
-
-/* ==========================================================================
-   Provider Selection Modal & Stacked List
-   ========================================================================== */
-.ts-provider-modal-container {
-  max-width: 580px !important;
-}
-
-.ts-provider-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 4px 0 6px 0;
-}
-
-.ts-provider-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.ts-provider-row:hover {
-  border-color: #a5b4fc;
-  background: #fbfbfe;
-  transform: translateY(-1.5px);
-  box-shadow: 0 6px 14px -3px rgba(79, 70, 229, 0.1);
-}
-
-.ts-provider-row.selected {
-  border-color: #4f46e5;
-  background: linear-gradient(135deg, #fbfcfe 0%, #eef2ff 100%);
-  box-shadow: 0 0 0 1px #4f46e5, 0 6px 16px -3px rgba(79, 70, 229, 0.15);
-}
-
-.ts-provider-row.disabled {
-  cursor: not-allowed;
-  box-shadow: none !important;
-  background: #fffbfc;
-  border: 1.5px solid #fecaca;
-  transform: none !important;
-  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.04);
-}
-
-.ts-provider-row.disabled:hover {
-  border-color: #fca5a5;
-  background: #fff5f5;
-  transform: none !important;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
-}
-
-.ts-add-api-key-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #dc2626 !important;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  text-decoration: none !important;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  line-height: 1.4em;
-}
-
-.ts-add-api-key-btn:hover {
-  background: #fee2e2;
-  color: #b91c1c !important;
-  border-color: #f87171;
-  text-decoration: none !important;
-  transform: translateY(-1px);
-}
-
-/* Custom Radio Indicator */
-.ts-provider-radio-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ts-provider-radio-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  margin: 0 !important;
-}
-
-.ts-provider-custom-radio {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid #cbd5e1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.6s ease;
-  flex-shrink: 0;
-  background: #ffffff;
-}
-
-.ts-provider-row.selected .ts-provider-custom-radio {
-  border-color: #4f46e5;
-  background: #4f46e5;
-}
-
-.ts-provider-row.selected .ts-provider-custom-radio::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ffffff;
-}
-
-/* Provider Icon Avatar */
-.ts-provider-icon-box {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  flex-shrink: 0;
-  transition: all 0.6s ease;
-}
-
-.ts-provider-row.selected .ts-provider-icon-box {
-  background: #ffffff;
-  border-color: #c7d2fe;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
-}
-
-.ts-provider-logo-img {
-  width: 28px;
-  height: 28px;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-/* Main Text & Title */
-.ts-provider-main-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.ts-provider-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-
-.ts-provider-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-}
-
-.ts-provider-caption {
-  font-size: 12px;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.45;
-}
-
-/* On-Device Badge */
-.ts-provider-badge {
-  border-radius: 20px;
-  text-transform: uppercase;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  text-decoration: none !important;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  line-height: 1.4em;
-}
-
-.ts-provider-badge.on-device {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-  box-shadow: 0 1px 2px rgba(4, 120, 87, 0.08);
 }
 
 /* ==========================================================================
@@ -1142,6 +924,7 @@
   user-select: none;
   min-height: 100px;
   box-sizing: border-box;
+  row-gap: 5px;
 }
 
 .ts-provider-row:hover {
@@ -1155,6 +938,21 @@
   border-color: #6366f1;
   background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
   box-shadow: 0 0 0 1px #6366f1, 0 4px 14px -2px rgba(99, 102, 241, 0.18);
+}
+
+.ts-provider-row.disabled {
+  cursor: not-allowed;
+  background: #fffbfc;
+  border: 1.5px solid #fecaca;
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.04);
+}
+
+.ts-provider-row.disabled:hover {
+  border-color: #fca5a5;
+  background: #fff5f5;
+  transform: none !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
 }
 
 .ts-provider-row.disabled .ts-provider-custom-radio {
@@ -1197,8 +995,7 @@
 }
 
 .ts-provider-logo-img {
-  width: 22px;
-  height: 22px;
+  width: 28px;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -1234,16 +1031,19 @@
 }
 
 .ts-provider-badge {
-  font-size: 9.5px;
-  font-weight: 800;
-  padding: 2px 7px;
   border-radius: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   display: inline-flex;
   align-items: center;
-  line-height: 1.3;
+  gap: 4px;
+  padding: 2.5px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  transition: all .2s ease;
   white-space: nowrap;
+  cursor: pointer;
+  line-height: 1.4em;
 }
 
 .ts-provider-badge.on-device {
@@ -1274,14 +1074,19 @@
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08);
+  line-height: 1.4em;
 }
 
-.ts-add-api-key-btn:hover {
+.ts-add-api-key-btn:hover,
+.ts-add-api-key-btn:focus {
+  border-radius: 6px;
   background: #fee2e2;
   color: #991b1b !important;
   border-color: #f87171;
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(220, 38, 38, 0.15);
+  text-decoration: none !important;
+  outline: unset;
 }
 
 .ts-provider-radio-wrap {
@@ -1301,8 +1106,8 @@
 }
 
 .ts-provider-custom-radio {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   border: 2px solid #cbd5e1;
   display: flex;
@@ -1319,7 +1124,7 @@
 }
 
 .ts-provider-row.selected .ts-provider-custom-radio::after {
-  content: '';
+  content: "";
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -1327,7 +1132,7 @@
 }
 
 .ts-provider-caption {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748b;
   margin: 0;
   line-height: 1.4;
