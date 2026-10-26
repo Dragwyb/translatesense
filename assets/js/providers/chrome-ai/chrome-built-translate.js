@@ -447,16 +447,15 @@
     return translateSingleWithTranslateSenseAi(sourceText, sourceLang, targetLang);
   }
 
+  const browserType = detectTranslateSenseAiBrowser();
+
   /**
    * Get provider logo.
    */
   function getTranslateSenseAiLogo() {
-    const data =
-      window.TranslateSenseBulkData ||
-      window.TranslateSenseEditorData ||
-      {};
-    const pluginUrl = data.pluginUrl || '';
-    return pluginUrl ? `${pluginUrl}assets/img/chrome_ai.png` : '';
+    const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+    const pluginUrl = config.pluginUrl || '';
+    return pluginUrl ? `${pluginUrl}assets/img/${browserType === 'Edge' ? 'edge_ai' : 'chrome_ai'}.png` : '';
   }
 
   /**
@@ -466,8 +465,9 @@
     title: 'Built-in AI',
     icon: '🤖',
     logo: getTranslateSenseAiLogo(),
-    desc: 'Private on-device translation powered by Google Chrome and Microsoft Edge Built-in AI.',
+    desc: `Private on-device translation powered by ${browserType === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'} Built-in AI.`,
     category: 'browser',
+    browserType: browserType.toLowerCase(),
     savesToDb: false,
     requiresApiKey: false,
 

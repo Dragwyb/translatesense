@@ -235,6 +235,8 @@
         id,
         title: options.title || id,
         icon: options.icon || '🌐',
+        logo: options.logo || '',
+        browserType: options.browserType || '',
         desc: options.desc || '',
         category: options.category || 'ai',
         savesToDb: !!options.savesToDb,
