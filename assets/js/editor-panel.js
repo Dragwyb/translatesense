@@ -423,7 +423,7 @@
                   </div>
                   <div class="ts-review-footer">
                     ${p.isSupported.actionHtml ? p.isSupported.actionHtml : ''}
-                    <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">Back</button>
+                    <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">&larr; Back</button>
                   </div>
                 </div>
               `;
@@ -455,9 +455,7 @@
           </div>
           <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-provider-modal-cancel">Cancel</button>
-            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Translation'}">
-              <span>🚀</span> Start Translation
-            </button>
+            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Translation'}">Start Translation</button>
           </div>
         </div>
         ${ErrorModals}

@@ -71,7 +71,7 @@ class Bulk_Translate {
 		}
 
 		wp_enqueue_style(
-			'translatesense-bulk-css',
+			'translatesense-bulk',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
 			array(),
 			TRANSLATESENSE_VERSION
@@ -79,7 +79,7 @@ class Bulk_Translate {
 
 		// 1. Core Translate Registry
 		wp_enqueue_script(
-			'translatesense-core-js',
+			'translatesense-core',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/core-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
 			array( 'jquery' ),
 			TRANSLATESENSE_VERSION,
@@ -88,34 +88,34 @@ class Bulk_Translate {
 
 		// 2. Chrome Built-in Translate Provider & Languages
 		wp_enqueue_script(
-			'translatesense-chrome-languages-js',
+			'translatesense-chrome-languages',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/chrome-ai/chrome-languages' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core-js' ),
+			array( 'translatesense-core' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 		wp_enqueue_script(
-			'translatesense-chrome-built-translate-js',
+			'translatesense-chrome-built-translate',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/chrome-ai/chrome-built-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core-js', 'translatesense-chrome-languages-js' ),
+			array( 'translatesense-core', 'translatesense-chrome-languages' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
 		// 3. AI Translate Provider (OpenAI & Gemini)
 		wp_enqueue_script(
-			'translatesense-ai-translate-js',
+			'translatesense-ai-translate',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/providers/ai-services/ai-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core-js' ),
+			array( 'translatesense-core' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
 		// 4. Bulk Translation Script
 		wp_enqueue_script(
-			'translatesense-bulk-js',
+			'translatesense-bulk',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'jquery', 'translatesense-core-js', 'translatesense-chrome-built-translate-js', 'translatesense-ai-translate-js' ),
+			array( 'jquery', 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -123,7 +123,7 @@ class Bulk_Translate {
 		$settings = get_option( 'translatesense_settings', array() );
 
 		wp_localize_script(
-			'translatesense-bulk-js',
+			'translatesense-core',
 			'TranslateSenseBulkData',
 			array(
 				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),

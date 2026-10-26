@@ -509,11 +509,14 @@
 }
 
 .ts-provider-row.disabled {
-  cursor: not-allowed;
   background: #fffbfc;
   border: 1.5px solid #fecaca;
   transform: none !important;
   box-shadow: 0 1px 3px rgba(239, 68, 68, 0.04);
+}
+
+.ts-provider-row.disabled:not(.ts-provider-error-btn) {
+  cursor: not-allowed;
 }
 
 .ts-provider-row.disabled:hover {
@@ -538,8 +541,8 @@
 }
 
 .ts-provider-icon-box {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -563,8 +566,7 @@
 }
 
 .ts-provider-logo-img {
-  width: 22px;
-  height: 22px;
+  width: 28px;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -576,7 +578,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 }
 
 .ts-provider-name {
@@ -600,16 +602,19 @@
 }
 
 .ts-provider-badge {
-  font-size: 9.5px;
-  font-weight: 800;
-  padding: 2px 7px;
   border-radius: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   display: inline-flex;
   align-items: center;
-  line-height: 1.3;
+  gap: 4px;
+  padding: 2.5px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  transition: all .2s ease;
   white-space: nowrap;
+  cursor: pointer;
+  line-height: 1.4em;
 }
 
 .ts-provider-badge.on-device {
@@ -624,7 +629,7 @@
   border: 1px solid #c7d2fe;
 }
 
-.ts-add-api-key-btn {
+.ts-add-api-key-btn{
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -640,14 +645,19 @@
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08);
+  line-height: 1.4em;
 }
 
-.ts-add-api-key-btn:hover {
+.ts-add-api-key-btn:hover,
+.ts-add-api-key-btn:focus {
+  border-radius: 6px;
   background: #fee2e2;
   color: #991b1b !important;
   border-color: #f87171;
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(220, 38, 38, 0.15);
+  text-decoration: none !important;
+  outline: unset;
 }
 
 .ts-provider-radio-wrap {
@@ -667,8 +677,8 @@
 }
 
 .ts-provider-custom-radio {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   border: 2px solid #cbd5e1;
   display: flex;
@@ -685,7 +695,7 @@
 }
 
 .ts-provider-row.selected .ts-provider-custom-radio::after {
-  content: '';
+  content: "";
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -693,7 +703,7 @@
 }
 
 .ts-provider-caption {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748b;
   margin: 0;
   line-height: 1.4;
@@ -1485,6 +1495,15 @@ button.ts-trans-status-pill.ts-error-detail-btn:hover {
   box-shadow: none !important;
 }
 
+.ts-bulk-btn-disabled {
+  background: #e5e7eb !important;
+  color: #9ca3af !important;
+  border-color: #d1d5db !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 /* ==========================================================================
    Table Navigation "Translate Selected" Button (Top & Bottom)
    ========================================================================== */
@@ -1541,3 +1560,179 @@ button.ts-trans-status-pill.ts-error-detail-btn:hover {
 .ts-filter-action-btn:hover .dashicons {
   transform: rotate(20deg) scale(1.18) !important;
 }
+
+/* ==========================================================================
+   Provider Error Guidance Modal & Steps Styling (Sync with Editor Panel)
+   ========================================================================== */
+.ts-bulk-modal.hide,
+.ts-error-container.hide {
+  display: none !important;
+}
+
+.ts-error-container {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 665px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1e293b;
+  animation: tsBulkModalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+}
+
+.ts-error-container .ts-review-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+}
+
+.ts-error-container .ts-review-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ts-error-container .ts-header-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ts-error-container .ts-header-icon-box .ts-provider-logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.ts-error-container .ts-review-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.ts-error-container .ts-bulk-close {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 15px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.ts-error-container .ts-bulk-close:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  transform: rotate(90deg);
+}
+
+.ts-error-container .ts-review-body {
+  padding: 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ts-error-container .ts-review-footer {
+  padding: 14px 22px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  gap: 12px;
+}
+
+.ts-error-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.ts-guidance-container {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1e293b;
+}
+
+.ts-guidance-list {
+  list-style: disc !important;
+  margin: 0 !important;
+  padding-left: 20px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ts-guidance-step {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.ts-guidance-step strong {
+  color: #0f172a;
+}
+
+.ts-code-pill {
+  display: inline-block;
+  padding: 2.5px 7px;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  word-break: break-all;
+  user-select: all;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin: 1px 2px;
+}
+
+.ts-code-pill:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+  color: #3730a3;
+  transform: translateY(-0.5px);
+}
+
+.ts-doc-link {
+  color: #4f46e5 !important;
+  font-weight: 600;
+  text-decoration: underline !important;
+  text-underline-offset: 2.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s ease;
+}
+
+.ts-doc-link:hover {
+  color: #3730a3 !important;
+}
+

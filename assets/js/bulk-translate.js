@@ -42,10 +42,8 @@
   }
 
   // Helper to dynamically get active enabled providers registered on TranslateSenseCore
-  function getRegisteredProviders() {
-    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || window.TranslateSenseData || {};
-    const pluginUrl = config.pluginUrl || '';
-    const getLogo = (id) => (pluginUrl ? `${pluginUrl}assets/img/${id}.png` : '');
+  async function getRegisteredProviders(targetLang = 'es') {
+    const config = window.TranslateSenseBulkData || window.TranslateSenseEditorData || {};
     const enabledProviders = config.enabledProviders || {};
     const enabledKeys = Array.isArray(enabledProviders) ? enabledProviders : Object.keys(enabledProviders);
 
@@ -56,18 +54,13 @@
         providers = window.TranslateSenseCore.getProviders(false);
       }
     }
-    if (!providers || providers.length === 0) {
-      const defaultList = [
-        { id: 'openai', title: 'OpenAI (GPT-4o)', icon: '🧠', logo: getLogo('openai'), desc: 'High accuracy translation via OpenAI ChatGPT API.', category: 'ai' },
-        { id: 'gemini', title: 'Gemini AI', icon: '✨', logo: getLogo('gemini'), desc: 'Next-gen multilingual translation via Google Gemini AI.', category: 'ai' },
-        { id: 'chrome_ai', title: 'Chrome Local AI', icon: '🤖', logo: getLogo('chrome_ai'), desc: 'On-device translation powered by Chrome built-in AI (window.ai).', category: 'browser' },
-      ];
-      providers = enabledKeys.length > 0 ? defaultList.filter((p) => enabledKeys.includes(p.id)) : defaultList;
+
+    const chromeAiIndex = providers.findIndex((p) => p.id === 'chrome_ai');
+    if (chromeAiIndex > -1 && typeof providers[chromeAiIndex].checkAvailability === 'function') {
+      providers[chromeAiIndex].isSupported = await providers[chromeAiIndex].checkAvailability(config.defaultLanguage || config.sourceLanguage || 'en', targetLang || config.targetLanguage || 'es', true);
     }
-    return providers.map((p) => ({
-      ...p,
-      logo: p.logo || getLogo(p.id),
-    }));
+
+    return providers;
   }
 
   function initBulkTranslate() {
@@ -105,7 +98,7 @@
     }
 
     // Direct click on "Translate Selected" button (top or bottom)
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', async function (e) {
       const target = e.target.closest('.ts-filter-action-btn');
       if (target) {
         e.preventDefault();
@@ -114,7 +107,7 @@
           alert('Please select posts first.');
           return false;
         }
-        openBulkTranslateWizard(selectedPosts);
+        await openBulkTranslateWizard(selectedPosts);
       }
     });
 
@@ -131,7 +124,7 @@
     }
 
     // Multi-Step Bulk Translation Wizard (Pure Vanilla JS)
-    function openBulkTranslateWizard(postIds) {
+    async function openBulkTranslateWizard(postIds) {
       const allLanguages = config.languages || [];
       const defaultLang = config.defaultLanguage || 'en';
 
@@ -143,7 +136,7 @@
         selectedTargetLangs = [allLanguages[0].slug];
       }
 
-      const providers = getRegisteredProviders();
+      let providers = await getRegisteredProviders(selectedTargetLangs[0] || 'es');
       const defaultProv = config.defaultProvider || '';
       const settingsUrl = config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
       const connectorsUrl = config.connectorsUrl || 'options-connectors.php';
@@ -175,7 +168,10 @@
       };
 
       const isProviderAvailable = (id) => {
-        if (id === 'chrome_ai' || id === 'chrome_local_ai') return true;
+        if (id === 'chrome_ai' || id === 'chrome_local_ai') {
+          const chromeProv = providers.find((p) => p.id === id);
+          return !(chromeProv && chromeProv.isSupported && false === chromeProv.isSupported.available);
+        }
         const st = getProviderStatus(id);
         if (st.connectors && st.isProviderInstall) {
           return Boolean(st.isProviderActive && st.isConnected);
@@ -188,6 +184,106 @@
         const firstAvail = providers.find((p) => isProviderAvailable(p.id));
         if (firstAvail) selectedProviderId = firstAvail.id;
       }
+
+      let proidersAvailable = false;
+
+      function renderStep2ProvidersData() {
+        let ErrorModals = '';
+        proidersAvailable = false;
+
+        const providerRowsHtml = providers.map((p) => {
+          const status = getProviderStatus(p.id);
+          const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+          const isConnector = Boolean(status.connectors && status.isProviderInstall);
+
+          let isAvailable = false;
+          let actionHtml = '';
+          let containerErrorBtn = false;
+
+          if (isFrontend) {
+            isAvailable = p.isSupported && false === p.isSupported.available ? false : true;
+            actionHtml = !isAvailable
+              ? `<button type="button" class="ts-add-api-key-btn ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>`
+              : '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+          } else if (isConnector) {
+            if (!status.isProviderActive) {
+              isAvailable = false;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+            } else if (!status.isConnected) {
+              isAvailable = false;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+            } else {
+              isAvailable = true;
+              actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+            }
+          } else {
+            if (!status.isConnected) {
+              isAvailable = false;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+            } else {
+              isAvailable = true;
+              actionHtml = '';
+            }
+          }
+
+          if (isAvailable && !proidersAvailable) {
+            proidersAvailable = true;
+          }
+
+          if (p.isSupported && false === p.isSupported.available && p.isSupported.reason && '' !== p.isSupported.reason) {
+            containerErrorBtn = true;
+            const errorTitle = p.isSupported.reasonTitle || p.isSupported.title || p.title;
+            ErrorModals += `
+              <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
+                <div class="ts-review-header">
+                  <div class="ts-review-header-title">
+                    <div class="ts-header-icon-box">
+                      <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
+                    </div>
+                    <div>
+                      <h3>${errorTitle}</h3>
+                    </div>
+                  </div>
+                  <button type="button" class="ts-bulk-close" title="Close">✕</button>
+                </div>
+                <div class="ts-review-body">
+                  <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
+                </div>
+                <div class="ts-review-footer">
+                  ${p.isSupported.actionHtml ? p.isSupported.actionHtml : ''}
+                  <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">&larr; Back</button>
+                </div>
+              </div>
+            `;
+          }
+
+          const isSelected = Boolean(isAvailable && selectedProviderId && p.id === selectedProviderId);
+          const isDisabled = !isAvailable;
+
+          return `
+            <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''} ${containerErrorBtn ? 'ts-provider-error-btn' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
+              <div class="ts-provider-card-top">
+                <div class="ts-provider-icon-box">
+                  <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
+                </div>
+                <div class="ts-provider-header-content">
+                  <div class="ts-provider-name">${p.title}</div>
+                  ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
+                </div>
+                <div class="ts-provider-radio-wrap">
+                  <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                  <span class="ts-provider-custom-radio"></span>
+                </div>
+              </div>
+              <p class="ts-provider-caption">${p.desc}</p>
+            </div>
+          `;
+        }).join('');
+
+        return { providerRowsHtml, ErrorModals, proidersAvailable };
+      }
+
+      const initialStep2 = renderStep2ProvidersData();
 
       // Ensure root container exists
       let root = document.getElementById('translatesense-bulk-modal-root');
@@ -286,63 +382,8 @@
 
                 <div class="ts-bulk-field">
                   <label style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Choose Translation Engine</label>
-                  <div class="ts-provider-list">
-                    ${providers.map(
-            (p) => {
-              const status = getProviderStatus(p.id);
-              const isLocalFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
-              const isConnector = Boolean(status.connectors && status.isProviderInstall);
-
-              let isAvailable = false;
-              let actionHtml = '';
-
-              if (isLocalFrontend) {
-                isAvailable = true;
-                actionHtml = '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
-              } else if (isConnector) {
-                if (!status.isProviderActive) {
-                  isAvailable = false;
-                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
-                } else if (!status.isConnected) {
-                  isAvailable = false;
-                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
-                } else {
-                  isAvailable = true;
-                  actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
-                }
-              } else {
-                if (!status.isConnected) {
-                  isAvailable = false;
-                  actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
-                } else {
-                  isAvailable = true;
-                  actionHtml = '';
-                }
-              }
-
-              const isSelected = Boolean(isAvailable && p.id === selectedProviderId);
-              const isDisabled = !isAvailable;
-
-              return `
-                          <div class="ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" data-provider="${p.id}" ${isDisabled ? 'data-disabled="true"' : ''}>
-                            <div class="ts-provider-card-top">
-                              <div class="ts-provider-icon-box">
-                                <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                              </div>
-                              <div class="ts-provider-header-content">
-                                <div class="ts-provider-name">${p.title}</div>
-                                ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
-                              </div>
-                              <div class="ts-provider-radio-wrap">
-                                <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
-                                <span class="ts-provider-custom-radio"></span>
-                              </div>
-                            </div>
-                            <p class="ts-provider-caption">${p.desc}</p>
-                          </div>
-                        `;
-            }
-          ).join('')}
+                  <div class="ts-provider-list" id="ts-bulk-provider-list">
+                    ${initialStep2.providerRowsHtml}
                   </div>
                 </div>
               </div>
@@ -430,9 +471,9 @@
               </button>
             </div>
 
-            <div class="ts-bulk-footer" id="ts-footer-step-2" style="display: none; justify-content: space-between;">
+            <div class="ts-bulk-footer" id="ts-footer-step-2" style="display: none;">
               <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-wizard-back-btn">&larr; Back</button>
-              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-start-btn">🚀 Start Bulk Translation</button>
+              <button type="button" class="ts-bulk-btn ${initialStep2.proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-bulk-start-btn" ${!initialStep2.proidersAvailable ? 'disabled' : ''} title="${!initialStep2.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation'}">Start Bulk Translation</button>
             </div>
 
             <div class="ts-bulk-footer" id="ts-footer-progress" style="display: none; justify-content: flex-end;">
@@ -440,6 +481,9 @@
                 ⏳ Translation In Progress...
               </button>
             </div>
+          </div>
+          <div id="ts-bulk-error-modals-wrap" style="display: contents;">
+            ${initialStep2.ErrorModals}
           </div>
         </div>
       `;
@@ -455,6 +499,66 @@
           root.innerHTML = '';
         });
       }
+
+      function bindProviderCardEvents() {
+        // Provider Selection Row Click
+        root.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (row) {
+          row.addEventListener('click', function () {
+            if (row.classList.contains('ts-provider-error-btn')) {
+              return;
+            }
+            if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+              return;
+            }
+            root.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (c) {
+              c.classList.remove('selected');
+            });
+            row.classList.add('selected');
+            const radio = row.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+            selectedProviderId = row.getAttribute('data-provider');
+          });
+        });
+
+        // Error Modal Box Button or Row Click
+        root.querySelectorAll('.ts-provider-error-btn').forEach((errorBtn) => {
+          errorBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetModal = errorBtn.dataset.provider;
+            if (targetModal) {
+              const modal = document.querySelector("#ts-error-" + targetModal);
+              const mainModal = root.querySelector('.ts-bulk-modal');
+              if (modal && mainModal) {
+                modal.classList.remove('hide');
+                mainModal.classList.add('hide');
+              }
+            }
+          });
+        });
+
+        // Error Modals Back & Close buttons
+        root.querySelectorAll('.ts-error-container').forEach((errorModal) => {
+          const backBtn = errorModal.querySelector('.ts-bulk-btn-secondary');
+          const errCloseBtn = errorModal.querySelector('.ts-bulk-close');
+          const mainModal = root.querySelector('.ts-bulk-modal');
+          if (backBtn) {
+            backBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              errorModal.classList.add('hide');
+              if (mainModal) mainModal.classList.remove('hide');
+            });
+          }
+          if (errCloseBtn) {
+            errCloseBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              errorModal.classList.add('hide');
+              if (mainModal) mainModal.classList.remove('hide');
+            });
+          }
+        });
+      }
+
+      bindProviderCardEvents();
 
       // Update UI state for language selection
       function updateLanguageSelectionState() {
@@ -520,10 +624,43 @@
       // Step 1 -> Step 2 Navigation
       const nextBtn = document.getElementById('ts-wizard-next-btn');
       if (nextBtn) {
-        nextBtn.addEventListener('click', function () {
+        nextBtn.addEventListener('click', async function () {
           if (selectedTargetLangs.length === 0) {
             alert('Please select at least one target language.');
             return;
+          }
+
+          nextBtn.disabled = true;
+          const origText = nextBtn.innerHTML;
+          nextBtn.innerHTML = 'Checking Providers...';
+
+          try {
+            providers = await getRegisteredProviders(selectedTargetLangs[0] || 'es');
+            if (!selectedProviderId || !isProviderAvailable(selectedProviderId)) {
+              const firstAvail = providers.find((p) => isProviderAvailable(p.id));
+              selectedProviderId = firstAvail ? firstAvail.id : '';
+            }
+
+            const step2Data = renderStep2ProvidersData();
+            const provList = document.getElementById('ts-bulk-provider-list');
+            if (provList) provList.innerHTML = step2Data.providerRowsHtml;
+
+            const errWrap = document.getElementById('ts-bulk-error-modals-wrap');
+            if (errWrap) errWrap.innerHTML = step2Data.ErrorModals;
+
+            const startBtnEl = document.getElementById('ts-bulk-start-btn');
+            if (startBtnEl) {
+              startBtnEl.className = 'ts-bulk-btn ' + (step2Data.proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled');
+              startBtnEl.disabled = !step2Data.proidersAvailable;
+              startBtnEl.title = !step2Data.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation';
+            }
+
+            bindProviderCardEvents();
+          } catch (err) {
+            console.error('[TranslateSense] Error refreshing providers:', err);
+          } finally {
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = origText;
           }
 
           const totalTranslations = postIds.length * selectedTargetLangs.length;
@@ -568,30 +705,16 @@
         });
       }
 
-      // Provider Selection Row Click
-      document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (row) {
-        row.addEventListener('click', function () {
-          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
-            return;
-          }
-          document.querySelectorAll('.ts-provider-row, .ts-provider-card').forEach(function (c) {
-            c.classList.remove('selected');
-          });
-          row.classList.add('selected');
-          const radio = row.querySelector('input[type="radio"]');
-          if (radio) radio.checked = true;
-          selectedProviderId = row.getAttribute('data-provider');
-        });
-      });
-
       // Execution Engine
       const startBtn = document.getElementById('ts-bulk-start-btn');
       if (startBtn) {
         startBtn.addEventListener('click', async function () {
+          if (!proidersAvailable) return;
+
           const checkedRadio = document.querySelector('input[name="ts_bulk_provider"]:checked');
           const selectedProvider = checkedRadio && !checkedRadio.disabled ? checkedRadio.value : selectedProviderId;
 
-          if (!selectedProvider || !getProviderStatus(selectedProvider).isConnected) {
+          if (!selectedProvider || !isProviderAvailable(selectedProvider)) {
             alert('Please choose an active translation engine with a configured API key before starting.');
             return;
           }
@@ -917,13 +1040,14 @@
 
           if (noticeBanner) {
             if (isChromeAi) {
+              const engineTitle = (matchingProvider && matchingProvider.browserType === 'edge') ? 'Microsoft Edge Built-in AI' : 'Google Chrome Built-in AI';
               noticeBanner.className = 'ts-modal-notice-banner warning';
               noticeBanner.style.display = 'flex';
               noticeBanner.innerHTML = `
                 <span class="ts-notice-icon">⚠️</span>
                 <div class="ts-notice-text">
                   <div class="ts-notice-title">Please Keep This Window Open</div>
-                  <div>Chrome Local AI runs on-device directly in your browser. If you close this tab or window, your local translation workflow will stop.</div>
+                  <div>${engineTitle} runs on-device directly in your browser. If you close this tab or window, your local translation workflow will stop.</div>
                 </div>
               `;
             } else {
@@ -951,7 +1075,7 @@
               if (check && check.available === false) {
                 unsupported.push({
                   lang: lang,
-                  reason: check.reason || `Language ${lang.toUpperCase()} is not supported by Chrome Built-in AI.`
+                  reason: check.reason || `Language ${lang.toUpperCase()} is not supported by Built-in AI.`
                 });
               } else {
                 supported.push(lang);
@@ -961,7 +1085,7 @@
             if (unsupported.length > 0) {
               if (supported.length === 0) {
                 const unsuppList = unsupported.map((u) => u.lang.toUpperCase()).join(', ');
-                alert('None of the selected languages are supported by Chrome Local AI: ' + unsuppList);
+                alert('None of the selected languages are supported by Built-in AI: ' + unsuppList);
                 unsupported.forEach(function (uItem) {
                   const uLang = uItem.lang;
                   const reason = uItem.reason;
@@ -976,7 +1100,7 @@
                   });
                 });
                 renderResultsUI();
-                onBulkProgressComplete(false, 'Translation stopped: Selected languages are not supported by Chrome Built-in AI.', 0, postIds.length * selectedTargetLangs.length);
+                onBulkProgressComplete(false, 'Translation stopped: Selected languages are not supported by Built-in AI.', 0, postIds.length * selectedTargetLangs.length);
                 return;
               }
 
