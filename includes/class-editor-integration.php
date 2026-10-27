@@ -393,28 +393,15 @@ class Editor_Integration {
 	public static function enqueue_block_recovery_assets( int $post_id ): void {
 		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
 
-		$css_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/css/block-recovery' . $assets_ext . '.css' )
-			? 'assets/css/block-recovery' . $assets_ext . '.css'
-			: 'assets/css/block-recovery.css';
-
 		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/block-recovery' . $assets_ext . '.js' )
 			? 'assets/js/block-recovery' . $assets_ext . '.js'
 			: 'assets/js/block-recovery.js';
-
-		$ver = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? (string) time() : TRANSLATESENSE_VERSION;
-
-		wp_enqueue_style(
-			'translatesense-block-recovery',
-			TRANSLATESENSE_PLUGIN_URL . $css_file,
-			array(),
-			$ver
-		);
 
 		wp_enqueue_script(
 			'translatesense-block-recovery',
 			TRANSLATESENSE_PLUGIN_URL . $js_file,
 			array( 'wp-blocks', 'wp-element', 'wp-components', 'wp-data', 'wp-editor', 'wp-edit-post', 'wp-i18n', 'wp-notices', 'wp-plugins' ),
-			$ver,
+			TRANSLATESENSE_VERSION,
 			true
 		);
 

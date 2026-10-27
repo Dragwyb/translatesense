@@ -5,23 +5,17 @@
  * conservative default attribute recovery, and editor integration.
  */
 
-(function (window, document, wp) {
+(function (window, wp) {
   'use strict';
 
   if (!wp || !wp.blocks || !wp.data) {
     return;
   }
 
-  const { registerPlugin } = wp.plugins || {};
-  const { PluginDocumentSettingPanel } = wp.editPost || wp.editor || {};
-  const { createElement, Fragment, useState } = wp.element || {};
-
   const config = window.TranslateSenseRecoveryData || {};
   const postId = parseInt(config.postId, 10) || 0;
   const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
   const nonce = config.nonce || '';
-  const blockEditorSelect = wp.data.select('core/block-editor');
-  const blockEditorDispatch = wp.data.dispatch('core/block-editor');
 
 
   if (!postId || !config.isPending) {
@@ -30,8 +24,6 @@
 
   // Session State
   let initialScanPerformed = false;
-  let isRecoveryPending = true;
-  let refreshSidebarPanelFn = null;
 
   /* ==========================================================================
      HTML Normalization Helper
@@ -44,16 +36,6 @@
     return (doc.body.textContent || '')
       .replace(/\s+/g, ' ')
       .trim();
-  }
-
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
   }
 
   function getHtmlInnerText(html) {
@@ -496,9 +478,6 @@
         const data = await response.json();
         if (data.success) {
           isRecoveryPending = false;
-          if (typeof refreshSidebarPanelFn === 'function') {
-            refreshSidebarPanelFn();
-          }
           return true;
         }
       }
@@ -580,7 +559,7 @@
      Direct Block Repair Workflow (No Modal)
      ========================================================================== */
 
-  async function executeRepairs(findings, onCompleteCallback = null) {
+  async function executeRepairs(findings) {
     const blockEditorDispatch = wp.data.dispatch('core/block-editor');
     const blockEditorSelect = wp.data.select('core/block-editor');
     let repairedCount = 0;
@@ -793,11 +772,9 @@
       }
     }
 
-    const allResolved = (failedCount === 0 && repairedCount > 0);
-    let cleared = false;
 
-    if (allResolved) {
-      cleared = await clearRecoveryMetadataOnServer();
+    if (repairedCount > 0) {
+      await clearRecoveryMetadataOnServer();
 
       // Save post to persist recovered block markup to the database
       const editorDispatch = wp.data.dispatch('core/editor');
@@ -820,119 +797,6 @@
     if (failedCount > 0) {
       console.warn('[TranslateSense Recovery] Some blocks could not be repaired:', unresolvedItems);
     }
-
-    if (typeof onCompleteCallback === 'function') {
-      onCompleteCallback(allResolved);
-    }
-  }
-
-  /* ==========================================================================
-     Gutenberg Sidebar Document Setting Panel
-     ========================================================================== */
-
-  function BlockRecoverySidebarPanel() {
-    const [pending, setPending] = useState(isRecoveryPending);
-    const [isScanning, setIsScanning] = useState(false);
-
-    refreshSidebarPanelFn = () => {
-      setPending(isRecoveryPending);
-    };
-
-    const handleManualScan = async () => {
-      if (isScanning) return;
-      setIsScanning(true);
-
-      let blocks = [];
-      let invalid = [];
-
-      try {
-        const editorSelect = wp.data.select('core/block-editor');
-        blocks = editorSelect && typeof editorSelect.getBlocks === 'function'
-          ? editorSelect.getBlocks()
-          : [];
-        invalid = await scanInvalidBlocks(blocks);
-      } catch (error) {
-        console.error('[TranslateSense Recovery] Scan failed:', error);
-        if (wp.data.dispatch('core/notices')) {
-          wp.data.dispatch('core/notices').createErrorNotice(
-            'Block scan failed. Please try again.',
-            { type: 'snackbar', isDismissible: true }
-          );
-        }
-        return;
-      } finally {
-        setIsScanning(false);
-      }
-
-      if (invalid.length === 0) {
-        // If blocks exist and none are invalid, clear server metadata
-        if (blocks.length > 0) {
-          await clearRecoveryMetadataOnServer();
-          setPending(false);
-        }
-        if (wp.data.dispatch('core/notices')) {
-          wp.data.dispatch('core/notices').createSuccessNotice(
-            '✓ TranslateSense: All blocks in this post are valid. No recovery required.',
-            { type: 'snackbar', isDismissible: true }
-          );
-        }
-        return;
-      }
-
-      const grouped = await groupFindings(invalid);
-      await executeRepairs(grouped, (allResolved) => {
-        if (allResolved) {
-          setPending(false);
-        }
-      });
-    };
-
-    if (!pending || !PluginDocumentSettingPanel) {
-      return null;
-    }
-
-    return createElement(
-      PluginDocumentSettingPanel,
-      {
-        name: 'translatesense-block-recovery-panel',
-        title: 'TranslateSense Block Recovery',
-        icon: 'dashicons-admin-tools',
-        className: 'ts-recovery-sidebar-panel'
-      },
-      createElement(
-        'div',
-        { className: 'ts-recovery-panel-content' },
-        createElement(
-          'div',
-          { className: 'ts-recovery-panel-banner' },
-          createElement('span', null, '⚠️'),
-          createElement('div', null, 'Translated blocks may require default attribute recovery.')
-        ),
-        createElement(
-          'div',
-          { className: 'ts-recovery-panel-btn-wrap' },
-          createElement(
-            'button',
-            {
-              type: 'button',
-              className: 'ts-recovery-panel-btn',
-              onClick: handleManualScan,
-              disabled: isScanning
-            },
-            isScanning
-              ? createElement(Fragment, null, createElement('span', { className: 'ts-recovery-spinner' }), ' Scanning Blocks...')
-              : createElement(Fragment, null, createElement('span', { className: 'dashicons dashicons-update' }), ' Scan & Repair Blocks')
-          )
-        )
-      )
-    );
-  }
-
-  // Register persistent Gutenberg panel
-  if (registerPlugin) {
-    registerPlugin('translatesense-block-recovery', {
-      render: BlockRecoverySidebarPanel
-    });
   }
 
   /* ==========================================================================
@@ -956,16 +820,11 @@
         return;
       }
 
-      const grouped = await groupFindings(invalid);
-
-      await executeRepairs(grouped, (allResolved) => {
-        if (allResolved && typeof refreshSidebarPanelFn === 'function') {
-          refreshSidebarPanelFn();
-        }
-      });
+      await groupFindings(invalid);
+      await executeRepairs(grouped);
     })
     .catch((error) => {
       console.warn('[TranslateSense Recovery] Editor readiness check failed:', error);
     });
 
-})(window, document, window.wp);
+})(window, window.wp);
