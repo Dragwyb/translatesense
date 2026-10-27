@@ -138,7 +138,7 @@ class Translate {
 	public static function translate_string( $source_string, $source_lang, $target_lang, $widget_id = 'generic', $post_id = 0, $custom_options = array() ) {
 		if ( empty( trim( (string) $source_string ) ) || $source_lang === $target_lang || self::is_email_or_url( (string) $source_string ) ) {
 			return array(
-				'translated' => $source_string,
+				'translated' => wp_kses_post( $source_string ),
 				'cached'     => true,
 				'hash'       => md5( (string) $widget_id . '_' . (string) $source_string ),
 			);
@@ -154,7 +154,7 @@ class Translate {
 			if ( isset( $custom_options['in_memory_translations'][ $hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $hash ] ) ) {
 				$translated_text = (string) $custom_options['in_memory_translations'][ $hash ];
 				return array(
-					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
+					'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ) ),
 					'cached'     => false,
 					'hash'       => $hash,
 				);
@@ -168,7 +168,7 @@ class Translate {
 				if ( isset( $custom_options['in_memory_translations'][ $filtered_hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_hash ] ) ) {
 					$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_hash ];
 					return array(
-						'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
+						'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ) ),
 						'cached'     => false,
 						'hash'       => $filtered_hash,
 					);
@@ -180,7 +180,7 @@ class Translate {
 		$cached = Hashing_Db::get_cached_translation( $hash, $target_lang );
 		if ( null !== $cached ) {
 			return array(
-				'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $cached ),
+				'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $cached ) ),
 				'cached'     => true,
 				'hash'       => $hash,
 			);
@@ -194,7 +194,7 @@ class Translate {
 			$cached = Hashing_Db::get_cached_translation( $filtered_hash, $target_lang );
 			if ( null !== $cached ) {
 				return array(
-					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $cached ),
+					'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $cached ) ),
 					'cached'     => true,
 					'hash'       => $filtered_hash,
 				);
@@ -202,7 +202,7 @@ class Translate {
 		}
 
 		return array(
-			'translated' => $source_string,
+			'translated' => wp_kses_post( $source_string ),
 			'cached'     => false,
 			'hash'       => $hash,
 		);
