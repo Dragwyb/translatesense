@@ -820,7 +820,7 @@
         return;
       }
 
-      await groupFindings(invalid);
+      const grouped = await groupFindings(invalid);
       await executeRepairs(grouped);
     })
     .catch((error) => {
