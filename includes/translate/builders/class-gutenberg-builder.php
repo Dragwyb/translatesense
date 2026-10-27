@@ -228,6 +228,9 @@ class Gutenberg_Builder extends Base_Builder {
 				if ( isset( $block['innerContent'] ) && is_array( $block['innerContent'] ) && ! empty( $block['innerContent'] ) ) {
 					if ( ! empty( $xpaths ) ) {
 						if ( class_exists( 'DOMDocument' ) && class_exists( 'DOMXPath' ) ) {
+							// sort by content_lenght
+							$temp_strings = array_column( $found_strings, 'original' );
+							usort( $temp_strings, static fn( $a, $b ) => strlen( $b ) <=> strlen( $a ) );
 							$inner_content_modified = false;
 
 							foreach ( $block['innerContent'] as &$inner_content ) {
@@ -245,6 +248,35 @@ class Gutenberg_Builder extends Base_Builder {
 									if ( $translated_html !== $inner_content ) {
 										$inner_content          = $translated_html;
 										$inner_content_modified = true;
+									}
+
+									$pattern = '~' . implode(
+										'|',
+										array_map( 'preg_quote', $temp_strings, array_fill( 0, count( $temp_strings ), '~' ) )
+									) . '~';
+
+									preg_match_all( $pattern, $inner_content, $matches );
+
+									$matched_sources = array_unique( $matches[0] );
+
+									$depth = 0;
+									if ( $matched_sources && ! empty( $matched_sources ) ) {
+										foreach ( $matched_sources as $matched_source ) {
+											++$depth;
+											if ( ! is_string( $matched_source ) || '' === trim( $matched_source ) ) {
+												continue;
+											}
+
+											$inner_content_modified = true;
+											$inner_content          = str_replace( $matched_source, $found_strings[ md5( $matched_source ) ]['translated'], $inner_content );
+											if ( $depth > 20 ) {
+												break;
+											}
+										}
+									}
+
+									if ( $inner_content_modified && empty( $block['innerBlocks'] ) ) {
+										$block['innerHTML'] = implode( '', $block['innerContent'] );
 									}
 								}
 							}
@@ -309,6 +341,8 @@ class Gutenberg_Builder extends Base_Builder {
 								$block['innerHTML'] = implode( '', $block['innerContent'] );
 							}
 						}
+
+						unset( $inner_content );
 					}
 				}
 			}
