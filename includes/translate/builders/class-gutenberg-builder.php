@@ -111,11 +111,11 @@ class Gutenberg_Builder extends Base_Builder {
 			return;
 		}
 
-		if ( empty( $attr_val ) ) {
+		if ( empty( $attr_val ) || ! isset( $attr_val['default'] ) ) {
 			return;
 		}
 
-		$block_attrs[ $attr_name ] = $attr_val;
+		$block_attrs[ $attr_name ] = $attr_val['default'];
 
 		self::translate_attribute_value_recursive(
 			$block_attrs[ $attr_name ],
@@ -303,11 +303,14 @@ class Gutenberg_Builder extends Base_Builder {
 			return $html;
 		}
 
-		$dom = new DOMDocument();
-		libxml_use_internal_errors( true );
-		$wrapped = '<?xml encoding="UTF-8"><body>' . $html . '</body>';
-		$loaded  = $dom->loadHTML( $wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		// DOMDocument repairs incomplete HTML fragments. Parse a working copy only;
+		// never serialize that repaired DOM back into Gutenberg's original fragment.
+		$dom              = new DOMDocument( '1.0', 'UTF-8' );
+		$previous_setting = libxml_use_internal_errors( true );
+		$wrapped          = '<?xml encoding="UTF-8"><body>' . $html . '</body>';
+		$loaded           = $dom->loadHTML( $wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
 		libxml_clear_errors();
+		libxml_use_internal_errors( $previous_setting );
 
 		if ( ! $loaded ) {
 			return $html;
@@ -315,8 +318,13 @@ class Gutenberg_Builder extends Base_Builder {
 
 		$xpath           = new DOMXPath( $dom );
 		$body            = $dom->getElementsByTagName( 'body' )->item( 0 );
+		$source_html     = $html;
 		$modified        = false;
 		$processed_nodes = array();
+
+		if ( ! $body ) {
+			return $html;
+		}
 
 		foreach ( $xpaths as $xp_entry ) {
 			$query = is_array( $xp_entry ) ? ( $xp_entry['value'] ?? $xp_entry['xpath'] ?? '' ) : (string) $xp_entry;
@@ -325,74 +333,163 @@ class Gutenberg_Builder extends Base_Builder {
 				continue;
 			}
 
-			if ( $modified ) {
-				$xpath = new DOMXPath( $dom );
-				$body  = $dom->getElementsByTagName( 'body' )->item( 0 );
-			}
-
-			$nodes = $body ? @$xpath->query( $query, $body ) : @$xpath->query( $query );
+			$nodes = @$xpath->query( $query, $body );
 			if ( ! $nodes || 0 === $nodes->length ) {
 				continue;
 			}
 
-			// Snapshot nodes into array to avoid live NodeList mutation issues
+			// Snapshot the NodeList before changing the working DOM.
 			$nodes_arr = array();
 			foreach ( $nodes as $node_item ) {
 				$nodes_arr[] = $node_item;
 			}
 
 			foreach ( $nodes_arr as $node ) {
-				try {
-					if ( ! $node || ! ( $node instanceof DOMNode ) ) {
-						continue;
-					}
-
-					// Verify node is still valid in libxml
-					if ( ! ( $node instanceof DOMAttr ) && ! ( $node instanceof DOMText ) ) {
-						if ( ! @$node->hasChildNodes() ) {
-							// Node checked safely
-						}
-					}
-
-					$node_id = spl_object_hash( $node );
-					if ( isset( $processed_nodes[ $node_id ] ) ) {
-						continue;
-					}
-					$processed_nodes[ $node_id ] = true;
-
-					$orig_val = self::get_node_content( $node, $dom );
-					if ( '' === trim( $orig_val ) ) {
-						continue;
-					}
-
-					$res = Translate::translate_string(
-						$orig_val,
-						$source_lang,
-						$target_lang,
-						$block_name,
-						$post_id,
-						$custom_opts
-					);
-
-					$translated_val = $res['translated'] ?? $orig_val;
-					if ( $translated_val !== $orig_val ) {
-						self::set_node_content( $node, $translated_val, $dom );
-						$modified = true;
-						$xpath    = new DOMXPath( $dom );
-						$body     = $dom->getElementsByTagName( 'body' )->item( 0 );
-					}
-				} catch ( \Throwable $e ) {
-					// Invalidated or detached libxml node, safely skip
+				if ( ! ( $node instanceof DOMNode ) ) {
 					continue;
 				}
+
+				$node_id = spl_object_hash( $node );
+				if ( isset( $processed_nodes[ $node_id ] ) ) {
+					continue;
+				}
+				$processed_nodes[ $node_id ] = true;
+
+				$orig_val = self::get_node_content( $node, $dom );
+				if ( '' === trim( $orig_val ) ) {
+					continue;
+				}
+
+				$res = Translate::translate_string(
+					$orig_val,
+					$source_lang,
+					$target_lang,
+					$block_name,
+					$post_id,
+					$custom_opts
+				);
+
+				$translated_val = isset( $res['translated'] ) && is_string( $res['translated'] )
+					? $res['translated']
+					: $orig_val;
+
+				if ( $translated_val === $orig_val ) {
+					continue;
+				}
+
+				// Patch only the matching source value. Do not use saveHTML() output as
+				// the return value, because it may contain parser-generated closing tags.
+				$patched_html = self::replace_translated_value_in_source( $source_html, $node, $orig_val, $translated_val );
+				if ( $patched_html !== $source_html ) {
+					$source_html = $patched_html;
+					$modified    = true;
+				}
+
+				// Keep the working DOM in sync for subsequent XPath expressions, but
+				// never serialize this DOM into the Gutenberg fragment.
+				self::set_node_content( $node, $translated_val, $dom );
+				$xpath = new DOMXPath( $dom );
+				$body  = $dom->getElementsByTagName( 'body' )->item( 0 );
 			}
 		}
 
-		if ( ! $modified || ! $body ) {
-			return $html;
+		return $modified ? $source_html : $html;
+	}
+
+	/**
+	 * Replace a translated DOM value in the original source without serializing the
+	 * repaired DOM. This preserves incomplete opening/closing tag boundaries in
+	 * Gutenberg innerContent fragments.
+	 *
+	 * @param string  $source_html    Original source fragment (or already patched fragment).
+	 * @param DOMNode $node           XPath-selected node from the working DOM.
+	 * @param string  $original_value Original value read from the node.
+	 * @param string  $translated     Translated value.
+	 * @return string
+	 */
+	private static function replace_translated_value_in_source( string $source_html, DOMNode $node, string $original_value, string $translated ): string {
+		if ( $node instanceof DOMAttr ) {
+			$attribute_name = preg_quote( $node->name, '/' );
+			$replaced       = false;
+			$pattern        = "/(\\b" . $attribute_name . "\\s*=\\s*)([\"'])(.*?)\\2/is";
+
+			$result = preg_replace_callback(
+				$pattern,
+				static function ( $matches ) use ( &$replaced, $original_value, $translated ) {
+					if ( $replaced || html_entity_decode( $matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8' ) !== $original_value ) {
+						return $matches[0];
+					}
+
+					$replaced = true;
+					return $matches[1] . $matches[2] . htmlspecialchars( $translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ) . $matches[2];
+				},
+				$source_html,
+				1
+			);
+
+			return is_string( $result ) ? $result : $source_html;
 		}
 
-		return self::get_node_inner_html( $body, $dom );
+		// For element selections, get_node_content() returns inner HTML. If it is
+		// plain text, patch only a text segment. For selected text nodes, do the same.
+		$is_plain_text = $node instanceof DOMText || ( $node instanceof \DOMElement && false === strpos( $original_value, '<' ) );
+		if ( $is_plain_text ) {
+			$decoded_original = html_entity_decode( $original_value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+			$encoded_new      = htmlspecialchars( $translated, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+			$candidates       = array_unique(
+				array_filter(
+					array(
+						$original_value,
+						$decoded_original,
+						htmlspecialchars( $decoded_original, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8' ),
+						htmlspecialchars( $decoded_original, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ),
+						htmlentities( $decoded_original, ENT_NOQUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8' ),
+					),
+					static fn( $value ) => is_string( $value ) && '' !== $value
+				)
+			);
+
+			foreach ( $candidates as $candidate ) {
+				$replaced = false;
+				$result   = preg_replace_callback(
+					'/(<[^>]*>|[^<]+)/s',
+					static function ( $matches ) use ( &$replaced, $candidate, $encoded_new ) {
+						// Never replace text inside an HTML tag or attribute.
+						if ( $replaced || ( isset( $matches[1] ) && 0 === strpos( $matches[1], '<' ) ) ) {
+							return $matches[0];
+						}
+
+						$position = strpos( $matches[0], $candidate );
+						if ( false === $position ) {
+							return $matches[0];
+						}
+
+						$replaced = true;
+						return substr( $matches[0], 0, $position ) . $encoded_new . substr( $matches[0], $position + strlen( $candidate ) );
+					},
+					$source_html
+				);
+
+				if ( $replaced && is_string( $result ) ) {
+					return $result;
+				}
+			}
+
+			return $source_html;
+		}
+
+		// For selected elements containing nested markup, replace only an exact
+		// source substring. If the DOM-normalized value is not present verbatim,
+		// leave the source untouched rather than risk damaging the block structure.
+		$original_html = trim( $original_value );
+		if ( '' !== $original_html && false !== strpos( $source_html, $original_html ) ) {
+			$replacement = false !== strpos( $translated, '<' )
+				? $translated
+				: htmlspecialchars( $translated, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+			return substr_replace( $source_html, $replacement, strpos( $source_html, $original_html ), strlen( $original_html ) );
+		}
+
+		return $source_html;
 	}
 
 	/**
