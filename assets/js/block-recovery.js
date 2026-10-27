@@ -494,7 +494,7 @@
         }
 
         emptyChecks++;
-        if (emptyChecks >= 4) finish(resolve, blocks);
+        if (emptyChecks >= 30) finish(resolve, blocks);
       };
 
       unsubscribe = wp.data.subscribe(check);
