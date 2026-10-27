@@ -93,15 +93,19 @@ class Gutenberg_Builder extends Base_Builder {
 	 * look up its translation in the translation store using the existing block-name and string hash.
 	 * If a valid translation exists, set it explicitly in $block['attrs'].
 	 *
-	 * @param array  $block        Parsed block array (passed by reference).
+	 * @param array  $block_attrs        Parsed block array (passed by reference).
 	 * @param string $block_name   Block type name.
+	 * @param string $attr_name    Attribute name.
+	 * @param mixed  $attr_val     Attribute value.
+	 * @param array  $found_strings  Array of found strings.
+	 * @param array  $k_info       Key information.
 	 * @param string $source_lang  Source language code.
 	 * @param string $target_lang  Target language code.
 	 * @param int    $post_id      Post ID.
 	 * @param array  $custom_opts  Custom options including in_memory_translations.
 	 * @return void
 	 */
-	public static function apply_missing_default_attributes( array &$block_attrs, string $block_name, string $attr_name, $attr_val, array $k_info, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
+	public static function apply_missing_default_attributes( array &$block_attrs, string $block_name, string $attr_name, $attr_val, &$found_strings, array $k_info, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): void {
 
 		if ( empty( $block_name ) ) {
 			return;
@@ -122,6 +126,7 @@ class Gutenberg_Builder extends Base_Builder {
 			$k_info,
 			$block_name,
 			$attr_val,
+			$found_strings,
 			$source_lang,
 			$target_lang,
 			$post_id,
@@ -200,12 +205,12 @@ class Gutenberg_Builder extends Base_Builder {
 					foreach ( $keys as $k_name => $k_info ) {
 						$current_defaults_attr = $defaults_attr[ $k_name ] ?? '';
 						if ( isset( $block['attrs'][ $k_name ] ) ) {
-							$found_strings[] = $block['attrs'][ $k_name ];
 							self::translate_attribute_value_recursive(
 								$block['attrs'][ $k_name ],
 								$k_info,
 								$name,
 								$current_defaults_attr,
+								$found_strings,
 								$source_lang,
 								$target_lang,
 								$post_id,
@@ -214,7 +219,7 @@ class Gutenberg_Builder extends Base_Builder {
 							);
 						} elseif ( ! empty( $current_defaults_attr ) ) {
 							// 1b. Apply missing default attributes for registered block type
-							self::apply_missing_default_attributes( $block['attrs'], $name, $k_name, $current_defaults_attr, $k_info, $source_lang, $target_lang, $post_id, $custom_opts );
+							self::apply_missing_default_attributes( $block['attrs'], $name, $k_name, $current_defaults_attr, $found_strings, $k_info, $source_lang, $target_lang, $post_id, $custom_opts );
 						}
 					}
 				}
@@ -260,6 +265,7 @@ class Gutenberg_Builder extends Base_Builder {
 									array(),
 									$name,
 									'',
+									$found_strings,
 									$source_lang,
 									$target_lang,
 									$post_id,
@@ -275,6 +281,33 @@ class Gutenberg_Builder extends Base_Builder {
 
 						if ( $inner_content_modified && empty( $block['innerBlocks'] ) ) {
 							$block['innerHTML'] = implode( '', $block['innerContent'] );
+						}
+					} elseif ( isset( $block['innerContent'] ) && ! empty( $block['innerContent'] ) && ! empty( $found_strings ) ) {
+						// sort by content_lenght
+						$temp_strings = array_column( $found_strings, 'original' );
+						usort( $temp_strings, static fn( $a, $b ) => strlen( $b ) <=> strlen( $a ) );
+						$inner_content_modified = false;
+
+						foreach ( $block['innerContent'] as &$inner_content ) {
+							$pattern = '~' . implode(
+								'|',
+								array_map( 'preg_quote', $temp_strings, array_fill( 0, count( $temp_strings ), '~' ) )
+							) . '~';
+
+							preg_match_all( $pattern, $inner_content, $matches );
+
+							$matched_sources = array_unique( $matches[0] );
+
+							if ( $matched_sources && ! empty( $matched_sources ) ) {
+								foreach ( $matched_sources as $matched_source ) {
+									$inner_content_modified = true;
+									$inner_content          = str_replace( $matched_source, $found_strings[ md5( $matched_source ) ]['translated'], $inner_content );
+								}
+							}
+
+							if ( $inner_content_modified && empty( $block['innerBlocks'] ) ) {
+								$block['innerHTML'] = implode( '', $block['innerContent'] );
+							}
 						}
 					}
 				}
@@ -604,13 +637,14 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param mixed  $schema_info
 	 * @param string $block_name
 	 * @param string $current_defaults_attr
+	 * @param array  $found_strings
 	 * @param string $source_lang
 	 * @param string $target_lang
 	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @param int    $depth
 	 */
-	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, $current_defaults_attr, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, $current_defaults_attr, &$found_strings, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
 		if ( $depth > 20 ) {
 			return;
 		}
@@ -625,7 +659,13 @@ class Gutenberg_Builder extends Base_Builder {
 					$post_id,
 					$custom_opts
 				);
-				$val = $res['translated'];
+				if ( $val !== $res['translated'] ) {
+					$found_strings[ md5( $val ) ] = array(
+						'original'   => $val,
+						'translated' => $res['translated'],
+					);
+					$val                          = $res['translated'];
+				}
 			}
 			return;
 		}
@@ -646,6 +686,7 @@ class Gutenberg_Builder extends Base_Builder {
 					$item_schema,
 					$block_name,
 					$current_defaults_attr[ $index ] ?? null,
+					$found_strings,
 					$source_lang,
 					$target_lang,
 					$post_id,
@@ -669,6 +710,7 @@ class Gutenberg_Builder extends Base_Builder {
 						$child_schema,
 						$block_name,
 						$current_defaults_attr,
+						$found_strings,
 						$source_lang,
 						$target_lang,
 						$post_id,
@@ -681,6 +723,7 @@ class Gutenberg_Builder extends Base_Builder {
 						$block_name,
 						$child_key,
 						$current_defaults_attr,
+						$found_strings,
 						$child_schema,
 						$source_lang,
 						$target_lang,
@@ -696,6 +739,7 @@ class Gutenberg_Builder extends Base_Builder {
 					null,
 					$block_name,
 					$current_defaults_attr[ $k ] ?? null,
+					$found_strings,
 					$source_lang,
 					$target_lang,
 					$post_id,
