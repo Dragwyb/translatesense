@@ -37,13 +37,12 @@
   /* ==========================================================================
      HTML Normalization Helper
      ========================================================================== */
-
   function normalizeHtml(html) {
     if (!html || typeof html !== 'string') return '';
-    return html
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/\r\n?/g, '\n')
-      .replace(/>\s+</g, '><')
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    return (doc.body.textContent || '')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -58,6 +57,29 @@
       .replace(/'/g, '&#039;');
   }
 
+  function getHtmlInnerText(html) {
+    if (typeof html !== 'string' || !html) return '';
+    if (typeof DOMParser !== 'undefined') {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const text = doc.body.textContent || doc.body.innerText || '';
+        return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      } catch (e) {
+        // Fallback to regex
+      }
+    }
+    return html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#039;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
   /**
    * Normalize a string for source-to-translation matching. Original attribute
@@ -297,13 +319,14 @@
     const schemaAttrs = blockType.attributes || {};
     const restoredAttrs = cloneRepairValue(block.attributes || {}) || {};
     const restoredKeys = [];
+    let sourceHTML = ''
 
     let mapping = { values: new Map(), ambiguous: new Set() };
 
     try {
       // Diagnostic blocks must never be inserted into the live editor.
       const sourceBlock = wp.blocks.createBlock(blockName, restoredAttrs);
-      const sourceHTML = wp.blocks.getBlockContent(sourceBlock);
+      sourceHTML = wp.blocks.getBlockContent(sourceBlock);
 
       if (typeof sourceHTML === 'string' && sourceHTML) {
         mapping = buildRepairStringMap(sourceHTML, block.originalContent);
@@ -333,6 +356,42 @@
     }
 
     if (!restoredKeys.length) {
+      // When any validationIssues block attribute not found restoredKeys or empty restoredKeys,
+      // check if sourceHTML and block.originalContent html innerTexts are same.
+      const sourceInnerText = getHtmlInnerText(sourceHTML);
+      const originalInnerText = getHtmlInnerText(block.originalContent);
+
+      if (
+        (sourceInnerText && originalInnerText && sourceInnerText === originalInnerText) ||
+        (sourceInnerText === '' && originalInnerText === '' && normalizeHtml(sourceHTML) === normalizeHtml(block.originalContent))
+      ) {
+        // In this case we don't need to update attribute, only update originalContent with existing attributes
+        try {
+          const candidateBlock = wp.blocks.createBlock(
+            blockName,
+            restoredAttrs,
+            Array.isArray(block.innerBlocks) ? block.innerBlocks : []
+          );
+
+          return {
+            ...base,
+            canRepair: true,
+            candidateBlock,
+            restoredKeys: [{ key: 'originalContent', source: 'markup-sync' }],
+            stringMappings: mapping.values.size,
+            ambiguousStrings: Array.from(mapping.ambiguous),
+            reason: 'Markup synchronized: Text content matches existing attributes.'
+          };
+        } catch (candidateErr) {
+          console.log(candidateErr)
+          return {
+            ...base,
+            reason: 'Candidate block could not be created with existing attributes.',
+            diagnostic: candidateErr && candidateErr.message ? candidateErr.message : ''
+          };
+        }
+      }
+
       return {
         ...base,
         reason: 'No missing defaults or unambiguous string mappings were found.',
