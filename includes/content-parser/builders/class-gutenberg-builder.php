@@ -122,23 +122,6 @@ class Gutenberg_Builder extends Base_Builder {
 							$k_name,
 							$no_translate
 						);
-					} elseif ( ! array_key_exists( $k_name, $block_attrs ) ) {
-						// Missing default attribute: if key is missing from attrs, check registered defaults
-						$defaults = Translate_Gutenberg_Builder::get_block_default_attributes( $name );
-						if ( isset( $defaults[ $k_name ] ) && is_string( $defaults[ $k_name ] ) && '' !== trim( $defaults[ $k_name ] ) ) {
-							$default_val = $defaults[ $k_name ];
-							$this->extract_attribute_strings_recursive(
-								$default_val,
-								$k_info,
-								$post_id,
-								$lang,
-								$extracted,
-								$found_strings,
-								$name,
-								$k_name,
-								$no_translate
-							);
-						}
 					}
 				}
 			}
