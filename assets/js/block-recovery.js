@@ -201,6 +201,17 @@
     }
   }
 
+  function cloneBlockTree(block) {
+    if (!block || typeof block !== 'object') return block;
+    return {
+      ...block,
+      attributes: cloneRepairValue(block.attributes || {}),
+      innerBlocks: Array.isArray(block.innerBlocks)
+        ? block.innerBlocks.map(cloneBlockTree)
+        : []
+    };
+  }
+
   /* ==========================================================================
      Block Scanning & Analysis
      ========================================================================== */
@@ -635,12 +646,20 @@
           </div>
 
           ${!repairResults.allResolved && repairResults.unresolvedItems && repairResults.unresolvedItems.length > 0 ? `
-            <div class="ts-recovery-section-title">Unresolved Blocks Summary</div>
+            <div class="ts-recovery-section-title">Unresolved Blocks</div>
             <div class="ts-recovery-card-list">
               ${repairResults.unresolvedItems.map(un => `
                 <div class="ts-recovery-block-row">
-                  <span style="font-weight: 600;">${escapeHtml(un.title)}</span>
-                  <span class="ts-recovery-pill unresolved">${escapeHtml(un.reason)}</span>
+                  <div class="ts-recovery-block-info">
+                    <div class="ts-recovery-block-icon">🧩</div>
+                    <div class="ts-recovery-block-names">
+                      <div class="ts-recovery-block-title">${escapeHtml(un.title || 'Block')}</div>
+                      <div class="ts-recovery-block-tag">${escapeHtml(un.name || '')}</div>
+                    </div>
+                  </div>
+                  <div class="ts-recovery-block-badge-group">
+                    <span class="ts-recovery-pill unresolved">⚠️ ${escapeHtml(un.reason || 'Unresolved block schema')}</span>
+                  </div>
                 </div>
               `).join('')}
             </div>
@@ -707,43 +726,214 @@
       renderContent();
 
       const blockEditorDispatch = wp.data.dispatch('core/block-editor');
+      const blockEditorSelect = wp.data.select('core/block-editor');
       let repairedCount = 0;
       let failedCount = 0;
       const unresolvedItems = [];
 
+      // 1. Create a replaceBlockCache array
+      const replaceBlockCache = [];
+      const directReplacements = [];
+      const stagedRepairs = [];
+
       for (const group of findings) {
         for (const item of group.items) {
-          if (item.canRepair && item.candidateBlock && blockEditorDispatch) {
-            try {
-              blockEditorDispatch.replaceBlock(item.block.clientId, item.candidateBlock);
+          if (!item.canRepair || !item.candidateBlock || !blockEditorDispatch) {
+            failedCount++;
+            unresolvedItems.push({
+              title: group.title || 'Block',
+              name: group.name || (item.block && item.block.name) || '',
+              reason: item.reason || 'Unresolved block schema',
+              clientId: (item.block && item.block.clientId) || ''
+            });
+            continue;
+          }
 
-              const updatedBlock = wp.data.select('core/block-editor').getBlock(item.candidateBlock.clientId);
-              if (updatedBlock && updatedBlock.isValid !== false) {
-                repairedCount++;
-              } else {
-                failedCount++;
-                unresolvedItems.push({
-                  title: group.title,
-                  name: group.name,
-                  reason: 'Editor state verification failed after replacement'
-                });
-              }
-            } catch (err) {
+          // 3. Create array temp for each block to store parent block IDs in top upper to lower order
+          let temp = [];
+          if (blockEditorSelect && typeof blockEditorSelect.getBlockParents === 'function') {
+            const rawParents = blockEditorSelect.getBlockParents(item.block.clientId, false);
+            if (Array.isArray(rawParents)) {
+              temp = rawParents;
+            }
+          }
+          if ((!Array.isArray(temp) || temp.length === 0) && blockEditorSelect && typeof blockEditorSelect.getBlockRootClientId === 'function') {
+            let curr = item.block.clientId;
+            temp = [];
+            while (true) {
+              const pId = blockEditorSelect.getBlockRootClientId(curr);
+              if (!pId) break;
+              temp.unshift(pId);
+              curr = pId;
+            }
+          }
+          if (!Array.isArray(temp)) {
+            temp = [];
+          }
+
+          // Direct replacement case: block does not have a parent block
+          if (temp.length === 0) {
+            directReplacements.push({
+              item,
+              groupTitle: group.title,
+              groupName: group.name
+            });
+            continue;
+          }
+
+          // Nested block case: block is inside innerBlock(s)
+          // Top upper order parent block is at temp[0]
+          const rootParentId = temp[0];
+          let rootRef;
+
+          // If parent block saved in replaceBlockCache object, get reference from cache object
+          if (replaceBlockCache[rootParentId]) {
+            rootRef = replaceBlockCache[rootParentId];
+          } else {
+            // If not exist, then first save this parent object in this reference replaceBlockCache object and get reference from this object
+            const editorRootBlock = blockEditorSelect ? blockEditorSelect.getBlock(rootParentId) : null;
+            if (!editorRootBlock) {
               failedCount++;
               unresolvedItems.push({
-                title: group.title,
-                name: group.name,
-                reason: err.message || 'Replacement failed'
+                title: group.title || 'Block',
+                name: group.name || (item.block && item.block.name) || '',
+                reason: 'Root parent block (' + rootParentId + ') not found in editor',
+                clientId: item.block.clientId
               });
+              continue;
             }
+            replaceBlockCache[rootParentId] = cloneBlockTree(editorRootBlock);
+            rootRef = replaceBlockCache[rootParentId];
+          }
+
+          // Run loop for this parent id to find parent blocks in this reference block innerBlock by finding block index
+          let currentParentRef = rootRef;
+          let traversalSuccess = true;
+
+          for (let pIdx = 1; pIdx < temp.length; pIdx++) {
+            const currentParentId = temp[pIdx];
+            if (!currentParentRef || !Array.isArray(currentParentRef.innerBlocks)) {
+              traversalSuccess = false;
+              break;
+            }
+            const foundChildIndex = currentParentRef.innerBlocks.findIndex(
+              child => child && child.clientId === currentParentId
+            );
+            if (foundChildIndex === -1) {
+              traversalSuccess = false;
+              break;
+            }
+            currentParentRef = currentParentRef.innerBlocks[foundChildIndex];
+          }
+
+          if (!traversalSuccess || !currentParentRef || !Array.isArray(currentParentRef.innerBlocks)) {
+            failedCount++;
+            unresolvedItems.push({
+              title: group.title || 'Block',
+              name: group.name || (item.block && item.block.name) || '',
+              reason: 'Parent block container could not be traversed in block hierarchy',
+              clientId: item.block.clientId
+            });
+            continue;
+          }
+
+          // Find target block index in currentParentRef.innerBlocks
+          const targetBlockIndex = currentParentRef.innerBlocks.findIndex(
+            child => child && child.clientId === item.block.clientId
+          );
+
+          if (targetBlockIndex === -1) {
+            failedCount++;
+            unresolvedItems.push({
+              title: group.title || 'Block',
+              name: group.name || (item.block && item.block.name) || '',
+              reason: 'Target block index not found in parent innerBlocks',
+              clientId: item.block.clientId
+            });
+            continue;
+          }
+
+          // Save this repair block in this innerBlock at right index where we need to replace
+          currentParentRef.innerBlocks[targetBlockIndex] = item.candidateBlock;
+          stagedRepairs.push({
+            item,
+            groupTitle: group.title,
+            groupName: group.name
+          });
+        }
+      }
+
+      // In attempt recovery case when block is in innerBlock, update top first root parent block instead of current block
+      const cachedRootIds = Object.keys(replaceBlockCache);
+      for (const rootId of cachedRootIds) {
+        const updatedRoot = replaceBlockCache[rootId];
+        try {
+          let replacement = null;
+          if (typeof wp.blocks.createBlock === 'function') {
+            try {
+              replacement = wp.blocks.createBlock(
+                updatedRoot.name,
+                updatedRoot.attributes,
+                updatedRoot.innerBlocks
+              );
+            } catch (createErr) {
+              replacement = updatedRoot;
+            }
+          } else {
+            replacement = updatedRoot;
+          }
+          blockEditorDispatch.replaceBlock(rootId, replacement || updatedRoot);
+        } catch (err) {
+          console.error('[TranslateSense Recovery] Error replacing root parent block:', err);
+        }
+      }
+
+      // Current replace only works when block does not have a parent block
+      for (const direct of directReplacements) {
+        try {
+          blockEditorDispatch.replaceBlock(direct.item.block.clientId, direct.item.candidateBlock);
+          stagedRepairs.push(direct);
+        } catch (err) {
+          failedCount++;
+          unresolvedItems.push({
+            title: direct.groupTitle || 'Block',
+            name: direct.groupName || (direct.item.block && direct.item.block.name) || '',
+            reason: err.message || 'Direct block replacement failed',
+            clientId: direct.item.block.clientId
+          });
+        }
+      }
+
+      // Verify repaired blocks in editor state
+      for (const staged of stagedRepairs) {
+        const candidateClientId = staged.item.candidateBlock ? staged.item.candidateBlock.clientId : null;
+        const updatedBlock = candidateClientId && blockEditorSelect
+          ? blockEditorSelect.getBlock(candidateClientId)
+          : null;
+
+        if (updatedBlock && updatedBlock.isValid !== false) {
+          repairedCount++;
+        } else if (!updatedBlock && blockEditorSelect) {
+          const originalBlock = blockEditorSelect.getBlock(staged.item.block.clientId);
+          if (!originalBlock || originalBlock.isValid !== false) {
+            repairedCount++;
           } else {
             failedCount++;
             unresolvedItems.push({
-              title: group.title,
-              name: group.name,
-              reason: item.reason || 'Unresolved block schema'
+              title: staged.groupTitle || 'Block',
+              name: staged.groupName || (staged.item.block && staged.item.block.name) || '',
+              reason: 'Block remains invalid after replacement',
+              clientId: staged.item.block.clientId
             });
           }
+        } else {
+          failedCount++;
+          unresolvedItems.push({
+            title: staged.groupTitle || 'Block',
+            name: staged.groupName || (staged.item.block && staged.item.block.name) || '',
+            reason: 'Editor state verification failed after replacement',
+            clientId: staged.item.block.clientId
+          });
         }
       }
 
@@ -752,9 +942,20 @@
 
       if (allResolved) {
         cleared = await clearRecoveryMetadataOnServer();
+
+        // Save post to persist recovered block markup to the database
+        const editorDispatch = wp.data.dispatch('core/editor');
+        if (editorDispatch && typeof editorDispatch.savePost === 'function') {
+          try {
+            await editorDispatch.savePost();
+          } catch (saveErr) {
+            console.warn('[TranslateSense Recovery] Auto-save post notice:', saveErr);
+          }
+        }
+
         if (wp.data.dispatch('core/notices')) {
           wp.data.dispatch('core/notices').createSuccessNotice(
-            '✨ TranslateSense: All affected blocks recovered and verified successfully!',
+            '✨ TranslateSense: All affected blocks recovered, verified, and saved successfully!',
             { type: 'snackbar', isDismissible: true }
           );
         }
