@@ -20,6 +20,9 @@
   const postId = parseInt(config.postId, 10) || 0;
   const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
   const nonce = config.nonce || '';
+  const blockEditorSelect = wp.data.select('core/block-editor');
+  const blockEditorDispatch = wp.data.dispatch('core/block-editor');
+
 
   if (!postId || !config.isPending) {
     return;
@@ -38,11 +41,11 @@
   function normalizeHtml(html) {
     if (!html || typeof html !== 'string') return '';
     return html
-      .replace(/<!--[\s\S]*?-->/g, '') // remove HTML comments
-      .replace(/\s+/g, ' ')            // collapse whitespace
-      .replace(/> </g, '><')           // remove inter-tag spaces
-      .trim()
-      .toLowerCase();
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/>\s+</g, '><')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function escapeHtml(str) {
@@ -55,87 +58,190 @@
       .replace(/'/g, '&#039;');
   }
 
+
+  /**
+   * Normalize a string for source-to-translation matching. Original attribute
+   * values are preserved unless an unambiguous mapping is found.
+   */
+  function normalizeRepairString(value) {
+    return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+  }
+
+  /**
+   * Store an unambiguous source => translated string mapping. If the same
+   * source string maps to different translations, mark it ambiguous and never
+   * use it for automatic replacement.
+   */
+  function addRepairMapping(mapping, source, translated) {
+    const key = normalizeRepairString(source);
+    const value = normalizeRepairString(translated);
+
+    if (!key || !value || key === value || mapping.ambiguous.has(key)) {
+      return;
+    }
+
+    if (mapping.values.has(key) && mapping.values.get(key) !== value) {
+      mapping.values.delete(key);
+      mapping.ambiguous.add(key);
+      return;
+    }
+
+    mapping.values.set(key, value);
+  }
+
+  /**
+   * Compare generated default/source markup with the affected saved markup.
+   * Only corresponding DOM nodes and a conservative list of human-readable
+   * attributes are used to infer mappings. CSS classes, IDs and URLs are not
+   * treated as translatable strings.
+   */
+  function buildRepairStringMap(sourceHTML, translatedHTML) {
+    const mapping = { values: new Map(), ambiguous: new Set() };
+
+    if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML) {
+      return mapping;
+    }
+
+    if (typeof DOMParser === 'undefined') {
+      return mapping;
+    }
+
+    try {
+      const parser = new DOMParser();
+      const sourceDoc = parser.parseFromString(sourceHTML, 'text/html');
+      const translatedDoc = parser.parseFromString(translatedHTML, 'text/html');
+      const translatableAttributes = [
+        'alt', 'title', 'aria-label', 'aria-description', 'placeholder',
+        'value', 'summary', 'caption'
+      ];
+
+      function compareNodes(sourceNode, translatedNode, depth) {
+        if (!sourceNode || !translatedNode || depth > 100) return;
+        if (sourceNode.nodeType !== translatedNode.nodeType) return;
+
+        if (sourceNode.nodeType === Node.TEXT_NODE) {
+          addRepairMapping(mapping, sourceNode.nodeValue, translatedNode.nodeValue);
+          return;
+        }
+
+        if (sourceNode.nodeType !== Node.ELEMENT_NODE) return;
+        if (sourceNode.tagName !== translatedNode.tagName) return;
+
+        translatableAttributes.forEach((attrName) => {
+          if (sourceNode.hasAttribute(attrName) && translatedNode.hasAttribute(attrName)) {
+            addRepairMapping(
+              mapping,
+              sourceNode.getAttribute(attrName),
+              translatedNode.getAttribute(attrName)
+            );
+          }
+        });
+
+        const sourceChildren = sourceNode.childNodes;
+        const translatedChildren = translatedNode.childNodes;
+        if (sourceChildren.length !== translatedChildren.length) return;
+
+        for (let i = 0; i < sourceChildren.length; i++) {
+          compareNodes(sourceChildren[i], translatedChildren[i], depth + 1);
+        }
+      }
+
+      compareNodes(sourceDoc.body, translatedDoc.body, 0);
+    } catch (error) {
+      // A failed DOM comparison must not produce speculative mappings.
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Recursively translate exact string values using only unambiguous mappings.
+   * Objects/arrays are cloned; non-string values remain unchanged.
+   */
+  function translateRepairValue(value, mapping, depth = 0) {
+    if (depth > 100) return value;
+
+    if (typeof value === 'string') {
+      const key = normalizeRepairString(value);
+      if (!key || mapping.ambiguous.has(key) || !mapping.values.has(key)) {
+        return value;
+      }
+
+      const translated = mapping.values.get(key);
+      const leading = (value.match(/^\s*/) || [''])[0];
+      const trailing = (value.match(/\s*$/) || [''])[0];
+      return leading + translated + trailing;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => translateRepairValue(item, mapping, depth + 1));
+    }
+
+    if (value && typeof value === 'object') {
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype !== Object.prototype && prototype !== null) return value;
+
+      const result = {};
+      Object.keys(value).forEach((key) => {
+        result[key] = translateRepairValue(value[key], mapping, depth + 1);
+      });
+
+      return result;
+    }
+
+    return value;
+  }
+
+  function cloneRepairValue(value) {
+    if (value === undefined || value === null || typeof value !== 'object') return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
   /* ==========================================================================
      Block Scanning & Analysis
      ========================================================================== */
 
   /**
-   * Recursively scan block hierarchy for invalid blocks.
+   * Scan the block tree sequentially. Await each analysis and nested scan so
+   * result ordering is deterministic and editor work is not run concurrently.
    *
-   * @param {Array} blocks Root blocks array.
-   * @param {number} depth Recursion depth safety guard.
-   * @return {Array} List of invalid block objects.
+   * @param {Array} blocks Blocks to scan.
+   * @param {number} depth Recursion safety guard.
+   * @return {Promise<Array>} Invalid or suspicious blocks.
    */
-  function scanInvalidBlocks(blocks, depth = 0) {
-    if (!Array.isArray(blocks) || depth > 50) {
-      return [];
-    }
+  async function scanInvalidBlocks(blocks, depth = 0) {
+    if (!Array.isArray(blocks) || depth > 50) return [];
 
     const invalid = [];
 
     for (const block of blocks) {
-      if (!block || typeof block !== 'object') {
-        continue;
-      }
+      if (!block || typeof block !== 'object') continue;
 
-      let isInvalid = false;
+      let isInvalid = block.isValid === false || block.name === 'core/missing';
 
-      // 1. Direct Gutenberg invalid flag
-      if (block.isValid === false) {
-        isInvalid = true;
-      }
-
-      // 2. Missing block type
-      if (block.name === 'core/missing') {
-        isInvalid = true;
-      }
-
-      // 3. Proactive check for missing JavaScript schema defaults
-      if (!isInvalid && block.name && block.name !== 'core/freeform') {
-        const blockType = wp.blocks.getBlockType(block.name);
-        if (blockType && blockType.attributes && block.originalContent) {
-          const schemaAttrs = blockType.attributes;
-          const currentAttrs = block.attributes || {};
-          let hasMissingDefaults = false;
-          const candidateAttrs = { ...currentAttrs };
-
-          for (const attrKey of Object.keys(schemaAttrs)) {
-            const def = schemaAttrs[attrKey];
-            if (!def) continue;
-            if (currentAttrs[attrKey] === undefined && def.default !== undefined) {
-              candidateAttrs[attrKey] = (typeof def.default === 'object' && def.default !== null)
-                ? JSON.parse(JSON.stringify(def.default))
-                : def.default;
-              hasMissingDefaults = true;
-            }
-          }
-
-          if (hasMissingDefaults && typeof blockType.save === 'function') {
-            try {
-              const currentGen = wp.blocks.getBlockContent({ name: block.name, attributes: currentAttrs, innerBlocks: block.innerBlocks || [] });
-              const candidateGen = wp.blocks.getBlockContent({ name: block.name, attributes: candidateAttrs, innerBlocks: block.innerBlocks || [] });
-
-              // If current attributes fail to match original HTML, but candidate matches
-              if (normalizeHtml(currentGen) !== normalizeHtml(block.originalContent) &&
-                normalizeHtml(candidateGen) === normalizeHtml(block.originalContent)) {
-                isInvalid = true;
-              }
-            } catch (e) {
-              // Ignore save execution errors
-            }
-          }
+      if (
+        !isInvalid &&
+        block.name &&
+        block.name !== 'core/freeform' &&
+        typeof block.originalContent === 'string'
+      ) {
+        try {
+          const analysis = await analyzeBlockRepair(block);
+          isInvalid = analysis.canRepair === true;
+        } catch (error) {
+          console.warn('[TranslateSense Recovery] Block analysis failed:', error);
         }
       }
 
-      if (isInvalid) {
-        invalid.push(block);
-      }
+      if (isInvalid) invalid.push(block);
 
-      if (Array.isArray(block.innerBlocks) && block.innerBlocks.length > 0) {
-        const nestedInvalid = scanInvalidBlocks(block.innerBlocks, depth + 1);
-        if (nestedInvalid.length > 0) {
-          invalid.push(...nestedInvalid);
-        }
+      if (Array.isArray(block.innerBlocks) && block.innerBlocks.length) {
+        const nestedInvalid = await scanInvalidBlocks(block.innerBlocks, depth + 1);
+        invalid.push(...nestedInvalid);
       }
     }
 
@@ -143,181 +249,138 @@
   }
 
   /**
-   * Inspect an invalid block and determine if missing default attributes can safely repair it.
-   * Conservative and non-destructive.
+   * Analyze a block without inserting or mutating anything in the editor.
+   * A repair is offered only when candidate serialization matches saved markup.
    *
-   * @param {Object} block Gutenberg block object.
-   * @return {Object} Analysis result.
+   * @param {Object} block Gutenberg block.
+   * @return {Promise<Object>} Repair analysis.
    */
-  function analyzeBlockRepair(block) {
-    const blockName = block.name || '';
-    const blockType = wp.blocks.getBlockType(blockName);
+  async function analyzeBlockRepair(block) {
+    const blockName = block && block.name ? block.name : '';
+    const blockType = blockName ? wp.blocks.getBlockType(blockName) : null;
+    const base = {
+      block,
+      canRepair: false,
+      candidateBlock: null,
+      restoredKeys: [],
+      stringMappings: 0,
+      ambiguousStrings: []
+    };
 
     if (!blockType) {
-      return {
-        canRepair: false,
-        reason: 'Missing JavaScript block registration',
-        block,
-        candidateBlock: null,
-        restoredKeys: []
-      };
+      return { ...base, reason: 'Block type is not registered in this editor session.' };
+    }
+
+    if (typeof block.originalContent !== 'string' || !block.originalContent) {
+      return { ...base, reason: 'Saved block HTML is unavailable on this block object.' };
+    }
+
+    if (typeof wp.blocks.createBlock !== 'function' || typeof wp.blocks.getBlockContent !== 'function') {
+      return { ...base, reason: 'Required Gutenberg block APIs are unavailable.' };
+    }
+
+    if (!block.validationIssues || block.validationIssues.length === 0) {
+      return { ...base, reason: 'Block is valid and does not need repair.' };
     }
 
     const schemaAttrs = blockType.attributes || {};
-    const currentAttrs = block.attributes || {};
-    const restoredAttrs = { ...currentAttrs };
+    const restoredAttrs = cloneRepairValue(block.attributes || {}) || {};
     const restoredKeys = [];
 
-    // 1. Inspect schema for missing defaults or HTML sources
-    for (const attrName of Object.keys(schemaAttrs)) {
-      const def = schemaAttrs[attrName];
-      if (!def) continue;
+    let mapping = { values: new Map(), ambiguous: new Set() };
 
-      // Never overwrite already defined attribute values
-      if (currentAttrs[attrName] !== undefined && currentAttrs[attrName] !== null) {
-        continue;
-      }
+    try {
+      // Diagnostic blocks must never be inserted into the live editor.
+      const sourceBlock = wp.blocks.createBlock(blockName, restoredAttrs);
+      const sourceHTML = wp.blocks.getBlockContent(sourceBlock);
 
-      // Case A: Missing attribute with a registered default
-      if (def.default !== undefined) {
-        restoredAttrs[attrName] = (typeof def.default === 'object' && def.default !== null)
-          ? JSON.parse(JSON.stringify(def.default))
-          : def.default;
-        restoredKeys.push({ key: attrName, type: 'default', value: def.default });
-      }
-      // Case B: Attribute sourced from HTML/text with a selector
-      else if (def.source && def.selector && block.originalContent) {
-        try {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(block.originalContent, 'text/html');
-          const el = doc.querySelector(def.selector);
-          if (el) {
-            let extracted = null;
-            if (def.source === 'text') extracted = el.textContent;
-            else if (def.source === 'html') extracted = el.innerHTML;
-            else if (def.source === 'attribute' && def.attribute) extracted = el.getAttribute(def.attribute);
+      if (typeof sourceHTML === 'string' && sourceHTML) {
+        mapping = buildRepairStringMap(sourceHTML, block.originalContent);
 
-            if (extracted !== null && extracted !== undefined) {
-              restoredAttrs[attrName] = extracted;
-              restoredKeys.push({ key: attrName, type: 'source', value: extracted });
+        if (mapping.values.size) {
+          const mappedAttrs = translateRepairValue(restoredAttrs, mapping);
+
+          for (const key of Object.keys(mappedAttrs || {})) {
+            if (
+              mappedAttrs[key] !== restoredAttrs[key] &&
+              !restoredKeys.some((item) => item.key === key)
+            ) {
+              restoredKeys.push({ key, source: 'markup-mapping' });
             }
           }
-        } catch (e) {
-          // Ignore DOM parsing errors
+
+          Object.assign(restoredAttrs, mappedAttrs);
         }
       }
-    }
-
-    // 2. Recursively check inner blocks if any
-    let candidateInnerBlocks = block.innerBlocks || [];
-    let innerBlocksRepaired = false;
-
-    if (Array.isArray(candidateInnerBlocks) && candidateInnerBlocks.length > 0) {
-      candidateInnerBlocks = candidateInnerBlocks.map(child => {
-        if (child.isValid === false) {
-          const childAnalysis = analyzeBlockRepair(child);
-          if (childAnalysis.canRepair && childAnalysis.candidateBlock) {
-            innerBlocksRepaired = true;
-            return childAnalysis.candidateBlock;
-          }
-        }
-        return child;
-      });
-    }
-
-    if (restoredKeys.length === 0 && !innerBlocksRepaired) {
+    } catch (error) {
       return {
-        canRepair: false,
-        reason: 'No missing default attributes detected in registered schema',
-        block,
-        candidateBlock: null,
-        restoredKeys: []
+        ...base,
+        restoredKeys,
+        reason: 'Could not generate or compare a safe repair candidate.',
+        diagnostic: error && error.message ? error.message : ''
       };
     }
 
-    // 3. Create candidate block
-    let candidateBlock = null;
+    if (!restoredKeys.length) {
+      return {
+        ...base,
+        reason: 'No missing defaults or unambiguous string mappings were found.',
+        stringMappings: mapping.values.size,
+        ambiguousStrings: Array.from(mapping.ambiguous)
+      };
+    }
+
     try {
-      candidateBlock = wp.blocks.createBlock(blockName, restoredAttrs, candidateInnerBlocks);
-    } catch (err) {
+      const candidateBlock = wp.blocks.createBlock(blockName, restoredAttrs);
+      const candidateHTML = wp.blocks.getBlockContent(candidateBlock);
+
+      if (
+        typeof candidateHTML !== 'string' ||
+        !candidateHTML ||
+        normalizeHtml(candidateHTML) !== normalizeHtml(block.originalContent)
+      ) {
+        return {
+          ...base,
+          restoredKeys,
+          stringMappings: mapping.values.size,
+          ambiguousStrings: Array.from(mapping.ambiguous),
+          reason: 'Candidate markup does not match the saved block HTML.'
+        };
+      }
+
       return {
-        canRepair: false,
-        reason: 'Could not construct candidate block: ' + err.message,
-        block,
-        candidateBlock: null,
-        restoredKeys: []
+        ...base,
+        canRepair: true,
+        candidateBlock,
+        restoredKeys,
+        stringMappings: mapping.values.size,
+        ambiguousStrings: Array.from(mapping.ambiguous),
+        reason: 'Candidate markup matches the saved block HTML.'
+      };
+    } catch (error) {
+      return {
+        ...base,
+        restoredKeys,
+        stringMappings: mapping.values.size,
+        ambiguousStrings: Array.from(mapping.ambiguous),
+        reason: 'Candidate block could not be serialized safely.'
       };
     }
-
-    // 4. Validate Candidate Block with Gutenberg validation mechanisms
-    let isValidCandidate = false;
-
-    // Test 1: Serialize candidate and re-parse with Gutenberg's official block parser
-    try {
-      const serialized = wp.blocks.serialize([candidateBlock]);
-      const parsed = wp.blocks.parse(serialized);
-      if (parsed && parsed[0] && parsed[0].isValid !== false) {
-        isValidCandidate = true;
-      }
-    } catch (e) {
-      // Fallback to next test
-    }
-
-    // Test 2: HTML save match against originalContent
-    if (!isValidCandidate && typeof blockType.save === 'function' && block.originalContent) {
-      try {
-        const genHtml = wp.blocks.getBlockContent(candidateBlock);
-        if (normalizeHtml(genHtml) === normalizeHtml(block.originalContent)) {
-          isValidCandidate = true;
-        }
-      } catch (e) {
-        // Fallback to next test
-      }
-    }
-
-    // Test 3: Dynamic blocks where save() returns null
-    if (!isValidCandidate && typeof blockType.save === 'function') {
-      try {
-        const testEl = blockType.save({ attributes: restoredAttrs });
-        if (testEl === null && restoredKeys.length > 0) {
-          isValidCandidate = true;
-        }
-      } catch (e) {
-        // Fallback
-      }
-    }
-
-    if (!isValidCandidate) {
-      return {
-        canRepair: false,
-        reason: 'Restored attributes did not satisfy Gutenberg block validation',
-        block,
-        candidateBlock: null,
-        restoredKeys
-      };
-    }
-
-    return {
-      canRepair: true,
-      candidateBlock,
-      restoredKeys,
-      block
-    };
   }
 
   /**
-   * Group invalid blocks by block type for clean summary display.
+   * Group findings in document order and await each analysis.
    *
-   * @param {Array} invalidBlocks
-   * @return {Array} Grouped analysis.
+   * @param {Array} invalidBlocks Invalid blocks.
+   * @return {Promise<Array>} Grouped findings.
    */
-  function groupFindings(invalidBlocks) {
-    const groups = {};
+  async function groupFindings(invalidBlocks) {
+    const groups = Object.create(null);
 
     for (const block of invalidBlocks) {
-      const name = block.name || 'unknown';
+      const name = block && block.name ? block.name : 'unknown';
       const blockType = wp.blocks.getBlockType(name);
-      const title = (blockType && blockType.title) ? blockType.title : name;
+      const title = blockType && blockType.title ? blockType.title : name;
 
       if (!groups[name]) {
         groups[name] = {
@@ -330,14 +393,15 @@
         };
       }
 
-      const analysis = analyzeBlockRepair(block);
-
+      const analysis = await analyzeBlockRepair(block);
       groups[name].totalCount++;
+
       if (analysis.canRepair) {
         groups[name].repairableCount++;
       } else {
         groups[name].unresolvedCount++;
       }
+
       groups[name].items.push(analysis);
     }
 
@@ -379,50 +443,68 @@
      Editor Readiness Waiter (Safe against premature empty blocks)
      ========================================================================== */
 
-  function waitForEditorReady(onReady) {
-    let executed = false;
-    let pollCount = 0;
+  /**
+   * Wait for Gutenberg's initial block tree. Resolves with [] for a valid empty
+   * post only after repeated checks, and rejects on timeout.
+   *
+   * @param {number} timeoutMs Maximum wait.
+   * @return {Promise<Array>}
+   */
+  function waitForEditorReady(timeoutMs = 15000) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let unsubscribe = null;
+      let pollTimer = null;
+      let timeoutTimer = null;
+      let emptyChecks = 0;
 
-    const check = () => {
-      if (executed) return true;
-      pollCount++;
+      const cleanup = () => {
+        if (unsubscribe) {
+          try { unsubscribe(); } catch (error) { }
+          unsubscribe = null;
+        }
+        if (pollTimer) clearInterval(pollTimer);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+      };
 
-      const editorSelect = wp.data.select('core/editor');
-      const blockEditorSelect = wp.data.select('core/block-editor');
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback(value);
+      };
 
-      const isEditorReady = editorSelect && typeof editorSelect.__unstableIsEditorReady === 'function'
-        ? editorSelect.__unstableIsEditorReady()
-        : true;
+      const check = () => {
+        if (settled) return;
 
-      const blocks = blockEditorSelect && typeof blockEditorSelect.getBlocks === 'function'
-        ? blockEditorSelect.getBlocks()
-        : null;
+        const editorSelect = wp.data.select('core/editor');
+        const blockSelect = wp.data.select('core/block-editor');
+        const ready = editorSelect &&
+          (typeof editorSelect.__unstableIsEditorReady !== 'function' ||
+            editorSelect.__unstableIsEditorReady());
+        const blocks = blockSelect && typeof blockSelect.getBlocks === 'function'
+          ? blockSelect.getBlocks()
+          : null;
 
-      // Ensure blocks array is populated or waited long enough for empty post
-      const isReadyToScan = isEditorReady && Array.isArray(blocks) && (blocks.length > 0 || pollCount >= 12);
+        if (!ready || !Array.isArray(blocks)) return;
 
-      if (isReadyToScan) {
-        executed = true;
-        setTimeout(onReady, 400);
-        return true;
-      }
-      return false;
-    };
+        if (blocks.length > 0) {
+          finish(resolve, blocks);
+          return;
+        }
 
-    if (check()) return;
+        emptyChecks++;
+        if (emptyChecks >= 4) finish(resolve, blocks);
+      };
 
-    const unsubscribe = wp.data.subscribe(() => {
-      if (check()) {
-        unsubscribe();
-      }
+      unsubscribe = wp.data.subscribe(check);
+      pollTimer = setInterval(check, 250);
+      timeoutTimer = setTimeout(() => {
+        finish(reject, new Error('Timed out waiting for the Gutenberg editor.'));
+      }, timeoutMs);
+
+      check();
     });
-
-    const timer = setInterval(() => {
-      if (check()) {
-        clearInterval(timer);
-        try { unsubscribe(); } catch (e) { }
-      }
-    }, 250);
   }
 
   /* ==========================================================================
@@ -537,7 +619,7 @@
           <div style="text-align: center; padding: 40px 20px;">
             <div class="ts-recovery-spinner dark" style="width: 36px; height: 36px; border-width: 3px; margin-bottom: 16px;"></div>
             <h4 style="margin: 0 0 8px 0; font-size: 16px; color: #0f172a;">Repairing Block Attributes...</h4>
-            <p style="margin: 0; font-size: 13.5px; color: #64748b;">Applying conservative schema defaults and re-verifying block validity in Gutenberg...</p>
+            <p style="margin: 0; font-size: 13.5px; color: #64748b;">Comparing registered defaults, translated strings, and saved block markup...</p>
           </div>
         `;
       } else if (currentMode === 'results' && repairResults) {
@@ -547,7 +629,7 @@
             <div class="ts-recovery-banner-text">
               <div class="ts-recovery-banner-title">${repairResults.allResolved ? 'Block Recovery Completed Successfully!' : 'Partial Block Recovery Completed'}</div>
               <div>${repairResults.allResolved
-            ? `All ${repairResults.repairedCount} affected blocks were repaired and confirmed valid in the Gutenberg editor.`
+            ? `All ${repairResults.repairedCount} affected blocks were repaired and their saved markup matched the recovery candidate.`
             : `${repairResults.repairedCount} blocks repaired. ${repairResults.failedCount} blocks could not be safely repaired automatically.`}</div>
             </div>
           </div>
@@ -746,11 +828,27 @@
       if (isScanning) return;
       setIsScanning(true);
 
-      const blockEditorSelect = wp.data.select('core/block-editor');
-      const blocks = blockEditorSelect ? blockEditorSelect.getBlocks() : [];
-      const invalid = scanInvalidBlocks(blocks);
+      let blocks = [];
+      let invalid = [];
 
-      setIsScanning(false);
+      try {
+        const editorSelect = wp.data.select('core/block-editor');
+        blocks = editorSelect && typeof editorSelect.getBlocks === 'function'
+          ? editorSelect.getBlocks()
+          : [];
+        invalid = await scanInvalidBlocks(blocks);
+      } catch (error) {
+        console.error('[TranslateSense Recovery] Scan failed:', error);
+        if (wp.data.dispatch('core/notices')) {
+          wp.data.dispatch('core/notices').createErrorNotice(
+            'Block scan failed. Please try again.',
+            { type: 'snackbar', isDismissible: true }
+          );
+        }
+        return;
+      } finally {
+        setIsScanning(false);
+      }
 
       if (invalid.length === 0) {
         // If blocks exist and none are invalid, clear server metadata
@@ -767,7 +865,7 @@
         return;
       }
 
-      const grouped = groupFindings(invalid);
+      const grouped = await groupFindings(invalid);
       showRecoveryModal(grouped, (allResolved) => {
         if (allResolved) {
           setPending(false);
@@ -827,36 +925,35 @@
      Initial Scan Execution on Load
      ========================================================================== */
 
-  waitForEditorReady(async () => {
-    if (initialScanPerformed) return;
-    initialScanPerformed = true;
+  waitForEditorReady()
+    .then(async (blocks) => {
+      if (initialScanPerformed) return;
+      initialScanPerformed = true;
 
-    const blockEditorSelect = wp.data.select('core/block-editor');
-    const blocks = blockEditorSelect ? blockEditorSelect.getBlocks() : [];
+      if (!Array.isArray(blocks) || blocks.length === 0) {
+        // Do not clear recovery metadata for an empty post without explicit review.
+        return;
+      }
 
-    if (!Array.isArray(blocks) || blocks.length === 0) {
-      // Do not clear metadata if blocks have not arrived yet
-      return;
-    }
+      const invalid = await scanInvalidBlocks(blocks);
 
-    const invalid = scanInvalidBlocks(blocks);
+      if (invalid.length === 0) {
+        await clearRecoveryMetadataOnServer();
+        return;
+      }
 
-    if (invalid.length === 0) {
-      // All blocks are genuinely valid in loaded post -> clear recovery flag
-      await clearRecoveryMetadataOnServer();
-      return;
-    }
+      const grouped = await groupFindings(invalid);
 
-    const grouped = groupFindings(invalid);
-
-    // If invalid blocks exist and prompt not dismissed in this session, show modal
-    if (!sessionPromptDismissed) {
-      showRecoveryModal(grouped, (allResolved) => {
-        if (allResolved && typeof refreshSidebarPanelFn === 'function') {
-          refreshSidebarPanelFn();
-        }
-      });
-    }
-  });
+      if (!sessionPromptDismissed) {
+        showRecoveryModal(grouped, (allResolved) => {
+          if (allResolved && typeof refreshSidebarPanelFn === 'function') {
+            refreshSidebarPanelFn();
+          }
+        });
+      }
+    })
+    .catch((error) => {
+      console.warn('[TranslateSense Recovery] Editor readiness check failed:', error);
+    });
 
 })(window, document, window.wp);
