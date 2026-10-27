@@ -179,7 +179,7 @@ abstract class Base_Builder {
 			$post_id,
 			$target_lang,
 			$translated_title,
-			$wp_post_content
+			wp_slash( $wp_post_content )
 		);
 
 		if ( is_wp_error( $created_post_id ) ) {
