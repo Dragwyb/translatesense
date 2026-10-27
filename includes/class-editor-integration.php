@@ -336,12 +336,99 @@ class Editor_Integration {
 	 */
 	public static function enqueue_block_editor_assets() {
 		global $post;
-		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( ! $post ) {
 			return;
 		}
 
 		$post_id = (int) $post->ID;
+
+		// Check and enqueue Gutenberg Block Recovery System if pending
+		self::maybe_enqueue_block_recovery_assets( $post_id );
+
+		if ( self::is_post_already_translated( $post_id ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+			return;
+		}
+
 		self::enqueue_universal_editor_assets( $post_id, 'gutenberg' );
+	}
+
+	/**
+	 * Maybe enqueue Gutenberg Block Recovery assets based on strict post meta condition.
+	 *
+	 * Only loads if BOTH '_translatesense_translated' and '_block_repair_pending' post meta are present,
+	 * the post has Gutenberg blocks, and the user has permission to edit the post.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	public static function maybe_enqueue_block_recovery_assets( int $post_id ): void {
+		if ( $post_id <= 0 ) {
+			return;
+		}
+
+		$is_translated     = get_post_meta( $post_id, '_translatesense_translated', true );
+		$is_repair_pending = get_post_meta( $post_id, '_block_repair_pending', true );
+
+		// Strictly check that BOTH conditions are fulfilled
+		if ( empty( $is_translated ) || '0' === (string) $is_translated || empty( $is_repair_pending ) || '0' === (string) $is_repair_pending ) {
+			return;
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || ! function_exists( 'has_blocks' ) || ! has_blocks( $post->post_content ) ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		self::enqueue_block_recovery_assets( $post_id );
+	}
+
+	/**
+	 * Enqueue dedicated Block Recovery CSS and JS assets.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	public static function enqueue_block_recovery_assets( int $post_id ): void {
+		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
+
+		$css_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/css/block-recovery' . $assets_ext . '.css' )
+			? 'assets/css/block-recovery' . $assets_ext . '.css'
+			: 'assets/css/block-recovery.css';
+
+		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/block-recovery' . $assets_ext . '.js' )
+			? 'assets/js/block-recovery' . $assets_ext . '.js'
+			: 'assets/js/block-recovery.js';
+
+		$ver = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? (string) time() : TRANSLATESENSE_VERSION;
+
+		wp_enqueue_style(
+			'translatesense-block-recovery',
+			TRANSLATESENSE_PLUGIN_URL . $css_file,
+			array(),
+			$ver
+		);
+
+		wp_enqueue_script(
+			'translatesense-block-recovery',
+			TRANSLATESENSE_PLUGIN_URL . $js_file,
+			array( 'wp-blocks', 'wp-element', 'wp-components', 'wp-data', 'wp-editor', 'wp-edit-post', 'wp-i18n', 'wp-notices', 'wp-plugins' ),
+			$ver,
+			true
+		);
+
+		wp_localize_script(
+			'translatesense-block-recovery',
+			'TranslateSenseRecoveryData',
+			array(
+				'postId'    => $post_id,
+				'isPending' => true,
+				'restUrl'   => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'     => wp_create_nonce( 'wp_rest' ),
+				'pluginUrl' => TRANSLATESENSE_PLUGIN_URL,
+			)
+		);
 	}
 
 	/**

@@ -419,6 +419,29 @@ class Rest_Api {
 				),
 			)
 		);
+
+		/*
+		 * 13. Clear Gutenberg block repair pending flag.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/clear-block-repair',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'clear_block_repair' ),
+				'permission_callback' => array( __CLASS__, 'permission_clear_block_repair' ),
+				'args'                => array(
+					'post_id' => array(
+						'required'          => true,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+						'validate_callback' => static function ( $value ) {
+							return absint( $value ) > 0;
+						},
+					),
+				),
+			)
+		);
 	}
 
 
@@ -1202,6 +1225,20 @@ class Rest_Api {
 		return self::require_edit_post(
 			self::get_request_post_id( $request ),
 			__( 'You are not allowed to mark this post as translated.', 'translatesense' )
+		);
+	}
+
+	/**
+	 * Permission: POST /clear-block-repair.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_clear_block_repair( WP_REST_Request $request ) {
+
+		return self::require_edit_post(
+			self::get_request_post_id( $request ),
+			__( 'You are not allowed to clear block repair status for this post.', 'translatesense' )
 		);
 	}
 
@@ -2903,6 +2940,15 @@ class Rest_Api {
 				'_translatesense_translated',
 				'1'
 			);
+
+			$target_post = get_post( $target_post_id );
+			if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
+				update_post_meta(
+					$target_post_id,
+					'_block_repair_pending',
+					'1'
+				);
+			}
 		}
 
 		$updated = Bulk_Process::update_job(
@@ -2973,6 +3019,60 @@ class Rest_Api {
 			'_translatesense_translated',
 			'1'
 		);
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'post_id' => $post_id,
+			)
+		);
+	}
+
+	/**
+	 * Clear block repair pending flag.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function clear_block_repair( WP_REST_Request $request ) {
+		$post_id = self::get_request_post_id( $request );
+
+		if ( ! $post_id ) {
+			return new WP_Error(
+				'invalid_post',
+				__( 'A valid Post ID is required.', 'translatesense' ),
+				array(
+					'status' => 400,
+				)
+			);
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error(
+				'post_not_found',
+				__( 'The requested post could not be found.', 'translatesense' ),
+				array(
+					'status' => 404,
+				)
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return new WP_Error(
+				'rest_forbidden',
+				__(
+					'You do not have permission to edit this post.',
+					'translatesense'
+				),
+				array(
+					'status' => rest_authorization_required_code(),
+				)
+			);
+		}
+
+		delete_post_meta( $post_id, '_block_repair_pending' );
 
 		return rest_ensure_response(
 			array(

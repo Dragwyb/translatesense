@@ -378,6 +378,14 @@ class Bulk_Process {
 
 			$target_post_id = $result['target_post_id'] ?? 0;
 
+			// If target post contains Gutenberg blocks, mark for block recovery check
+			if ( $target_post_id > 0 ) {
+				$target_post = get_post( $target_post_id );
+				if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
+					update_post_meta( $target_post_id, '_block_repair_pending', '1' );
+				}
+			}
+
 			// 5. Mark as completed and save translated strings array
 			self::update_job(
 				$job_id,
