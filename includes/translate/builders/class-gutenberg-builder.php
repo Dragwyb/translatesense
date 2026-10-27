@@ -321,19 +321,21 @@ class Gutenberg_Builder extends Base_Builder {
 						$inner_content_modified = false;
 
 						foreach ( $block['innerContent'] as &$inner_content ) {
-							$pattern = '~' . implode(
-								'|',
-								array_map( 'preg_quote', $temp_strings, array_fill( 0, count( $temp_strings ), '~' ) )
-							) . '~';
+							if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+								$pattern = '~' . implode(
+									'|',
+									array_map( 'preg_quote', $temp_strings, array_fill( 0, count( $temp_strings ), '~' ) )
+								) . '~';
 
-							preg_match_all( $pattern, $inner_content, $matches );
+								preg_match_all( $pattern, $inner_content, $matches );
 
-							$matched_sources = array_unique( $matches[0] );
+								$matched_sources = array_unique( $matches[0] );
 
-							if ( $matched_sources && ! empty( $matched_sources ) ) {
-								foreach ( $matched_sources as $matched_source ) {
-									$inner_content_modified = true;
-									$inner_content          = str_replace( $matched_source, $found_strings[ md5( $matched_source ) ]['translated'], $inner_content );
+								if ( $matched_sources && ! empty( $matched_sources ) ) {
+									foreach ( $matched_sources as $matched_source ) {
+										$inner_content_modified = true;
+										$inner_content          = str_replace( $matched_source, $found_strings[ md5( $matched_source ) ]['translated'], $inner_content );
+									}
 								}
 							}
 
