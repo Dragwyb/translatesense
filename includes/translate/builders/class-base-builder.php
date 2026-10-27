@@ -163,9 +163,16 @@ abstract class Base_Builder {
 		$translated_excerpt   = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
 		$translated_post_name = $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts );
 
+		// Allow style CSS properities temporarily
+		add_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
+
 		// 2. Translate Builder Content
 		$translated_content = $this->translate_content( $source_post, $source_lang, $target_lang, $custom_opts );
-		$wp_post_content    = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
+
+		// Remove filter after translation
+		remove_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
+
+		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
 		// 3. Create or update Polylang translated post
 		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
@@ -232,5 +239,25 @@ abstract class Base_Builder {
 	 */
 	public function after_save_post( int $source_post_id, int $target_post_id, string $source_lang, string $target_lang, $translated_content ): void {
 		// Base implementation - can be extended by builders
+	}
+
+	/**
+	 * Allow all CSS properties for builder content translation
+	 *
+	 * @param array $properties
+	 * @return array
+	 */
+	public function allowed_css_properties( array $properties ): array {
+		$layout_styles = array(
+			'display',
+			'justify-content',
+			'align-items',
+			'flex-direction',
+			'flex-wrap',
+			'gap',
+			'fill',
+		);
+
+		return apply_filters( 'translatesense_allowed_css_properties', array_merge( $properties, $layout_styles ) );
 	}
 }
