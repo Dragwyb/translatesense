@@ -198,11 +198,13 @@ class Gutenberg_Builder extends Base_Builder {
 									$custom_opts,
 									0
 								);
+
 								if ( $orig !== $inner_content ) {
 									$inner_content_modified = true;
 								}
 							}
 						}
+
 						unset( $inner_content );
 
 						if ( $inner_content_modified && empty( $block['innerBlocks'] ) ) {
@@ -247,6 +249,32 @@ class Gutenberg_Builder extends Base_Builder {
 
 						unset( $inner_content );
 					}
+				}
+			} else {
+				foreach ( $block['innerContent'] as &$inner_content ) {
+					if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
+						$orig = $inner_content;
+						self::translate_attribute_value_recursive(
+							$inner_content,
+							array(),
+							$name,
+							$found_strings,
+							$source_lang,
+							$target_lang,
+							$post_id,
+							$custom_opts,
+							0
+						);
+
+						if ( $orig !== $inner_content ) {
+							$inner_content_modified = true;
+						}
+					}
+				}
+						unset( $inner_content );
+
+				if ( $inner_content_modified && empty( $block['innerBlocks'] ) ) {
+					$block['innerHTML'] = implode( '', $block['innerContent'] );
 				}
 			}
 
@@ -904,6 +932,7 @@ class Gutenberg_Builder extends Base_Builder {
 					$post_id,
 					$custom_opts
 				);
+
 				if ( $val !== $res['translated'] ) {
 					$found_strings[ md5( $val ) ] = array(
 						'original'   => $val,

@@ -144,7 +144,7 @@ class Gutenberg_Builder extends Base_Builder {
 							}
 						}
 					}
-				} elseif ( empty( $found_strings ) && empty( $no_translate ) && ! empty( $keys ) ) {
+				} elseif ( empty( $found_strings ) && empty( $no_translate ) ) {
 					foreach ( $block['innerContent'] as $inner_content ) {
 						if ( is_string( $inner_content ) && '' !== trim( $inner_content ) ) {
 							$this->record_extracted_string( $post_id, $lang, $name, 'innerContent', $inner_content, $extracted );
