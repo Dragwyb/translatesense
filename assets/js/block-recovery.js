@@ -165,10 +165,60 @@
     if (depth > 100) return value;
 
     if (typeof value === 'string') {
-      const key = normalizeRepairString(value);
-      if (!key || mapping.ambiguous.has(key) || !mapping.values.has(key)) {
+      let key = normalizeRepairString(value);
+
+      if (!key) {
         return value;
       }
+
+      if (mapping.ambiguous.has(key)) {
+        return value;
+      }
+
+      if (!mapping.values.has(key)) {
+        if (!/^\s*<[a-z][^>]*>/i.test(key)) {
+          return value;
+        }
+
+        const innerTexts = key
+          .replace(/<!--[\s\S]*?-->/g, '')
+          .replace(/<[^>]*>/g, '\n')
+          .split('\n')
+          .map((text) =>
+            text
+              .replace(/&nbsp;/gi, ' ')
+              .replace(/&amp;/gi, '&')
+              .replace(/&lt;/gi, '<')
+              .replace(/&gt;/gi, '>')
+              .replace(/&quot;/gi, '"')
+              .replace(/&#0*39;|&#x0*27;|&apos;/gi, "'")
+              .replace(/\s+/g, ' ')
+              .trim()
+          )
+          .filter(Boolean);
+
+        let allKeyExist = innerTexts.every((text) => mapping.values.has(text));
+
+        if (!allKeyExist) {
+          return value;
+        }
+
+        innerTexts.forEach((text) => {
+          const translated = mapping.values.get(text);
+          if (!translated) {
+            allKeyExist = false;
+          }
+
+          key = key.replace(text, translated);
+        })
+
+        if (!allKeyExist) {
+          return value;
+        }
+
+        return key;
+      }
+
 
       const translated = mapping.values.get(key);
       const leading = (value.match(/^\s*/) || [''])[0];
