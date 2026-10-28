@@ -400,20 +400,41 @@
      */
     static isEmailOrUrl(str) {
       if (!str || typeof str !== 'string') return false;
+
       const clean = str.trim();
       if (!clean) return false;
 
-      // 1. Email or mailto:
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) || /^mailto:/i.test(clean)) return true;
+      // 1. Data URIs, e.g. data:image/svg+xml,...
+      if (/^data:image\/[a-z0-9.+-]+(?:;[^,]*)?,/i.test(clean)) {
+        return true;
+      }
 
-      // 2. Protocols and schemes
-      if (/^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i.test(clean)) return true;
+      // 2. Email or mailto:
+      if (
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) ||
+        /^mailto:/i.test(clean)
+      ) {
+        return true;
+      }
 
-      // 3. Media or asset paths
-      if (/^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i.test(clean)) return true;
+      // 3. Protocols and schemes
+      if (
+        /^(https?:\/\/|ftp:\/\/|\/\/|www\.|tel:|sms:|javascript:|callto:|whatsapp:)/i.test(clean)
+      ) {
+        return true;
+      }
 
-      // 4. Domain-like strings
-      if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\/[^\s]*$/i.test(clean)) return true;
+      // 4. Media or asset paths
+      if (
+        /^(\/|\.\/|\.\.\/|#)?[^\s]*\.(png|jpe?g|gif|svg|webp|avif|pdf|mp4|webm|zip|tar|gz|css|js|woff2?|ttf|eot)(\?.*)?$/i.test(clean)
+      ) {
+        return true;
+      }
+
+      // 5. Domain-like strings
+      if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+\/[^\s]*$/i.test(clean)) {
+        return true;
+      }
 
       return false;
     }
@@ -437,33 +458,42 @@
       const tokenMap = {};
       let counter = 0;
 
-      // Regex matching:
-      // 1. Full URLs: http(s)://..., ftp://...
-      // 2. www-prefixed domains: www.example.com/...
-      // 3. Email addresses: user@domain.com
-      // 4. mailto: or tel: links
-      const pattern = /(https?:\/\/[^\s<>"'`]+|ftp:\/\/[^\s<>"'`]+|www\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"'`]*|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|mailto:[^\s<>"'`]+|tel:\+?[0-9\s-]{6,})/gi;
+      // Match data URIs first, including SVG and other image formats.
+      // A data URI ends at whitespace or an HTML delimiter.
+      const pattern =
+        /data:image\/[a-z0-9.+-]+(?:;[^,\s<>"'`]*?)?,[^\s<>"'`]*/gi;
 
-      const maskedText = text.replace(pattern, (match) => {
-        // Strip trailing sentence punctuation if captured (e.g. "https://domain.com/us," -> "," is stripped)
-        let cleanMatch = match;
-        let trailingPunctuation = '';
+      const maskedText = text.replace(
+        new RegExp(
+          [
+            /data:image\/[a-z0-9.+-]+(?:;[^,\s<>"'`]*?)?,[^\s<>"'`]*/,
+            /https?:\/\/[^\s<>"'`]+/,
+            /ftp:\/\/[^\s<>"'`]+/,
+            /www\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"'`]*/,
+            /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+            /mailto:[^\s<>"'`]+/,
+            /tel:\+?[0-9\s-]{6,}/
+          ].map(regex => regex.source).join('|'),
+          'gi'
+        ),
+        (match) => {
+          let cleanMatch = match;
+          let trailingPunctuation = '';
 
-        while (cleanMatch.length > 0 && /[.,;:!?)\],>]$/.test(cleanMatch)) {
-          trailingPunctuation = cleanMatch.slice(-1) + trailingPunctuation;
-          cleanMatch = cleanMatch.slice(0, -1);
+          // Preserve sentence punctuation outside the token.
+          while (cleanMatch.length > 0 && /[.,;:!?)\]]$/.test(cleanMatch)) {
+            trailingPunctuation = cleanMatch.slice(-1) + trailingPunctuation;
+            cleanMatch = cleanMatch.slice(0, -1);
+          }
+
+          if (!cleanMatch) return match;
+
+          const token = `_@__TS_LINK_${counter++}__@_`;
+          tokenMap[token] = cleanMatch;
+
+          return token + trailingPunctuation;
         }
-
-        if (!cleanMatch) {
-          return match;
-        }
-
-        const token = `_@__TS_LINK_${counter}__@_`;
-        tokenMap[token] = cleanMatch;
-        counter++;
-
-        return token + trailingPunctuation;
-      });
+      );
 
       return { maskedText, tokenMap };
     }
