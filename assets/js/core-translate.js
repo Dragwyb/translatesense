@@ -458,7 +458,7 @@
           return match;
         }
 
-        const token = `__TS_LINK_${counter}__`;
+        const token = `_@__TS_LINK_${counter}__@_`;
         tokenMap[token] = cleanMatch;
         counter++;
 
@@ -487,17 +487,23 @@
       let restored = text;
 
       for (const [token, originalVal] of Object.entries(tokenMap)) {
-        // Match token even if translation provider slightly altered casing or spacing
-        const innerToken = token.replace(/^__+|__+$/g, '');
-        const tokenRegex = new RegExp(`__\\s*${innerToken}\\s*__`, 'gi');
-        restored = restored.replace(tokenRegex, originalVal);
+        const match = token.match(/TS_[A-Z]+_\d+/i);
+
+        if (!match) {
+          continue;
+        }
+
+        const id = match[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        const tokenRegex = new RegExp(
+          `[_*\\s]*@\\s*__\\s*${id}\\s*__\\s*@[_*\\s]*`,
+          'gi'
+        );
+
+        restored = restored.replace(tokenRegex, () => String(originalVal));
       }
 
       return restored;
-    }
-
-    unmaskUrlsAndEmails(text, tokenMap) {
-      return TranslateSenseCore.unmaskUrlsAndEmails(text, tokenMap);
     }
 
     /**
@@ -509,7 +515,7 @@
      * @param {Function} translateCallback Async or sync callback: async (cleanText: string) => translatedText
      * @returns {Promise<string>} Translated string with exact HTML tags, spacing, and URLs preserved.
      */
-    static async translateTextPreservingHtml(sourceText, translateCallback) {
+    async translateTextPreservingHtml(sourceText, translateCallback) {
       if (!sourceText || typeof sourceText !== 'string' || sourceText.trim() === '') {
         return sourceText || '';
       }
@@ -564,10 +570,6 @@
       }
 
       return result;
-    }
-
-    async translateTextPreservingHtml(sourceText, translateCallback) {
-      return TranslateSenseCore.translateTextPreservingHtml(sourceText, translateCallback);
     }
 
     /**
