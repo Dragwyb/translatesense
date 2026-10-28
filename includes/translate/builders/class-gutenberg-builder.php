@@ -347,10 +347,21 @@ class Gutenberg_Builder extends Base_Builder {
 					continue;
 				}
 
-				// Patch only the matching source value. Do not use saveHTML() output as
-				// the return value, because it may contain parser-generated closing tags.
-				$patched_html = self::replace_translated_value_in_source( $source_html, $node, $orig_val, $translated_val, $dom );
-				if ( $patched_html === $source_html ) {
+				$outer_html   = $dom->saveHTML( $node );
+				$patched_html = '';
+
+				if ( false !== strpos( $source_html, $outer_html ) ) {
+					$translated_node = str_replace( $orig_val, $translated_val, $outer_html );
+					$source_html     = str_replace( $outer_html, $translated_node, $source_html );
+					$modified        = true;
+					continue;
+				} else {
+					// Patch only the matching source value. Do not use saveHTML() output as
+					// the return value, because it may contain parser-generated closing tags.
+					$patched_html = self::replace_translated_value_in_source( $source_html, $node, $orig_val, $translated_val, $dom );
+				}
+
+				if ( $patched_html === $source_html || '' === $patched_html ) {
 					// Do not let the working DOM diverge from source HTML when a
 					// safe source match could not be established.
 					continue;
@@ -373,6 +384,61 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 
 		return $modified ? $source_html : $html;
+	}
+
+	private static function set_inner_html(
+		DOMElement $node,
+		string $html
+	): bool {
+		$dom = $node->ownerDocument;
+
+		if ( ! $dom ) {
+			return false;
+		}
+
+		// Parse HTML in a temporary document.
+		$temp_dom = new DOMDocument( '1.0', 'UTF-8' );
+
+		$previous = libxml_use_internal_errors( true );
+
+		$loaded = $temp_dom->loadHTML(
+			'<?xml encoding="UTF-8"><div id="ts-fragment-root">' .
+			$html .
+			'</div>',
+			LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+		);
+
+		libxml_clear_errors();
+		libxml_use_internal_errors( $previous );
+
+		if ( ! $loaded ) {
+			return false;
+		}
+
+		$root = $temp_dom->getElementById( 'ts-fragment-root' );
+
+		if ( ! $root ) {
+			return false;
+		}
+
+		// Import all parsed child nodes before changing the target.
+		$new_nodes = array();
+
+		foreach ( $root->childNodes as $child ) {
+			$new_nodes[] = $dom->importNode( $child, true );
+		}
+
+		// Remove existing children.
+		while ( $node->firstChild ) {
+			$node->removeChild( $node->firstChild );
+		}
+
+		// Append new HTML nodes.
+		foreach ( $new_nodes as $child ) {
+			$node->appendChild( $child );
+		}
+
+		return true;
 	}
 
 	/**
@@ -528,28 +594,104 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 
 		/*
-		 * Selected elements containing nested markup. The DOM serializer may
-		 * normalize entities or tag syntax, so only replace an exact unique
-		 * source substring. If it is ambiguous, leave the source unchanged.
+		 * Selected elements containing nested markup.
+		 * Match source tokens against DOM-generated tokens, comparing text
+		 * after entity decoding while preserving raw source offsets.
 		 */
 		$original_html = trim( $original_value );
+
 		if ( '' === $original_html ) {
 			return $source_html;
 		}
 
-		$position = strpos( $source_html, $original_html );
-		if ( false === $position ) {
+		$tokenize = static function ( string $html ): array {
+			$pattern = '~<!--.*?-->|<!\[CDATA\[.*?\]\]>|<(?:[^>"\']|"[^"]*"|\'[^\']*\')*>|[^<]+~s';
+
+			preg_match_all( $pattern, $html, $matches, PREG_OFFSET_CAPTURE );
+
+			$result = array();
+
+			foreach ( $matches[0] as $match ) {
+				$raw = $match[0];
+
+				$result[] = array(
+					'raw'    => $raw,
+					'offset' => $match[1],
+					'is_tag' => '' !== $raw && '<' === $raw[0],
+				);
+			}
+
+			return $result;
+		};
+
+		$original_tokens = $tokenize( $original_html );
+		$source_tokens   = $tokenize( $source_html );
+
+		if ( empty( $original_tokens ) || count( $original_tokens ) > count( $source_tokens ) ) {
 			return $source_html;
 		}
-		if ( false !== strpos( $source_html, $original_html, $position + strlen( $original_html ) ) ) {
+
+		$matches     = array();
+		$token_count = count( $original_tokens );
+
+		for ( $i = 0; $i <= count( $source_tokens ) - $token_count; $i++ ) {
+			$matched = true;
+
+			for ( $j = 0; $j < $token_count; $j++ ) {
+				$original_token = $original_tokens[ $j ];
+				$source_token   = $source_tokens[ $i + $j ];
+
+				// A tag must match the original markup exactly.
+				if ( $original_token['is_tag'] !== $source_token['is_tag'] ) {
+					$matched = false;
+					break;
+				}
+
+				if ( $original_token['is_tag'] ) {
+					if ( $original_token['raw'] !== $source_token['raw'] ) {
+						$matched = false;
+						break;
+					}
+				} else {
+					// Compare decoded text, but retain raw source offsets.
+					if (
+						html_entity_decode( $original_token['raw'], ENT_QUOTES | ENT_HTML5, 'UTF-8' )
+						!== html_entity_decode( $source_token['raw'], ENT_QUOTES | ENT_HTML5, 'UTF-8' )
+					) {
+						$matched = false;
+						break;
+					}
+				}
+			}
+
+			if ( $matched ) {
+				$matches[] = $i;
+			}
+		}
+
+		// Never guess when the fragment occurs more than once.
+		if ( 1 !== count( $matches ) ) {
 			return $source_html;
 		}
+
+		$start_index = $matches[0];
+		$end_index   = $start_index + $token_count - 1;
+
+		$start_offset = $source_tokens[ $start_index ]['offset'];
+
+		$last_token = $source_tokens[ $end_index ];
+		$end_offset = $last_token['offset'] + strlen( $last_token['raw'] );
 
 		$replacement = false !== strpos( $translated, '<' )
 			? $translated
 			: $escape_text( $translated );
 
-		return substr_replace( $source_html, $replacement, $position, strlen( $original_html ) );
+		return substr_replace(
+			$source_html,
+			$replacement,
+			$start_offset,
+			$end_offset - $start_offset
+		);
 	}
 
 	/**
