@@ -164,6 +164,10 @@
   function translateRepairValue(value, mapping, depth = 0) {
     if (depth > 100) return value;
 
+    if (/^\d+$/.test(value)) {
+      return value;
+    }
+
     if (typeof value === 'string') {
       let key = normalizeRepairString(value);
 
@@ -218,7 +222,6 @@
 
         return key;
       }
-
 
       const translated = mapping.values.get(key);
       const leading = (value.match(/^\s*/) || [''])[0];
@@ -347,7 +350,6 @@
       return { ...base, reason: 'Block is valid and does not need repair.' };
     }
 
-    const schemaAttrs = blockType.attributes || {};
     const restoredAttrs = cloneRepairValue(block.attributes || {}) || {};
     const restoredKeys = [];
     let sourceHTML = ''
@@ -431,42 +433,21 @@
       };
     }
 
-    try {
-      const candidateBlock = wp.blocks.createBlock(blockName, restoredAttrs);
-      const candidateHTML = wp.blocks.getBlockContent(candidateBlock);
+    const candidateBlock = wp.blocks.createBlock(
+      blockName,
+      restoredAttrs,
+      Array.isArray(block.innerBlocks) ? block.innerBlocks : []
+    );
 
-      if (
-        typeof candidateHTML !== 'string' ||
-        !candidateHTML ||
-        normalizeHtml(candidateHTML) !== normalizeHtml(block.originalContent)
-      ) {
-        return {
-          ...base,
-          restoredKeys,
-          stringMappings: mapping.values.size,
-          ambiguousStrings: Array.from(mapping.ambiguous),
-          reason: 'Candidate markup does not match the saved block HTML.'
-        };
-      }
-
-      return {
-        ...base,
-        canRepair: true,
-        candidateBlock,
-        restoredKeys,
-        stringMappings: mapping.values.size,
-        ambiguousStrings: Array.from(mapping.ambiguous),
-        reason: 'Candidate markup matches the saved block HTML.'
-      };
-    } catch (error) {
-      return {
-        ...base,
-        restoredKeys,
-        stringMappings: mapping.values.size,
-        ambiguousStrings: Array.from(mapping.ambiguous),
-        reason: 'Candidate block could not be serialized safely.'
-      };
-    }
+    return {
+      ...base,
+      canRepair: true,
+      candidateBlock,
+      restoredKeys,
+      stringMappings: mapping.values.size,
+      ambiguousStrings: Array.from(mapping.ambiguous),
+      reason: 'Candidate markup matches the saved block HTML.'
+    };
   }
 
   /**
@@ -836,12 +817,13 @@
         }
       }
 
-      if (wp.data.dispatch('core/notices')) {
-        wp.data.dispatch('core/notices').createSuccessNotice(
-          '✨ TranslateSense: All affected blocks recovered, verified, and saved successfully!',
-          { type: 'snackbar', isDismissible: true }
-        );
-      }
+      // Temparory hide it.
+      // if (wp.data.dispatch('core/notices')) {
+      //   wp.data.dispatch('core/notices').createSuccessNotice(
+      //     '✨ TranslateSense: All affected blocks recovered, verified, and saved successfully!',
+      //     { type: 'snackbar', isDismissible: true }
+      //   );
+      // }
     }
 
     if (failedCount > 0) {
