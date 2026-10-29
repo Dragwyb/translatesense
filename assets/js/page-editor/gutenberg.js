@@ -352,8 +352,6 @@
           ? [...currentAttrs]
           : { ...currentAttrs };
 
-        const missingAttributes = {};
-
         // If keySchema directly contains a wildcard '*', unwrap it to access item keys
         const effectiveSchema = (keySchema['*'] && keySchema['*'].children)
           ? keySchema['*'].children
@@ -372,7 +370,6 @@
               hasChanged = true;
             } else {
               missingStrings.push(val);
-              missingAttributes[kName] = val;
             }
             return;
           }
@@ -395,7 +392,6 @@
               hasChanged = true;
             } else {
               missingStrings.push(val.originalHTML);
-              missingAttributes[kName] = val.originalHTML;
             }
             return;
           }
@@ -423,16 +419,12 @@
                 if (transVal && transVal !== arrItem) {
                   arrayChanged = true;
                   return transVal;
-                } else {
-                  missingAttributes[kName] = arrItem;
                 }
               } else if (arrItem && typeof arrItem === 'object') {
                 const result = updateAttributeTree(arrItem, itemSchema, blockName, missingStrings, tranlsationCache);
                 if (result.changed) {
                   arrayChanged = true;
                   return result.updated;
-                } else if (result.missingAttributes && Object.keys(missingAttributes).length > 0) {
-                  missingAttributes[kName] = result.missingAttributes;
                 }
               }
               return arrItem;
@@ -463,13 +455,11 @@
             if (result.changed) {
               newAttrs[kName] = result.updated;
               hasChanged = true;
-            } else if (result.missingAttributes && Object.keys(missingAttributes).length > 0) {
-              missingAttributes[kName] = result.missingAttributes;
             }
           }
         });
 
-        return { updated: newAttrs, changed: hasChanged, missingAttributes };
+        return { updated: newAttrs, changed: hasChanged };
       };
 
       // Store paths for changed blocks. After resetBlocks(), use those paths to
@@ -493,27 +483,26 @@
           if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
             const missingStrings = [];
             let result = updateAttributeTree(attrs, rule.keys, blockType, missingStrings, {});
-            if (result.missingAttributes && Object.keys(result.missingAttributes).length > 0) {
-              if (blockOriginalContent && typeof blockOriginalContent === 'string' && '' !== blockOriginalContent && this.getHtmlInnerText(blockOriginalContent) && missingStrings.length > 0) {
-                const regex = new RegExp(missingStrings.join('|'));
-                const stringsExist = regex.test(blockOriginalContent);
 
-                let transRecord = {};
+            if (blockOriginalContent && typeof blockOriginalContent === 'string' && '' !== blockOriginalContent && this.getHtmlInnerText(blockOriginalContent) && missingStrings.length > 0) {
+              const regex = new RegExp(missingStrings.join('|'));
+              const stringsExist = regex.test(blockOriginalContent);
 
-                if (stringsExist) {
-                  for (const [key, data] of core.getTranslatedStrings()) {
-                    if (data.source === blockOriginalContent || blockOriginalContent === data.source.trim()) {
-                      transRecord = { source: data.filterValue, translated: data.translated };
-                      break;
-                    }
+              let transRecord = {};
+
+              if (stringsExist) {
+                for (const [key, data] of core.getTranslatedStrings()) {
+                  if (data.source === blockOriginalContent || blockOriginalContent === data.source.trim()) {
+                    transRecord = { source: data.filterValue, translated: data.translated };
+                    break;
                   }
                 }
+              }
 
-                if (transRecord.source && transRecord.translated) {
-                  const repairMap = this.buildRepairStringMap(transRecord.source, transRecord.translated);
-                  if (repairMap && repairMap.size > 0) {
-                    result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, repairMap);
-                  }
+              if (transRecord.source && transRecord.translated) {
+                const repairMap = this.buildRepairStringMap(transRecord.source, transRecord.translated);
+                if (repairMap && repairMap.size > 0) {
+                  result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, repairMap);
                 }
               }
             }
