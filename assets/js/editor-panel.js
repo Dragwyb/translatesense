@@ -158,7 +158,10 @@
     initPageLoadPrompt() {
       // If we have a source post (or from_post query parameter)
       if (this.sourcePostId > 0 || this.fromPost > 0) {
-        setTimeout(() => {
+        if (this.promptTimeout) {
+          clearTimeout(this.promptTimeout);
+        }
+        this.promptTimeout = setTimeout(() => {
           this.showSourceEditorPromptModal(true);
         }, 800);
       }
@@ -169,9 +172,13 @@
      * 
      * @param {boolean} isPageLoad Whether this was triggered automatically on page load.
      */
-    showSourceEditorPromptModal(isPageLoad = false) {
+    async showSourceEditorPromptModal(isPageLoad = false) {
 
-      if (!window.TranslateSenseEditorData.showInitialPromptModal) {
+      if (!window.TranslateSenseEditorData || !window.TranslateSenseEditorData.showInitialPromptModal) {
+        return;
+      }
+
+      if (document.getElementById('ts-universal-provider-modal') || document.getElementById('ts-universal-review-modal')) {
         return;
       }
 
@@ -183,7 +190,6 @@
       let actionBtnText = '🚀 Continue to Translation';
       const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
       modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
-      actionBtnText = '🚀 Continue to Translation';
 
       const modalContainer = document.createElement('div');
       modalContainer.id = 'ts-source-editor-guidance-modal';
@@ -308,6 +314,15 @@
     async openProviderModal() {
       if (this.editorType !== this.sourceEditorType) return;
 
+      if (window.TranslateSenseEditorData) {
+        window.TranslateSenseEditorData.showInitialPromptModal = false;
+      }
+      if (this.promptTimeout) {
+        clearTimeout(this.promptTimeout);
+      }
+      const existingPrompt = document.getElementById('ts-source-editor-guidance-modal');
+      if (existingPrompt) existingPrompt.remove();
+
       const existingModal = document.getElementById('ts-universal-provider-modal');
       if (existingModal) existingModal.remove();
 
@@ -365,7 +380,11 @@
           };
 
           const isProviderAvailable = (id) => {
-            if (id === 'chrome_ai' || id === 'chrome_local_ai') return true;
+            if (id === 'chrome_ai' || id === 'chrome_local_ai') {
+              const p = providersList.find((item) => item.id === id);
+              if (p && p.isSupported && false === p.isSupported.available) return false;
+              return true;
+            }
             const st = getProviderStatus(id);
             if (st.connectors && st.isProviderInstall) {
               return Boolean(st.isProviderActive && st.isConnected);
@@ -474,7 +493,7 @@
           </div>
           <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-provider-modal-cancel">Cancel</button>
-            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Translation'}">Start Translation</button>
+            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'All translation providers have errors or are unavailable.' : 'Start Translation'}">Start Translation</button>
           </div>
         </div>
         ${ErrorModals}
@@ -485,7 +504,7 @@
       // Row Selection
       modalContainer.querySelectorAll('.ts-provider-row').forEach((row) => {
         row.addEventListener('click', () => {
-          if (row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
+          if (!proidersAvailable || row.classList.contains('disabled') || row.getAttribute('data-disabled') === 'true') {
             return;
           }
           modalContainer.querySelectorAll('.ts-provider-row').forEach((r) => r.classList.remove('selected'));
@@ -619,7 +638,7 @@
             <span>Translating to ${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
           </div>
 
-          <h3 class="ts-progress-title">Translation in progress...</h3>
+          <h3 class="ts-progress-title">${this.isExtracting ? 'Extracting page content...' : 'Translation in progress...'}</h3>
           <p class="ts-progress-coffee-quote">
             Translation will take a few seconds or a minute, you can enjoy your coffee ☕ during this process.
           </p>
@@ -746,6 +765,11 @@
           return;
         }
 
+        // Immediately open Review Modal with loading state while fetching content & strings
+        this.isExtracting = true;
+        await this.openReviewModal();
+        this.renderReviewTableRows();
+
         // Fetch comprehensive source page content only if not already fetched
         if (!this.sourcePageData && this.core && typeof this.core.getPageContent === 'function') {
           try {
@@ -778,6 +802,11 @@
           rawStrings = rawStrings.filter((s) => !this.isEmailOrUrl(s.value || ''));
 
           if (!rawStrings || rawStrings.length === 0) {
+            this.isExtracting = false;
+            this.closeTranslationProgressModal(true);
+            const reviewModal = document.getElementById('ts-universal-review-modal');
+            if (reviewModal) reviewModal.remove();
+
             const serverRes = await this.processServerPostTranslation();
 
             if (serverRes.success && serverRes.edit_url) {
@@ -791,6 +820,15 @@
 
           this.extractedStrings = rawStrings;
         }
+
+        // Smooth transition: fade out skeleton loader before switching to strings & progress bar
+        const tbody = document.getElementById('ts-review-table-tbody');
+        if (tbody) {
+          tbody.classList.add('ts-skeleton-fade-out');
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        this.isExtracting = false;
 
         // Clone strings for this translation run, preserving any existing translated values for current provider if present
         this.strings = this.extractedStrings.map((s) => {
@@ -815,20 +853,30 @@
           };
         });
 
+        this.updateStatsHeader();
+        this.renderReviewTableRows();
+
+        if (tbody) {
+          tbody.classList.remove('ts-skeleton-fade-out');
+        }
+
         // Check if all strings already have translations for this provider
         const allDone = this.strings.length > 0 && this.strings.every((s) => s.translated && String(s.translated).trim() !== '');
         if (allDone) {
           this.lastCompletedProvider = this.selectedProvider;
           this.lastCompletedTargetLang = this.targetLang;
-          await this.openReviewModal();
-          this.renderReviewTableRows();
+          this.closeTranslationProgressModal(true);
           return;
         }
 
-        await this.openReviewModal();
         await this.performBatchTranslation();
       } catch (err) {
+        this.isExtracting = false;
         this.closeTranslationProgressModal(true);
+        const reviewModal = document.getElementById('ts-universal-review-modal');
+        if (reviewModal && (!this.strings || this.strings.length === 0)) {
+          reviewModal.remove();
+        }
         alert('Extraction Error: ' + (err.message || 'Unknown error'));
       }
     }
@@ -979,6 +1027,10 @@
       if (srcCharsEl) srcCharsEl.textContent = totalSourceChars.toLocaleString();
       if (transCharsEl) transCharsEl.textContent = totalTransChars.toLocaleString();
       if (totalEl) totalEl.textContent = this.strings.length;
+      const retransBtn = document.getElementById('ts-retranslate-btn');
+      if (retransBtn) retransBtn.disabled = false;
+      const searchInput = document.getElementById('ts-review-search-input');
+      if (searchInput) searchInput.disabled = false;
     }
 
     /**
@@ -995,10 +1047,10 @@
       }, 0);
 
       const stats = this.translationStats || {
-        timeTaken: '0.0s',
-        totalChars: totalSourceChars,
-        translatedChars: totalTransChars,
-        stringCount: this.strings.length,
+        timeTaken: this.isExtracting ? '—' : '0.0s',
+        totalChars: this.isExtracting ? '—' : totalSourceChars,
+        translatedChars: this.isExtracting ? '—' : totalTransChars,
+        stringCount: this.isExtracting ? '—' : this.strings.length,
       };
 
       const providerInfo = await this.getSelectedProviderInfo();
@@ -1078,7 +1130,7 @@
           </div>
           <div class="ts-review-footer">
             <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-review-cancel-btn">Cancel</button>
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-apply-to-editor-btn">✓ Apply to Page</button>
+            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-apply-to-editor-btn" ${this.isExtracting || !this.strings.length ? 'disabled' : ''}>✓ Apply to Page</button>
           </div>
         </div>
       `;
@@ -1118,6 +1170,40 @@
     renderReviewTableRows(filterQuery = '') {
       const tbody = document.getElementById('ts-review-table-tbody');
       if (!tbody) return;
+
+      const applyBtn = document.getElementById('ts-apply-to-editor-btn');
+      if (applyBtn) {
+        applyBtn.disabled = Boolean(this.isExtracting || !this.strings.length);
+      }
+
+      if (this.isExtracting) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; padding: 18px 20px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <div style="display: inline-flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid #e2e8f0; padding: 7px 18px; border-radius: 9999px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+                <div class="ts-circle-spinner" style="width: 16px; height: 16px; border: 2.5px solid #e0e7ff; border-top-color: #4f46e5; border-radius: 50%; animation: tsSpin 0.75s linear infinite;"></div>
+                <span style="font-size: 13px; font-weight: 600; color: #334155;">Extracting page content & translatable strings...</span>
+              </div>
+            </td>
+          </tr>
+          ${[1, 2, 3, 4, 5].map((_, i) => `
+            <tr class="ts-skeleton-row">
+              <td style="padding: 16px 14px; vertical-align: middle;">
+                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '78%' : '60%'}; height: 14px; margin-bottom: 8px;"></div>
+                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '45%' : '35%'}; height: 11px; margin-bottom: 6px;"></div>
+                <div class="ts-skeleton-shimmer" style="width: 25%; height: 9px; opacity: 0.7;"></div>
+              </td>
+              <td style="padding: 16px 14px; vertical-align: middle;">
+                <div class="ts-skeleton-shimmer" style="width: 65px; height: 22px; border-radius: 12px;"></div>
+              </td>
+              <td style="padding: 16px 14px; vertical-align: middle;">
+                <div class="ts-skeleton-shimmer" style="width: 92%; height: 36px; border-radius: 6px;"></div>
+              </td>
+            </tr>
+          `).join('')}
+        `;
+        return;
+      }
 
       const q = (filterQuery || '').toLowerCase().trim();
       const filtered = this.strings
