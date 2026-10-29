@@ -34,6 +34,8 @@ class Detector {
 
 		// Hook Elementor Document Saves (Step 2.1)
 		add_action( 'elementor/document/before_save', array( __CLASS__, 'handle_elementor_save' ), 20, 2 );
+		add_filter( 'option_elementor_cpt_support', array( __CLASS__, 'filter_elementor_cpt_support' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'protect_frontend_access' ) );
 	}
 
 	/**
@@ -47,14 +49,14 @@ class Detector {
 				'singular_name' => __( 'TranslateSense Config Post', 'translatesense' ),
 			),
 			'public'              => false,
-			'publicly_queryable'  => false,
+			'publicly_queryable'  => true,
 			'show_ui'             => true,
 			'show_in_menu'        => false,
 			'show_in_nav_menus'   => false,
 			'show_in_admin_bar'   => false,
 			'exclude_from_search' => true,
 			'has_archive'         => false,
-			'query_var'           => false,
+			'query_var'           => true,
 			'rewrite'             => false,
 			'show_in_rest'        => true,
 			'supports'            => array( 'title', 'editor', 'custom-fields', 'elementor' ),
@@ -64,6 +66,29 @@ class Detector {
 
 		if ( did_action( 'elementor/loaded' ) || class_exists( '\Elementor\Plugin' ) ) {
 			add_post_type_support( self::POST_TYPE, 'elementor' );
+		}
+	}
+
+	/**
+	 * Ensure Elementor recognizes the config post type as supported.
+	 */
+	public static function filter_elementor_cpt_support( $cpt ) {
+		if ( ! is_array( $cpt ) ) {
+			$cpt = array( 'post', 'page' );
+		}
+		if ( ! in_array( self::POST_TYPE, $cpt, true ) ) {
+			$cpt[] = self::POST_TYPE;
+		}
+		return $cpt;
+	}
+
+	/**
+	 * Restrict frontend access of config post type to editors/admins only.
+	 */
+	public static function protect_frontend_access() {
+		if ( is_singular( self::POST_TYPE ) && ! current_user_can( 'edit_posts' ) ) {
+			wp_safe_redirect( home_url() );
+			exit;
 		}
 	}
 
@@ -98,6 +123,9 @@ class Detector {
 
 			if ( $post && self::POST_TYPE === $post->post_type && 'trash' !== $post->post_status ) {
 
+				if ( 'elementor' === $builder && 'publish' !== $post->post_status ) {
+					wp_update_post( array( 'ID' => $post->ID, 'post_status' => 'publish' ) );
+				}
 				return (int) $post->ID;
 			}
 		}
@@ -119,6 +147,9 @@ class Detector {
 		if ( ! empty( $builder_ids[ $builder ] ) ) {
 			$post = get_post( (int) $builder_ids[ $builder ] );
 			if ( $post && self::POST_TYPE === $post->post_type && 'trash' !== $post->post_status ) {
+				if ( 'elementor' === $builder && 'publish' !== $post->post_status ) {
+					wp_update_post( array( 'ID' => $post->ID, 'post_status' => 'publish' ) );
+				}
 				return (int) $post->ID;
 			}
 		}
@@ -127,7 +158,7 @@ class Detector {
 		$existing_sandbox = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'draft',
+				'post_status'    => array( 'draft', 'publish' ),
 				'meta_key'       => '_translatesense_config_post', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'meta_value'     => $builder, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'posts_per_page' => 1,
@@ -136,12 +167,15 @@ class Detector {
 
 		if ( ! empty( $existing_sandbox ) ) {
 			$sandbox_id = (int) $existing_sandbox[0]->ID;
+			if ( 'elementor' === $builder && 'publish' !== $existing_sandbox[0]->post_status ) {
+				wp_update_post( array( 'ID' => $sandbox_id, 'post_status' => 'publish' ) );
+			}
 		} else {
 			$sandbox_id = (int) wp_insert_post(
 				array(
 					'post_title'   => sprintf( 'TranslateSense Config Sandbox (%s)', ucfirst( $builder ) ),
 					'post_type'    => self::POST_TYPE,
-					'post_status'  => 'draft',
+					'post_status'  => ( 'elementor' === $builder ) ? 'publish' : 'draft',
 					'post_content' => '<!-- wp:paragraph --><p>Translate This Content</p><!-- /wp:paragraph -->',
 				)
 			);

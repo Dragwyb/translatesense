@@ -1853,8 +1853,18 @@ class Rest_Api {
 				'_elementor_edit_mode',
 				'builder'
 			);
+			if ( ! get_post_meta( $sandbox_id, '_elementor_template_type', true ) ) {
+				update_post_meta( $sandbox_id, '_elementor_template_type', 'wp-post' );
+			}
+			if ( ! get_post_meta( $sandbox_id, '_elementor_data', true ) ) {
+				update_post_meta( $sandbox_id, '_elementor_data', '[]' );
+			}
+			if ( defined( 'ELEMENTOR_VERSION' ) ) {
+				update_post_meta( $sandbox_id, '_elementor_version', ELEMENTOR_VERSION );
+			}
 
-			$edit_url = add_query_arg(
+			$document = class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance->documents ) ? \Elementor\Plugin::$instance->documents->get( $sandbox_id ) : null;
+			$edit_url = $document ? $document->get_edit_url() : add_query_arg(
 				array(
 					'post'   => $sandbox_id,
 					'action' => 'elementor',
