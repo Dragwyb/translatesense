@@ -268,10 +268,12 @@ class Elementor_Builder extends Base_Builder {
 				$final_specs[ $path ] = $new_fields_map[ $path ];
 			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
 				// Explicitly marked noTranslate
-				$final_specs[ $path ] = array_merge( $new_no_translate_map[ $path ], array( 'noTranslate' => true ) );
+				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' ) );
+				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			} else {
 				// First removal: mark as noTranslate="true" to preserve for auto-updating prevention
-				$final_specs[ $path ] = array_merge( $info, array( 'noTranslate' => true ) );
+				$spec                 = is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' );
+				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			}
 		}
 
@@ -282,7 +284,8 @@ class Elementor_Builder extends Base_Builder {
 				$final_specs[ $path ] = $new_fields_map[ $path ];
 			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
 				// Kept as noTranslate
-				$final_specs[ $path ] = array_merge( $new_no_translate_map[ $path ], array( 'noTranslate' => true ) );
+				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' ) );
+				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			} else {
 				// Second removal: already had noTranslate, user removed it again -> permanently delete it!
 			}
@@ -298,7 +301,8 @@ class Elementor_Builder extends Base_Builder {
 		// 4. New explicit noTranslate fields added
 		foreach ( $new_no_translate_map as $path => $info ) {
 			if ( ! isset( $existing_fields_map[ $path ] ) && ! isset( $existing_no_translate_map[ $path ] ) ) {
-				$final_specs[ $path ] = array_merge( $info, array( 'noTranslate' => true ) );
+				$spec                 = is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' );
+				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			}
 		}
 
@@ -387,21 +391,23 @@ class Elementor_Builder extends Base_Builder {
 				return;
 			}
 
+			$field_data = array(
+				'path'        => $current_path,
+				'type'        => (string) ( $field_node['type'] ?? 'title' ),
+				'editor_type' => (string) ( $field_node['editor_type'] ?? 'LINE' ),
+			);
+
 			$is_link_type    = isset( $field_node['type'] ) && 'link' === strtolower( (string) $field_node['type'] );
 			$is_no_translate = $is_link_type || ( isset( $field_node['noTranslate'] ) && in_array( strtolower( (string) $field_node['noTranslate'] ), array( 'true', '1', 'yes' ), true ) );
 			if ( $is_no_translate ) {
 				if ( isset( $fields_out[ $current_path ] ) ) {
 					unset( $fields_out[ $current_path ] );
 				}
-				$no_translate_out[ $current_path ] = true;
+				$no_translate_out[ $current_path ] = $field_data;
 				return;
 			}
 
-			$fields_out[ $current_path ] = array(
-				'path'        => $current_path,
-				'type'        => (string) ( $field_node['type'] ?? 'title' ),
-				'editor_type' => (string) ( $field_node['editor_type'] ?? 'LINE' ),
-			);
+			$fields_out[ $current_path ] = $field_data;
 		}
 	}
 
