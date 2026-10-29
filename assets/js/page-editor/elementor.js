@@ -59,15 +59,17 @@
       if (typeof strVal !== 'string' || !strVal.trim()) return null;
       const clean = strVal.trim();
 
+      // 1. Direct match from currentStrings (user review edits take priority)
+      if (Array.isArray(this.currentStrings)) {
+        const matched = this.currentStrings.find((s) => (s.source === clean || s.value === clean) && s.translated);
+        if (matched && matched.translated) return matched.translated;
+      }
+
+      // 2. Core cache fallback
       const core = this.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
       if (core && typeof core.getTranslatedString === 'function') {
         const trans = core.getTranslatedString(widgetType, clean, this.provider, widgetType);
         if (trans && trans.translate && trans.translate !== clean) return trans.translate;
-      }
-
-      if (Array.isArray(this.currentStrings)) {
-        const matched = this.currentStrings.find((s) => (s.source === clean || s.value === clean) && s.translated && s.translated !== clean);
-        if (matched) return matched.translated;
       }
 
       return null;

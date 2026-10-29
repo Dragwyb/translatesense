@@ -845,6 +845,7 @@
 
           return {
             ...s,
+            providerTranslated: s.providerTranslated || translated || '',
             translated: translated,
             status: status,
           };
@@ -917,6 +918,7 @@
               }
               return {
                 ...item,
+                providerTranslated: result.translated,
                 translated: result.translated,
                 status: result.status || 'Completed',
               };
@@ -1236,21 +1238,28 @@
         const idx = item.originalIndex;
         const sourceVal = item.value || '';
         const transVal = item.translated || '';
-        const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
+        const providerVal = item.providerTranslated !== undefined ? item.providerTranslated : transVal;
+        const hasChanged = Boolean(providerVal && transVal !== providerVal);
 
         return `
           <tr data-idx="${idx}">
             <td>
               <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
-              <div class="ts-widget-tag">
-                <span class="ts-tag-symbol">&lt;&gt;</span>
-                <span>${this.escapeHtml(item.name || 'block')} &rarr; ${this.escapeHtml(item.key || 'text')}</span>
+               <div class="ts-widget-tag">
+                 <span class="ts-tag-symbol">&lt;&gt;</span>
+                <span>${this.escapeHtml(item.name || 'block')}</span>
               </div>
             </td>
             <td>
               <div class="ts-trans-cell-wrap">
                 <div class="ts-trans-box">
                   <div class="ts-trans-text" contenteditable="plaintext-only" data-idx="${idx}" data-placeholder="Enter translation...">${this.escapeHtml(transVal)}</div>
+                  <button type="button" class="ts-trans-reset-btn ${hasChanged ? '' : 'ts-hide'}" data-idx="${idx}" title="Reset to provider translation">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                    </svg>
+                  </button>
                 </div>
                 <button type="button" class="ts-row-edit-btn" data-idx="${idx}" title="Edit translation">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1262,6 +1271,43 @@
           </tr>
         `;
       }).join('');
+
+      // Reset button click handler: restore provider translation
+      tbody.querySelectorAll('.ts-trans-reset-btn').forEach((resetBtn) => {
+        resetBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(resetBtn.getAttribute('data-idx'), 10);
+          if (!isNaN(idx) && this.strings[idx]) {
+            const providerVal = this.strings[idx].providerTranslated !== undefined ? this.strings[idx].providerTranslated : '';
+            this.strings[idx].translated = providerVal;
+            this.strings[idx].status = 'Completed';
+
+            const box = resetBtn.closest('.ts-trans-box');
+            if (box) {
+              const transEl = box.querySelector('.ts-trans-text');
+              if (transEl) {
+                transEl.innerText = providerVal;
+              }
+            }
+
+            resetBtn.classList.add('ts-hide');
+
+            if (this.core) {
+              this.core.saveSourceString(this.strings[idx].name, this.strings[idx].value, this.strings[idx].name);
+              this.core.saveTranslatedString(
+                this.strings[idx].name,
+                this.strings[idx].source || this.strings[idx].value,
+                this.strings[idx].value,
+                providerVal,
+                this.selectedProvider,
+                this.strings[idx].name
+              );
+            }
+
+            this.updateStatsHeader();
+          }
+        });
+      });
 
       // Focus target text when edit button is clicked
       tbody.querySelectorAll('.ts-row-edit-btn').forEach((btn) => {
@@ -1291,10 +1337,38 @@
       tbody.querySelectorAll('.ts-trans-text').forEach((transEl) => {
         transEl.addEventListener('input', (e) => {
           const idx = parseInt(e.target.getAttribute('data-idx'), 10);
-          const val = e.target.innerText === '\n' ? '' : e.target.innerText;
+          const val = (e.target.innerText || '').replace(/^\r?\n+|\r?\n+$/g, '');
           if (this.strings[idx]) {
             this.strings[idx].translated = val;
             this.strings[idx].status = 'Custom';
+
+            // Sync with TranslateSenseCore in memory
+            if (this.core) {
+              this.core.saveSourceString(this.strings[idx].name, this.strings[idx].value, this.strings[idx].name);
+              this.core.saveTranslatedString(
+                this.strings[idx].name,
+                this.strings[idx].source || this.strings[idx].value,
+                this.strings[idx].value,
+                val,
+                this.selectedProvider,
+                this.strings[idx].name
+              );
+            }
+
+            // Update reset button visibility
+            const box = e.target.closest('.ts-trans-box');
+            if (box) {
+              const resetBtn = box.querySelector('.ts-trans-reset-btn');
+              const providerVal = this.strings[idx].providerTranslated !== undefined ? this.strings[idx].providerTranslated : '';
+              if (resetBtn) {
+                if (providerVal && val !== providerVal) {
+                  resetBtn.classList.remove('ts-hide');
+                } else {
+                  resetBtn.classList.add('ts-hide');
+                }
+              }
+            }
+
             this.updateStatsHeader();
           }
         });
@@ -1347,16 +1421,27 @@
      * Apply translated strings back to the active editor (Gutenberg, Elementor, Classic).
      */
     async applyTranslationsToEditor() {
-      // Ensure any active contenteditable edits are synced to this.strings
+      // Ensure any active contenteditable edits are synced to this.strings and core
       const currentTbody = document.getElementById('ts-review-table-tbody');
       if (currentTbody) {
         currentTbody.querySelectorAll('.ts-trans-text').forEach((el) => {
           const idx = parseInt(el.getAttribute('data-idx'), 10);
           if (!isNaN(idx) && this.strings[idx]) {
-            const val = el.innerText === '\n' ? '' : el.innerText;
+            const val = (el.innerText || '').replace(/^\r?\n+|\r?\n+$/g, '');
             if (val !== this.strings[idx].translated) {
               this.strings[idx].translated = val;
               this.strings[idx].status = 'Custom';
+            }
+            if (this.core) {
+              this.core.saveSourceString(this.strings[idx].name, this.strings[idx].value, this.strings[idx].name);
+              this.core.saveTranslatedString(
+                this.strings[idx].name,
+                this.strings[idx].source || this.strings[idx].value,
+                this.strings[idx].value,
+                this.strings[idx].translated,
+                this.selectedProvider,
+                this.strings[idx].name
+              );
             }
           }
         });
@@ -1375,7 +1460,7 @@
       const nonce = this.config.nonce || '';
       const currentPostId = this.postId || this.config.postId || 0;
 
-      // Mark this post with _translatesense_traslated = 1
+      // Mark this post with _translatesense_translated = 1 and persist translations in database
       if (currentPostId) {
         fetch(restUrl + 'mark-translated', {
           method: 'POST',
@@ -1383,7 +1468,11 @@
             'Content-Type': 'application/json',
             'X-WP-Nonce': nonce,
           },
-          body: JSON.stringify({ post_id: currentPostId }),
+          body: JSON.stringify({
+            post_id: currentPostId,
+            target_lang: this.targetLang,
+            strings: this.strings,
+          }),
         }).catch((err) => {
           console.warn('[TranslateSense] Could not update translated flag:', err);
         });

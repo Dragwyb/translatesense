@@ -85,11 +85,10 @@
         let isTranslated = null;
 
         if (['post_title', 'title', 'post_excerpt', 'excerpt', 'post_name', 'slug'].includes(field)) {
-          if (core && typeof core.getTranslatedString === 'function') {
-            isTranslated = core.getTranslatedString(field, s.source || s.value, this.provider, field);
-          }
-          if ((!isTranslated || !isTranslated.translate) && (s.translated || s.translate)) {
+          if (s.translated || s.translate) {
             isTranslated = { translate: s.translated || s.translate };
+          } else if (core && typeof core.getTranslatedString === 'function') {
+            isTranslated = core.getTranslatedString(field, s.source || s.value, this.provider, field);
           }
         }
 
@@ -313,6 +312,16 @@
         }
 
         const clean = strVal.trim();
+
+        // 1. Direct match from strings array (user review edits take priority)
+        if (Array.isArray(strings)) {
+          const matched = strings.find((s) => (s.source === clean || s.value === clean) && s.translated);
+          if (matched && matched.translated) {
+            return matched.translated;
+          }
+        }
+
+        // 2. Core cache fallback
         let trans = null;
         if (core && typeof core.getTranslatedString === 'function') {
           trans = core.getTranslatedString(
@@ -325,14 +334,6 @@
 
         if (trans && trans.translate && trans.translate !== clean) {
           return trans.translate;
-        }
-
-        // Direct fallback from strings array if present
-        if (Array.isArray(strings)) {
-          const matched = strings.find((s) => (s.source === clean || s.value === clean) && s.translated && s.translated !== clean);
-          if (matched) {
-            return matched.translated;
-          }
         }
 
         return null;
