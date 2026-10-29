@@ -202,7 +202,7 @@
         closeId: 'ts-source-prompt-close',
       })}
           <div class="ts-review-body">
-            <div style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 8px;">
+            <div style="font-size: 16px; line-height: 1.6; color: #334155; margin-bottom: 8px;">
               ${modalMessage}
             </div>
           </div>
@@ -615,7 +615,7 @@
         <div class="ts-progress-modal-card" onclick="event.stopPropagation()">
           <div class="ts-coffee-visual">
             <div class="ts-coffee-circle-bg"></div>
-            <svg class="ts-coffee-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="ts-coffee-svg" width="44" height="44" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 52C12 50.8954 12.8954 50 14 50H50C51.1046 50 52 50.8954 52 52C52 53.1046 51.1046 54 50 54H14C12.8954 54 12 53.1046 12 52Z" fill="#94A3B8"/>
               <path d="M16 26H48V38C48 44.6274 42.6274 50 36 50H28C21.3726 50 16 44.6274 16 38V26Z" fill="url(#tsCoffeeGrad)"/>
               <path d="M48 30H51C53.7614 30 56 32.2386 56 35C56 37.7614 53.7614 40 51 40H48" stroke="#4F46E5" stroke-width="3.5" stroke-linecap="round"/>
@@ -1236,11 +1236,16 @@
         const idx = item.originalIndex;
         const sourceVal = item.value || '';
         const transVal = item.translated || '';
+        const tagName = item.key || item.name || 'text';
 
         return `
           <tr data-idx="${idx}">
             <td>
               <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
+              <div class="ts-meta-tag">
+                <span class="ts-tag-symbol">&lt;&gt;</span>
+                <span>${this.escapeHtml(tagName)}</span>
+              </div>
             </td>
             <td>
               <div class="ts-trans-cell-wrap">

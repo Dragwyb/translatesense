@@ -316,6 +316,26 @@
   word-break: break-word;
 }
 
+/* Meta Rule/Tag Pill: <> post_title (Minimal 3px Radius) */
+.ts-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.ts-tag-symbol {
+  font-weight: 800;
+  color: #2563eb;
+}
+
 /* Translated text cell wrapper */
 .ts-trans-cell-wrap {
   display: flex;
@@ -425,4 +445,236 @@
 
 @keyframes tsSpin {
   to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Page Editor: Translation Progress Overlay (Coffee Cup Visual & Modal Blur)
+   ========================================================================== */
+.ts-review-progress-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  animation: tsFadeInOverlay 0.25s ease-out;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ts-review-progress-overlay.ts-fade-out {
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
+}
+
+.ts-progress-modal-card {
+  background: #ffffff;
+  border: 1px solid var(--ts-border, #e2e8f0);
+  border-radius: 6px;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(226, 232, 240, 0.85);
+  max-width: 460px;
+  width: 100%;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+  position: relative;
+  animation: tsScaleUpCard 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Coffee Visual & Steam Effect */
+.ts-coffee-visual {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.ts-coffee-circle-bg {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border: 2px solid #c7d2fe;
+  animation: tsPulseGlow 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes tsPulseGlow {
+  0% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
+  100% { transform: scale(1.04); box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.25); }
+}
+
+.ts-coffee-svg {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  z-index: 2;
+}
+
+.ts-steam-line {
+  animation: tsSteamRise 2s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.ts-steam-1 { animation-delay: 0s; }
+.ts-steam-2 { animation-delay: 0.45s; }
+.ts-steam-3 { animation-delay: 0.9s; }
+
+@keyframes tsSteamRise {
+  0% { opacity: 0; transform: translateY(4px) scaleX(0.8); }
+  40% { opacity: 0.9; transform: translateY(-2px) scaleX(1); }
+  100% { opacity: 0; transform: translateY(-9px) scaleX(1.3); }
+}
+
+/* Header Badge: TRANSLATING TO <flag> (HI) */
+.ts-progress-header-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.ts-progress-header-badge .ts-lang-flag-img {
+  width: 15px;
+  height: 10px;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+/* Title & Quote */
+.ts-progress-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+}
+
+.ts-progress-coffee-quote {
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+  max-width: 380px;
+}
+
+/* Progress Bar Card */
+.ts-progress-section {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.ts-progress-meta-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ts-progress-status-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ts-progress-percent-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.ts-progress-track-wrap {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.ts-progress-track-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5 0%, #2563eb 50%, #38bdf8 100%);
+  border-radius: 4px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.ts-progress-sub-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: #64748b;
+  gap: 10px;
+}
+
+.ts-progress-provider-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ts-progress-provider-tag img,
+.ts-progress-provider-tag span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ts-progress-provider-tag img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+@keyframes tsFadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tsScaleUpCard {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
