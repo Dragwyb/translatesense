@@ -475,7 +475,7 @@
                           ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
                         </div>
                         <div class="ts-provider-radio-wrap">
-                          <input type="radio" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                          <input type="radio" id="ts-provider-${p.id}" name="ts_provider_choice" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
                           <span class="ts-provider-custom-radio"></span>
                         </div>
                       </div>
@@ -1073,7 +1073,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="ts-review-search-input" class="ts-review-search-input" placeholder="Search source or translation..." autocomplete="off" />
+                <input type="text" id="ts-review-search-input" name="ts_review_search" class="ts-review-search-input" placeholder="Search source or translation..." autocomplete="off" />
                 <button type="button" id="ts-search-clear-btn" class="ts-search-clear-btn" title="Clear search" style="display: none;">&times;</button>
               </div>
 
@@ -1236,21 +1236,21 @@
         const idx = item.originalIndex;
         const sourceVal = item.value || '';
         const transVal = item.translated || '';
-        const tagName = item.key || item.name || 'text';
+        const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
 
         return `
           <tr data-idx="${idx}">
             <td>
               <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
-              <div class="ts-meta-tag">
+              <div class="ts-widget-tag">
                 <span class="ts-tag-symbol">&lt;&gt;</span>
-                <span>${this.escapeHtml(tagName)}</span>
+                <span>${this.escapeHtml(item.name || 'block')} &rarr; ${this.escapeHtml(item.key || 'text')}</span>
               </div>
             </td>
             <td>
               <div class="ts-trans-cell-wrap">
                 <div class="ts-trans-box">
-                  <textarea class="ts-trans-textarea" data-idx="${idx}" rows="1" placeholder="Enter translation...">${this.escapeHtml(transVal)}</textarea>
+                  <div class="ts-trans-text" contenteditable="plaintext-only" data-idx="${idx}" data-placeholder="Enter translation...">${this.escapeHtml(transVal)}</div>
                 </div>
                 <button type="button" class="ts-row-edit-btn" data-idx="${idx}" title="Edit translation">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1263,26 +1263,19 @@
         `;
       }).join('');
 
-      const autoResize = (ta) => {
-        ta.style.height = 'auto';
-        ta.style.height = Math.max(38, ta.scrollHeight) + 'px';
-      };
-
-      // Auto-resize initial textareas
-      tbody.querySelectorAll('.ts-trans-textarea').forEach((ta) => {
-        autoResize(ta);
-      });
-
-      // Focus input when edit button is clicked
+      // Focus target text when edit button is clicked
       tbody.querySelectorAll('.ts-row-edit-btn').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           const row = e.target.closest('tr');
           if (row) {
-            const ta = row.querySelector('.ts-trans-textarea');
-            if (ta) {
-              ta.focus();
-              ta.select();
-              autoResize(ta);
+            const transEl = row.querySelector('.ts-trans-text');
+            if (transEl) {
+              transEl.focus();
+              const range = document.createRange();
+              range.selectNodeContents(transEl);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
             }
           }
         });
@@ -1294,16 +1287,36 @@
         footerCounter.textContent = `${filtered.length} of ${this.strings.length} strings`;
       }
 
-      // Input changes listener
-      tbody.querySelectorAll('.ts-trans-textarea').forEach((ta) => {
-        ta.addEventListener('input', (e) => {
-          autoResize(e.target);
+      // Content changes listener for target content
+      tbody.querySelectorAll('.ts-trans-text').forEach((transEl) => {
+        transEl.addEventListener('input', (e) => {
           const idx = parseInt(e.target.getAttribute('data-idx'), 10);
-          const val = e.target.value;
+          const val = e.target.innerText === '\n' ? '' : e.target.innerText;
           if (this.strings[idx]) {
             this.strings[idx].translated = val;
             this.strings[idx].status = 'Custom';
             this.updateStatsHeader();
+          }
+        });
+
+        transEl.addEventListener('blur', (e) => {
+          if (!e.target.innerText.trim()) {
+            e.target.innerHTML = '';
+          }
+        });
+
+        transEl.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(text));
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            transEl.dispatchEvent(new Event('input', { bubbles: true }));
           }
         });
       });
@@ -1334,6 +1347,21 @@
      * Apply translated strings back to the active editor (Gutenberg, Elementor, Classic).
      */
     async applyTranslationsToEditor() {
+      // Ensure any active contenteditable edits are synced to this.strings
+      const currentTbody = document.getElementById('ts-review-table-tbody');
+      if (currentTbody) {
+        currentTbody.querySelectorAll('.ts-trans-text').forEach((el) => {
+          const idx = parseInt(el.getAttribute('data-idx'), 10);
+          if (!isNaN(idx) && this.strings[idx]) {
+            const val = el.innerText === '\n' ? '' : el.innerText;
+            if (val !== this.strings[idx].translated) {
+              this.strings[idx].translated = val;
+              this.strings[idx].status = 'Custom';
+            }
+          }
+        });
+      }
+
       // Ensure sourcePageData is fetched if not present
       if (!this.sourcePageData && this.sourcePostId && this.core && typeof this.core.getPageContent === 'function') {
         try {

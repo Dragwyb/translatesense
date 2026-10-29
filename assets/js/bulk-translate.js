@@ -274,7 +274,7 @@
                   ${actionHtml ? `<div class="ts-provider-badge-wrap">${actionHtml}</div>` : ''}
                 </div>
                 <div class="ts-provider-radio-wrap">
-                  <input type="radio" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
+                  <input type="radio" id="ts-bulk-provider-${p.id}" name="ts_bulk_provider" value="${p.id}" ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} class="ts-provider-radio-input" />
                   <span class="ts-provider-custom-radio"></span>
                 </div>
               </div>
@@ -348,7 +348,7 @@
             const isChecked = selectedTargetLangs.includes(lang.slug);
             return `
                         <div class="ts-lang-card ${isChecked ? 'selected' : ''}" data-lang="${lang.slug}">
-                          <input type="checkbox" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
+                          <input type="checkbox" id="ts-lang-${lang.slug}" name="ts_target_langs[]" class="ts-lang-checkbox" value="${lang.slug}" ${isChecked ? 'checked' : ''} />
                           <span class="ts-lang-name" title="${lang.name}">${lang.name}</span>
                           <span class="ts-lang-code">${getLanguageDisplay(lang, allLanguages)}</span>
                         </div>
