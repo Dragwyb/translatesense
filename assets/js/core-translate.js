@@ -99,11 +99,6 @@
       this.translatedStrings.set(`${hash}_${provider}`, entry);
       this.translatedStrings.set(hash, entry);
 
-      if (id && id !== hash) {
-        this.translatedStrings.set(`${id}_${provider}`, entry);
-        this.translatedStrings.set(id, entry);
-      }
-
       return entry;
     }
 
@@ -132,12 +127,11 @@
       };
     }
 
-    /**
-     * Static fallback guard for getTranslatedString to prevent runtime crashes if called statically.
-     */
-    static getTranslatedString(id, sourceValue = '', provider = null, widgetOrBlockName = '') {
-      console.warn('[TranslateSense] TranslateSenseCore.getTranslatedString called on class constructor instead of instance.');
-      return '';
+    /** 
+    * Get all translated strings
+    */
+    getTranslatedStrings() {
+      return new Map(this.translatedStrings);
     }
 
     /**

@@ -109,6 +109,30 @@
       }
     },
 
+    getHtmlInnerText(html) {
+      if (typeof html !== 'string' || !html) return '';
+      if (typeof DOMParser !== 'undefined') {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const text = doc.body.textContent || doc.body.innerText || ''
+          return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        } catch (e) {
+          // Fallback to regex
+        }
+      }
+      return html
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#039;/gi, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+    },
+
     /**
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
@@ -123,8 +147,16 @@
       this.blockRulesCache = blockRules;
 
       // Helper to find a translation for a string value.
-      const findTranslation = (strVal, blockName = '') => {
+      const findTranslation = (strVal, blockName = '', cacheTranslation) => {
         if (typeof strVal !== 'string' || strVal.trim() === '') return null;
+
+        if (cacheTranslation && cacheTranslation.size > 0) {
+          if (cacheTranslation.has(strVal)) {
+            return cacheTranslation.get(strVal);
+          }
+
+          return null;
+        }
 
         const clean = strVal.trim();
         let trans = null;
@@ -156,7 +188,7 @@
        * Recursively update attributes matching the configured block schema.
        * Returns a new attribute object without mutating nested source objects.
        */
-      const updateAttributeTree = (currentAttrs, keySchema, blockName) => {
+      const updateAttributeTree = (currentAttrs, keySchema, blockName, missingStrings, tranlsationCache) => {
         if (!currentAttrs || !keySchema) {
           return { updated: currentAttrs, changed: false };
         }
@@ -165,6 +197,8 @@
         const newAttrs = Array.isArray(currentAttrs)
           ? [...currentAttrs]
           : { ...currentAttrs };
+
+        const missingAttributes = {};
 
         // If keySchema directly contains a wildcard '*', unwrap it to access item keys
         const effectiveSchema = (keySchema['*'] && keySchema['*'].children)
@@ -178,10 +212,13 @@
           const val = newAttrs[kName];
 
           if (typeof val === 'string' && val.trim() !== '') {
-            const transVal = findTranslation(val, blockName);
+            const transVal = findTranslation(val, blockName, tranlsationCache);
             if (transVal && transVal !== val) {
               newAttrs[kName] = transVal;
               hasChanged = true;
+            } else {
+              missingStrings.push(val);
+              missingAttributes[kName] = val;
             }
             return;
           }
@@ -198,10 +235,13 @@
             typeof val.originalHTML === 'string' &&
             val.originalHTML !== ''
           ) {
-            const transVal = findTranslation(val.originalHTML, blockName);
+            const transVal = findTranslation(val.originalHTML, blockName, tranlsationCache);
             if (transVal && transVal !== val.originalHTML) {
               newAttrs[kName] = transVal;
               hasChanged = true;
+            } else {
+              missingStrings.push(val.originalHTML);
+              missingAttributes[kName] = val.originalHTML;
             }
             return;
           }
@@ -225,16 +265,20 @@
             let arrayChanged = false;
             const newArr = val.map((arrItem) => {
               if (typeof arrItem === 'string' && arrItem.trim() !== '') {
-                const transVal = findTranslation(arrItem, blockName);
+                const transVal = findTranslation(arrItem, blockName, tranlsationCache);
                 if (transVal && transVal !== arrItem) {
                   arrayChanged = true;
                   return transVal;
+                } else {
+                  missingAttributes[kName] = arrItem;
                 }
               } else if (arrItem && typeof arrItem === 'object') {
-                const result = updateAttributeTree(arrItem, itemSchema, blockName);
+                const result = updateAttributeTree(arrItem, itemSchema, blockName, missingStrings, tranlsationCache);
                 if (result.changed) {
                   arrayChanged = true;
                   return result.updated;
+                } else if (result.missingAttributes && Object.keys(missingAttributes).length > 0) {
+                  missingAttributes[kName] = result.missingAttributes;
                 }
               }
               return arrItem;
@@ -261,68 +305,72 @@
               childSchema = effectiveSchema;
             }
 
-            const result = updateAttributeTree(val, childSchema, blockName);
+            const result = updateAttributeTree(val, childSchema, blockName, missingStrings, tranlsationCache);
             if (result.changed) {
               newAttrs[kName] = result.updated;
               hasChanged = true;
+            } else if (result.missingAttributes && Object.keys(missingAttributes).length > 0) {
+              missingAttributes[kName] = result.missingAttributes;
             }
           }
         });
 
-        return { updated: newAttrs, changed: hasChanged };
+        return { updated: newAttrs, changed: hasChanged, missingAttributes };
       };
 
       /**
-       * Evaluate configured XPath expressions against an HTML string of innerContent
-       * and replace target element/attribute contents with their translations.
+       * Compare source HTML and translated HTML node-by-node to produce a mapping of
+       * original strings to translated strings (similar to block-recovery.js).
        */
-      const updateInnerContentWithXPath = (htmlStr, xpaths, blockName) => {
-        if (typeof htmlStr !== 'string' || !htmlStr.trim() || !Array.isArray(xpaths) || xpaths.length === 0) {
-          return htmlStr;
+      const buildRepairStringMap = (sourceHTML, translatedHTML) => {
+        const mapping = new Map();
+        if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML || typeof DOMParser === 'undefined') {
+          return mapping;
         }
 
         try {
           const parser = new DOMParser();
-          const doc = parser.parseFromString(htmlStr, 'text/html');
-          let changed = false;
-          const processedNodes = new Set();
+          const sourceDoc = parser.parseFromString(sourceHTML, 'text/html');
+          const translatedDoc = parser.parseFromString(translatedHTML, 'text/html');
+          const translatableAttrs = ['alt', 'title', 'aria-label', 'placeholder', 'value', 'summary', 'caption'];
 
-          xpaths.forEach((xp) => {
-            const query = typeof xp === 'object' && xp !== null ? (xp.value || xp.xpath || '') : String(xp);
-            if (!query || !query.trim()) return;
+          const compareNodes = (sNode, tNode, nodeDepth = 0) => {
+            if (!sNode || !tNode || nodeDepth > 50 || sNode.nodeType !== tNode.nodeType) return;
 
-            try {
-              const result = doc.evaluate(query, doc.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-              for (let i = 0; i < result.snapshotLength; i++) {
-                const node = result.snapshotItem(i);
-                if (!node || processedNodes.has(node)) continue;
-                processedNodes.add(node);
+            if (sNode.nodeType === Node.TEXT_NODE) {
+              const sVal = (sNode.nodeValue || '').trim();
+              const tVal = (tNode.nodeValue || '').trim();
+              if (sVal && tVal && sVal !== tVal) {
+                mapping.set(sVal, tVal);
+              }
+              return;
+            }
 
-                if (node.nodeType === Node.ATTRIBUTE_NODE) {
-                  const origVal = node.value;
-                  const transVal = findTranslation(origVal, blockName);
-                  if (transVal && transVal !== origVal) {
-                    node.value = transVal;
-                    changed = true;
-                  }
-                } else if (node.nodeType === Node.ELEMENT_NODE) {
-                  const origHtml = node.innerHTML;
-                  const transVal = findTranslation(origHtml, blockName) || findTranslation(node.textContent, blockName);
-                  if (transVal && transVal !== origHtml && transVal !== node.textContent) {
-                    node.innerHTML = transVal;
-                    changed = true;
-                  }
+            if (sNode.nodeType !== Node.ELEMENT_NODE || sNode.tagName !== tNode.tagName) return;
+
+            translatableAttrs.forEach((attr) => {
+              if (sNode.hasAttribute(attr) && tNode.hasAttribute(attr)) {
+                const sVal = (sNode.getAttribute(attr) || '').trim();
+                const tVal = (tNode.getAttribute(attr) || '').trim();
+                if (sVal && tVal && sVal !== tVal) {
+                  mapping.set(sVal, tVal);
                 }
               }
-            } catch (evalErr) {
-              // Silently ignore unsupported or malformed xpath queries in DOMParser
-            }
-          });
+            });
 
-          return changed ? doc.body.innerHTML : htmlStr;
-        } catch (e) {
-          return htmlStr;
-        }
+            const sChildren = sNode.childNodes;
+            const tChildren = tNode.childNodes;
+            if (sChildren.length === tChildren.length) {
+              for (let i = 0; i < sChildren.length; i++) {
+                compareNodes(sChildren[i], tChildren[i], nodeDepth + 1);
+              }
+            }
+          };
+
+          compareNodes(sourceDoc.body, translatedDoc.body, 0);
+        } catch (e) { }
+
+        return mapping;
       };
 
       // Store paths for changed blocks. After resetBlocks(), use those paths to
@@ -331,49 +379,53 @@
       // call updateBlockAttributes() manually in the console.
       const changedBlocks = [];
 
-      const traverse = (blockList, parentPath = []) => {
-        if (!Array.isArray(blockList)) return;
+      const traverse = (blockList, parentPath = [], depth = 0) => {
+        if (!Array.isArray(blockList) || depth > 200) return;
 
         blockList.forEach((block, index) => {
+          if (!block || typeof block !== 'object') return;
+
           const path = [...parentPath, index];
           const blockType = block.name || block.type || '';
           const attrs = block.attributes || {};
           const rule = blockRules && (blockRules[blockType] || blockRules[block.name]);
+          const blockOriginalContent = block.originalContent || '';
 
           if (rule && rule.keys && Object.keys(rule.keys).length > 0) {
-            const result = updateAttributeTree(attrs, rule.keys, blockType);
+            const missingStrings = [];
+            let result = updateAttributeTree(attrs, rule.keys, blockType, missingStrings, {});
+            if (result.missingAttributes && Object.keys(result.missingAttributes).length > 0) {
+              if (blockOriginalContent && typeof blockOriginalContent === 'string' && '' !== blockOriginalContent && this.getHtmlInnerText(blockOriginalContent) && missingStrings.length > 0) {
+                const regex = new RegExp(missingStrings.join('|'));
+                const stringsExist = regex.test(blockOriginalContent);
+
+                let transRecord = {};
+
+                if (stringsExist) {
+                  for (const [key, data] of core.getTranslatedStrings()) {
+                    if (data.source === blockOriginalContent || blockOriginalContent === data.source.replace(/\\n|\n/g, '')) {
+                      transRecord = { source: data.filterValue, translated: data.translated };
+                      break;
+                    }
+                  }
+                }
+
+                if (transRecord.source && transRecord.translated) {
+                  const repairMap = buildRepairStringMap(transRecord.source, transRecord.translated);
+                  if (repairMap && repairMap.size > 0) {
+                    result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, repairMap);
+                  }
+                }
+              }
+            }
             if (result.changed) {
               block.attributes = result.updated;
               changedBlocks.push({ path, attributes: result.updated, name: blockType, type: blockType });
             }
           }
 
-          // Check XPath rules for innerContent
-          const xpaths = (rule && (rule.xpaths || (rule.xpath ? [{ value: rule.xpath }] : []))) || [];
-          if (xpaths.length > 0 && Array.isArray(block.innerContent) && block.innerContent.length > 0) {
-            let innerChanged = false;
-            block.innerContent = block.innerContent.map((chunk) => {
-              if (typeof chunk === 'string' && chunk.trim() !== '') {
-                const updated = updateInnerContentWithXPath(chunk, xpaths, blockType);
-                if (updated !== chunk) {
-                  innerChanged = true;
-                  return updated;
-                }
-              }
-              return chunk;
-            });
-
-            if (innerChanged) {
-              const joined = block.innerContent.filter((c) => typeof c === 'string').join('');
-              block.innerHTML = joined;
-              if (typeof block.originalContent !== 'undefined') {
-                block.originalContent = joined;
-              }
-            }
-          }
-
           if (Array.isArray(block.innerBlocks) && block.innerBlocks.length > 0) {
-            traverse(block.innerBlocks, path);
+            traverse(block.innerBlocks, path, depth + 1);
           }
         });
       };
