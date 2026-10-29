@@ -197,21 +197,21 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container" style="max-width: 560px;" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-            icon: '⚡',
-            title: modalTitle,
-            closeId: 'ts-source-prompt-close',
-          })}
+        icon: '⚡',
+        title: modalTitle,
+        closeId: 'ts-source-prompt-close',
+      })}
           <div class="ts-review-body">
             <div style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 8px;">
               ${modalMessage}
             </div>
           </div>
           ${this.core.createFooterHTML({
-            buttons: [
-              { id: 'ts-source-prompt-cancel', label: 'Close', variant: 'secondary' },
-              { id: 'ts-source-prompt-confirm', label: actionBtnText, variant: 'primary' }
-            ]
-          })}
+        buttons: [
+          { id: 'ts-source-prompt-cancel', label: 'Close', variant: 'secondary' },
+          { id: 'ts-source-prompt-confirm', label: actionBtnText, variant: 'primary' }
+        ]
+      })}
         </div>
       `;
 
@@ -339,13 +339,12 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-            icon: '⚡',
-            title: 'Choose Translation Provider',
-            subtitle: 'Choose a translation provider',
-            closeId: 'ts-provider-modal-close',
-          })}
+        icon: '⚡',
+        title: 'Choose Translation Provider',
+        subtitle: 'Choose a translation provider',
+        closeId: 'ts-provider-modal-close',
+      })}
           <div class="ts-review-body">
-            <div class="ts-section-heading">Translation provider</div>
             <div class="ts-provider-list">
               ${(() => {
           const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
@@ -417,10 +416,10 @@
             } else if (isConnector) {
               if (!status.isProviderActive) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">Activate Provider</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">Activate Provider</a>`;
               } else if (!status.isConnected) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">API key required</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">API key required</a>`;
               } else {
                 isAvailable = true;
                 actionHtml = '<span class="ts-provider-badge core-connector">WP Connector</span>';
@@ -429,7 +428,7 @@
               // Legacy direct API
               if (!status.isConnected) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">API key required</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">API key required</a>`;
               } else {
                 isAvailable = true;
                 actionHtml = '<span class="ts-provider-badge ready">Ready</span>';
@@ -446,19 +445,19 @@
               ErrorModals += `
                 <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
                   ${this.core.createHeaderHTML({
-                    icon: p.logo,
-                    title: errorTitle,
-                    closeClass: 'ts-bulk-close',
-                  })}
+                icon: p.logo,
+                title: errorTitle,
+                closeClass: 'ts-bulk-close',
+              })}
                   <div class="ts-review-body">
                     <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
                   </div>
                   ${this.core.createFooterHTML({
-                    customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
-                    buttons: [
-                      { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
-                    ]
-                  })}
+                customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
+                buttons: [
+                  { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
+                ]
+              })}
                 </div>
               `;
             }
@@ -488,11 +487,11 @@
             </div>
           </div>
           ${this.core.createFooterHTML({
-            buttons: [
-              { id: 'ts-provider-modal-cancel', label: 'Cancel', variant: 'secondary' },
-              { id: 'ts-provider-modal-start', label: 'Start Translation', variant: proidersAvailable ? 'primary' : 'disabled', disabled: !proidersAvailable, title: !proidersAvailable ? 'All translation providers have errors or are unavailable.' : 'Start Translation' }
-            ]
-          })}
+          buttons: [
+            { id: 'ts-provider-modal-cancel', label: 'Cancel', variant: 'secondary' },
+            { id: 'ts-provider-modal-start', label: 'Start Translation', variant: proidersAvailable ? 'primary' : 'disabled', disabled: !proidersAvailable, title: !proidersAvailable ? 'All translation providers have errors or are unavailable.' : 'Start Translation' }
+          ]
+        })}
         </div>
         ${ErrorModals}
       `;
@@ -1059,44 +1058,57 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-            icon: '<span class="ts-header-trans-icon">A 文</span>',
-            title: 'Review Translations',
-            subtitle: 'Review and edit translations before applying to the page.',
-            customRightHtml: `
-              <div class="ts-review-header-stats">
-                <div class="ts-header-stat-item">
-                  <span class="ts-stat-icon">⏱️</span>
-                  <div class="ts-stat-meta">
-                    <span class="ts-stat-val" id="ts-stat-val-time">${stats.timeTaken}</span>
-                    <span class="ts-stat-lbl">Time</span>
+        icon: '<span class="ts-header-trans-icon">A 文</span>',
+        title: 'Review Translations',
+        subtitle: 'Review and edit translations before applying to the page.',
+        closeId: 'ts-review-modal-close',
+      })}
+          <div class="ts-review-body">
+            <!-- Toolbar Row: Search (Left) + 3 Metrics Cards (Right) -->
+            <div class="ts-review-toolbar">
+              <div class="ts-review-search-wrap">
+                <span class="ts-search-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
+                <input type="text" id="ts-review-search-input" class="ts-review-search-input" placeholder="Search source or translation..." autocomplete="off" />
+                <button type="button" id="ts-search-clear-btn" class="ts-search-clear-btn" title="Clear search" style="display: none;">&times;</button>
+              </div>
+
+              <div class="ts-review-stats-group">
+                <div class="ts-stat-card time-card">
+                  <span class="ts-stat-card-icon time">⏱️</span>
+                  <div class="ts-stat-card-meta">
+                    <span class="ts-stat-card-lbl">Time</span>
+                    <span class="ts-stat-card-val" id="ts-stat-val-time">${stats.timeTaken}</span>
                   </div>
                 </div>
-                <div class="ts-header-stat-item">
-                  <span class="ts-stat-icon">📄</span>
-                  <div class="ts-stat-meta">
-                    <span class="ts-stat-val" id="ts-stat-val-chars">${stats.totalChars.toLocaleString()}</span>
-                    <span class="ts-stat-lbl">Characters</span>
+                <div class="ts-stat-card chars-card">
+                  <span class="ts-stat-card-icon chars">📄</span>
+                  <div class="ts-stat-card-meta">
+                    <span class="ts-stat-card-lbl">Characters</span>
+                    <span class="ts-stat-card-val" id="ts-stat-val-chars">${stats.totalChars.toLocaleString()}</span>
                   </div>
                 </div>
-                <div class="ts-header-stat-item">
-                  <span class="ts-stat-icon-tt">Tt</span>
-                  <div class="ts-stat-meta">
-                    <span class="ts-stat-val" id="ts-stat-val-strings">${stats.stringCount}</span>
-                    <span class="ts-stat-lbl">Strings</span>
+                <div class="ts-stat-card strings-card">
+                  <span class="ts-stat-card-icon-tt">Tt</span>
+                  <div class="ts-stat-card-meta">
+                    <span class="ts-stat-card-lbl">Strings</span>
+                    <span class="ts-stat-card-val" id="ts-stat-val-strings">${stats.stringCount}</span>
                   </div>
                 </div>
               </div>
-            `,
-            closeId: 'ts-review-modal-close',
-          })}
-          <div class="ts-review-body">
+            </div>
+
             <!-- Strings Table Card (2 Columns: SOURCE TEXT vs TRANSLATED TEXT) -->
             <div class="ts-table-card">
               <table class="ts-strings-table">
                 <thead>
                   <tr>
-                    <th style="width: 46%;">SOURCE TEXT</th>
-                    <th style="width: 54%;">TRANSLATED TEXT</th>
+                    <th style="width: 48%;">SOURCE TEXT</th>
+                    <th style="width: 52%;">TRANSLATED TEXT</th>
                   </tr>
                 </thead>
                 <tbody id="ts-review-table-tbody"></tbody>
@@ -1104,13 +1116,13 @@
             </div>
           </div>
           ${this.core.createFooterHTML({
-            customHtml: `<span class="ts-footer-string-counter" id="ts-footer-string-counter">${this.strings.length} of ${this.strings.length} strings</span>`,
-            align: 'space-between',
-            buttons: [
-              { id: 'ts-review-cancel-btn', label: 'Cancel', variant: 'secondary' },
-              { id: 'ts-apply-to-editor-btn', label: '✓ Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
-            ]
-          })}
+        customHtml: `<span class="ts-footer-string-counter" id="ts-footer-string-counter">${this.strings.length} of ${this.strings.length} strings</span>`,
+        align: 'space-between',
+        buttons: [
+          { id: 'ts-review-cancel-btn', label: 'Cancel', variant: 'secondary' },
+          { id: 'ts-apply-to-editor-btn', label: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
+        ]
+      })}
         </div>
       `;
 
@@ -1118,27 +1130,46 @@
 
       // Close handlers
       const closeModal = () => modalContainer.remove();
-      document.getElementById('ts-review-modal-close').addEventListener('click', closeModal);
-      document.getElementById('ts-review-cancel-btn').addEventListener('click', closeModal);
+      const closeBtn = document.getElementById('ts-review-modal-close');
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      const cancelBtn = document.getElementById('ts-review-cancel-btn');
+      if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
-      // Search filter listener
+      // Search filter listener & clear button
       const searchInput = document.getElementById('ts-review-search-input');
+      const clearBtn = document.getElementById('ts-search-clear-btn');
       if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-          this.renderReviewTableRows(e.target.value);
+          const val = e.target.value;
+          if (clearBtn) clearBtn.style.display = val ? 'flex' : 'none';
+          this.renderReviewTableRows(val);
+        });
+      }
+      if (clearBtn && searchInput) {
+        clearBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          clearBtn.style.display = 'none';
+          this.renderReviewTableRows('');
+          searchInput.focus();
         });
       }
 
-      // Re-translate button
-      document.getElementById('ts-retranslate-btn').addEventListener('click', async () => {
-        await this.performBatchTranslation();
-      });
+      // Re-translate button (if exists)
+      const retransBtn = document.getElementById('ts-retranslate-btn');
+      if (retransBtn) {
+        retransBtn.addEventListener('click', async () => {
+          await this.performBatchTranslation();
+        });
+      }
 
       // Apply to editor button
-      document.getElementById('ts-apply-to-editor-btn').addEventListener('click', async () => {
-        await this.applyTranslationsToEditor();
-        closeModal();
-      });
+      const applyBtn = document.getElementById('ts-apply-to-editor-btn');
+      if (applyBtn) {
+        applyBtn.addEventListener('click', async () => {
+          await this.applyTranslationsToEditor();
+          closeModal();
+        });
+      }
 
       this.renderReviewTableRows();
     }
@@ -1168,11 +1199,10 @@
           ${[1, 2, 3, 4, 5].map((_, i) => `
             <tr class="ts-skeleton-row">
               <td style="padding: 16px 18px; vertical-align: middle;">
-                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '78%' : '60%'}; height: 16px; margin-bottom: 8px;"></div>
-                <div class="ts-skeleton-shimmer" style="width: 110px; height: 18px; border-radius: 6px;"></div>
+                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '78%' : '60%'}; height: 16px;"></div>
               </td>
               <td style="padding: 16px 18px; vertical-align: middle;">
-                <div class="ts-skeleton-shimmer" style="width: 100%; height: 38px; border-radius: 8px;"></div>
+                <div class="ts-skeleton-shimmer" style="width: 100%; height: 38px; border-radius: 4px;"></div>
               </td>
             </tr>
           `).join('')}
@@ -1187,9 +1217,7 @@
           if (!q) return true;
           const src = String(item.value || '').toLowerCase();
           const trans = String(item.translated || '').toLowerCase();
-          const name = String(item.name || '').toLowerCase();
-          const key = String(item.key || '').toLowerCase();
-          return src.includes(q) || trans.includes(q) || name.includes(q) || key.includes(q);
+          return src.includes(q) || trans.includes(q);
         });
 
       if (filtered.length === 0) {
@@ -1208,22 +1236,21 @@
         const idx = item.originalIndex;
         const sourceVal = item.value || '';
         const transVal = item.translated || '';
-        const tagName = item.key || item.name || 'text';
 
         return `
           <tr data-idx="${idx}">
             <td>
               <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
-              <div class="ts-meta-tag">
-                <span class="ts-tag-symbol">&lt;&gt;</span>
-                <span>${this.escapeHtml(tagName)}</span>
-              </div>
             </td>
             <td>
-              <div class="ts-trans-edit-wrap">
-                <input type="text" class="ts-trans-input" data-idx="${idx}" value="${this.escapeHtml(transVal)}" placeholder="Enter translation..." />
+              <div class="ts-trans-cell-wrap">
+                <div class="ts-trans-box">
+                  <textarea class="ts-trans-textarea" data-idx="${idx}" rows="1" placeholder="Enter translation...">${this.escapeHtml(transVal)}</textarea>
+                </div>
                 <button type="button" class="ts-row-edit-btn" data-idx="${idx}" title="Edit translation">
-                  <span class="dashicons dashicons-edit"></span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                  </svg>
                 </button>
               </div>
             </td>
@@ -1231,15 +1258,26 @@
         `;
       }).join('');
 
+      const autoResize = (ta) => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.max(38, ta.scrollHeight) + 'px';
+      };
+
+      // Auto-resize initial textareas
+      tbody.querySelectorAll('.ts-trans-textarea').forEach((ta) => {
+        autoResize(ta);
+      });
+
       // Focus input when edit button is clicked
       tbody.querySelectorAll('.ts-row-edit-btn').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           const row = e.target.closest('tr');
           if (row) {
-            const input = row.querySelector('.ts-trans-input');
-            if (input) {
-              input.focus();
-              input.select();
+            const ta = row.querySelector('.ts-trans-textarea');
+            if (ta) {
+              ta.focus();
+              ta.select();
+              autoResize(ta);
             }
           }
         });
@@ -1252,8 +1290,9 @@
       }
 
       // Input changes listener
-      tbody.querySelectorAll('.ts-trans-input').forEach((input) => {
-        input.addEventListener('input', (e) => {
+      tbody.querySelectorAll('.ts-trans-textarea').forEach((ta) => {
+        ta.addEventListener('input', (e) => {
+          autoResize(e.target);
           const idx = parseInt(e.target.getAttribute('data-idx'), 10);
           const val = e.target.value;
           if (this.strings[idx]) {

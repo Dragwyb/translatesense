@@ -380,7 +380,6 @@
                 <div class="ts-summary-box" id="ts-summary-box-content"></div>
 
                 <div class="ts-bulk-field">
-                  <div class="ts-section-heading">Translation provider</div>
                   <div class="ts-provider-list" id="ts-bulk-provider-list">
                     ${initialStep2.providerRowsHtml}
                   </div>
