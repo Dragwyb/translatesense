@@ -138,7 +138,7 @@ class Translate {
 	public static function translate_string( $source_string, $source_lang, $target_lang, $widget_id = 'generic', $post_id = 0, $custom_options = array() ) {
 		if ( empty( trim( (string) $source_string ) ) || $source_lang === $target_lang || self::is_email_or_url( (string) $source_string ) ) {
 			return array(
-				'translated' => wp_kses_post( $source_string ),
+				'translated' => $source_string,
 				'cached'     => true,
 				'hash'       => md5( (string) $widget_id . '_' . (string) $source_string ),
 			);
@@ -152,9 +152,10 @@ class Translate {
 		// Step 3.2b: Check in-memory translations (Chrome Local AI / custom maps)
 		if ( ! empty( $custom_options['in_memory_translations'] ) && is_array( $custom_options['in_memory_translations'] ) ) {
 			if ( isset( $custom_options['in_memory_translations'][ $hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $hash ] ) ) {
-				$translated_text = (string) $custom_options['in_memory_translations'][ $hash ];
+				$translated_text = self::sanitize_string( $source_string, $custom_options['in_memory_translations'][ $hash ] );
+
 				return array(
-					'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ) ),
+					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
 					'cached'     => false,
 					'hash'       => $hash,
 				);
@@ -166,9 +167,10 @@ class Translate {
 				$filtered_hash = Hashing_Db::generate_hash( (string) $widget_id, (string) $filtered_string );
 
 				if ( isset( $custom_options['in_memory_translations'][ $filtered_hash ] ) && '' !== trim( (string) $custom_options['in_memory_translations'][ $filtered_hash ] ) ) {
-					$translated_text = (string) $custom_options['in_memory_translations'][ $filtered_hash ];
+					$translated_text = self::sanitize_string( $filtered_string, $custom_options['in_memory_translations'][ $filtered_hash ] );
+
 					return array(
-						'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ) ),
+						'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, $translated_text ),
 						'cached'     => false,
 						'hash'       => $filtered_hash,
 					);
@@ -180,7 +182,7 @@ class Translate {
 		$cached = Hashing_Db::get_cached_translation( $hash, $target_lang );
 		if ( null !== $cached ) {
 			return array(
-				'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $cached ) ),
+				'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, self::sanitize_string( $source_string, $cached ) ),
 				'cached'     => true,
 				'hash'       => $hash,
 			);
@@ -194,7 +196,7 @@ class Translate {
 			$cached = Hashing_Db::get_cached_translation( $filtered_hash, $target_lang );
 			if ( null !== $cached ) {
 				return array(
-					'translated' => wp_kses_post( Dom_Filter::replace_filtered_content( (string) $source_string, $cached ) ),
+					'translated' => Dom_Filter::replace_filtered_content( (string) $source_string, self::sanitize_string( $source_string, $cached ) ),
 					'cached'     => true,
 					'hash'       => $filtered_hash,
 				);
@@ -202,11 +204,235 @@ class Translate {
 		}
 
 		return array(
-			'translated' => wp_kses_post( $source_string ),
+			'translated' => $source_string,
 			'cached'     => false,
 			'hash'       => $hash,
 		);
 	}
+
+	/**
+	 * Sanitize translated text.
+	 *
+	 * @param string $text
+	 * @return string
+	 */
+
+	/**
+	 * Sanitize translated text nodes and replace them in the original HTML.
+	 *
+	 * Original HTML tags and attributes are preserved.
+	 *
+	 * @param string $source_string     Original HTML.
+	 * @param string $translated_string Translated HTML with matching structure.
+	 * @return string
+	 */
+	private static function sanitize_string(
+		string $source_string,
+		string $translated_string
+	): string {
+		if ( '' === $translated_string || $source_string === $translated_string ) {
+			return $source_string;
+		}
+
+		$filtered_string = wp_kses_post( $translated_string );
+
+		if ( $filtered_string === $translated_string ) {
+			return $filtered_string;
+		}
+
+		$source_tokens     = self::tokenize_html( $source_string );
+		$translated_tokens = self::tokenize_html( $translated_string );
+
+		// Do not apply translations if the token structures differ.
+		if ( count( $source_tokens ) !== count( $translated_tokens ) ) {
+			return $source_string;
+		}
+
+		$replacements = array();
+		$count        = count( $source_tokens );
+
+		for ( $i = 0; $i < $count; $i++ ) {
+			$source_token     = $source_tokens[ $i ];
+			$translated_token = $translated_tokens[ $i ];
+
+			if ( $source_token['type'] !== $translated_token['type'] ) {
+				return $source_string;
+			}
+
+			// Keep original tags and attributes unchanged.
+			if ( 'tag' === $source_token['type'] ) {
+				if (
+				self::get_tag_signature( $source_token['value'] )
+				!== self::get_tag_signature( $translated_token['value'] )
+				) {
+					return $source_string;
+				}
+
+				continue;
+			}
+
+			$source_value     = $source_token['value'];
+			$translated_value = $translated_token['value'];
+
+			// Preserve whitespace-only nodes exactly.
+			if ( '' === trim( $source_value ) ) {
+				continue;
+			}
+
+			if ( $source_value === $translated_value ) {
+				continue;
+			}
+
+			// Decode existing HTML entities, then safely escape text content.
+			$decoded_value = html_entity_decode(
+				$translated_value,
+				ENT_QUOTES | ENT_HTML5,
+				'UTF-8'
+			);
+
+			$safe_value = wp_kses_post( $decoded_value );
+
+			$replacements[] = array(
+				'start'            => $source_token['start'],
+				'length'           => strlen( $source_value ),
+				'original_value'   => $source_value,
+				'translated_value' => $safe_value,
+			);
+		}
+
+		// Replace from right to left so earlier byte offsets remain valid.
+		usort(
+			$replacements,
+			static function ( $a, $b ) {
+				return $b['start'] <=> $a['start'];
+			}
+		);
+
+		foreach ( $replacements as $replacement ) {
+			$source_string = substr_replace(
+				$source_string,
+				$replacement['translated_value'],
+				$replacement['start'],
+				$replacement['length']
+			);
+		}
+
+		return $source_string === $translated_string ? $translated_string : $source_string;
+	}
+
+	/**
+	 * Split HTML into tags and text nodes while recording byte offsets.
+	 *
+	 * This scanner recognizes quoted attributes containing ">" characters.
+	 *
+	 * @param string $html HTML fragment.
+	 * @return array
+	 */
+	private static function tokenize_html( string $html ): array {
+		$tokens = array();
+		$length = strlen( $html );
+		$offset = 0;
+		$depth  = 0;
+
+		while ( $offset < $length ) {
+			if ( $depth > 200 ) {
+				return array();
+			}
+
+			if ( '<' !== $html[ $offset ] ) {
+				$next_tag = strpos( $html, '<', $offset );
+
+				if ( false === $next_tag ) {
+					$next_tag = $length;
+				}
+
+				$tokens[] = array(
+					'type'  => 'text',
+					'value' => substr( $html, $offset, $next_tag - $offset ),
+					'start' => $offset,
+				);
+
+				$offset = $next_tag;
+				continue;
+			}
+
+			// Handle HTML comments as indivisible tokens.
+			if ( substr( $html, $offset, 4 ) === '<!--' ) {
+				$comment_end = strpos( $html, '-->', $offset + 4 );
+
+				if ( false === $comment_end ) {
+					return array();
+				}
+
+				$end = $comment_end + 3;
+			} else {
+				$quote = null;
+				$end   = null;
+
+				for ( $i = $offset + 1; $i < $length; $i++ ) {
+					$char = $html[ $i ];
+
+					if ( null !== $quote ) {
+						if ( $char === $quote ) {
+							$quote = null;
+						}
+						continue;
+					}
+
+					if ( '"' === $char || "'" === $char ) {
+						$quote = $char;
+						continue;
+					}
+
+					if ( '>' === $char ) {
+						$end = $i + 1;
+						break;
+					}
+				}
+
+				if ( null === $end ) {
+					return array();
+				}
+			}
+
+			$tokens[] = array(
+				'type'  => 'tag',
+				'value' => substr( $html, $offset, $end - $offset ),
+				'start' => $offset,
+			);
+
+			$offset = $end;
+			++$depth;
+		}
+
+		return $tokens;
+	}
+
+	/**
+	 * Identify a tag's structural signature, ignoring its attributes.
+	 *
+	 * @param string $tag HTML tag token.
+	 * @return string
+	 */
+	private static function get_tag_signature( string $tag ): string {
+		if ( preg_match( '~^<\s*!\s*~', $tag ) ) {
+			return strtolower( $tag );
+		}
+
+		if (
+		! preg_match(
+			'~^<\s*(/?)\s*([a-z][a-z0-9:-]*)\b~i',
+			$tag,
+			$matches
+		)
+		) {
+			return $tag;
+		}
+
+		return strtolower( $matches[1] . $matches[2] );
+	}
+
+
 
 	/**
 	 * Check if a string is an email, URL, or asset path.

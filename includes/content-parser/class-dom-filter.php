@@ -27,6 +27,11 @@ class Dom_Filter {
 	private static $cache = array();
 
 	/**
+	 * @var array<string, string>
+	 */
+	private static $attr_placehilders_cache = array();
+
+	/**
 	 * HTML void elements.
 	 *
 	 * @var string
@@ -220,12 +225,88 @@ class Dom_Filter {
 	}
 
 	/**
+	 * Replace translatable attributes with placeholders.
+	 *
+	 * @param string $content Content.
+	 * @return string
+	 */
+	private static function set_attr_placeholder( $content ) {
+		if ( empty( $content ) || ! is_string( $content ) ) {
+			return $content;
+		}
+
+		// Characters that may require attribute value preservation.
+		$special_chars = array(
+			':',
+			'/',
+			'%',
+			'&',
+			'=',
+			'+',
+			'#',
+			'?',
+			'@',
+			';',
+			',',
+			'[',
+			']',
+			'{',
+			'}',
+			'\\',
+		);
+
+		$special_chars_pattern = preg_quote(
+			implode( '', $special_chars ),
+			'~'
+		);
+
+		$pattern = '~([a-zA-Z_:][a-zA-Z0-9:._-]*)\s*=\s*(["\'])((?:(?!\2).)*?['
+			. $special_chars_pattern
+			. '](?:(?!\2).)*)\2~s';
+
+		if ( ! preg_match_all( $pattern, $content, $matches, PREG_SET_ORDER ) ) {
+			return $content;
+		}
+
+		foreach ( $matches as $match ) {
+			$attribute_name                                = $match[1];
+			$attribute_value                               = substr( $match[0], strpos( $match[0], $match[2] ) + 1, -1 );
+			$placeholder                                   = '__ts_ph__' . count( self::$attr_placehilders_cache ) . '__ts_ph__';
+			self::$attr_placehilders_cache[ $placeholder ] = $attribute_value;
+			$content                                       = str_replace( $match[0], $attribute_name . '="' . $placeholder . '"', $content );
+		}
+
+		return $content;
+	}
+
+	/**
+	 * Replace placeholders with original attributes.
+	 *
+	 * @param string $content Content.
+	 * @return string
+	 */
+	private static function replace_attr_placeholders( $content ) {
+		if ( empty( $content ) || ! is_string( $content ) || empty( self::$attr_placehilders_cache ) ) {
+			return $content;
+		}
+
+		foreach ( self::$attr_placehilders_cache as $placeholder => $attribute_value ) {
+			$content = str_replace( $placeholder, $attribute_value, $content );
+		}
+
+		self::$attr_placehilders_cache = array();
+		return $content;
+	}
+
+	/**
 	 * Filter HTML content, unwrapping single-child wrapper elements.
 	 *
 	 * @param string $value HTML or text content.
 	 * @return string|false
 	 */
 	public static function filter_dom_content( string $value ) {
+		self::$attr_placehilders_cache = array();
+
 		if ( '' === trim( $value ) ) {
 			return false;
 		}
@@ -253,7 +334,9 @@ class Dom_Filter {
 		}
 
 		// Mark original self-closing tags before parsing.
-		$marked = self::mark_self_closing_tags( $decoded );
+		$marked = self::mark_self_closing_tags(
+			self::set_attr_placeholder( $decoded )
+		);
 
 		$dom = new DOMDocument( '1.0', 'UTF-8' );
 
@@ -276,7 +359,7 @@ class Dom_Filter {
 		}
 
 		if ( ! $loaded ) {
-			$result = self::has_text_content( $decoded ) ? $decoded : false;
+			$result = self::has_text_content( $decoded ) ? self::replace_attr_placeholders( $decoded ) : false;
 
 			self::$cache[ $cache_key ] = $result;
 
@@ -286,7 +369,7 @@ class Dom_Filter {
 		$body = $dom->getElementsByTagName( 'body' )->item( 0 );
 
 		if ( ! $body ) {
-			$result = self::has_text_content( $decoded ) ? $decoded : false;
+			$result = self::has_text_content( $decoded ) ? self::replace_attr_placeholders( $decoded ) : false;
 
 			self::$cache[ $cache_key ] = $result;
 
@@ -351,7 +434,7 @@ class Dom_Filter {
 
 		// Restore only the elements marked before DOM parsing.
 		$result = self::restore_self_closing_tags(
-			$result,
+			self::replace_attr_placeholders( $result ),
 			$marked['attribute'],
 			$marked['suffixes']
 		);

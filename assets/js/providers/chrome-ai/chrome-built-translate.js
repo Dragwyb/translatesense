@@ -876,12 +876,12 @@
   /**
    * Translate text while preserving HTML structure.
    */
-  async function translateTranslateSenseHtml(sourceText, sourceLang, targetLang) {
+  async function translateTranslateSenseHtml(core, sourceText, sourceLang, targetLang) {
     if (
-      window.TranslateSenseCore &&
-      typeof window.TranslateSenseCore.translateTextPreservingHtml === 'function'
+      core &&
+      typeof core.translateTextPreservingHtml === 'function'
     ) {
-      return window.TranslateSenseCore.translateTextPreservingHtml(
+      return core.translateTextPreservingHtml(
         sourceText,
         (cleanText) => translateSingleWithTranslateSenseAi(cleanText, sourceLang, targetLang)
       );
@@ -945,6 +945,7 @@
 
           try {
             const translatedText = await translateTranslateSenseHtml(
+              core,
               sourceText,
               sourceLang,
               targetLang

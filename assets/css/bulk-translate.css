@@ -360,6 +360,12 @@
   flex-shrink: 0;
 }
 
+.ts-lang-card input[type=checkbox]:before {
+  width: 20px !important;
+  height: 20px !important;
+  margin: -3px -4px;
+}
+
 .ts-lang-name {
   font-size: 13px;
   font-weight: 600;
