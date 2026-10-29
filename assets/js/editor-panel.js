@@ -1460,7 +1460,7 @@
       const nonce = this.config.nonce || '';
       const currentPostId = this.postId || this.config.postId || 0;
 
-      // Mark this post with _translatesense_translated = 1 and persist translations in database
+      // Mark this post with _translatesense_translated
       if (currentPostId) {
         fetch(restUrl + 'mark-translated', {
           method: 'POST',
@@ -1469,9 +1469,7 @@
             'X-WP-Nonce': nonce,
           },
           body: JSON.stringify({
-            post_id: currentPostId,
-            target_lang: this.targetLang,
-            strings: this.strings,
+            post_id: currentPostId
           }),
         }).catch((err) => {
           console.warn('[TranslateSense] Could not update translated flag:', err);
