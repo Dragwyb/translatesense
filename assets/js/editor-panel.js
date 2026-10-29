@@ -196,19 +196,22 @@
       modalContainer.className = 'ts-strings-review-modal';
       modalContainer.innerHTML = `
         <div class="ts-review-container" style="max-width: 560px;" onclick="event.stopPropagation()">
-          <div class="ts-review-header">
-            <h3>${modalTitle}</h3>
-            <button class="ts-bulk-close" id="ts-source-prompt-close">✕</button>
-          </div>
+          ${this.core.createHeaderHTML({
+            icon: '⚡',
+            title: modalTitle,
+            closeId: 'ts-source-prompt-close',
+          })}
           <div class="ts-review-body">
             <div style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 8px;">
               ${modalMessage}
             </div>
           </div>
-          <div class="ts-review-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-source-prompt-cancel">Close</button>
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-source-prompt-confirm">${actionBtnText}</button>
-          </div>
+          ${this.core.createFooterHTML({
+            buttons: [
+              { id: 'ts-source-prompt-cancel', label: 'Close', variant: 'secondary' },
+              { id: 'ts-source-prompt-confirm', label: actionBtnText, variant: 'primary' }
+            ]
+          })}
         </div>
       `;
 
@@ -335,18 +338,12 @@
       let proidersAvailable = false;
       modalContainer.innerHTML = `
         <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
-          <div class="ts-review-header">
-            <div class="ts-review-header-title">
-              <div class="ts-header-icon-box">
-                <span class="dashicons dashicons-translation"></span>
-              </div>
-              <div>
-                <h3>Choose Translation Provider</h3>
-                <p class="ts-header-subtitle">Select engine for target language: <span class="ts-lang-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span></p>
-              </div>
-            </div>
-            <button class="ts-bulk-close" id="ts-provider-modal-close" title="Close">✕</button>
-          </div>
+          ${this.core.createHeaderHTML({
+            icon: '<span class="dashicons dashicons-translation"></span>',
+            title: 'Choose Translation Provider',
+            subtitle: `Select engine for target language: <span class="ts-lang-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span>`,
+            closeId: 'ts-provider-modal-close',
+          })}
           <div class="ts-review-body">
             <div class="ts-provider-list">
               ${(() => {
@@ -445,24 +442,20 @@
               const errorTitle = p.isSupported.reasonTitle || p.isSupported.title || p.title;
               ErrorModals += `
                 <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
-                  <div class="ts-review-header">
-                    <div class="ts-review-header-title">
-                      <div class="ts-header-icon-box">
-                        <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                      </div>
-                      <div>
-                        <h3>${errorTitle}</h3>
-                      </div>
-                    </div>
-                    <button class="ts-bulk-close" title="Close">✕</button>
-                  </div>
+                  ${this.core.createHeaderHTML({
+                    icon: p.logo,
+                    title: errorTitle,
+                    closeClass: 'ts-bulk-close',
+                  })}
                   <div class="ts-review-body">
                     <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
                   </div>
-                  <div class="ts-review-footer">
-                    ${p.isSupported.actionHtml ? p.isSupported.actionHtml : ''}
-                    <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">&larr; Back</button>
-                  </div>
+                  ${this.core.createFooterHTML({
+                    customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
+                    buttons: [
+                      { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
+                    ]
+                  })}
                 </div>
               `;
             }
@@ -491,10 +484,12 @@
         })()}
             </div>
           </div>
-          <div class="ts-review-footer">
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-provider-modal-cancel">Cancel</button>
-            <button type="button" class="ts-bulk-btn ${proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-provider-modal-start" ${!proidersAvailable ? 'disabled' : ''} title="${!proidersAvailable ? 'All translation providers have errors or are unavailable.' : 'Start Translation'}">Start Translation</button>
-          </div>
+          ${this.core.createFooterHTML({
+            buttons: [
+              { id: 'ts-provider-modal-cancel', label: 'Cancel', variant: 'secondary' },
+              { id: 'ts-provider-modal-start', label: 'Start Translation', variant: proidersAvailable ? 'primary' : 'disabled', disabled: !proidersAvailable, title: !proidersAvailable ? 'All translation providers have errors or are unavailable.' : 'Start Translation' }
+            ]
+          })}
         </div>
         ${ErrorModals}
       `;
@@ -1060,14 +1055,15 @@
       modalContainer.className = 'ts-strings-review-modal';
       modalContainer.innerHTML = `
         <div class="ts-review-container" onclick="event.stopPropagation()">
-          <div class="ts-review-header">
-            <div class="ts-review-header-title">
-              <h3>⚡ Review Translations</h3>
-              <span class="ts-badge-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span>
-              <span class="ts-badge-pill">${providerInfo.icon} ${providerInfo.title}</span>
-            </div>
-            <button class="ts-bulk-close" id="ts-review-modal-close" title="Close">✕</button>
-          </div>
+          ${this.core.createHeaderHTML({
+            icon: '⚡',
+            title: 'Review Translations',
+            badges: [
+              getLanguageDisplay(this.targetLang, this.config.languages),
+              `${providerInfo.icon} ${providerInfo.title}`
+            ],
+            closeId: 'ts-review-modal-close',
+          })}
           <div class="ts-review-body">
             <!-- Header Stats Bar -->
             <div class="ts-modal-stats-bar">
@@ -1128,10 +1124,12 @@
               </table>
             </div>
           </div>
-          <div class="ts-review-footer">
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-review-cancel-btn">Cancel</button>
-            <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-apply-to-editor-btn" ${this.isExtracting || !this.strings.length ? 'disabled' : ''}>✓ Apply to Page</button>
-          </div>
+          ${this.core.createFooterHTML({
+            buttons: [
+              { id: 'ts-review-cancel-btn', label: 'Cancel', variant: 'secondary' },
+              { id: 'ts-apply-to-editor-btn', label: '✓ Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
+            ]
+          })}
         </div>
       `;
 

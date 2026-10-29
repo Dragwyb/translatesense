@@ -1,0 +1,253 @@
+/**
+ * TranslateSense - Common Modal Header & Footer Styles
+ * File: assets/css/common.css
+ *
+ * Unified, clean, modern design tokens for Bulk and Page Editor translation modals.
+ */
+
+:root {
+  --ts-primary: #4f46e5;
+  --ts-primary-hover: #4338ca;
+  --ts-primary-active: #3730a3;
+  --ts-surface: #ffffff;
+  --ts-bg-subtle: #f8fafc;
+  --ts-border: #e2e8f0;
+  --ts-border-dark: #cbd5e1;
+  --ts-text-main: #0f172a;
+  --ts-text-muted: #64748b;
+  --ts-radius-md: 10px;
+  --ts-radius-lg: 16px;
+  --ts-shadow-modal: 0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(226, 232, 240, 0.8);
+}
+
+/* ==========================================================================
+   Common Modal Header
+   ========================================================================== */
+.ts-common-header,
+.ts-review-header,
+.ts-bulk-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--ts-border, #e2e8f0);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--ts-surface, #ffffff);
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+.ts-common-header-title,
+.ts-review-header-title,
+.ts-bulk-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ts-common-icon-box,
+.ts-header-icon-box,
+.ts-bulk-logo-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--ts-radius-md, 10px);
+  background: #f8fafc;
+  border: 1px solid var(--ts-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ts-common-icon-box .dashicons,
+.ts-header-icon-box .dashicons {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  color: var(--ts-primary, #4f46e5);
+}
+
+.ts-common-icon-box img,
+.ts-header-icon-box .ts-provider-logo-img,
+.ts-bulk-logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.ts-common-icon-box .ts-emoji-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ts-common-title-wrap,
+.ts-bulk-title-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ts-common-title,
+.ts-common-header h2,
+.ts-common-header h3,
+.ts-review-header h2,
+.ts-review-header h3,
+.ts-bulk-header h2,
+.ts-bulk-header h3,
+.ts-bulk-title-group h2 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: var(--ts-text-main, #0f172a) !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.25 !important;
+}
+
+.ts-common-subtitle,
+.ts-bulk-subtitle,
+.ts-header-subtitle {
+  font-size: 12px;
+  color: var(--ts-text-muted, #64748b);
+  font-weight: 500;
+  display: block;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.ts-common-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: 4px;
+}
+
+.ts-badge-pill,
+.ts-lang-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Common Close Button */
+.ts-common-close,
+.ts-bulk-close,
+.ts-review-close {
+  background: #f1f5f9 !important;
+  border: 1px solid var(--ts-border, #e2e8f0) !important;
+  color: #64748b !important;
+  font-size: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  flex-shrink: 0;
+}
+
+.ts-common-close:hover,
+.ts-bulk-close:hover,
+.ts-review-close:hover {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+  transform: rotate(90deg);
+}
+
+/* ==========================================================================
+   Common Modal Footer
+   ========================================================================== */
+.ts-common-footer,
+.ts-review-footer,
+.ts-bulk-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--ts-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--ts-bg-subtle, #f8fafc);
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Common Modal Action Buttons
+   ========================================================================== */
+.ts-common-btn,
+.ts-bulk-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.4;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.ts-common-btn.ts-btn-primary,
+.ts-bulk-btn-primary {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #3730a3 !important;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.25) !important;
+}
+
+.ts-common-btn.ts-btn-primary:hover:not(:disabled),
+.ts-bulk-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  border-color: #4338ca !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+.ts-common-btn.ts-btn-secondary,
+.ts-bulk-btn-secondary {
+  background: #ffffff !important;
+  border: 1px solid var(--ts-border-dark, #cbd5e1) !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.ts-common-btn.ts-btn-secondary:hover:not(:disabled),
+.ts-bulk-btn-secondary:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+.ts-common-btn.ts-btn-disabled,
+.ts-bulk-btn-disabled,
+.ts-common-btn:disabled,
+.ts-bulk-btn:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 0.7 !important;
+}
+

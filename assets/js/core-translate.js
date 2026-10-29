@@ -25,6 +25,7 @@
 
       // Initialize enabled providers from localized data if available
       this.syncEnabledProviders();
+
     }
 
     /**
@@ -836,6 +837,172 @@
       }
 
       return {};
+    }
+
+    /**
+     * Create unified Common Header HTML string.
+     *
+     * @param {Object} options Header options
+     * @param {string} [options.icon='⚡'] Icon HTML, image URL, dashicons class, or emoji
+     * @param {string} [options.title=''] Modal title string or HTML
+     * @param {string} [options.subtitle=''] Optional subtitle string or HTML
+     * @param {Array<string>|string} [options.badges=[]] Optional badge pills (array or HTML string)
+     * @param {string} [options.closeId=''] ID attribute for close button
+     * @param {string} [options.closeClass=''] Optional extra class for close button
+     * @param {boolean} [options.showClose=true] Whether to show close button
+     * @param {string} [options.className=''] Optional extra class on header element
+     * @param {string} [options.style=''] Optional inline style string for header element
+     * @returns {string} Common header HTML string
+     */
+    createHeaderHTML(options = {}) {
+      const {
+        icon = '⚡',
+        title = '',
+        subtitle = '',
+        badges = [],
+        closeId = '',
+        closeClass = '',
+        showClose = true,
+        className = '',
+        style = '',
+      } = options;
+
+      let iconHtml = '';
+      if (icon) {
+        if (typeof icon === 'string' && (icon.includes('<') || icon.includes('dashicons-'))) {
+          iconHtml = icon.startsWith('<') ? icon : `<span class="dashicons ${icon}"></span>`;
+        } else if (typeof icon === 'string' && (icon.startsWith('http') || icon.includes('/') || icon.includes('.png') || icon.includes('.svg'))) {
+          iconHtml = `<img src="${icon}" alt="${title}" class="ts-provider-logo-img" />`;
+        } else {
+          iconHtml = `<span class="ts-emoji-icon">${icon}</span>`;
+        }
+      }
+
+      let badgesHtml = '';
+      if (Array.isArray(badges) && badges.length > 0) {
+        badgesHtml = badges.map((b) => `<span class="ts-badge-pill">${b}</span>`).join(' ');
+      } else if (typeof badges === 'string' && badges.trim() !== '') {
+        badgesHtml = badges;
+      }
+
+      const closeIdAttr = closeId ? ` id="${closeId}"` : '';
+      const closeBtnHtml = showClose
+        ? `<button type="button" class="ts-common-close ts-bulk-close ${closeClass}"${closeIdAttr} title="Close Modal">&times;</button>`
+        : '';
+      const styleAttr = style ? ` style="${style}"` : '';
+
+      return `
+        <div class="ts-common-header ts-review-header ${className}"${styleAttr}>
+          <div class="ts-common-header-title ts-review-header-title">
+            ${iconHtml ? `<div class="ts-common-icon-box ts-header-icon-box">${iconHtml}</div>` : ''}
+            <div class="ts-common-title-wrap">
+              <h3 class="ts-common-title">${title}</h3>
+              ${subtitle ? `<span class="ts-common-subtitle ts-header-subtitle">${subtitle}</span>` : ''}
+            </div>
+            ${badgesHtml ? `<div class="ts-common-badge-wrap">${badgesHtml}</div>` : ''}
+          </div>
+          ${closeBtnHtml}
+        </div>
+      `;
+    }
+
+    /**
+     * Create unified Common Footer HTML string.
+     *
+     * @param {Object} options Footer options
+     * @param {Array<Object>|string} [options.buttons=[]] Button objects or raw HTML
+     * @param {string} [options.customHtml=''] Optional extra HTML placed before buttons
+     * @param {string} [options.align='flex-end'] Flex alignment (flex-end, space-between, etc.)
+     * @param {string} [options.id=''] Optional ID for footer element
+     * @param {string} [options.className=''] Optional extra class for footer element
+     * @param {string} [options.style=''] Optional inline style string for footer element
+     * @returns {string} Common footer HTML string
+     */
+    createFooterHTML(options = {}) {
+      if (typeof options === 'string') {
+        return `<div class="ts-common-footer ts-review-footer">${options}</div>`;
+      }
+
+      const {
+        buttons = [],
+        customHtml = '',
+        align = 'flex-end',
+        id = '',
+        className = '',
+        style = '',
+      } = options;
+
+      let buttonsHtml = '';
+      if (Array.isArray(buttons)) {
+        buttonsHtml = buttons.map((btn) => {
+          if (!btn) return '';
+          if (typeof btn === 'string') return btn;
+
+          const label = btn.label || btn.text || 'Button';
+          const variant = btn.variant || (btn.primary ? 'primary' : btn.secondary ? 'secondary' : 'secondary');
+          const variantClass = variant === 'primary' ? 'ts-btn-primary ts-bulk-btn-primary' : variant === 'disabled' ? 'ts-btn-disabled ts-bulk-btn-disabled' : 'ts-btn-secondary ts-bulk-btn-secondary';
+          const disabledAttr = btn.disabled || variant === 'disabled' ? ' disabled' : '';
+          const idAttr = btn.id ? ` id="${btn.id}"` : '';
+          const titleAttr = btn.title ? ` title="${btn.title}"` : '';
+          const customClass = btn.class || btn.className || '';
+          const extraAttrs = btn.attributes ? Object.entries(btn.attributes).map(([k, v]) => ` ${k}="${v}"`).join('') : '';
+
+          return `<button type="button" class="ts-common-btn ts-bulk-btn ${variantClass} ${customClass}"${idAttr}${titleAttr}${disabledAttr}${extraAttrs}>${label}</button>`;
+        }).join('');
+      } else if (typeof buttons === 'string') {
+        buttonsHtml = buttons;
+      }
+
+      const idAttr = id ? ` id="${id}"` : '';
+      let styleParts = [];
+      if (style) {
+        styleParts.push(style.trim().replace(/;$/, ''));
+      }
+      if (align && align !== 'flex-end' && (!style || !style.includes('justify-content'))) {
+        styleParts.push(`justify-content: ${align}`);
+      }
+      const styleAttr = styleParts.length > 0 ? ` style="${styleParts.join('; ')};"` : '';
+
+      return `
+        <div class="ts-common-footer ts-review-footer ${className}"${idAttr}${styleAttr}>
+          ${customHtml ? `<div class="ts-footer-custom">${customHtml}</div>` : ''}
+          ${buttonsHtml}
+        </div>
+      `;
+    }
+
+    /**
+     * Bind common modal events (onClose, button click handlers).
+     *
+     * @param {HTMLElement} container Container DOM element
+     * @param {Object} options Event options
+     */
+    bindModalEvents(container, options = {}) {
+      if (!container) return;
+
+      const { closeId = '', closeSelector = '', onClose = null, buttons = [] } = options;
+
+      // Close handler
+      if (typeof onClose === 'function') {
+        if (closeId) {
+          const closeEl = container.querySelector('#' + closeId);
+          if (closeEl) closeEl.addEventListener('click', onClose);
+        }
+        const sel = closeSelector || '.ts-common-close, .ts-bulk-close, .ts-review-close';
+        container.querySelectorAll(sel).forEach((btn) => {
+          btn.addEventListener('click', onClose);
+        });
+      }
+
+      // Buttons click handlers
+      if (Array.isArray(buttons)) {
+        buttons.forEach((btn) => {
+          if (btn && btn.id && typeof btn.onClick === 'function') {
+            const btnEl = container.querySelector('#' + btn.id);
+            if (btnEl) btnEl.addEventListener('click', btn.onClick);
+          }
+        });
+      }
     }
   }
 

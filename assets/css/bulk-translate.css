@@ -62,82 +62,6 @@
   }
 }
 
-/* Header */
-.ts-bulk-header {
-  background: linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e1b4b 100%);
-  color: #ffffff;
-  padding: 16px 22px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.ts-bulk-header h2{
-  color: #ffffff;
-}
-
-.ts-bulk-header-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ts-bulk-logo-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.2) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  flex-shrink: 0;
-}
-
-.ts-bulk-title-group h2 {
-  margin: 0;
-  font-size: 15.5px;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
-.ts-bulk-subtitle {
-  font-size: 11.5px;
-  color: #94a3b8;
-  font-weight: 500;
-  display: block;
-  margin-top: 2px;
-}
-
-.ts-bulk-close {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.75);
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  padding: 0;
-  transition: all 0.2s ease;
-}
-
-.ts-bulk-close:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
-  transform: rotate(90deg);
-}
-
 /* Body */
 .ts-bulk-body {
   padding: 22px 24px;
@@ -1436,80 +1360,6 @@ button.ts-trans-status-pill.ts-error-detail-btn:hover {
   }
 }
 
-/* Modal Footer */
-.ts-bulk-footer {
-  padding: 16px 24px;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.ts-bulk-btn {
-  padding: 9px 20px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  text-decoration: none;
-}
-
-.ts-bulk-btn-secondary {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  color: #475569;
-}
-
-.ts-bulk-btn-secondary:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
-  transform: translateY(-1px);
-}
-
-.ts-bulk-btn-primary {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  color: #ffffff;
-  border-color: #3730a3;
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.ts-bulk-btn-primary:hover {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  border-color: #4338ca;
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45);
-  transform: translateY(-1.5px);
-}
-
-.ts-bulk-btn-primary:active {
-  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%);
-  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
-  transform: translateY(0);
-}
-
-.ts-bulk-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-.ts-bulk-btn-disabled {
-  background: #e5e7eb !important;
-  color: #9ca3af !important;
-  border-color: #d1d5db !important;
-  cursor: not-allowed !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
 /* ==========================================================================
    Table Navigation "Translate Selected" Button (Top & Bottom)
    ========================================================================== */
@@ -1592,83 +1442,10 @@ button.ts-trans-status-pill.ts-error-detail-btn:hover {
   box-sizing: border-box;
 }
 
-.ts-error-container .ts-review-header {
-  padding: 16px 22px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #ffffff;
-}
-
-.ts-error-container .ts-review-header-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ts-error-container .ts-header-icon-box {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ts-error-container .ts-header-icon-box .ts-provider-logo-img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-}
-
-.ts-error-container .ts-review-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-}
-
-.ts-error-container .ts-bulk-close {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
-  font-size: 15px;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  transition: all 0.2s ease;
-}
-
-.ts-error-container .ts-bulk-close:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #b91c1c;
-  transform: rotate(90deg);
-}
-
 .ts-error-container .ts-review-body {
   padding: 22px;
   overflow-y: auto;
   flex: 1;
-}
-
-.ts-error-container .ts-review-footer {
-  padding: 14px 22px;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  background: #f8fafc;
-  gap: 12px;
 }
 
 .ts-error-message {

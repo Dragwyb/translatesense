@@ -71,9 +71,16 @@ class Bulk_Translate {
 		}
 
 		wp_enqueue_style(
+			'translatesense-common',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/css/common' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
+			array(),
+			TRANSLATESENSE_VERSION
+		);
+
+		wp_enqueue_style(
 			'translatesense-bulk',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array(),
+			array( 'translatesense-common' ),
 			TRANSLATESENSE_VERSION
 		);
 

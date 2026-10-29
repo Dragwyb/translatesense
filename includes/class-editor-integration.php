@@ -189,9 +189,16 @@ class Editor_Integration {
 		}
 
 		wp_enqueue_style(
+			'translatesense-common',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/css/common' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
+			array(),
+			TRANSLATESENSE_VERSION
+		);
+
+		wp_enqueue_style(
 			'translatesense-editor',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/editor' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array(),
+			array( 'translatesense-common' ),
 			TRANSLATESENSE_VERSION
 		);
 

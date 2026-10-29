@@ -242,24 +242,20 @@
             const errorTitle = p.isSupported.reasonTitle || p.isSupported.title || p.title;
             ErrorModals += `
               <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
-                <div class="ts-review-header">
-                  <div class="ts-review-header-title">
-                    <div class="ts-header-icon-box">
-                      <img src="${p.logo}" alt="${p.title}" class="ts-provider-logo-img" />
-                    </div>
-                    <div>
-                      <h3>${errorTitle}</h3>
-                    </div>
-                  </div>
-                  <button type="button" class="ts-bulk-close" title="Close">✕</button>
-                </div>
+                ${core.createHeaderHTML({
+                  icon: p.logo,
+                  title: errorTitle,
+                  closeClass: 'ts-bulk-close',
+                })}
                 <div class="ts-review-body">
                   <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
                 </div>
-                <div class="ts-review-footer">
-                  ${p.isSupported.actionHtml ? p.isSupported.actionHtml : ''}
-                  <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" data-provider="${p.id}">&larr; Back</button>
-                </div>
+                ${core.createFooterHTML({
+                  customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
+                  buttons: [
+                    { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
+                  ]
+                })}
               </div>
             `;
           }
@@ -304,16 +300,12 @@
       root.innerHTML = `
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal">
-            <div class="ts-bulk-header">
-              <div class="ts-bulk-header-title">
-                <div class="ts-bulk-logo-icon">⚡</div>
-                <div class="ts-bulk-title-group">
-                  <h2>TranslateSense Bulk Translation</h2>
-                  <span class="ts-bulk-subtitle">Fast &amp; Accurate Multi-Language Content Localizer</span>
-                </div>
-              </div>
-              <button class="ts-bulk-close" id="ts-bulk-close-btn" title="Close Modal">&times;</button>
-            </div>
+            ${core.createHeaderHTML({
+              icon: '⚡',
+              title: 'TranslateSense Bulk Translation',
+              subtitle: 'Fast &amp; Accurate Multi-Language Content Localizer',
+              closeId: 'ts-bulk-close-btn',
+            })}
             
             <div class="ts-bulk-body">
               <!-- Step 1 View: Languages -->
@@ -472,22 +464,29 @@
             </div>
 
             <!-- Modal Footers -->
-            <div class="ts-bulk-footer" id="ts-footer-step-1" style="display: flex; justify-content: flex-end;">
-              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-wizard-next-btn" ${selectedTargetLangs.length === 0 ? 'disabled' : ''}>
-                Next: Choose Provider &rarr;
-              </button>
-            </div>
+            ${core.createFooterHTML({
+              id: 'ts-footer-step-1',
+              buttons: [
+                { id: 'ts-wizard-next-btn', label: 'Next: Choose Provider &rarr;', variant: 'primary', disabled: selectedTargetLangs.length === 0 }
+              ]
+            })}
 
-            <div class="ts-bulk-footer" id="ts-footer-step-2" style="display: none;">
-              <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-wizard-back-btn">&larr; Back</button>
-              <button type="button" class="ts-bulk-btn ${initialStep2.proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled'}" id="ts-bulk-start-btn" ${!initialStep2.proidersAvailable ? 'disabled' : ''} title="${!initialStep2.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation'}">Start Bulk Translation</button>
-            </div>
+            ${core.createFooterHTML({
+              id: 'ts-footer-step-2',
+              style: 'display: none;',
+              buttons: [
+                { id: 'ts-wizard-back-btn', label: '&larr; Back', variant: 'secondary' },
+                { id: 'ts-bulk-start-btn', label: 'Start Bulk Translation', variant: initialStep2.proidersAvailable ? 'primary' : 'disabled', disabled: !initialStep2.proidersAvailable, title: !initialStep2.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation' }
+              ]
+            })}
 
-            <div class="ts-bulk-footer" id="ts-footer-progress" style="display: none; justify-content: flex-end;">
-              <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-done-btn" disabled>
-                ⏳ Translation In Progress...
-              </button>
-            </div>
+            ${core.createFooterHTML({
+              id: 'ts-footer-progress',
+              style: 'display: none;',
+              buttons: [
+                { id: 'ts-bulk-done-btn', label: '⏳ Translation In Progress...', variant: 'primary', disabled: true }
+              ]
+            })}
           </div>
           <div id="ts-bulk-error-modals-wrap" style="display: contents;">
             ${initialStep2.ErrorModals}
@@ -946,18 +945,21 @@
               modalRoot.innerHTML = `
                 <div class="ts-bulk-overlay" style="z-index: 1000000;">
                   <div class="ts-bulk-modal" style="max-width: 480px;">
-                    <div class="ts-bulk-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
-                      <h2>⚠️ ${escapeHtml(langName)} Notice</h2>
-                      <button type="button" class="ts-bulk-close" id="ts-err-modal-close">&times;</button>
-                    </div>
+                    ${core.createHeaderHTML({
+                      icon: '⚠️',
+                      title: `${escapeHtml(langName)} Notice`,
+                      closeId: 'ts-err-modal-close',
+                    })}
                     <div class="ts-bulk-body" style="padding: 22px;">
                       <p style="margin-top: 0; font-size: 13.5px; color: #334155; line-height: 1.6;">
                         ${escapeHtml(errorMsg)}
                       </p>
                     </div>
-                    <div class="ts-bulk-footer" style="padding: 12px 20px;">
-                      <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">OK</button>
-                    </div>
+                    ${core.createFooterHTML({
+                      buttons: [
+                        { id: 'ts-err-modal-ok', label: 'OK', variant: 'primary' }
+                      ]
+                    })}
                   </div>
                 </div>
               `;
