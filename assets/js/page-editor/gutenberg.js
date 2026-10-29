@@ -134,6 +134,160 @@
     },
 
     /**
+     * Normalize a string for source-to-translation matching. Original attribute
+     * values are preserved unless an unambiguous mapping is found.
+     */
+    normalizeRepairString(value) {
+      return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+    },
+
+    /**
+     * Recursively translate exact string values using only unambiguous mappings.
+     * Objects/arrays are cloned; non-string values remain unchanged.
+     */
+    translateRepairValue(value, mapping, depth = 0) {
+      if (depth > 100) return value;
+
+      if (/^\d+$/.test(value)) {
+        return value;
+      }
+
+      if (typeof value === 'string') {
+        let key = this.normalizeRepairString(value);
+
+        if (!key) {
+          return value;
+        }
+
+        if (mapping.has(key)) {
+          return mapping.get(key);
+        }
+
+        if (!mapping.has(key)) {
+          if (!/^\s*<[a-z][^>]*>/i.test(key)) {
+            return value;
+          }
+
+          const innerTexts = key
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/<[^>]*>/g, '\n')
+            .split('\n')
+            .map((text) =>
+              text
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/&amp;/gi, '&')
+                .replace(/&lt;/gi, '<')
+                .replace(/&gt;/gi, '>')
+                .replace(/&quot;/gi, '"')
+                .replace(/&#0*39;|&#x0*27;|&apos;/gi, "'")
+                .replace(/\s+/g, ' ')
+                .trim()
+            )
+            .filter(Boolean);
+
+          let allKeyExist = innerTexts.every((text) => mapping.has(text));
+
+          if (!allKeyExist) {
+            return value;
+          }
+
+          innerTexts.forEach((text) => {
+            const translated = mapping.get(text);
+            if (!translated) {
+              allKeyExist = false;
+            }
+
+            key = key.replace(text, translated);
+          })
+
+          if (!allKeyExist) {
+            return value;
+          }
+
+          return key;
+        }
+
+        const translated = mapping.get(key);
+        const leading = (value.match(/^\s*/) || [''])[0];
+        const trailing = (value.match(/\s*$/) || [''])[0];
+        return leading + translated + trailing;
+      }
+
+      if (Array.isArray(value)) {
+        return value.map((item) => this.translateRepairValue(item, mapping, depth + 1));
+      }
+
+      if (value && typeof value === 'object') {
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) return value;
+
+        const result = {};
+        Object.keys(value).forEach((key) => {
+          result[key] = this.translateRepairValue(value[key], mapping, depth + 1);
+        });
+
+        return result;
+      }
+
+      return value;
+    },
+
+    /**
+       * Compare source HTML and translated HTML node-by-node to produce a mapping of
+       * original strings to translated strings (similar to block-recovery.js).
+       */
+    buildRepairStringMap(sourceHTML, translatedHTML) {
+      const mapping = new Map();
+      if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML || typeof DOMParser === 'undefined') {
+        return mapping;
+      }
+
+      try {
+        const parser = new DOMParser();
+        const sourceDoc = parser.parseFromString(sourceHTML, 'text/html');
+        const translatedDoc = parser.parseFromString(translatedHTML, 'text/html');
+        const translatableAttrs = ['alt', 'title', 'aria-label', 'placeholder', 'value', 'summary', 'caption'];
+
+        const compareNodes = (sNode, tNode, nodeDepth = 0) => {
+          if (!sNode || !tNode || nodeDepth > 50 || sNode.nodeType !== tNode.nodeType) return;
+
+          if (sNode.nodeType === Node.TEXT_NODE) {
+            const sVal = (sNode.nodeValue || '').trim();
+            const tVal = (tNode.nodeValue || '').trim();
+            if (sVal && tVal && sVal !== tVal) {
+              mapping.set(sVal, tVal);
+            }
+            return;
+          }
+
+          if (sNode.nodeType !== Node.ELEMENT_NODE || sNode.tagName !== tNode.tagName) return;
+
+          translatableAttrs.forEach((attr) => {
+            if (sNode.hasAttribute(attr) && tNode.hasAttribute(attr)) {
+              const sVal = (sNode.getAttribute(attr) || '').trim();
+              const tVal = (tNode.getAttribute(attr) || '').trim();
+              if (sVal && tVal && sVal !== tVal) {
+                mapping.set(sVal, tVal);
+              }
+            }
+          });
+
+          const sChildren = sNode.childNodes;
+          const tChildren = tNode.childNodes;
+          if (sChildren.length === tChildren.length) {
+            for (let i = 0; i < sChildren.length; i++) {
+              compareNodes(sChildren[i], tChildren[i], nodeDepth + 1);
+            }
+          }
+        };
+
+        compareNodes(sourceDoc.body, translatedDoc.body, 0);
+      } catch (e) { }
+
+      return mapping;
+    },
+
+    /**
      * Recursively update blocks in the Gutenberg canvas based on XML block configuration.
      */
     async updateBlocks(blocks, strings) {
@@ -318,61 +472,6 @@
         return { updated: newAttrs, changed: hasChanged, missingAttributes };
       };
 
-      /**
-       * Compare source HTML and translated HTML node-by-node to produce a mapping of
-       * original strings to translated strings (similar to block-recovery.js).
-       */
-      const buildRepairStringMap = (sourceHTML, translatedHTML) => {
-        const mapping = new Map();
-        if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML || typeof DOMParser === 'undefined') {
-          return mapping;
-        }
-
-        try {
-          const parser = new DOMParser();
-          const sourceDoc = parser.parseFromString(sourceHTML, 'text/html');
-          const translatedDoc = parser.parseFromString(translatedHTML, 'text/html');
-          const translatableAttrs = ['alt', 'title', 'aria-label', 'placeholder', 'value', 'summary', 'caption'];
-
-          const compareNodes = (sNode, tNode, nodeDepth = 0) => {
-            if (!sNode || !tNode || nodeDepth > 50 || sNode.nodeType !== tNode.nodeType) return;
-
-            if (sNode.nodeType === Node.TEXT_NODE) {
-              const sVal = (sNode.nodeValue || '').trim();
-              const tVal = (tNode.nodeValue || '').trim();
-              if (sVal && tVal && sVal !== tVal) {
-                mapping.set(sVal, tVal);
-              }
-              return;
-            }
-
-            if (sNode.nodeType !== Node.ELEMENT_NODE || sNode.tagName !== tNode.tagName) return;
-
-            translatableAttrs.forEach((attr) => {
-              if (sNode.hasAttribute(attr) && tNode.hasAttribute(attr)) {
-                const sVal = (sNode.getAttribute(attr) || '').trim();
-                const tVal = (tNode.getAttribute(attr) || '').trim();
-                if (sVal && tVal && sVal !== tVal) {
-                  mapping.set(sVal, tVal);
-                }
-              }
-            });
-
-            const sChildren = sNode.childNodes;
-            const tChildren = tNode.childNodes;
-            if (sChildren.length === tChildren.length) {
-              for (let i = 0; i < sChildren.length; i++) {
-                compareNodes(sChildren[i], tChildren[i], nodeDepth + 1);
-              }
-            }
-          };
-
-          compareNodes(sourceDoc.body, translatedDoc.body, 0);
-        } catch (e) { }
-
-        return mapping;
-      };
-
       // Store paths for changed blocks. After resetBlocks(), use those paths to
       // locate the inserted blocks and dispatch updateBlockAttributes() against
       // their real clientIds. This mirrors the update path that works when you
@@ -403,7 +502,7 @@
 
                 if (stringsExist) {
                   for (const [key, data] of core.getTranslatedStrings()) {
-                    if (data.source === blockOriginalContent || blockOriginalContent === data.source.replace(/\\n|\n/g, '')) {
+                    if (data.source === blockOriginalContent || blockOriginalContent === data.source.trim()) {
                       transRecord = { source: data.filterValue, translated: data.translated };
                       break;
                     }
@@ -411,7 +510,7 @@
                 }
 
                 if (transRecord.source && transRecord.translated) {
-                  const repairMap = buildRepairStringMap(transRecord.source, transRecord.translated);
+                  const repairMap = this.buildRepairStringMap(transRecord.source, transRecord.translated);
                   if (repairMap && repairMap.size > 0) {
                     result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, repairMap);
                   }
@@ -422,6 +521,25 @@
               block.attributes = result.updated;
               changedBlocks.push({ path, attributes: result.updated, name: blockType, type: blockType });
             }
+          } else if (blockOriginalContent && typeof blockOriginalContent === 'string' && '' !== blockOriginalContent && this.getHtmlInnerText(blockOriginalContent) && Object.keys(block.attributes).length > 0) {
+            let transRecord = {};
+            for (const [key, data] of core.getTranslatedStrings()) {
+              if (data.source === blockOriginalContent || blockOriginalContent === data.source.trim()) {
+                transRecord = { source: data.filterValue, translated: data.translated };
+                break;
+              }
+            }
+
+            if (transRecord.source && transRecord.translated) {
+              const mapping = this.buildRepairStringMap(transRecord.source, transRecord.translated);
+
+              if (mapping && mapping.size > 0) {
+                const restoredAttrs = block.attributes;
+                const mappedAttrs = this.translateRepairValue(restoredAttrs, mapping);
+                Object.assign(restoredAttrs, mappedAttrs);
+              }
+            }
+
           }
 
           if (Array.isArray(block.innerBlocks) && block.innerBlocks.length > 0) {
