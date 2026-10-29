@@ -852,6 +852,7 @@
      * @param {boolean} [options.showClose=true] Whether to show close button
      * @param {string} [options.className=''] Optional extra class on header element
      * @param {string} [options.style=''] Optional inline style string for header element
+     * @param {string} [options.customRightHtml=''] Optional custom HTML placed on the right of header
      * @returns {string} Common header HTML string
      */
     createHeaderHTML(options = {}) {
@@ -865,6 +866,7 @@
         showClose = true,
         className = '',
         style = '',
+        customRightHtml = '',
       } = options;
 
       let iconHtml = '';
@@ -901,6 +903,7 @@
             </div>
             ${badgesHtml ? `<div class="ts-common-badge-wrap">${badgesHtml}</div>` : ''}
           </div>
+          ${customRightHtml ? `<div class="ts-header-right-custom">${customRightHtml}</div>` : ''}
           ${closeBtnHtml}
         </div>
       `;
@@ -966,7 +969,7 @@
       return `
         <div class="ts-common-footer ts-review-footer ${className}"${idAttr}${styleAttr}>
           ${customHtml ? `<div class="ts-footer-custom">${customHtml}</div>` : ''}
-          ${buttonsHtml}
+          <div class="ts-footer-buttons">${buttonsHtml}</div>
         </div>
       `;
     }

@@ -339,12 +339,13 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-            icon: '<span class="dashicons dashicons-translation"></span>',
+            icon: '⚡',
             title: 'Choose Translation Provider',
-            subtitle: `Select engine for target language: <span class="ts-lang-pill">${getLanguageDisplay(this.targetLang, this.config.languages)}</span>`,
+            subtitle: 'Choose a translation provider',
             closeId: 'ts-provider-modal-close',
           })}
           <div class="ts-review-body">
+            <div class="ts-section-heading">Translation provider</div>
             <div class="ts-provider-list">
               ${(() => {
           const settingsUrl = this.config.settingsUrl || 'admin.php?page=translatesense&tab=settings';
@@ -410,26 +411,28 @@
             let containerErrorBtn = false;
             if (isFrontend) {
               isAvailable = p.isSupported && false === p.isSupported.available ? false : true;
-              actionHtml = !isAvailable ? `<button class="ts-add-api-key-btn ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>` : '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+              actionHtml = !isAvailable
+                ? `<button type="button" class="ts-provider-badge error-badge ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>`
+                : '<span class="ts-provider-badge on-device">On-device</span>';
             } else if (isConnector) {
               if (!status.isProviderActive) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡Activate Provider</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">Activate Provider</a>`;
               } else if (!status.isConnected) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">API key required</a>`;
               } else {
                 isAvailable = true;
-                actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+                actionHtml = '<span class="ts-provider-badge core-connector">WP Connector</span>';
               }
             } else {
               // Legacy direct API
               if (!status.isConnected) {
                 isAvailable = false;
-                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+                actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">API key required</a>`;
               } else {
                 isAvailable = true;
-                actionHtml = '';
+                actionHtml = '<span class="ts-provider-badge ready">Ready</span>';
               }
             }
 
@@ -1013,10 +1016,10 @@
         return sum + (isTranslated ? String(s.value || '').length : 0);
       }, 0);
 
-      const timeEl = document.querySelector('#ts-universal-review-modal .ts-stat-time .ts-stat-value');
-      const srcCharsEl = document.querySelector('#ts-universal-review-modal .ts-stat-source-chars .ts-stat-value');
-      const transCharsEl = document.querySelector('#ts-universal-review-modal .ts-stat-trans-chars .ts-stat-value');
-      const totalEl = document.querySelector('#ts-universal-review-modal .ts-stat-total .ts-stat-value');
+      const timeEl = document.getElementById('ts-stat-val-time') || document.querySelector('#ts-universal-review-modal .ts-stat-time .ts-stat-value');
+      const srcCharsEl = document.getElementById('ts-stat-val-chars') || document.querySelector('#ts-universal-review-modal .ts-stat-source-chars .ts-stat-value');
+      const transCharsEl = document.getElementById('ts-stat-val-chars') || document.querySelector('#ts-universal-review-modal .ts-stat-trans-chars .ts-stat-value');
+      const totalEl = document.getElementById('ts-stat-val-strings') || document.querySelector('#ts-universal-review-modal .ts-stat-total .ts-stat-value');
 
       if (this.translationStats && timeEl) timeEl.textContent = this.translationStats.timeTaken;
       if (srcCharsEl) srcCharsEl.textContent = totalSourceChars.toLocaleString();
@@ -1056,68 +1059,44 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-            icon: '⚡',
+            icon: '<span class="ts-header-trans-icon">A 文</span>',
             title: 'Review Translations',
-            badges: [
-              getLanguageDisplay(this.targetLang, this.config.languages),
-              `${providerInfo.icon} ${providerInfo.title}`
-            ],
+            subtitle: 'Review and edit translations before applying to the page.',
+            customRightHtml: `
+              <div class="ts-review-header-stats">
+                <div class="ts-header-stat-item">
+                  <span class="ts-stat-icon">⏱️</span>
+                  <div class="ts-stat-meta">
+                    <span class="ts-stat-val" id="ts-stat-val-time">${stats.timeTaken}</span>
+                    <span class="ts-stat-lbl">Time</span>
+                  </div>
+                </div>
+                <div class="ts-header-stat-item">
+                  <span class="ts-stat-icon">📄</span>
+                  <div class="ts-stat-meta">
+                    <span class="ts-stat-val" id="ts-stat-val-chars">${stats.totalChars.toLocaleString()}</span>
+                    <span class="ts-stat-lbl">Characters</span>
+                  </div>
+                </div>
+                <div class="ts-header-stat-item">
+                  <span class="ts-stat-icon-tt">Tt</span>
+                  <div class="ts-stat-meta">
+                    <span class="ts-stat-val" id="ts-stat-val-strings">${stats.stringCount}</span>
+                    <span class="ts-stat-lbl">Strings</span>
+                  </div>
+                </div>
+              </div>
+            `,
             closeId: 'ts-review-modal-close',
           })}
           <div class="ts-review-body">
-            <!-- Header Stats Bar -->
-            <div class="ts-modal-stats-bar">
-              <div class="ts-stat-card ts-stat-time">
-                <div class="ts-stat-icon-wrap">⏱️</div>
-                <div class="ts-stat-content">
-                  <span class="ts-stat-label">Translation Time</span>
-                  <span class="ts-stat-value">${stats.timeTaken}</span>
-                </div>
-              </div>
-              <div class="ts-stat-card ts-stat-source-chars">
-                <div class="ts-stat-icon-wrap">📄</div>
-                <div class="ts-stat-content">
-                  <span class="ts-stat-label">Total Characters</span>
-                  <span class="ts-stat-value">${stats.totalChars.toLocaleString()}</span>
-                </div>
-              </div>
-              <div class="ts-stat-card ts-stat-trans-chars">
-                <div class="ts-stat-icon-wrap">✨</div>
-                <div class="ts-stat-content">
-                  <span class="ts-stat-label">Translated Chars</span>
-                  <span class="ts-stat-value">${stats.translatedChars.toLocaleString()}</span>
-                </div>
-              </div>
-              <div class="ts-stat-card ts-stat-total">
-                <div class="ts-stat-icon-wrap">🔤</div>
-                <div class="ts-stat-content">
-                  <span class="ts-stat-label">Total Strings</span>
-                  <span class="ts-stat-value">${stats.stringCount}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Toolbar (Search & Actions) -->
-            <div class="ts-review-toolbar">
-              <div class="ts-review-search-wrap">
-                <span class="ts-review-search-icon">🔍</span>
-                <input type="text" id="ts-review-search-input" class="ts-review-search-input" placeholder="Search source or translated text..." />
-              </div>
-              <div>
-                <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-retranslate-btn">
-                  ⚡ Re-Translate All
-                </button>
-              </div>
-            </div>
-
-            <!-- Strings Table Card -->
+            <!-- Strings Table Card (2 Columns: SOURCE TEXT vs TRANSLATED TEXT) -->
             <div class="ts-table-card">
               <table class="ts-strings-table">
                 <thead>
                   <tr>
-                    <th style="width: 38%;">Source Text & XML Rule</th>
-                    <th style="width: 14%;">Status</th>
-                    <th style="width: 48%;">Translated Text (Editable)</th>
+                    <th style="width: 46%;">SOURCE TEXT</th>
+                    <th style="width: 54%;">TRANSLATED TEXT</th>
                   </tr>
                 </thead>
                 <tbody id="ts-review-table-tbody"></tbody>
@@ -1125,6 +1104,8 @@
             </div>
           </div>
           ${this.core.createFooterHTML({
+            customHtml: `<span class="ts-footer-string-counter" id="ts-footer-string-counter">${this.strings.length} of ${this.strings.length} strings</span>`,
+            align: 'space-between',
             buttons: [
               { id: 'ts-review-cancel-btn', label: 'Cancel', variant: 'secondary' },
               { id: 'ts-apply-to-editor-btn', label: '✓ Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
@@ -1177,25 +1158,21 @@
       if (this.isExtracting) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="3" style="text-align: center; padding: 18px 20px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <td colspan="2" style="text-align: center; padding: 18px 20px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
               <div style="display: inline-flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid #e2e8f0; padding: 7px 18px; border-radius: 9999px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-                <div class="ts-circle-spinner" style="width: 16px; height: 16px; border: 2.5px solid #e0e7ff; border-top-color: #4f46e5; border-radius: 50%; animation: tsSpin 0.75s linear infinite;"></div>
+                <div class="ts-circle-spinner"></div>
                 <span style="font-size: 13px; font-weight: 600; color: #334155;">Extracting page content & translatable strings...</span>
               </div>
             </td>
           </tr>
           ${[1, 2, 3, 4, 5].map((_, i) => `
             <tr class="ts-skeleton-row">
-              <td style="padding: 16px 14px; vertical-align: middle;">
-                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '78%' : '60%'}; height: 14px; margin-bottom: 8px;"></div>
-                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '45%' : '35%'}; height: 11px; margin-bottom: 6px;"></div>
-                <div class="ts-skeleton-shimmer" style="width: 25%; height: 9px; opacity: 0.7;"></div>
+              <td style="padding: 16px 18px; vertical-align: middle;">
+                <div class="ts-skeleton-shimmer" style="width: ${i % 2 === 0 ? '78%' : '60%'}; height: 16px; margin-bottom: 8px;"></div>
+                <div class="ts-skeleton-shimmer" style="width: 110px; height: 18px; border-radius: 6px;"></div>
               </td>
-              <td style="padding: 16px 14px; vertical-align: middle;">
-                <div class="ts-skeleton-shimmer" style="width: 65px; height: 22px; border-radius: 12px;"></div>
-              </td>
-              <td style="padding: 16px 14px; vertical-align: middle;">
-                <div class="ts-skeleton-shimmer" style="width: 92%; height: 36px; border-radius: 6px;"></div>
+              <td style="padding: 16px 18px; vertical-align: middle;">
+                <div class="ts-skeleton-shimmer" style="width: 100%; height: 38px; border-radius: 8px;"></div>
               </td>
             </tr>
           `).join('')}
@@ -1218,7 +1195,7 @@
       if (filtered.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="3" style="text-align: center; padding: 36px 20px; color: #64748b;">
+            <td colspan="2" style="text-align: center; padding: 36px 20px; color: #64748b;">
               <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
               <div>No matching strings found for "<strong>${this.escapeHtml(filterQuery)}</strong>".</div>
             </td>
@@ -1231,34 +1208,50 @@
         const idx = item.originalIndex;
         const sourceVal = item.value || '';
         const transVal = item.translated || '';
-        const statusClass = (item.status || 'pending').toLowerCase().replace(/[^a-z]/g, '');
+        const tagName = item.key || item.name || 'text';
 
         return `
           <tr data-idx="${idx}">
             <td>
               <div class="ts-source-text">${this.escapeHtml(sourceVal)}</div>
-              <div class="ts-widget-tag">
-                <span>🧩</span>
-                <span>${this.escapeHtml(item.name || 'block')} &rarr; ${this.escapeHtml(item.key || 'text')}</span>
-                <span style="margin-left: 4px; opacity: 0.85;">(${sourceVal.length} chars)</span>
+              <div class="ts-meta-tag">
+                <span class="ts-tag-symbol">&lt;&gt;</span>
+                <span>${this.escapeHtml(tagName)}</span>
               </div>
             </td>
             <td>
-              <span class="ts-status-tag ${statusClass}">
-                ${item.status || 'Pending'}
-              </span>
-            </td>
-            <td>
-              <div class="ts-input-wrap">
-                <textarea class="ts-trans-input" data-idx="${idx}" placeholder="Enter translation...">${this.escapeHtml(transVal)}</textarea>
-                <span class="ts-row-char-count" id="ts-char-count-${idx}">${transVal.length} chars</span>
+              <div class="ts-trans-edit-wrap">
+                <input type="text" class="ts-trans-input" data-idx="${idx}" value="${this.escapeHtml(transVal)}" placeholder="Enter translation..." />
+                <button type="button" class="ts-row-edit-btn" data-idx="${idx}" title="Edit translation">
+                  <span class="dashicons dashicons-edit"></span>
+                </button>
               </div>
             </td>
           </tr>
         `;
       }).join('');
 
-      // Input changes listener & dynamic character counter
+      // Focus input when edit button is clicked
+      tbody.querySelectorAll('.ts-row-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const row = e.target.closest('tr');
+          if (row) {
+            const input = row.querySelector('.ts-trans-input');
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        });
+      });
+
+      // Update footer counter
+      const footerCounter = document.getElementById('ts-footer-string-counter');
+      if (footerCounter) {
+        footerCounter.textContent = `${filtered.length} of ${this.strings.length} strings`;
+      }
+
+      // Input changes listener
       tbody.querySelectorAll('.ts-trans-input').forEach((input) => {
         input.addEventListener('input', (e) => {
           const idx = parseInt(e.target.getAttribute('data-idx'), 10);
@@ -1266,24 +1259,6 @@
           if (this.strings[idx]) {
             this.strings[idx].translated = val;
             this.strings[idx].status = 'Custom';
-
-            // Update row status badge if needed
-            const row = e.target.closest('tr');
-            if (row) {
-              const badge = row.querySelector('.ts-status-tag');
-              if (badge) {
-                badge.className = 'ts-status-tag custom';
-                badge.textContent = 'Custom';
-              }
-            }
-
-            // Update character count
-            const counter = document.getElementById(`ts-char-count-${idx}`);
-            if (counter) {
-              counter.textContent = `${val.length} chars`;
-            }
-
-            // Dynamically recompute header Translated Chars count based on original source characters
             this.updateStatsHeader();
           }
         });

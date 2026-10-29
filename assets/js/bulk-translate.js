@@ -210,26 +210,26 @@
           if (isFrontend) {
             isAvailable = p.isSupported && false === p.isSupported.available ? false : true;
             actionHtml = !isAvailable
-              ? `<button type="button" class="ts-add-api-key-btn ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>`
-              : '<span class="ts-provider-badge on-device">⚡ On-Device</span>';
+              ? `<button type="button" class="ts-provider-badge error-badge ts-provider-error-btn" title="${p.desc}" data-provider="${p.id}">⚠️ View Error</button>`
+              : '<span class="ts-provider-badge on-device">On-device</span>';
           } else if (isConnector) {
             if (!status.isProviderActive) {
               isAvailable = false;
-              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">⚡ Activate Provider</a>`;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge api-required" onclick="event.stopPropagation();" title="Activate Provider in WordPress Connectors">Activate Provider</a>`;
             } else if (!status.isConnected) {
               isAvailable = false;
-              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">⚠️ Add API Key</a>`;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in WordPress Connectors">API key required</a>`;
             } else {
               isAvailable = true;
-              actionHtml = '<span class="ts-provider-badge core-connector" style="background:#e0e7ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 7px;border-radius:12px;">⚡ WP Connector</span>';
+              actionHtml = '<span class="ts-provider-badge core-connector">WP Connector</span>';
             }
           } else {
             if (!status.isConnected) {
               isAvailable = false;
-              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-add-api-key-btn" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">⚠️ Add API Key</a>`;
+              actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">API key required</a>`;
             } else {
               isAvailable = true;
-              actionHtml = '';
+              actionHtml = '<span class="ts-provider-badge ready">Ready</span>';
             }
           }
 
@@ -243,19 +243,19 @@
             ErrorModals += `
               <div class="ts-error-container ts-provider-modal-container hide" id="ts-error-${p.id}">
                 ${core.createHeaderHTML({
-                  icon: p.logo,
-                  title: errorTitle,
-                  closeClass: 'ts-bulk-close',
-                })}
+              icon: p.logo,
+              title: errorTitle,
+              closeClass: 'ts-bulk-close',
+            })}
                 <div class="ts-review-body">
                   <div class="ts-error-message">${p.isSupported.reasonHTML || p.isSupported.reason}</div>
                 </div>
                 ${core.createFooterHTML({
-                  customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
-                  buttons: [
-                    { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
-                  ]
-                })}
+              customHtml: p.isSupported.actionHtml ? p.isSupported.actionHtml : '',
+              buttons: [
+                { label: '&larr; Back', variant: 'secondary', attributes: { 'data-provider': p.id } }
+              ]
+            })}
               </div>
             `;
           }
@@ -301,11 +301,11 @@
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal">
             ${core.createHeaderHTML({
-              icon: '⚡',
-              title: 'TranslateSense Bulk Translation',
-              subtitle: 'Fast &amp; Accurate Multi-Language Content Localizer',
-              closeId: 'ts-bulk-close-btn',
-            })}
+        icon: '⚡',
+        title: 'TranslateSense Bulk Translation',
+        subtitle: 'Fast &amp; Accurate Multi-Language Content Localizer',
+        closeId: 'ts-bulk-close-btn',
+      })}
             
             <div class="ts-bulk-body">
               <!-- Step 1 View: Languages -->
@@ -315,12 +315,12 @@
                     <span class="ts-step-number">1</span>
                     <span>Select Target Languages</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item">
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item">
                     <span class="ts-step-number">3</span>
                     <span>Translation Progress</span>
@@ -334,8 +334,8 @@
 
                 <div class="ts-lang-actions">
                   <div class="ts-lang-btn-group">
-                    <button type="button" class="ts-lang-action-btn" id="ts-select-all-langs">✓ Select All</button>
-                    <button type="button" class="ts-lang-action-btn" id="ts-unselect-all-langs">✕ Unselect All</button>
+                    <button type="button" class="ts-lang-action-btn" id="ts-select-all-langs">Select All</button>
+                    <button type="button" class="ts-lang-action-btn" id="ts-unselect-all-langs">Unselect All</button>
                   </div>
                   <div class="ts-lang-counter" id="ts-lang-counter">
                     ${selectedTargetLangs.length} of ${allLanguages.length} selected
@@ -365,12 +365,12 @@
                     <span class="ts-step-number">✓</span>
                     <span id="ts-summary-step1-label">${selectedTargetLangs.length} Languages</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item active">
                     <span class="ts-step-number">2</span>
                     <span>Choose Provider</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item">
                     <span class="ts-step-number">3</span>
                     <span>Translation Progress</span>
@@ -380,7 +380,7 @@
                 <div class="ts-summary-box" id="ts-summary-box-content"></div>
 
                 <div class="ts-bulk-field">
-                  <label style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Choose Translation Engine</label>
+                  <div class="ts-section-heading">Translation provider</div>
                   <div class="ts-provider-list" id="ts-bulk-provider-list">
                     ${initialStep2.providerRowsHtml}
                   </div>
@@ -394,12 +394,12 @@
                     <span class="ts-step-number">✓</span>
                     <span>Languages</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item">
                     <span class="ts-step-number">✓</span>
                     <span id="ts-progress-provider-label">Provider</span>
                   </div>
-                  <span class="ts-step-divider">&rarr;</span>
+                  <span class="ts-step-divider"></span>
                   <div class="ts-step-item active">
                     <span class="ts-step-number">3</span>
                     <span>Translation Progress</span>
@@ -465,28 +465,28 @@
 
             <!-- Modal Footers -->
             ${core.createFooterHTML({
-              id: 'ts-footer-step-1',
-              buttons: [
-                { id: 'ts-wizard-next-btn', label: 'Next: Choose Provider &rarr;', variant: 'primary', disabled: selectedTargetLangs.length === 0 }
-              ]
-            })}
+            id: 'ts-footer-step-1',
+            buttons: [
+              { id: 'ts-wizard-next-btn', label: 'Next: Choose Provider &rarr;', variant: 'primary', disabled: selectedTargetLangs.length === 0 }
+            ]
+          })}
 
             ${core.createFooterHTML({
-              id: 'ts-footer-step-2',
-              style: 'display: none;',
-              buttons: [
-                { id: 'ts-wizard-back-btn', label: '&larr; Back', variant: 'secondary' },
-                { id: 'ts-bulk-start-btn', label: 'Start Bulk Translation', variant: initialStep2.proidersAvailable ? 'primary' : 'disabled', disabled: !initialStep2.proidersAvailable, title: !initialStep2.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation' }
-              ]
-            })}
+            id: 'ts-footer-step-2',
+            style: 'display: none;',
+            buttons: [
+              { id: 'ts-wizard-back-btn', label: '&larr; Back', variant: 'secondary' },
+              { id: 'ts-bulk-start-btn', label: 'Start Bulk Translation', variant: initialStep2.proidersAvailable ? 'primary' : 'disabled', disabled: !initialStep2.proidersAvailable, title: !initialStep2.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation' }
+            ]
+          })}
 
             ${core.createFooterHTML({
-              id: 'ts-footer-progress',
-              style: 'display: none;',
-              buttons: [
-                { id: 'ts-bulk-done-btn', label: '⏳ Translation In Progress...', variant: 'primary', disabled: true }
-              ]
-            })}
+            id: 'ts-footer-progress',
+            style: 'display: none;',
+            buttons: [
+              { id: 'ts-bulk-done-btn', label: '⏳ Translation In Progress...', variant: 'primary', disabled: true }
+            ]
+          })}
           </div>
           <div id="ts-bulk-error-modals-wrap" style="display: contents;">
             ${initialStep2.ErrorModals}
@@ -677,8 +677,8 @@
           if (summaryContent) {
             summaryContent.innerHTML = `
               <div class="ts-summary-job-row">
-                <span class="ts-summary-job-icon">📊</span>
-                <span class="ts-summary-job-text">Bulk Job Summary: <strong>${postIds.length}</strong> post(s) &times; <strong>${selectedTargetLangs.length}</strong> language(s) = <strong class="ts-highlight-tag">${totalTranslations} total translations</strong></span>
+                <span class="ts-summary-job-icon">📄</span>
+                <span class="ts-summary-job-text"><strong>${postIds.length} ${postIds.length === 1 ? 'post' : 'posts'}</strong> &middot; <strong>${selectedTargetLangs.length} languages</strong> &middot; <strong>${totalTranslations} translations</strong></span>
               </div>
             `;
           }
@@ -692,6 +692,9 @@
           if (footer1) footer1.style.display = 'none';
           if (view2) view2.style.display = 'block';
           if (footer2) footer2.style.display = 'flex';
+
+          const subtitleEl = root.querySelector('.ts-common-subtitle');
+          if (subtitleEl) subtitleEl.textContent = 'Choose a translation provider';
         });
       }
 
@@ -708,6 +711,9 @@
           if (footer2) footer2.style.display = 'none';
           if (view1) view1.style.display = 'block';
           if (footer1) footer1.style.display = 'flex';
+
+          const subtitleEl = root.querySelector('.ts-common-subtitle');
+          if (subtitleEl) subtitleEl.textContent = 'Fast & Accurate Multi-Language Content Localizer';
         });
       }
 
@@ -946,20 +952,20 @@
                 <div class="ts-bulk-overlay" style="z-index: 1000000;">
                   <div class="ts-bulk-modal" style="max-width: 480px;">
                     ${core.createHeaderHTML({
-                      icon: '⚠️',
-                      title: `${escapeHtml(langName)} Notice`,
-                      closeId: 'ts-err-modal-close',
-                    })}
+                icon: '⚠️',
+                title: `${escapeHtml(langName)} Notice`,
+                closeId: 'ts-err-modal-close',
+              })}
                     <div class="ts-bulk-body" style="padding: 22px;">
                       <p style="margin-top: 0; font-size: 13.5px; color: #334155; line-height: 1.6;">
                         ${escapeHtml(errorMsg)}
                       </p>
                     </div>
                     ${core.createFooterHTML({
-                      buttons: [
-                        { id: 'ts-err-modal-ok', label: 'OK', variant: 'primary' }
-                      ]
-                    })}
+                buttons: [
+                  { id: 'ts-err-modal-ok', label: 'OK', variant: 'primary' }
+                ]
+              })}
                   </div>
                 </div>
               `;
