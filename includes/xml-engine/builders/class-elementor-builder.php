@@ -387,7 +387,8 @@ class Elementor_Builder extends Base_Builder {
 				return;
 			}
 
-			$is_no_translate = isset( $field_node['noTranslate'] ) && in_array( strtolower( (string) $field_node['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+			$is_link_type    = isset( $field_node['type'] ) && 'link' === strtolower( (string) $field_node['type'] );
+			$is_no_translate = $is_link_type || ( isset( $field_node['noTranslate'] ) && in_array( strtolower( (string) $field_node['noTranslate'] ), array( 'true', '1', 'yes' ), true ) );
 			if ( $is_no_translate ) {
 				if ( isset( $fields_out[ $current_path ] ) ) {
 					unset( $fields_out[ $current_path ] );

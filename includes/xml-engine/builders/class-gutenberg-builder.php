@@ -420,6 +420,10 @@ class Gutenberg_Builder extends Base_Builder {
 						foreach ( $xpath_node->attributes() as $attr_name => $attr_val ) {
 							$entry[ (string) $attr_name ] = (string) $attr_val;
 						}
+						if ( isset( $entry['type'] ) && 'link' === strtolower( (string) $entry['type'] ) ) {
+							$rules['gutenberg'][ $name ]['no_translate'][ $xpath_val ] = true;
+							continue;
+						}
 						$xpaths[] = $entry;
 					}
 				}
@@ -482,7 +486,8 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 
 		$current_path    = '' !== $prefix ? ( $prefix . '>' . $key_name ) : $key_name;
-		$is_no_translate = $parent_no_translate || ( isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true ) );
+		$is_link_type    = isset( $key_node['type'] ) && 'link' === strtolower( (string) $key_node['type'] );
+		$is_no_translate = $parent_no_translate || $is_link_type || ( isset( $key_node['noTranslate'] ) && in_array( strtolower( (string) $key_node['noTranslate'] ), array( 'true', '1', 'yes' ), true ) );
 		$has_children    = isset( $key_node->key ) && count( $key_node->key ) > 0;
 
 		if ( $has_children ) {

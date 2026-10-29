@@ -325,6 +325,9 @@ class Gutenberg_Builder extends Base_Builder {
 		}
 
 		foreach ( $xpaths as $xp_entry ) {
+			if ( is_array( $xp_entry ) && isset( $xp_entry['type'] ) && 'link' === strtolower( (string) $xp_entry['type'] ) ) {
+				continue;
+			}
 			$query = is_array( $xp_entry ) ? ( $xp_entry['value'] ?? $xp_entry['xpath'] ?? '' ) : (string) $xp_entry;
 			$query = trim( $query );
 			if ( '' === $query ) {
@@ -918,7 +921,7 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param int    $depth
 	 */
 	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, &$found_strings, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
-		if ( $depth > 20 ) {
+		if ( $depth > 20 || ( is_array( $schema_info ) && isset( $schema_info['type'] ) && 'link' === strtolower( (string) $schema_info['type'] ) ) ) {
 			return;
 		}
 

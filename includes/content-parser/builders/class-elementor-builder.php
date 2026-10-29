@@ -176,7 +176,7 @@ class Elementor_Builder extends Base_Builder {
 				// 1. Extract strings according to pre-existing XML rules (skipping noTranslate)
 				if ( ! empty( $configured_fields ) && is_array( $widget_settings ) ) {
 					foreach ( $configured_fields as $field_path => $field_spec ) {
-						if ( isset( $no_translate_fields[ (string) $field_path ] ) ) {
+						if ( isset( $no_translate_fields[ (string) $field_path ] ) || ( is_array( $field_spec ) && isset( $field_spec['type'] ) && 'link' === strtolower( (string) $field_spec['type'] ) ) ) {
 							continue;
 						}
 						$resolved_values = $this->resolve_field_path_values( $widget_settings, (string) $field_path );

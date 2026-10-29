@@ -75,6 +75,9 @@ class Elementor_Builder extends Base_Builder {
 				$fields = $rules[ $widget_type ]['fields'] ?? array();
 				if ( is_array( $fields ) && isset( $element['settings'] ) && is_array( $element['settings'] ) ) {
 					foreach ( $fields as $path => $f_info ) {
+						if ( is_array( $f_info ) && isset( $f_info['type'] ) && 'link' === strtolower( (string) $f_info['type'] ) ) {
+							continue;
+						}
 						self::translate_nested_setting( $element['settings'], (string) $path, $widget_type, $source_lang, $target_lang, $post_id, $custom_opts );
 					}
 				}

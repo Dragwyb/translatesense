@@ -191,6 +191,9 @@ class Gutenberg_Builder extends Base_Builder {
 		$processed_nodes = array();
 
 		foreach ( $xpaths as $xp_entry ) {
+			if ( is_array( $xp_entry ) && isset( $xp_entry['type'] ) && 'link' === strtolower( (string) $xp_entry['type'] ) ) {
+				continue;
+			}
 			$query = is_array( $xp_entry ) ? ( $xp_entry['value'] ?? $xp_entry['xpath'] ?? '' ) : (string) $xp_entry;
 			$query = trim( $query );
 			if ( '' === $query || isset( $no_translate[ $query ] ) ) {
@@ -280,7 +283,7 @@ class Gutenberg_Builder extends Base_Builder {
 			return;
 		}
 
-		if ( isset( $no_translate[ $path_key ] ) ) {
+		if ( isset( $no_translate[ $path_key ] ) || ( isset( $schema['type'] ) && 'link' === strtolower( (string) $schema['type'] ) ) ) {
 			return;
 		}
 
