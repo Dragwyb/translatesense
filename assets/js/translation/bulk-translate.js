@@ -876,26 +876,29 @@
 
                 const langUpper = langSlug.toUpperCase();
                 const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
-                const langDisplayName = langObj ? langObj.name : langUpper;
-
-                let rowStatusHtml = '';
-                if (isAlreadyExists) {
-                  rowStatusHtml = '<span class="ts-row-status already-exists">⚡ Already Exists</span>';
-                } else if (isDone) {
-                  rowStatusHtml = '<span class="ts-row-status completed"><span class="dashicons dashicons-yes"></span> Completed</span>';
-                } else if (isFail) {
-                  rowStatusHtml = '<span class="ts-row-status failed"><span class="dashicons dashicons-no"></span> Failed</span>';
-                } else if (isRunning) {
-                  rowStatusHtml = '<span class="ts-row-status translating"><span class="ts-dots-spinner"></span> Translating...</span>';
-                } else {
-                  rowStatusHtml = '<span class="ts-row-status pending"><span class="dashicons dashicons-clock"></span> Pending...</span>';
-                }
 
                 const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
                 const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
                 const editHref = trans.editUrl || defaultEditUrl;
                 const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
                 const isAvailable = isDone || isAlreadyExists;
+                const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
+                let statusBadge = '';
+
+                if (isAlreadyExists) {
+                  statusBadge = '<span class="ts-trans-status-pill already-exists">Already Exists</span>';
+                } else if (isDone) {
+                  statusBadge = '<span class="ts-trans-status-pill success">✓ Completed</span>';
+                } else if (isFail) {
+                  const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
+                  statusBadge = isUnsupported
+                    ? `<button type="button" class="ts-trans-status-pill failed ts-error-detail-btn" data-lang="${escapeHtml(langDisplayName)}" data-error="${escapeHtml(trans.error || 'Language is not supported by Chrome Local AI.')}" title="Click to view detailed reason">✕ Language Not Supported ℹ️</button>`
+                    : '<span class="ts-trans-status-pill failed">✕ Failed</span>';
+                } else if (isRunning) {
+                  statusBadge = '<span class="ts-trans-status-pill running">⏳ Translating</span>';
+                } else {
+                  statusBadge = '<span class="ts-trans-status-pill pending">Pending</span>';
+                }
 
                 let actionsHtml = '';
                 if (isAvailable) {
@@ -906,15 +909,22 @@
                   actionsHtml += `<span class="ts-row-action-btn edit disabled"><span class="dashicons dashicons-edit"></span> Edit</span>`;
                 }
 
+                const displayTitle = trans.targetTitle
+                  || (isAlreadyExists ? (trans.targetTitle || postData.postTitle)
+                    : (isDone ? (trans.targetTitle || postData.postTitle)
+                      : (isFail ? (postData.postTitle || `Post #${pId}`)
+                        : (isRunning ? 'Translating content...'
+                          : `Waiting in queue (${langDisplayName})`))));
+
                 html += `
                   <div class="ts-translation-item ${trans.status}">
                     <div class="ts-trans-lang-col">
-                      <span class="ts-trans-lang-flag">${getLanguageFlagHtml(langObj || langSlug, allLanguages)}</span>
-                      <span class="ts-trans-lang-name">${escapeHtml(langDisplayName)}</span>
-                      <span class="ts-trans-lang-code">${langUpper}</span>
+                      <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${getLanguageFlagHtml(langObj || langSlug, allLanguages)} (${langUpper})</span>
                     </div>
-                    <div class="ts-trans-status-col">
-                      ${rowStatusHtml}
+
+                    <div class="ts-trans-title">
+                      ${escapeHtml(displayTitle)}
+                      ${statusBadge}
                     </div>
                     <div class="ts-trans-actions-col">
                       ${actionsHtml}
