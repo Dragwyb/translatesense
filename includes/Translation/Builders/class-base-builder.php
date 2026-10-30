@@ -126,12 +126,20 @@ abstract class Base_Builder {
 			$base_slug = $source_post->post_name . '-' . $target_lang;
 		}
 
+		$target_parent_id = 0;
+		if ( ! empty( $source_post->post_parent ) ) {
+			$target_parent_id = Polylang_Bridge::get_existing_translation_post_id( (int) $source_post->post_parent, $target_lang );
+			if ( $target_parent_id === (int) $source_post->post_parent ) {
+				$target_parent_id = 0;
+			}
+		}
+
 		return wp_unique_post_slug(
 			$base_slug,
 			0,
 			$source_post->post_status,
 			$source_post->post_type,
-			$source_post->post_parent
+			$target_parent_id
 		);
 	}
 

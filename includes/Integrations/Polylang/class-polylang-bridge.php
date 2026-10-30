@@ -277,13 +277,18 @@ class Polylang_Bridge {
 
 		if ( $is_existing ) {
 			// Re-translation updates only translated editorial fields. Preserve
-			// target-specific slug, status, parent, author, dates and settings.
+			// target-specific slug, status, author, dates and settings.
 			$post_data = array(
 				'ID'           => $target_post_id,
 				'post_title'   => is_string( $translated_title ) && '' !== $translated_title ? $translated_title : $target_post->post_title,
 				'post_content' => $translated_content,
 				'post_excerpt' => $translated_excerpt,
 			);
+
+			// Synchronize parent if a translated parent exists and is not yet set.
+			if ( $target_parent_id > 0 && (int) $target_post->post_parent !== $target_parent_id ) {
+				$post_data['post_parent'] = $target_parent_id;
+			}
 		} else {
 			$post_data = array(
 				'post_title'     => is_string( $translated_title ) && '' !== $translated_title ? $translated_title : $source_post->post_title,
@@ -389,6 +394,9 @@ class Polylang_Bridge {
 		}
 		self::save_post_translations( $translations );
 
+		// Synchronize parent on existing translations of any child posts.
+		self::update_child_translations_parent( $source_post_id, $target_post_id, $target_lang );
+
 		// Generic taxonomy/meta duplication runs only on first creation.
 		// Existing translations are content re-translations, not source copies.
 		$sync_result = Polylang_Synchronizer::synchronize(
@@ -432,5 +440,108 @@ class Polylang_Bridge {
 		do_action( 'translatesense_after_save_translation', $source_post_id, $target_post_id, $target_lang, $is_existing, $sync_result );
 
 		return $target_post_id;
+	}
+
+	/**
+	 * Update the post_parent of any existing translations of the source post's children.
+	 *
+	 * When a parent post is translated, any child posts that were translated into
+	 * the same target language beforehand may still have post_parent = 0.
+	 * This finds all child posts of the source post and updates their corresponding
+	 * target-language translations to have post_parent = $target_post_id.
+	 *
+	 * @param int    $source_post_id Source parent post ID.
+	 * @param int    $target_post_id Translated parent post ID in the target language.
+	 * @param string $target_lang    Target language slug.
+	 * @return int Number of child translations updated.
+	 */
+	public static function update_child_translations_parent( int $source_post_id, int $target_post_id, string $target_lang ): int {
+		$source_post_id = absint( $source_post_id );
+		$target_post_id = absint( $target_post_id );
+		$target_lang    = sanitize_key( $target_lang );
+
+		if ( $source_post_id <= 0 || $target_post_id <= 0 || '' === $target_lang ) {
+			return 0;
+		}
+
+		$source_post = get_post( $source_post_id );
+		if ( ! $source_post ) {
+			return 0;
+		}
+
+		global $wpdb;
+
+		// Fetch all direct children of the source post for the same post type.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$child_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts}
+				WHERE post_parent = %d
+					AND post_type = %s
+					AND post_status NOT IN ('trash', 'auto-draft')",
+				$source_post_id,
+				$source_post->post_type
+			)
+		);
+
+		if ( empty( $child_ids ) || ! is_array( $child_ids ) ) {
+			return 0;
+		}
+
+		$updated_count = 0;
+
+		foreach ( $child_ids as $child_id ) {
+			$child_id = absint( $child_id );
+			if ( $child_id <= 0 || $child_id === $source_post_id ) {
+				continue;
+			}
+
+			// Get the translation of this child post in the same target language.
+			$target_child_id = self::get_existing_translation_post_id( $child_id, $target_lang );
+
+			if ( $target_child_id <= 0 || $target_child_id === $child_id || $target_child_id === $target_post_id ) {
+				continue;
+			}
+
+			$target_child_post = get_post( $target_child_id );
+			if ( ! $target_child_post || 'trash' === $target_child_post->post_status ) {
+				continue;
+			}
+
+			// Verify that the child translation belongs to the expected target language.
+			$child_lang = self::get_post_language( $target_child_id );
+			if ( $child_lang && $child_lang !== $target_lang ) {
+				continue;
+			}
+
+			// Update only if post_parent is not already set to $target_post_id.
+			if ( (int) $target_child_post->post_parent !== $target_post_id ) {
+				$result = wp_update_post(
+					array(
+						'ID'          => $target_child_id,
+						'post_parent' => $target_post_id,
+					),
+					true
+				);
+
+				if ( ! is_wp_error( $result ) ) {
+					clean_post_cache( $target_child_id );
+					$updated_count++;
+
+					/**
+					 * Fires after a child translation's post_parent is updated to match the translated parent.
+					 *
+					 * @param int    $target_child_id Child translation post ID.
+					 * @param int    $target_post_id  Parent translation post ID.
+					 * @param int    $child_id        Source child post ID.
+					 * @param int    $source_post_id  Source parent post ID.
+					 * @param string $target_lang     Target language slug.
+					 */
+					do_action( 'translatesense_child_translation_parent_updated', $target_child_id, $target_post_id, $child_id, $source_post_id, $target_lang );
+				}
+			}
+		}
+
+		return $updated_count;
 	}
 }
