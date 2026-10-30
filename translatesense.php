@@ -15,19 +15,10 @@ declare(strict_types=1);
 
 namespace TranslateSense;
 
-use TranslateSense\Includes\Activator;
-use TranslateSense\Includes\Deactivator;
-use TranslateSense\Includes\Polylang_Bridge;
-use TranslateSense\Includes\Xml_Engine\Xml_Engine;
-use TranslateSense\Includes\Hashing_Db;
-use TranslateSense\Includes\Detector;
-use TranslateSense\Includes\Rest_Api;
-use TranslateSense\Includes\Admin_Menu;
-use TranslateSense\Includes\Bulk_Translate;
-use TranslateSense\Includes\Bulk_Process;
-use TranslateSense\Includes\Editor_Integration;
-use TranslateSense\Includes\Cron;
-use TranslateSense\Includes\Content_Parser\Content_Parser;
+use TranslateSense\Includes\Core\Activator;
+use TranslateSense\Includes\Core\Deactivator;
+use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
+use TranslateSense\Includes\Plugin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -80,53 +71,6 @@ function deactivates_translatesense() {
 	Deactivator::deactivate();
 }
 register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivates_translatesense' );
-
-/**
- * Main TranslateSense Plugin Class.
- */
-class Plugin {
-
-	/**
-	 * Single instance of the plugin.
-	 *
-	 * @var Plugin
-	 */
-	protected static $_instance = null;
-
-	/**
-	 * Main instance of Plugin.
-	 */
-	public static function instance() {
-		if ( is_null( self::$_instance ) ) {
-			self::$_instance = new self();
-		}
-		return self::$_instance;
-	}
-
-	/**
-	 * Constructor.
-	 */
-	public function __construct() {
-		$this->init_hooks();
-	}
-
-	/**
-	 * Initialize plugin hooks and subsystems.
-	 */
-	private function init_hooks() {
-		// Initialize Subsystems
-		Xml_Engine::init();
-		Hashing_Db::init();
-		Detector::init();
-		Rest_Api::init();
-		Admin_Menu::init();
-		Bulk_Translate::init();
-		Bulk_Process::init();
-		Editor_Integration::init();
-		Content_Parser::init();
-		Cron::init();
-	}
-}
 
 /**
  * Kick off plugin.

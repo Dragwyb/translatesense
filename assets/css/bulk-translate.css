@@ -12,6 +12,16 @@
   z-index: 999999;
 }
 
+#ts-quick-filter-translate-btn{
+  line-height: 1;
+  margin-bottom: 1rem;
+}
+
+#ts-quick-filter-translate-btn .dashicons{
+  line-height: 1;
+  color: inherit;
+}
+
 /* ==========================================================================
    Step Indicator Bar (Steps 1, 2, 3 - Matching Screenshot)
    ========================================================================== */
