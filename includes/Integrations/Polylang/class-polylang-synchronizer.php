@@ -327,7 +327,7 @@ class Polylang_Synchronizer {
 		}
 
 		$internal_taxonomies = get_taxonomies( array( '_pll' => true ), 'names' );
-		$source_taxonomies   = get_object_taxonomies( (int) $from, 'names' );
+		$source_taxonomies   = get_post_taxonomies( (int) $from, 'names' );
 
 		return array_values( array_diff( $source_taxonomies, (array) $internal_taxonomies ) );
 	}
