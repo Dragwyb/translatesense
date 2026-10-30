@@ -493,14 +493,12 @@
         </div>
       `;
 
-      let pollingTimer = null;
       const sourceLangCode = 'en';
 
       // Close modal handler
       const closeBtn = document.getElementById('ts-bulk-close-btn');
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
-          if (pollingTimer) clearInterval(pollingTimer);
           root.innerHTML = '';
         });
       }
@@ -1423,6 +1421,14 @@
               let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
               rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
 
+              const rawSlugTranslation = String(config.slugTranslation || 'slug_translate').toLowerCase().trim();
+              const slugTranslation = ['keep_orignal', 'title_based', 'slug_translate'].includes(rawSlugTranslation)
+                ? rawSlugTranslation
+                : 'slug_translate';
+              if (slugTranslation !== 'slug_translate') {
+                rawStrings = rawStrings.filter((s) => s && s.name !== 'post_name');
+              }
+
               if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
                 postResultsMap[postId].translations[targetLang].totalStrings = rawStrings.length;
                 renderResultsUI();
@@ -1487,6 +1493,7 @@
                   target_lang: targetLang,
                   provider: 'chrome_ai',
                   in_memory_translations: inMemoryTranslations,
+                  is_bulk: true,
                 }),
               });
 

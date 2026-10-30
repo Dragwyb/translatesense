@@ -139,7 +139,7 @@ class Polylang_Bridge {
 	/**
 	 * Create or update a translated version of a post.
 	 */
-	public static function create_or_update_translated_post( $source_post_id, $target_lang, $translated_title, $translated_content ) {
+	public static function create_or_update_translated_post( $source_post_id, $target_lang, $translated_title, $translated_content, $args = array() ) {
 		$source_post = get_post( $source_post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ) );
@@ -148,27 +148,58 @@ class Polylang_Bridge {
 		$translations   = self::get_post_translations( $source_post_id );
 		$target_post_id = $translations[ $target_lang ] ?? 0;
 
+		$allowed_statuses = array( 'publish', 'draft', 'pending', 'private', 'future' );
+		$raw_status       = ! empty( $args['post_status'] ) ? sanitize_key( (string) $args['post_status'] ) : '';
+		$status           = in_array( $raw_status, $allowed_statuses, true ) ? $raw_status : ( ! empty( $source_post->post_status ) ? sanitize_key( (string) $source_post->post_status ) : 'draft' );
+
 		$post_data = array(
 			'post_title'   => $translated_title ? $translated_title : $source_post->post_title,
 			'post_content' => $translated_content,
-			'post_status'  => $source_post->post_status,
+			'post_status'  => $status,
 			'post_type'    => $source_post->post_type,
 			'post_author'  => $source_post->post_author,
 			'post_excerpt' => $source_post->post_excerpt,
 		);
 
+		if ( ! empty( $args['post_name'] ) ) {
+			$post_data['post_name'] = sanitize_title( (string) $args['post_name'] );
+		}
+
 		if ( $target_post_id && get_post( $target_post_id ) ) {
 			$post_data['ID'] = $target_post_id;
-			wp_update_post( $post_data );
+			if ( ! empty( $post_data['post_name'] ) ) {
+				$post_data['post_name'] = wp_unique_post_slug(
+					$post_data['post_name'],
+					$target_post_id,
+					$status,
+					$source_post->post_type,
+					$source_post->post_parent
+				);
+			}
+			$updated_id = wp_update_post( $post_data, true );
+			if ( is_wp_error( $updated_id ) ) {
+				return $updated_id;
+			}
 		} else {
-			$post_data['post_name'] = wp_unique_post_slug(
-				$source_post->post_name . '-' . $target_lang,
-				0,
-				$source_post->post_status,
-				$source_post->post_type,
-				$source_post->post_parent
-			);
-			$target_post_id         = wp_insert_post( $post_data );
+			if ( empty( $post_data['post_name'] ) ) {
+				$default_slug           = sanitize_title( $source_post->post_name . '-' . $target_lang );
+				$post_data['post_name'] = wp_unique_post_slug(
+					$default_slug,
+					0,
+					$status,
+					$source_post->post_type,
+					$source_post->post_parent
+				);
+			} else {
+				$post_data['post_name'] = wp_unique_post_slug(
+					$post_data['post_name'],
+					0,
+					$status,
+					$source_post->post_type,
+					$source_post->post_parent
+				);
+			}
+			$target_post_id = wp_insert_post( $post_data, true );
 			if ( is_wp_error( $target_post_id ) ) {
 				return $target_post_id;
 			}

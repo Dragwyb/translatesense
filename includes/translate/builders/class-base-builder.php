@@ -142,11 +142,19 @@ abstract class Base_Builder {
 	 * @param array  $in_memory_translations
 	 * @return array|WP_Error
 	 */
-	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
+	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
 		$source_post = get_post( $post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ), array( 'status' => 404 ) );
 		}
+
+		$is_bulk          = ! empty( $options['is_bulk'] );
+		$settings         = get_option( 'translatesense_settings', array() );
+		$raw_slug_mode    = ( $is_bulk && ! empty( $settings['slug_translation'] ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate';
+		$slug_mode        = in_array( $raw_slug_mode, array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ? $raw_slug_mode : 'slug_translate';
+
+		$raw_post_status  = ( $is_bulk && ! empty( $settings['post_status'] ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft';
+		$bulk_post_status = in_array( $raw_post_status, array( 'publish', 'draft' ), true ) ? $raw_post_status : 'draft';
 
 		$source_lang = Polylang_Bridge::get_post_language( $post_id );
 		$custom_opts = array();
@@ -161,7 +169,9 @@ abstract class Base_Builder {
 		// 1. Translate Title & Excerpt
 		$translated_title     = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
 		$translated_excerpt   = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
-		$translated_post_name = $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_post_name = ( $is_bulk && 'slug_translate' !== $slug_mode )
+			? $source_post->post_name
+			: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts );
 
 		// Allow style CSS properities temporarily
 		add_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
@@ -174,12 +184,31 @@ abstract class Base_Builder {
 
 		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
+		// Determine post creation arguments (post_status & post_name)
+		$create_args = array();
+		if ( $is_bulk ) {
+			$create_args['post_status'] = $bulk_post_status;
+
+			if ( 'keep_orignal' === $slug_mode ) {
+				$create_args['post_name'] = sanitize_title( (string) $source_post->post_name );
+			} elseif ( 'title_based' === $slug_mode ) {
+				$slug_candidate           = sanitize_title( (string) $translated_title );
+				$create_args['post_name'] = ! empty( $slug_candidate ) ? $slug_candidate : sanitize_title( (string) $source_post->post_name );
+			} else { // 'slug_translate'
+				$slug_candidate = ! empty( $translated_post_name ) ? sanitize_title( (string) $translated_post_name ) : '';
+				if ( ! empty( $slug_candidate ) ) {
+					$create_args['post_name'] = $slug_candidate;
+				}
+			}
+		}
+
 		// 3. Create or update Polylang translated post
 		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
 			$post_id,
 			$target_lang,
 			$translated_title,
-			wp_slash( $wp_post_content )
+			wp_slash( $wp_post_content ),
+			$create_args
 		);
 
 		if ( is_wp_error( $created_post_id ) ) {
@@ -199,12 +228,12 @@ abstract class Base_Builder {
 			);
 		}
 
-		// Update slug if translated
-		if ( ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
+		// Update slug if translated and not bulk
+		if ( ! $is_bulk && ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
 			wp_update_post(
 				array(
 					'ID'        => $created_post_id,
-					'post_name' => $translated_post_name,
+					'post_name' => sanitize_title( $translated_post_name ),
 				)
 			);
 		}

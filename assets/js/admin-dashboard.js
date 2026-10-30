@@ -1820,7 +1820,100 @@
         )
       ),
 
-      // 3. Custom AI Prompt Engineering Studio Card
+      // 3. Create Post Settings Card (Applied for Bulk Translation)
+      el(
+        'div',
+        { className: 'ts-settings-card' },
+        el(
+          'div',
+          { className: 'ts-settings-card-header' },
+          el(
+            'div',
+            { className: 'ts-settings-card-title-group' },
+            el('h3', null, '📄 Create Post Settings'),
+            el('p', null, 'Configure default post status and URL slug handling applied during bulk translation.')
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-params-grid' },
+
+          // Post Status Setting
+          (() => {
+            const validStatuses = ['draft', 'publish'];
+            const curStatus = validStatuses.includes(settings.post_status) ? settings.post_status : 'draft';
+            return el(
+              'div',
+              { className: 'ts-param-card' },
+              el(
+                'div',
+                { className: 'ts-param-header' },
+                el('span', { className: 'ts-param-title' }, '📌 Post Status'),
+                el('span', { className: 'ts-param-badge' }, curStatus.toUpperCase())
+              ),
+              el('p', { className: 'ts-param-desc' }, 'Status for created posts in bulk translation (Draft or Publish).'),
+              el(
+                'select',
+                {
+                  className: 'ts-form-select',
+                  value: curStatus,
+                  onChange: (e) => {
+                    const val = String(e.target.value || '').trim().toLowerCase();
+                    if (validStatuses.includes(val)) {
+                      setSettings({ ...settings, post_status: val });
+                    }
+                  },
+                },
+                el('option', { value: 'draft' }, 'Draft (Default)'),
+                el('option', { value: 'publish' }, 'Publish')
+              )
+            );
+          })(),
+
+          // Slug Translation Setting
+          (() => {
+            const validSlugTrans = ['slug_translate', 'title_based', 'keep_orignal'];
+            const curSlugTrans = validSlugTrans.includes(settings.slug_translation) ? settings.slug_translation : 'slug_translate';
+            return el(
+              'div',
+              { className: 'ts-param-card' },
+              el(
+                'div',
+                { className: 'ts-param-header' },
+                el('span', { className: 'ts-param-title' }, '🔗 Slug Translation'),
+                el(
+                  'span',
+                  { className: 'ts-param-badge' },
+                  curSlugTrans === 'keep_orignal'
+                    ? 'Keep Original'
+                    : curSlugTrans === 'title_based'
+                      ? 'Title Based'
+                      : 'Translate'
+                )
+              ),
+              el('p', { className: 'ts-param-desc' }, 'Determines how post URL slugs are handled during bulk translation.'),
+              el(
+                'select',
+                {
+                  className: 'ts-form-select',
+                  value: curSlugTrans,
+                  onChange: (e) => {
+                    const val = String(e.target.value || '').trim().toLowerCase();
+                    if (validSlugTrans.includes(val)) {
+                      setSettings({ ...settings, slug_translation: val });
+                    }
+                  },
+                },
+                el('option', { value: 'slug_translate' }, 'Translate Slug (Default)'),
+                el('option', { value: 'title_based' }, 'Generate from Translated Title'),
+                el('option', { value: 'keep_orignal' }, 'Keep Original Slug')
+              )
+            );
+          })()
+        )
+      ),
+
+      // 4. Custom AI Prompt Engineering Studio Card
       el(
         'div',
         { className: 'ts-settings-card' },

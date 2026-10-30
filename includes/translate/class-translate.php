@@ -104,7 +104,7 @@ class Translate {
 	 * @param array  $in_memory_translations
 	 * @return array|WP_Error
 	 */
-	public static function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
+	public static function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
 		if ( ! $post_id || empty( $target_lang ) ) {
 			return new WP_Error( 'invalid_params', __( 'Post ID and Target Language are required.', 'translatesense' ), array( 'status' => 400 ) );
 		}
@@ -121,7 +121,7 @@ class Translate {
 			$builder = self::get_builder( 'classic' );
 		}
 
-		return $builder->translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
+		return $builder->translate_post( $post_id, $target_lang, $provider, $in_memory_translations, $options );
 	}
 
 	/**

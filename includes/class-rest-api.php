@@ -186,6 +186,26 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'update_settings' ),
 				'permission_callback' => array( __CLASS__, 'permission_update_settings' ),
+				'args'                => array(
+					'slug_translation' => array(
+						'required'          => false,
+						'type'              => 'string',
+						'enum'              => array( 'keep_orignal', 'title_based', 'slug_translate' ),
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return in_array( sanitize_key( (string) $value ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true );
+						},
+					),
+					'post_status'      => array(
+						'required'          => false,
+						'type'              => 'string',
+						'enum'              => array( 'publish', 'draft' ),
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return in_array( sanitize_key( (string) $value ), array( 'publish', 'draft' ), true );
+						},
+					),
+				),
 			)
 		);
 
@@ -301,6 +321,11 @@ class Rest_Api {
 						'validate_callback' => static function ( $value ) {
 							return '' !== sanitize_key( (string) $value );
 						},
+					),
+					'is_bulk'     => array(
+						'required'          => false,
+						'type'              => 'boolean',
+						'sanitize_callback' => 'rest_sanitize_boolean',
 					),
 				),
 			)
@@ -2078,12 +2103,22 @@ class Rest_Api {
 			'temperature'       => 0.2,
 			'custom_prompt'     => '',
 			'default_prompt'    => Translate::DEFAULT_PROMPT,
+			'slug_translation'  => 'slug_translate',
+			'post_status'       => 'draft',
 		);
 
 		$settings = wp_parse_args(
 			$settings,
 			$defaults
 		);
+
+		$settings['slug_translation'] = ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) )
+			? sanitize_key( (string) $settings['slug_translation'] )
+			: 'slug_translate';
+
+		$settings['post_status'] = ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) )
+			? sanitize_key( (string) $settings['post_status'] )
+			: 'draft';
 
 		if ( empty( $settings['default_prompt'] ) ) {
 			$settings['default_prompt'] = Translate::DEFAULT_PROMPT;
@@ -2345,6 +2380,18 @@ class Rest_Api {
 			if ( isset( $input[ $key ] ) ) {
 				$updated[ $key ] = sanitize_textarea_field( $input[ $key ] );
 			}
+		}
+
+		if ( isset( $input['slug_translation'] ) ) {
+			$allowed_slug_trans          = array( 'keep_orignal', 'title_based', 'slug_translate' );
+			$val                         = sanitize_key( (string) $input['slug_translation'] );
+			$updated['slug_translation'] = in_array( $val, $allowed_slug_trans, true ) ? $val : 'slug_translate';
+		}
+
+		if ( isset( $input['post_status'] ) ) {
+			$allowed_post_status    = array( 'publish', 'draft' );
+			$val                    = sanitize_key( (string) $input['post_status'] );
+			$updated['post_status'] = in_array( $val, $allowed_post_status, true ) ? $val : 'draft';
 		}
 
 		if ( empty( $updated['default_prompt'] ) ) {
@@ -2616,11 +2663,18 @@ class Rest_Api {
 			);
 		}
 
+		$is_bulk = ! empty( $params['is_bulk'] ) && rest_sanitize_boolean( $params['is_bulk'] );
+		$options = array();
+		if ( $is_bulk ) {
+			$options['is_bulk'] = true;
+		}
+
 		$result = Translate::translate_post(
 			$post_id,
 			(string) $target_lang,
 			(string) $provider,
-			$normalized_translations
+			$normalized_translations,
+			$options
 		);
 
 		if ( is_wp_error( $result ) ) {

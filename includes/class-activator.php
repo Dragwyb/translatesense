@@ -128,6 +128,8 @@ class Activator {
 			'max_tokens'          => 4096,
 			'temperature'         => 0.2,
 			'custom_prompt'       => '',
+			'slug_translation'    => 'slug_translate',
+			'post_status'         => 'draft',
 		);
 
 		if ( ! get_option( 'translatesense_settings' ) ) {

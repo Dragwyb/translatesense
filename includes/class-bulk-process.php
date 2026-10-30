@@ -301,9 +301,16 @@ class Bulk_Process {
 			$packages = array_values( (array) $packages );
 
 			// Extract pure strings indexed by array index
-			$strings_to_send = array();
+			$settings         = get_option( 'translatesense_settings', array() );
+			$raw_slug_trans   = ! empty( $settings['slug_translation'] ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate';
+			$slug_translation = in_array( $raw_slug_trans, array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ? $raw_slug_trans : 'slug_translate';
+			$strings_to_send  = array();
 
 			foreach ( $packages as $idx => $pkg ) {
+				$pkg_name = sanitize_key( is_array( $pkg ) ? ( $pkg['name'] ?? ( $pkg['widget_name'] ?? '' ) ) : '' );
+				if ( 'slug_translate' !== $slug_translation && 'post_name' === $pkg_name ) {
+					continue;
+				}
 				if ( isset( $pkg['value'] ) && ! empty( $pkg['value'] ) ) {
 					$str                     = (string) $pkg['value'];
 					$strings_to_send[ $idx ] = $str;
@@ -431,7 +438,7 @@ class Bulk_Process {
 	 * @return array|WP_Error
 	 */
 	public static function execute_post_translation_sync( int $post_id, string $target_lang, string $provider, array $in_memory_translations = array() ) {
-		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
+		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations, array( 'is_bulk' => true ) );
 	}
 
 	/**
