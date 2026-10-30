@@ -302,155 +302,246 @@
 }
 
 /* ==========================================================================
-   Step 3: Dedicated Live Progress View (Minimal 4px Radius)
+   Bulk Modal Sizing (Spacious Layout Matching Screenshots)
    ========================================================================== */
-.ts-progress-wrap {
-  margin: 12px 0 8px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.ts-bulk-modal {
+  max-width: 760px !important;
+  border-radius: 14px !important;
 }
 
-/* Active Progress Card */
+/* ==========================================================================
+   Step 3: Keep Window Open Notice Banner (Matching Screenshot 1)
+   ========================================================================== */
+.ts-modal-notice-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.05);
+}
+
+.ts-modal-notice-banner.info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+}
+
+.ts-modal-notice-banner .ts-notice-icon {
+  font-size: 19px;
+  line-height: 1.2;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.ts-modal-notice-banner.info .ts-notice-icon {
+  color: #2563eb;
+}
+
+.ts-modal-notice-banner .ts-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-modal-notice-banner .ts-notice-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 2px;
+}
+
+.ts-modal-notice-banner.info .ts-notice-title {
+  color: #1e40af;
+}
+
+.ts-modal-notice-banner .ts-notice-desc {
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.45;
+}
+
+.ts-modal-notice-banner.info .ts-notice-desc {
+  color: #1d4ed8;
+}
+
+/* ==========================================================================
+   Step 3: Progress Bar Card (Matching Screenshot 3)
+   ========================================================================== */
 .ts-progress-card {
   background: #ffffff;
   border: 1.5px solid var(--ts-border, #e2e8f0);
-  border-radius: 4px;
-  padding: 15px 16px;
+  border-radius: 8px;
+  padding: 13px 16px;
+  margin-bottom: 14px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  transition: all 0.3s ease;
-  overflow: hidden;
 }
 
 .ts-progress-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-}
-
-.ts-progress-status-wrap {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex: 1;
-  min-width: 0;
-}
-
-.ts-progress-spinner {
-  width: 15px;
-  height: 15px;
-  border: 2px solid #bfdbfe;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: tsSpin 0.75s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes tsSpin {
-  to { transform: rotate(360deg); }
+  margin-bottom: 9px;
+  gap: 12px;
 }
 
 .ts-progress-status {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
-.ts-progress-percent-pill {
+.ts-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   font-size: 12px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  padding: 3px 10px;
-  border-radius: 3px;
+  font-weight: 600;
+  color: #334155;
   flex-shrink: 0;
+}
+
+.ts-progress-timer {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 
 .ts-progress-bar-bg {
   width: 100%;
   height: 8px;
-  background: #f1f5f9;
-  border-radius: 2px;
+  background: #e2e8f0;
+  border-radius: 9999px;
   overflow: hidden;
-  position: relative;
 }
 
 .ts-progress-bar-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
-  border-radius: 2px;
+  background: #2563eb;
+  border-radius: 9999px;
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Stats Summary Row Below Progress Bar */
-.ts-bulk-stats-row {
+/* ==========================================================================
+   Step 3: Summary Stats Grid after translation (Matching Screenshot 2)
+   ========================================================================== */
+.ts-summary-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ts-stat-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 12.5px;
-  color: #64748b;
-  margin-top: -2px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
-.ts-stat-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.ts-stat-card.green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
-.ts-stat-badge strong {
-  color: #0f172a;
+.ts-stat-card.red {
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
-.ts-stat-badge-status {
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 3px;
-  letter-spacing: 0.03em;
-}
-
-.ts-stat-badge-status.running {
+.ts-stat-card.blue {
   background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  border-color: #bfdbfe;
 }
 
-.ts-stat-badge-status.completed {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+.ts-stat-card.orange {
+  background: #fffbeb;
+  border-color: #fde68a;
 }
 
-/* Success Summary Card */
-.ts-success-summary-card {
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-  border: 1.5px solid #a7f3d0;
-  border-radius: 4px;
-  padding: 13px 16px;
+.ts-stat-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.08);
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ts-stat-icon-box.green {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.ts-stat-icon-box.red {
+  background: #ef4444;
+  color: #ffffff;
+  border-radius: 50%;
+}
+
+.ts-stat-icon-box.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.ts-stat-icon-box.orange {
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 50%;
+}
+
+.ts-stat-icon-box .dashicons {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+}
+
+.ts-stat-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ts-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.ts-stat-card.green .ts-stat-label { color: #15803d; }
+.ts-stat-card.red .ts-stat-label { color: #b91c1c; }
+.ts-stat-card.blue .ts-stat-label { color: #1e40af; }
+.ts-stat-card.orange .ts-stat-label { color: #92400e; }
+
+.ts-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
 }
 
 /* ==========================================================================
-   Grouped Post Translation Results Accordion (Minimal 4px Radius)
+   Step 3: Post Accordion Cards & Translate Row View (Matching Screenshot 1)
    ========================================================================== */
 .ts-results-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   max-height: 380px;
   overflow-y: auto;
-  padding: 2px 2px 4px 2px;
+  padding: 1px 1px 4px 1px;
 }
 
 .ts-results-container::-webkit-scrollbar {
@@ -461,28 +552,34 @@
   border-radius: 3px;
 }
 
+.ts-results-list{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .ts-post-group-card {
   background: #ffffff;
   border: 1.5px solid var(--ts-border, #e2e8f0);
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
 }
 
 .ts-post-group-header {
-  background: #f8fafc;
-  padding: 11px 15px;
+  background: #ffffff;
+  padding: 11px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--ts-border, #e2e8f0);
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s ease;
 }
 
 .ts-post-group-header:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 .ts-post-source-info {
@@ -494,7 +591,11 @@
 }
 
 .ts-post-icon {
-  font-size: 15px;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  color: #475569;
   flex-shrink: 0;
 }
 
@@ -510,55 +611,94 @@
 .ts-post-id-tag {
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
-  background: #e2e8f0;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   padding: 2px 6px;
   border-radius: 3px;
-  margin-left: 5px;
+  margin-left: 6px;
   flex-shrink: 0;
 }
 
-.ts-post-group-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 3px;
+.ts-post-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.ts-post-status-pill {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
-.ts-post-group-badge.source {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
-}
-
-.ts-post-group-badge.completed {
-  background: #ecfdf5;
+.ts-post-status-pill.completed {
+  background: #dcfce7;
   color: #15803d;
-  border: 1px solid #bbf7d0;
 }
 
-.ts-post-group-badge.in-progress {
-  background: #eff6ff;
+.ts-post-status-pill.in-progress {
   color: #2563eb;
-  border: 1px dashed #93c5fd;
+  background: transparent;
+  padding: 3px 6px;
 }
 
-/* Post Translation Language Rows */
-.ts-post-translations-list {
+.ts-post-status-pill.pending {
+  color: #64748b;
+  background: transparent;
+  padding: 3px 6px;
+}
+
+.ts-post-status-pill.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.ts-post-status-pill .dashicons {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+}
+
+.ts-post-chevron {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  line-height: 15px;
+  color: #64748b;
+  transition: transform 0.2s ease;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ts-post-group-card.expanded .ts-post-chevron {
+  transform: rotate(180deg);
+}
+
+/* Post Translation Language Rows List */
+.ts-post-translations-list {
+  display: none;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ts-post-group-card.expanded .ts-post-translations-list {
+  display: block;
 }
 
 .ts-translation-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 15px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 9px 16px;
+  border-bottom: 1px solid #f8fafc;
+  background: #ffffff;
   gap: 12px;
 }
 
@@ -569,15 +709,22 @@
 .ts-trans-lang-col {
   display: flex;
   align-items: center;
-  gap: 9px;
-  width: 150px;
+  gap: 8px;
+  min-width: 170px;
+  flex-shrink: 0;
+}
+
+.ts-trans-lang-flag {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
 }
 
 .ts-trans-lang-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: #0f172a;
+  white-space: nowrap;
 }
 
 .ts-trans-lang-code {
@@ -585,52 +732,148 @@
   font-weight: 700;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  color: #64748b;
-  padding: 1.5px 5px;
-  border-radius: 2px;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
-.ts-trans-details-col {
+.ts-trans-status-col {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0;
+  justify-content: center;
+  min-width: 120px;
 }
 
-.ts-trans-status-pill {
-  font-size: 11px;
-  font-weight: 600;
+.ts-row-status {
+  font-size: 12px;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  white-space: nowrap;
 }
 
-.ts-trans-status-pill.success {
-  color: #15803d;
-  background: #ecfdf5;
-  padding: 2px 7px;
-  border-radius: 3px;
-  border: 1px solid #bbf7d0;
-}
-
-.ts-trans-status-pill.running {
+.ts-row-status.translating {
   color: #2563eb;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  font-weight: 600;
 }
 
-.ts-trans-status-pill.pending {
-  color: #94a3b8;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.ts-row-status.completed {
+  background: #dcfce7;
+  color: #15803d;
+  padding: 2.5px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.ts-row-status.completed .dashicons {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+}
+
+.ts-row-status.pending {
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.ts-row-status.pending .dashicons {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+}
+
+.ts-row-status.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 2.5px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.ts-row-status.already-exists {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2.5px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
 }
 
 .ts-trans-actions-col {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ts-row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.ts-row-action-btn .dashicons {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+}
+
+.ts-row-action-btn.view {
+  background: #ffffff;
+  color: #334155;
+  border: 1.5px solid #cbd5e1;
+}
+
+.ts-row-action-btn.view:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.ts-row-action-btn.edit {
+  background: #2563eb;
+  color: #ffffff;
+  border: 1.5px solid #2563eb;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.ts-row-action-btn.edit:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.ts-row-action-btn.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Dotted spinner animation matching Screenshot 1 */
+.ts-dots-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px dotted #2563eb;
+  border-radius: 50%;
+  animation: tsSpin 1.2s linear infinite;
+  display: inline-block;
   flex-shrink: 0;
 }

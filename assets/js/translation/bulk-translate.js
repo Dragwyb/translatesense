@@ -26,7 +26,7 @@
       return `<img src="${flagUrl}" class="ts-lang-flag-img" alt="${slug}" />`;
     }
 
-    return '';
+    return `<span class="dashicons dashicons-translation ts-lang-flag-fallback"></span>`;
   }
 
   function getLanguageDisplay(langInput, allLanguages = []) {
@@ -386,78 +386,75 @@
                 </div>
               </div>
 
-              <!-- Step 3 View: Dedicated Live Progress View (Hides Provider View) -->
+              <!-- Step 3 View: Dedicated Live Progress & Results View -->
               <div id="ts-view-progress" style="display: none;">
-                <div class="ts-step-bar">
-                  <div class="ts-step-item">
-                    <span class="ts-step-number">✓</span>
-                    <span>Languages</span>
+                <!-- Keep Window Open Notice (Screenshot 1) -->
+                <div id="ts-progress-notice-banner" class="ts-modal-notice-banner" style="display: none;"></div>
+
+                <!-- Progress Bar Card (Screenshot 3) -->
+                <div class="ts-progress-card" id="ts-progress-card">
+                  <div class="ts-progress-header">
+                    <span class="ts-progress-status" id="ts-progress-status">Translating content...</span>
+                    <div class="ts-progress-meta">
+                      <span id="ts-progress-posts-count">0 / ${postIds.length} posts (0%)</span>
+                      <span class="ts-progress-timer" id="ts-progress-timer">00:00 elapsed</span>
+                    </div>
                   </div>
-                  <span class="ts-step-divider"></span>
-                  <div class="ts-step-item">
-                    <span class="ts-step-number">✓</span>
-                    <span id="ts-progress-provider-label">Provider</span>
-                  </div>
-                  <span class="ts-step-divider"></span>
-                  <div class="ts-step-item active">
-                    <span class="ts-step-number">3</span>
-                    <span>Translation Progress</span>
+                  <div class="ts-progress-bar-bg" id="ts-progress-bar-bg">
+                    <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
                   </div>
                 </div>
 
-                <div id="ts-progress-notice-banner" class="ts-modal-notice-banner" style="margin-top: 14px;"></div>
-
-                <div class="ts-progress-wrap" id="ts-progress-wrap" style="margin-top: 14px;">
-                  <!-- Progress Bar Card -->
-                  <div class="ts-progress-card" id="ts-progress-card">
-                    <div class="ts-progress-header">
-                      <div class="ts-progress-status-wrap">
-                        <span class="ts-progress-spinner" id="ts-progress-spinner"></span>
-                        <span class="ts-progress-status" id="ts-progress-status">Starting bulk translation...</span>
-                      </div>
-                      <span class="ts-progress-percent-pill" id="ts-progress-percent">0%</span>
+                <!-- Summary Stats Grid after translation (Screenshot 2) -->
+                <div class="ts-summary-stats-grid" id="ts-summary-stats-grid" style="display: none;">
+                  <!-- Card 1: Completed Posts -->
+                  <div class="ts-stat-card green">
+                    <div class="ts-stat-icon-box green">
+                      <span class="dashicons dashicons-yes-alt"></span>
                     </div>
-                    <div class="ts-progress-bar-bg" id="ts-progress-bar-bg">
-                      <div class="ts-progress-bar-fill" id="ts-progress-bar-fill"></div>
+                    <div class="ts-stat-info">
+                      <div class="ts-stat-label">Completed Posts</div>
+                      <div class="ts-stat-val" id="ts-stat-completed-posts">0 / ${postIds.length}</div>
                     </div>
                   </div>
 
-                  <!-- Single Success Celebration Box (Smoothly revealed after progress bar fades out) -->
-                  <div class="ts-success-summary-card" id="ts-success-summary-card" style="display: none;">
-                    <div style="font-size: 24px; line-height: 1;">🎉</div>
-                    <div style="flex: 1;">
-                      <div style="font-weight: 700; color: #065f46; font-size: 13.5px; margin-bottom: 2px;">Bulk Translation Completed!</div>
-                      <div style="font-size: 12.5px; color: #047857;" id="ts-success-summary-text">All translations finished successfully.</div>
+                  <!-- Card 2: Failed Posts -->
+                  <div class="ts-stat-card red">
+                    <div class="ts-stat-icon-box red">
+                      <span class="dashicons dashicons-dismiss"></span>
+                    </div>
+                    <div class="ts-stat-info">
+                      <div class="ts-stat-label">Failed Posts</div>
+                      <div class="ts-stat-val" id="ts-stat-failed-posts">0 / ${postIds.length}</div>
                     </div>
                   </div>
 
-                  <!-- Modern Stats Badges Row -->
-                  <div class="ts-bulk-stats-row" id="ts-bulk-stats-row">
-                    <div class="ts-stat-badge ts-stat-badge-info" id="ts-stat-completed-wrap">
-                      <span>✓</span>
-                      <span id="ts-stat-completed-strings"><strong>0</strong> Completed Strings</span>
+                  <!-- Card 3: Total Strings -->
+                  <div class="ts-stat-card blue">
+                    <div class="ts-stat-icon-box blue">
+                      <span class="dashicons dashicons-media-text"></span>
                     </div>
-                    <div class="ts-stat-badge ts-stat-badge-muted" id="ts-stat-pending-wrap">
-                      <span>⏳</span>
-                      <span id="ts-stat-pending-strings"><strong>0</strong> Pending Strings</span>
-                    </div>
-                    <div class="ts-stat-badge ts-stat-badge-status running" id="ts-stat-status-badge">
-                      <span class="ts-badge-dot"></span>
-                      <span id="ts-stat-status-label">RUNNING</span>
+                    <div class="ts-stat-info">
+                      <div class="ts-stat-label">Total Strings</div>
+                      <div class="ts-stat-val" id="ts-stat-total-strings">0 / 0</div>
                     </div>
                   </div>
 
-                  <!-- Grouped Post Translation Results & Activity -->
-                  <div class="ts-results-container" id="ts-results-container">
-                    <div class="ts-results-header">
-                      <div class="ts-results-title-wrap">
-                        <span class="ts-results-icon">📋</span>
-                        <span class="ts-results-title">Translation Results & Activity</span>
-                      </div>
-                      <span class="ts-results-counter" id="ts-results-counter">0 Translations</span>
+                  <!-- Card 4: Elapsed Time -->
+                  <div class="ts-stat-card orange">
+                    <div class="ts-stat-icon-box orange">
+                      <span class="dashicons dashicons-clock"></span>
                     </div>
-                    <div class="ts-results-list" id="ts-results-list"></div>
+                    <div class="ts-stat-info">
+                      <div class="ts-stat-label">Elapsed Time</div>
+                      <div class="ts-stat-val" id="ts-stat-elapsed-time">0m 00s</div>
+                    </div>
                   </div>
+                </div>
+
+                <!-- Post Accordion Group List (Screenshot 1) -->
+                <div class="ts-results-container" id="ts-results-container">
+                  <div class="ts-results-list" id="ts-results-list"></div>
                 </div>
               </div>
             </div>
@@ -749,16 +746,39 @@
           }
 
           const resultsListEl = document.getElementById('ts-results-list');
-          const resultsCounterEl = document.getElementById('ts-results-counter');
           const barFill = document.getElementById('ts-progress-bar-fill');
           const statusText = document.getElementById('ts-progress-status');
+          const postsCountEl = document.getElementById('ts-progress-posts-count');
+          const timerEl = document.getElementById('ts-progress-timer');
+          const noticeBanner = document.getElementById('ts-progress-notice-banner');
+          const resultsCounterEl = document.getElementById('ts-results-counter');
           const percentText = document.getElementById('ts-progress-percent');
           const spinnerEl = document.getElementById('ts-progress-spinner');
           const completedStringsEl = document.getElementById('ts-stat-completed-strings');
           const pendingStringsEl = document.getElementById('ts-stat-pending-strings');
           const statusBadgeEl = document.getElementById('ts-stat-status-badge');
           const statusLabelEl = document.getElementById('ts-stat-status-label');
-          const noticeBanner = document.getElementById('ts-progress-notice-banner');
+
+          // Initialize provider status line matching Screenshot 3
+          const providerName = matchingProvider ? matchingProvider.title : (isChromeAi ? 'Chrome Local AI' : 'AI Engine');
+          if (statusText) {
+            statusText.textContent = `Translating content with ${providerName}...`;
+          }
+          if (postsCountEl) {
+            postsCountEl.textContent = `0 / ${postIds.length} posts (0%)`;
+          }
+
+          // Real-time elapsed timer
+          let startTime = Date.now();
+          let elapsedTimerInterval = setInterval(function () {
+            const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
+            const m = Math.floor(elapsedSecs / 60);
+            const s = elapsedSecs % 60;
+            const currentTimerEl = document.getElementById('ts-progress-timer');
+            if (currentTimerEl) {
+              currentTimerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} elapsed`;
+            }
+          }, 1000);
 
           // Helper: Escape HTML strings safely
           function escapeHtml(str) {
@@ -770,6 +790,8 @@
 
           // State tracking for grouped post results & activity
           const postResultsMap = {};
+          const expandedPosts = {};
+
           postIds.forEach(function (pid) {
             const pIdStr = String(pid);
             postResultsMap[pIdStr] = {
@@ -795,31 +817,52 @@
             });
           });
 
-          // Function to render grouped post results
+          // Function to render grouped post results (matching Screenshot 1)
           function renderResultsUI() {
             if (!resultsListEl) return;
 
-            let totalTranslationsCount = 0;
-            let completedTranslationsCount = 0;
             let html = '';
-
             const postIdsList = Object.keys(postResultsMap);
-            postIdsList.forEach(function (pId) {
+
+            postIdsList.forEach(function (pId, postIdx) {
               const postData = postResultsMap[pId];
               const transKeys = Object.keys(postData.translations);
-              totalTranslationsCount += transKeys.length;
+
+              let allCompleted = true;
+              let anyRunning = false;
+              let anyFailed = false;
+
+              transKeys.forEach(function (langSlug) {
+                const trans = postData.translations[langSlug];
+                if (trans.status === 'running') anyRunning = true;
+                if (trans.status === 'failed') anyFailed = true;
+                if (trans.status !== 'completed' && trans.status !== 'already_exists') allCompleted = false;
+              });
+
+              // Status badge for post header
+              let headerStatusBadge = '';
+              if (allCompleted) {
+                headerStatusBadge = '<span class="ts-post-status-pill completed"><span class="dashicons dashicons-yes"></span> Completed</span>';
+              } else if (anyRunning) {
+                headerStatusBadge = '<span class="ts-post-status-pill in-progress"><span class="ts-dots-spinner"></span> In Progress</span>';
+              } else if (anyFailed) {
+                headerStatusBadge = '<span class="ts-post-status-pill failed"><span class="dashicons dashicons-no"></span> Failed</span>';
+              } else {
+                headerStatusBadge = '<span class="ts-post-status-pill pending"><span class="dashicons dashicons-clock"></span> Pending</span>';
+              }
 
               html += `
-                <div class="ts-post-group-card">
+                <div class="ts-post-group-card expanded" data-post-id="${pId}">
                   <div class="ts-post-group-header">
                     <div class="ts-post-source-info">
-                      <span class="ts-post-icon">📄</span>
-                      <div class="ts-post-source-title">
-                        <span class="ts-source-title-text">${escapeHtml(postData.postTitle || `Post #${pId}`)}</span>
-                        <span class="ts-post-id-tag">#${pId}</span>
-                      </div>
+                      <span class="dashicons dashicons-media-text ts-post-icon"></span>
+                      <span class="ts-source-title-text">${escapeHtml(postData.postTitle || `Post #${pId}`)}</span>
+                      <span class="ts-post-id-tag">#${pId}</span>
                     </div>
-                    <span class="ts-post-group-badge">Source Post</span>
+                    <div class="ts-post-header-right">
+                      ${headerStatusBadge}
+                      <span class="ts-post-chevron dashicons dashicons-arrow-down-alt2"></span>
+                    </div>
                   </div>
                   <div class="ts-post-translations-list">
               `;
@@ -831,81 +874,47 @@
                 const isFail = trans.status === 'failed';
                 const isRunning = trans.status === 'running';
 
-                if (isDone || isAlreadyExists) completedTranslationsCount++;
-
                 const langUpper = langSlug.toUpperCase();
                 const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
-                const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
+                const langDisplayName = langObj ? langObj.name : langUpper;
 
-                let statusBadge = '';
+                let rowStatusHtml = '';
                 if (isAlreadyExists) {
-                  statusBadge = '<span class="ts-trans-status-pill already-exists">⚡ Already Exists</span>';
+                  rowStatusHtml = '<span class="ts-row-status already-exists">⚡ Already Exists</span>';
                 } else if (isDone) {
-                  statusBadge = '<span class="ts-trans-status-pill success">✓ Completed</span>';
+                  rowStatusHtml = '<span class="ts-row-status completed"><span class="dashicons dashicons-yes"></span> Completed</span>';
                 } else if (isFail) {
-                  const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
-                  statusBadge = isUnsupported
-                    ? `<button type="button" class="ts-trans-status-pill failed ts-error-detail-btn" data-lang="${escapeHtml(langDisplayName)}" data-error="${escapeHtml(trans.error || 'Language is not supported by Chrome Local AI.')}" title="Click to view detailed reason">✕ Language Not Supported ℹ️</button>`
-                    : '<span class="ts-trans-status-pill failed">✕ Failed</span>';
+                  rowStatusHtml = '<span class="ts-row-status failed"><span class="dashicons dashicons-no"></span> Failed</span>';
                 } else if (isRunning) {
-                  statusBadge = '<span class="ts-trans-status-pill running">⏳ In Progress</span>';
+                  rowStatusHtml = '<span class="ts-row-status translating"><span class="ts-dots-spinner"></span> Translating...</span>';
                 } else {
-                  statusBadge = '<span class="ts-trans-status-pill pending">Queued</span>';
+                  rowStatusHtml = '<span class="ts-row-status pending"><span class="dashicons dashicons-clock"></span> Pending...</span>';
                 }
 
-                let metaInfo = '';
-                if (isAlreadyExists) {
-                  metaInfo = trans.targetPostId ? `<span class="ts-trans-target-id">#${trans.targetPostId}</span>` : '';
-                } else if (isDone && trans.completedStrings) {
-                  metaInfo = `<span class="ts-trans-strings-count">${trans.completedStrings} strings</span>`;
-                } else if (isFail && trans.error) {
-                  const isUnsupported = trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable');
-                  if (!isUnsupported) {
-                    metaInfo = `<span class="ts-trans-error-msg">${escapeHtml(trans.error)}</span>`;
-                  }
-                } else if (trans.targetPostId) {
-                  metaInfo = `<span class="ts-trans-target-id">#${trans.targetPostId}</span>`;
-                }
-
-                let actionsHtml = '';
                 const isElementor = (trans.editorType === 'elementor' || (trans.editUrl && trans.editUrl.indexOf('action=elementor') !== -1));
-                const editLabel = '✏️ Edit';
-                const editClass = isElementor ? 'ts-action-link-btn edit elementor' : 'ts-action-link-btn edit';
-                const editTitle = isElementor ? 'Edit translated post in Elementor Website Builder' : 'Edit translated post in WordPress editor';
-
                 const defaultEditUrl = isElementor && trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=elementor` : (trans.targetPostId ? `post.php?post=${trans.targetPostId}&action=edit` : '#');
                 const editHref = trans.editUrl || defaultEditUrl;
                 const viewHref = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
+                const isAvailable = isDone || isAlreadyExists;
 
-                if (isAlreadyExists || isDone) {
-                  actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-action-link-btn view" title="View translated post on site">👁 View</a>`;
-                  if (trans.targetPostId || trans.editUrl) {
-                    actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="${editClass}" title="${editTitle}">${editLabel}</a>`;
-                  }
+                let actionsHtml = '';
+                if (isAvailable) {
+                  actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn view" title="View translated post on site"><span class="dashicons dashicons-visibility"></span> View</a>`;
+                  actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn edit" title="Edit translated post"><span class="dashicons dashicons-edit"></span> Edit</a>`;
                 } else {
-                  actionsHtml += `<span class="ts-action-link-btn disabled">👁 View</span><span class="ts-action-link-btn disabled">✏️ Edit</span>`;
+                  actionsHtml += `<span class="ts-row-action-btn view disabled"><span class="dashicons dashicons-visibility"></span> View</span>`;
+                  actionsHtml += `<span class="ts-row-action-btn edit disabled"><span class="dashicons dashicons-edit"></span> Edit</span>`;
                 }
-
-                const displayTitle = trans.targetTitle
-                  || (isAlreadyExists ? (trans.targetTitle || postData.postTitle)
-                    : (isDone ? (trans.targetTitle || postData.postTitle)
-                      : (isFail ? (postData.postTitle || `Post #${pId}`)
-                        : (isRunning ? 'Translating content...'
-                          : `Waiting in queue (${langDisplayName})`))));
 
                 html += `
                   <div class="ts-translation-item ${trans.status}">
                     <div class="ts-trans-lang-col">
-                      <span class="ts-trans-lang-badge ${isAlreadyExists ? 'already-exists' : (isDone ? 'success' : (isFail ? 'failed' : ''))}">${getLanguageFlagHtml(langObj || langSlug, allLanguages)} (${langUpper})</span>
+                      <span class="ts-trans-lang-flag">${getLanguageFlagHtml(langObj || langSlug, allLanguages)}</span>
+                      <span class="ts-trans-lang-name">${escapeHtml(langDisplayName)}</span>
+                      <span class="ts-trans-lang-code">${langUpper}</span>
                     </div>
-                    <div class="ts-trans-details-col">
-                      <div class="ts-trans-title">
-                        ${escapeHtml(displayTitle)}
-                      </div>
-                      <div class="ts-trans-meta">
-                        ${statusBadge}
-                        ${metaInfo}
-                      </div>
+                    <div class="ts-trans-status-col">
+                      ${rowStatusHtml}
                     </div>
                     <div class="ts-trans-actions-col">
                       ${actionsHtml}
@@ -921,9 +930,21 @@
             });
 
             resultsListEl.innerHTML = html;
-            if (resultsCounterEl) {
-              resultsCounterEl.textContent = `${completedTranslationsCount}/${totalTranslationsCount} Completed`;
-            }
+          }
+
+          // Header Click Toggle Listener
+          if (resultsListEl && !resultsListEl._hasHeaderToggleListener) {
+            resultsListEl._hasHeaderToggleListener = true;
+            resultsListEl.addEventListener('click', function (e) {
+              const header = e.target.closest('.ts-post-group-header');
+              if (!header) return;
+              const card = header.closest('.ts-post-group-card');
+              if (!card) return;
+              const pid = card.getAttribute('data-post-id');
+              const isNowExpanded = !card.classList.contains('expanded');
+              expandedPosts[pid] = isNowExpanded;
+              card.classList.toggle('expanded', isNowExpanded);
+            });
           }
 
           // Global delegation for error details button click
@@ -981,69 +1002,66 @@
           // Initial render of results skeleton
           renderResultsUI();
 
-          // Helper: Handle Bulk Translation Completion & Remove Progress Bar After a Few Seconds
+          // Helper: Handle Bulk Translation Completion & Show 4 Stats Cards (Screenshot 2)
           function onBulkProgressComplete(isSuccess, summaryMsg, completedJobs, totalJobs) {
-            if (barFill) {
-              barFill.style.width = '100%';
-              barFill.classList.add('completed');
-            }
-            if (percentText) {
-              percentText.textContent = '100%';
-              percentText.classList.add('completed');
-            }
-            if (spinnerEl) {
-              spinnerEl.classList.add('completed');
-            }
-            if (statusText) {
-              statusText.textContent = summaryMsg;
-            }
-            if (statusBadgeEl) {
-              statusBadgeEl.className = isSuccess
-                ? 'ts-stat-badge ts-stat-badge-status completed'
-                : 'ts-stat-badge ts-stat-badge-status failed';
-            }
-            if (statusLabelEl) {
-              statusLabelEl.textContent = isSuccess ? 'COMPLETED' : 'FAILED';
+            if (elapsedTimerInterval) {
+              clearInterval(elapsedTimerInterval);
+              elapsedTimerInterval = null;
             }
 
-            // Hide the top warning/info notice banner completely on completion so there are NO multiple stacked notices
-            if (noticeBanner) {
-              noticeBanner.style.display = 'none';
-            }
+            const finalSecs = Math.floor((Date.now() - startTime) / 1000);
+            const m = Math.floor(finalSecs / 60);
+            const s = finalSecs % 60;
+            const formattedTime = (m > 0) ? `${m}m ${s}s` : `${s}s`;
 
-            // Remove progress bar after a few seconds (2.5s delay + smooth fade-out collapse)
-            if (isSuccess) {
-              setTimeout(function () {
-                const card = document.getElementById('ts-progress-card');
-                const successSummary = document.getElementById('ts-success-summary-card');
-                const successSummaryText = document.getElementById('ts-success-summary-text');
-                if (card) {
-                  card.classList.add('ts-progress-fade-out');
-                  setTimeout(function () {
-                    card.style.display = 'none';
-                    if (successSummary) {
-                      if (successSummaryText) {
-                        successSummaryText.textContent = `Successfully processed and created translations for ${completedJobs || 1} of ${totalJobs || 1} post(s).`;
-                      }
-                      successSummary.style.display = 'flex';
+            let completedPostsCount = 0;
+            let failedPostsCount = 0;
+            let totalStringsSum = 0;
+            let completedStringsSum = 0;
 
-                      // Auto-hide success notice after 20 seconds
-                      setTimeout(function () {
-                        successSummary.classList.add('ts-progress-fade-out');
-                        setTimeout(function () {
-                          successSummary.style.display = 'none';
-                        }, 500);
-                      }, 7000);
-                    }
-                  }, 500);
-                }
-              }, 2500);
-            }
+            Object.keys(postResultsMap).forEach(function (pid) {
+              const post = postResultsMap[pid];
+              const transKeys = Object.keys(post.translations);
+              let postCompleted = true;
+              let postFailed = false;
 
+              transKeys.forEach(function (lang) {
+                const t = post.translations[lang];
+                if (t.status === 'failed') postFailed = true;
+                if (t.status !== 'completed' && t.status !== 'already_exists') postCompleted = false;
+                totalStringsSum += (t.totalStrings || 0);
+                completedStringsSum += (t.completedStrings || 0);
+              });
+
+              if (postCompleted) completedPostsCount++;
+              if (postFailed) failedPostsCount++;
+            });
+
+            const compPostsEl = document.getElementById('ts-stat-completed-posts');
+            const failPostsEl = document.getElementById('ts-stat-failed-posts');
+            const totalStringsEl = document.getElementById('ts-stat-total-strings');
+            const elapsedTimeEl = document.getElementById('ts-stat-elapsed-time');
+
+            if (compPostsEl) compPostsEl.textContent = `${completedPostsCount} / ${postIds.length}`;
+            if (failPostsEl) failPostsEl.textContent = `${failedPostsCount} / ${postIds.length}`;
+            if (totalStringsEl) totalStringsEl.textContent = `${completedStringsSum} / ${totalStringsSum || completedStringsSum}`;
+            if (elapsedTimeEl) elapsedTimeEl.textContent = formattedTime;
+
+            // Hide the progress bar card (Screenshot 3) and notice banner (Screenshot 1)
+            const progressCard = document.getElementById('ts-progress-card');
+            if (progressCard) progressCard.style.display = 'none';
+
+            if (noticeBanner) noticeBanner.style.display = 'none';
+
+            // Show the 4 summary stat cards (Screenshot 2)
+            const statsGrid = document.getElementById('ts-summary-stats-grid');
+            if (statsGrid) statsGrid.style.display = 'grid';
+
+            // Update footer button to Done (Reload Page) (matching Screenshot 2 and 3)
             if (doneBtn) {
               doneBtn.disabled = false;
-              doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary ts-btn-success-pulse';
-              doneBtn.textContent = '✓ Done (Reload Page)';
+              doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary';
+              doneBtn.innerHTML = '<span class="dashicons dashicons-yes" style="font-size: 17px; width: 17px; height: 17px; line-height: 17px; margin-right: 5px;"></span> Done (Reload Page)';
               doneBtn.onclick = function () {
                 window.location.reload();
               };
@@ -1058,8 +1076,8 @@
               noticeBanner.innerHTML = `
                 <span class="ts-notice-icon">⚠️</span>
                 <div class="ts-notice-text">
-                  <div class="ts-notice-title">Please Keep This Window Open</div>
-                  <div>${engineTitle} runs on-device directly in your browser. If you close this tab or window, your local translation workflow will stop.</div>
+                  <div class="ts-notice-title">Keep this window open during translation</div>
+                  <div>${engineTitle} runs on your device. If you close this tab or window, the translation process will stop.</div>
                 </div>
               `;
             } else {
@@ -1229,12 +1247,7 @@
           // =========================================================================
           if (!isChromeAi) {
             if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
-            if (statusBadgeEl) {
-              statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
-            }
-            if (statusLabelEl) {
-              statusLabelEl.textContent = 'RUNNING';
-            }
+
 
             let pollingTimer = null;
             const pollStatus = async () => {
@@ -1249,19 +1262,12 @@
                 const pct = data.progress_percent || 0;
 
                 if (barFill) barFill.style.width = pct + '%';
-                if (percentText) percentText.textContent = pct + '%';
-                if (statusText) statusText.textContent = data.current_status || `Processing... (${pct}%)`;
+                if (postsCountEl) {
+                  postsCountEl.textContent = `${data.completed_jobs || 0} / ${postIds.length} posts (${pct}%)`;
+                }
+                if (statusText) statusText.textContent = data.current_status || `Translating content with ${providerName}... (${pct}%)`;
 
-                if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${data.completed_strings || 0}</strong> Completed Strings`;
-                if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${data.pending_strings || 0}</strong> Pending Strings`;
-                if (statusBadgeEl) {
-                  const isDone = data.overall_status === 'completed';
-                  const isFail = data.overall_status === 'failed';
-                  statusBadgeEl.className = `ts-stat-badge ts-stat-badge-status ${isDone ? 'completed' : (isFail ? 'failed' : 'running')}`;
-                }
-                if (statusLabelEl) {
-                  statusLabelEl.textContent = (data.overall_status || 'running').toUpperCase();
-                }
+
 
                 // Update Grouped Results Map from Polling Items
                 if (Array.isArray(data.items)) {
@@ -1335,12 +1341,7 @@
           let failedJobsCount = 0;
           const totalJobsCount = jobsList.length || 1;
 
-          if (statusBadgeEl) {
-            statusBadgeEl.className = 'ts-stat-badge ts-stat-badge-status running';
-          }
-          if (statusLabelEl) {
-            statusLabelEl.textContent = 'LOCAL AI RUNNING';
-          }
+
 
           function updateBulkProgressUI(currentJobIndex, jobFraction = 0) {
             const safeFraction = Math.max(0, Math.min(1, jobFraction));
@@ -1348,9 +1349,10 @@
             const pct = Math.min(100, Math.round(progressRatio * 100));
 
             if (barFill) barFill.style.width = pct + '%';
-            if (percentText) percentText.textContent = pct + '%';
-            if (completedStringsEl) completedStringsEl.innerHTML = `<strong>${completedBatchStrings}</strong> Completed Strings`;
-            if (pendingStringsEl) pendingStringsEl.innerHTML = `<strong>${Math.max(0, totalJobsCount - (completedJobsCount + failedJobsCount))}</strong> Pending Posts`;
+            if (postsCountEl) {
+              const currentPostNum = Math.min(postIds.length, completedJobsCount + (jobFraction > 0 ? 1 : 0));
+              postsCountEl.textContent = `${currentPostNum} / ${postIds.length} posts (${pct}%)`;
+            }
           }
 
           // Initial progress state (0%)
