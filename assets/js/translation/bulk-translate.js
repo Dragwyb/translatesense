@@ -460,7 +460,7 @@
                     </div>
                     <div class="ts-stat-info">
                       <div class="ts-stat-label">Total Characters</div>
-                      <div class="ts-stat-val" id="ts-stat-total-characters">0 / 0</div>
+                      <div class="ts-stat-val" id="ts-stat-total-characters">0</div>
                     </div>
                   </div>
 
@@ -790,15 +790,7 @@
           const barFill = document.getElementById('ts-progress-bar-fill');
           const statusText = document.getElementById('ts-progress-status');
           const postsCountEl = document.getElementById('ts-progress-posts-count');
-          const timerEl = document.getElementById('ts-progress-timer');
           const noticeBanner = document.getElementById('ts-progress-notice-banner');
-          const resultsCounterEl = document.getElementById('ts-results-counter');
-          const percentText = document.getElementById('ts-progress-percent');
-          const spinnerEl = document.getElementById('ts-progress-spinner');
-          const completedStringsEl = document.getElementById('ts-stat-completed-strings');
-          const pendingStringsEl = document.getElementById('ts-stat-pending-strings');
-          const statusBadgeEl = document.getElementById('ts-stat-status-badge');
-          const statusLabelEl = document.getElementById('ts-stat-status-label');
 
           // Initialize provider status line matching Screenshot 3
           const providerName = matchingProvider ? matchingProvider.title : (isChromeAi ? 'Chrome Local AI' : 'AI Engine');
@@ -973,7 +965,6 @@
 
                 const langUpper = langSlug.toUpperCase();
                 const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
-                const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
 
                 let rowStatusHtml = '';
                 if (isAlreadyExists) {
@@ -1252,10 +1243,8 @@
             if (compPostsEl) compPostsEl.textContent = `${completedLangPosts} / ${totalLangPosts || (postIds.length * selectedTargetLangs.length)}`;
             if (failPostsEl) failPostsEl.textContent = `${failedLangPosts} / ${totalLangPosts || (postIds.length * selectedTargetLangs.length)}`;
             if (totalCharsEl) {
-              totalCharsEl.textContent = totalCharactersSum > 0
-                ? `${formatNumber(completedCharactersSum)} / ${formatNumber(totalCharactersSum)}`
-                : `${formatNumber(completedCharactersSum)}`;
-              totalCharsEl.title = `${completedCharactersSum.toLocaleString()} / ${totalCharactersSum.toLocaleString()} characters`;
+              totalCharsEl.textContent = `${formatNumber(completedCharactersSum)}`;
+              totalCharsEl.title = `${completedCharactersSum.toLocaleString()} characters`;
             }
             if (elapsedTimeEl) elapsedTimeEl.textContent = formattedTime;
 
