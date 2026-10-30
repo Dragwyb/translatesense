@@ -774,6 +774,11 @@
           if (footer2) footer2.style.display = 'none';
           if (viewProgress) viewProgress.style.display = 'block';
           if (footerProgress) footerProgress.style.display = 'flex';
+          const initRetryBtn = document.getElementById('ts-bulk-retry-failed-btn');
+          if (initRetryBtn) {
+            initRetryBtn.style.setProperty('display', 'none', 'important');
+            initRetryBtn.classList.add('ts-hide');
+          }
 
           const matchingProvider = providers.find((p) => p.id === selectedProvider);
           if (providerLabel && matchingProvider) {
@@ -781,6 +786,7 @@
           }
 
           const resultsListEl = document.getElementById('ts-results-list');
+          const reviewModalEle = resultsListEl.closest('.ts-bulk-modal');
           const barFill = document.getElementById('ts-progress-bar-fill');
           const statusText = document.getElementById('ts-progress-status');
           const postsCountEl = document.getElementById('ts-progress-posts-count');
@@ -803,17 +809,31 @@
             postsCountEl.textContent = `0 / ${postIds.length * selectedTargetLangs.length} posts (0%)`;
           }
 
-          // Real-time elapsed timer
-          let startTime = Date.now();
-          let elapsedTimerInterval = setInterval(function () {
-            const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
-            const m = Math.floor(elapsedSecs / 60);
-            const s = elapsedSecs % 60;
-            const currentTimerEl = document.getElementById('ts-progress-timer');
-            if (currentTimerEl) {
-              currentTimerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} elapsed`;
-            }
-          }, 1000);
+          // Real-time elapsed timer tracking accumulated time across phases (existing time + retry time)
+          let accumulatedElapsedTime = 0;
+          let phaseStartTime = Date.now();
+          let elapsedTimerInterval = null;
+
+          function startElapsedTimer() {
+            phaseStartTime = Date.now();
+            if (elapsedTimerInterval) clearInterval(elapsedTimerInterval);
+            elapsedTimerInterval = setInterval(function () {
+              const currentPhaseSecs = Math.floor((Date.now() - phaseStartTime) / 1000);
+              const totalSecs = accumulatedElapsedTime + currentPhaseSecs;
+              const m = Math.floor(totalSecs / 60);
+              const s = totalSecs % 60;
+              const currentTimerEl = document.getElementById('ts-progress-timer');
+              if (currentTimerEl) {
+                currentTimerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} elapsed`;
+              }
+              const statTimerEl = document.getElementById('ts-stat-elapsed-time');
+              if (statTimerEl) {
+                statTimerEl.textContent = (m > 0) ? `${m}m ${s}s` : `${s}s`;
+              }
+            }, 1000);
+          }
+
+          startElapsedTimer();
 
           // Helper: Escape HTML strings safely
           function escapeHtml(str) {
@@ -826,6 +846,7 @@
           // State tracking for grouped post results & activity
           const postResultsMap = {};
           const expandedPosts = {};
+          const postExtractedStringsCache = {};
 
           postIds.forEach(function (pid) {
             const pIdStr = String(pid);
@@ -833,6 +854,7 @@
               postId: pid,
               postTitle: `Post #${pid}`,
               translations: {},
+              extractedStrings: null,
             };
             selectedTargetLangs.forEach(function (lang) {
               let initialStatus = 'pending';
@@ -850,6 +872,7 @@
                 editUrl: '',
                 viewUrl: '',
                 error: initialError,
+                errorObj: null,
               };
             });
           });
@@ -960,8 +983,8 @@
                 } else if (isFail) {
                   const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
                   const failText = isUnsupported ? 'Language not supported' : 'Failed';
-                  if (trans.error) {
-                    rowStatusHtml = `<button type="button" class="ts-row-status failed ts-error-detail-btn" data-lang="${escapeHtml(langDisplayName)}" data-error="${escapeHtml(trans.error)}" title="Click to view error details"><span class="dashicons dashicons-dismiss"></span> ${failText}</button>`;
+                  if (trans.error || trans.errorObj) {
+                    rowStatusHtml = `<button type="button" class="ts-row-status failed ts-error-detail-btn" data-post-id="${escapeHtml(pId)}" data-lang="${escapeHtml(langSlug)}" title="Click to view error details"><span class="dashicons dashicons-dismiss"></span> ${failText}</button>`;
                   } else {
                     rowStatusHtml = `<span class="ts-row-status failed"><span class="dashicons dashicons-dismiss"></span> ${failText}</span>`;
                   }
@@ -1027,6 +1050,24 @@
             });
 
             resultsListEl.innerHTML = html;
+
+            // Guarantee retryBtn is never visible when any post is in running or pending state
+            const activeRetryBtn = document.getElementById('ts-bulk-retry-failed-btn');
+            if (activeRetryBtn) {
+              let isAnyActive = false;
+              Object.keys(postResultsMap).forEach(function (pid) {
+                Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
+                  const st = postResultsMap[pid].translations[lang].status;
+                  if (st === 'running' || st === 'pending') {
+                    isAnyActive = true;
+                  }
+                });
+              });
+              if (isAnyActive) {
+                activeRetryBtn.style.setProperty('display', 'none', 'important');
+                activeRetryBtn.classList.add('ts-hide');
+              }
+            }
           }
 
           // Header Click Toggle Listener
@@ -1053,62 +1094,90 @@
               e.preventDefault();
               e.stopPropagation();
 
-              const langName = errorBtn.getAttribute('data-lang') || 'Language';
-              const errorMsg = errorBtn.getAttribute('data-error') || 'Translation failed.';
+              const postId = errorBtn.getAttribute('data-post-id');
+              const langSlug = errorBtn.getAttribute('data-lang');
 
-              let modalRoot = document.getElementById('ts-error-modal-root');
-              if (!modalRoot) {
-                modalRoot = document.createElement('div');
-                modalRoot.id = 'ts-error-modal-root';
-                document.body.appendChild(modalRoot);
-              }
+              const postData = postResultsMap[postId] || postResultsMap[String(postId)];
+              const trans = postData && postData.translations ? postData.translations[langSlug] : null;
 
-              modalRoot.innerHTML = `
-                <div class="ts-bulk-overlay" style="z-index: 1000000;">
-                  <div class="ts-bulk-modal" style="max-width: 480px;">
-                    ${core ? core.createHeaderHTML({
-                icon: '⚠️',
-                title: `${escapeHtml(langName)} Notice`,
-                closeId: 'ts-err-modal-close',
-              }) : `
-                      <div class="ts-bulk-header">
-                        <h2>⚠️ ${escapeHtml(langName)} Notice</h2>
-                        <button type="button" class="ts-bulk-close" id="ts-err-modal-close">&times;</button>
-                      </div>
-                    `}
-                    <div class="ts-bulk-body" style="padding: 22px;">
-                      <div style="background: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 14px 16px;">
-                        <div style="display: flex; align-items: flex-start; gap: 10px;">
-                          <span class="dashicons dashicons-warning" style="color: #dc2626; font-size: 20px; width: 20px; height: 20px; line-height: 20px; flex-shrink: 0; margin-top: 1px;"></span>
-                          <p style="margin: 0; font-size: 13.5px; color: #991b1b; line-height: 1.5; font-weight: 500; word-break: break-word;">
-                            ${escapeHtml(errorMsg)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    ${core ? core.createFooterHTML({
-                buttons: [
-                  { id: 'ts-err-modal-ok', label: 'OK', variant: 'primary' }
-                ]
-              }) : `
-                      <div class="ts-common-footer">
-                        <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">OK</button>
-                      </div>
-                    `}
+              const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
+              const langUpper = (langSlug || '').toUpperCase();
+              const langDisplayName = langObj ? `${langObj.name} (${langUpper})` : langUpper;
+
+              const errObj = (trans && trans.errorObj) ? trans.errorObj : {
+                reasonTitle: `${langDisplayName} Notice`,
+                reason: (trans && trans.error) || 'Translation failed.',
+                reasonHTML: `<p>${escapeHtml((trans && trans.error) || 'Translation failed.')}</p>`,
+                actionHtml: ''
+              };
+
+
+              const modalTitle = errObj.reasonTitle || `${langDisplayName} Notice`;
+              const modalBodyHtml = errObj.reasonHTML || `
+                <div style="background: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 14px 16px;">
+                  <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <span class="dashicons dashicons-warning" style="color: #dc2626; font-size: 20px; width: 20px; height: 20px; line-height: 20px; flex-shrink: 0; margin-top: 1px;"></span>
+                    <p style="margin: 0; font-size: 13.5px; color: #991b1b; line-height: 1.5; font-weight: 500; word-break: break-word;">
+                      ${escapeHtml(errObj.reason || 'Translation failed.')}
+                    </p>
                   </div>
                 </div>
               `;
+              const modalActionHtml = errObj.actionHtml || '';
 
-              function closeModal() {
-                if (modalRoot) modalRoot.innerHTML = '';
+              let errorModalEle = root.querySelector('#ts-bulk-error-modals-wrap');
+              if (!errorModalEle) {
+                errorModalEle = document.createElement('div');
+                errorModalEle.id = 'ts-bulk-error-modals-wrap';
+                document.body.appendChild(errorModalEle);
               }
 
-              const closeBtn = document.getElementById('ts-err-modal-close');
-              const okBtn = document.getElementById('ts-err-modal-ok');
+              const matchingProvider = providers.find((p) => p.id === selectedProvider);
+              const modalIcon = (matchingProvider && matchingProvider.logo) ? matchingProvider.logo : 'dashicons-warning';
+
+              errorModalEle.innerHTML = `<div class="ts-error-container">
+              ${core ? core.createHeaderHTML({
+                icon: modalIcon,
+                title: escapeHtml(modalTitle),
+                closeId: 'ts-err-modal-close',
+                closeClass: 'ts-bulk-close',
+              }) : `
+                      <div class="ts-bulk-header">
+                        <h2>⚠️ ${escapeHtml(modalTitle)}</h2>
+                        <button type="button" class="ts-bulk-close" id="ts-err-modal-close">&times;</button>
+                      </div>
+                    `}
+                    <div class="ts-bulk-body ts-review-body" style="padding: 22px;">
+                      <div class="ts-error-message">
+                        ${modalBodyHtml}
+                      </div>
+                    </div>
+                    ${core ? core.createFooterHTML({
+                customHtml: modalActionHtml,
+                buttons: [
+                  { id: 'ts-err-modal-ok', label: 'Close', variant: 'primary' }
+                ]
+              }) : `
+                      <div class="ts-common-footer">
+                        ${modalActionHtml ? `<div>${modalActionHtml}</div>` : ''}
+                        <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">Close</button>
+                      </div>
+                      </div>
+                    `}
+              `;
+
+              function closeModal() {
+                if (errorModalEle) errorModalEle.innerHTML = '';
+                reviewModalEle.classList.remove('hide');
+              }
+
+              reviewModalEle.classList.add('hide');
+              const closeBtn = errorModalEle.querySelector('.ts-bulk-close');
+              const okBtn = errorModalEle.querySelector('#ts-err-modal-ok');
               if (closeBtn) closeBtn.addEventListener('click', closeModal);
               if (okBtn) okBtn.addEventListener('click', closeModal);
 
-              const overlay = modalRoot.querySelector('.ts-bulk-overlay');
+              const overlay = errorModalEle.querySelector('.ts-bulk-overlay');
               if (overlay) {
                 overlay.addEventListener('click', function (ev) {
                   if (ev.target === overlay) closeModal();
@@ -1134,14 +1203,18 @@
               elapsedTimerInterval = null;
             }
 
-            const finalSecs = Math.floor((Date.now() - startTime) / 1000);
-            const m = Math.floor(finalSecs / 60);
-            const s = finalSecs % 60;
+            // Accumulate elapsed duration from this phase
+            const phaseDuration = Math.floor((Date.now() - phaseStartTime) / 1000);
+            accumulatedElapsedTime += phaseDuration;
+
+            const m = Math.floor(accumulatedElapsedTime / 60);
+            const s = accumulatedElapsedTime % 60;
             const formattedTime = (m > 0) ? `${m}m ${s}s` : `${s}s`;
 
             let totalLangPosts = 0;
             let completedLangPosts = 0;
             let failedLangPosts = 0;
+            let totalCharactersSum = 0;
             let completedCharactersSum = 0;
 
             // Compute total language posts, failed posts, and character counts across all groups
@@ -1156,6 +1229,7 @@
                 const itemTotalChars = t.totalCharacters || (t.totalStrings ? t.totalStrings * 45 : 0);
                 const itemCompChars = t.completedCharacters || (t.completedStrings ? t.completedStrings * 45 : 0);
 
+                totalCharactersSum += itemTotalChars;
 
                 if (t.status === 'completed' || t.status === 'already_exists') {
                   completedLangPosts++;
@@ -1166,6 +1240,10 @@
               });
             });
 
+            if (totalCharactersSum < completedCharactersSum) {
+              totalCharactersSum = completedCharactersSum;
+            }
+
             const compPostsEl = document.getElementById('ts-stat-completed-posts');
             const failPostsEl = document.getElementById('ts-stat-failed-posts');
             const totalCharsEl = document.getElementById('ts-stat-total-characters');
@@ -1174,8 +1252,10 @@
             if (compPostsEl) compPostsEl.textContent = `${completedLangPosts} / ${totalLangPosts || (postIds.length * selectedTargetLangs.length)}`;
             if (failPostsEl) failPostsEl.textContent = `${failedLangPosts} / ${totalLangPosts || (postIds.length * selectedTargetLangs.length)}`;
             if (totalCharsEl) {
-              totalCharsEl.textContent = `${formatNumber(completedCharactersSum)}`;
-              totalCharsEl.title = `${completedCharactersSum.toLocaleString()} characters`;
+              totalCharsEl.textContent = totalCharactersSum > 0
+                ? `${formatNumber(completedCharactersSum)} / ${formatNumber(totalCharactersSum)}`
+                : `${formatNumber(completedCharactersSum)}`;
+              totalCharsEl.title = `${completedCharactersSum.toLocaleString()} / ${totalCharactersSum.toLocaleString()} characters`;
             }
             if (elapsedTimeEl) elapsedTimeEl.textContent = formattedTime;
 
@@ -1193,107 +1273,94 @@
             const filterWrap = document.getElementById('ts-footer-filter-wrap');
             if (filterWrap) filterWrap.style.display = 'inline-flex';
 
-            // Check if there are any failed items across all posts
+            // Check if there are any running or pending items, and any failed items across all posts
+            let hasAnyRunningOrPending = false;
             let hasAnyFailedItems = false;
             Object.keys(postResultsMap).forEach(function (pid) {
               Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
-                if (postResultsMap[pid].translations[lang].status === 'failed') {
+                const st = postResultsMap[pid].translations[lang].status;
+                if (st === 'running' || st === 'pending') {
+                  hasAnyRunningOrPending = true;
+                }
+                if (st === 'failed') {
                   hasAnyFailedItems = true;
                 }
               });
             });
 
-            // Show "Retry Failed" button if there are failures
+            // Show "Retry Failed" button ONLY after translation is fully complete (no pending or running posts) AND failures exist
             const retryBtn = document.getElementById('ts-bulk-retry-failed-btn');
             if (retryBtn) {
-              if (hasAnyFailedItems) {
-                retryBtn.style.display = 'inline-flex';
+              if (!hasAnyRunningOrPending && hasAnyFailedItems) {
+                retryBtn.style.setProperty('display', 'inline-flex', 'important');
+                retryBtn.classList.remove('ts-hide');
                 retryBtn.disabled = false;
                 retryBtn.onclick = async function () {
+                  // Immediately hide Retry Failed button while retry is in progress
+                  retryBtn.style.setProperty('display', 'none', 'important');
+                  retryBtn.classList.add('ts-hide');
                   retryBtn.disabled = true;
 
-                  try {
-                    // Gather all failed translation items across all posts
-                    const failedItems = [];
-                    Object.keys(postResultsMap).forEach(function (pid) {
-                      Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
-                        const t = postResultsMap[pid].translations[lang];
-                        if (t.status === 'failed') {
-                          failedItems.push({
-                            postId: pid,
-                            targetLang: lang,
-                            postTitle: postResultsMap[pid].postTitle,
-                            editorType: t.editorType || 'core',
-                            trans: t,
-                          });
-                          t.status = 'pending';
-                          t.error = '';
-                        }
-                      });
+                  const failedItems = [];
+                  Object.keys(postResultsMap).forEach(function (pid) {
+                    Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
+                      const t = postResultsMap[pid].translations[lang];
+                      if (t.status === 'failed') {
+                        failedItems.push({
+                          postId: pid,
+                          targetLang: lang,
+                          postTitle: postResultsMap[pid].postTitle,
+                          editorType: t.editorType || 'core',
+                          trans: t,
+                        });
+                        t.status = 'pending';
+                        t.error = '';
+                        t.errorObj = null;
+                      }
                     });
+                  });
 
-                    if (failedItems.length === 0) {
-                      retryBtn.disabled = false;
-                      return;
-                    }
-
-                    // Hide retryBtn while retry is actively translating
+                  if (failedItems.length === 0) {
+                    retryBtn.disabled = false;
                     retryBtn.style.display = 'none';
+                    return;
+                  }
 
-                    // Re-query DOM elements for progress bar and stats cards
-                    const statsGridEl = document.getElementById('ts-summary-stats-grid');
-                    const progressCardEl = document.getElementById('ts-progress-card');
-                    const filterWrapEl = document.getElementById('ts-footer-filter-wrap');
-                    const noticeBannerEl = document.getElementById('ts-progress-notice-banner');
+                  // Re-query DOM elements for progress bar and stats cards
+                  const statsGridEl = document.getElementById('ts-summary-stats-grid');
+                  const progressCardEl = document.getElementById('ts-progress-card');
+                  const filterWrapEl = document.getElementById('ts-footer-filter-wrap');
+                  const noticeBannerEl = document.getElementById('ts-progress-notice-banner');
 
-                    // Switch UI view back to progress mode: show progress bar card for remaining posts
-                    if (statsGridEl) statsGridEl.style.display = 'none';
-                    if (progressCardEl) progressCardEl.style.display = 'block';
-                    if (filterWrapEl) filterWrapEl.style.display = 'none';
-                    if (noticeBannerEl && isChromeAi) noticeBannerEl.style.display = 'flex';
+                  // Switch UI view back to progress mode: show progress bar card for remaining posts
+                  if (statsGridEl) statsGridEl.style.display = 'none';
+                  if (progressCardEl) progressCardEl.style.display = 'block';
+                  if (filterWrapEl) filterWrapEl.style.display = 'none';
+                  if (noticeBannerEl && isChromeAi) noticeBannerEl.style.display = 'flex';
 
-                    const progressStatusEl = document.getElementById('ts-progress-status');
-                    const progressPostsEl = document.getElementById('ts-progress-posts-count');
-                    const progressFill = document.getElementById('ts-progress-bar-fill');
-                    const currentTimerEl = document.getElementById('ts-progress-timer');
-                    const statTimerEl = document.getElementById('ts-stat-elapsed-time');
+                  const progressStatusEl = document.getElementById('ts-progress-status');
+                  const progressPostsEl = document.getElementById('ts-progress-posts-count');
+                  const progressFill = document.getElementById('ts-progress-bar-fill');
 
-                    if (progressStatusEl) progressStatusEl.textContent = `Retrying failed translations (0/${failedItems.length})...`;
-                    if (progressPostsEl) progressPostsEl.textContent = `0 / ${failedItems.length} posts (0%)`;
-                    if (progressFill) progressFill.style.width = '0%';
+                  if (progressStatusEl) progressStatusEl.textContent = `Retrying failed translations (0/${failedItems.length})...`;
+                  if (progressPostsEl) progressPostsEl.textContent = `0 / ${failedItems.length} posts (0%)`;
+                  if (progressFill) progressFill.style.width = '0%';
 
-                    // Reset timers to 0 immediately on retry
-                    if (currentTimerEl) currentTimerEl.textContent = '00:00 elapsed';
-                    if (statTimerEl) statTimerEl.textContent = '0s';
+                  if (doneBtn) {
+                    doneBtn.disabled = true;
+                    doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary';
+                    doneBtn.innerHTML = '<span class="dashicons dashicons-hourglass" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px; margin-right: 4px;"></span> Translation In Progress...';
+                  }
 
-                    if (doneBtn) {
-                      doneBtn.disabled = true;
-                      doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary';
-                      doneBtn.innerHTML = '<span class="dashicons dashicons-hourglass" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px; margin-right: 4px;"></span> Translation In Progress...';
-                    }
+                  renderResultsUI();
 
-                    renderResultsUI();
+                  // Resume timer counting both existing time + new retry time
+                  startElapsedTimer();
 
-                    // Re-start elapsed timer starting fresh from 0
-                    startTime = Date.now();
-                    if (elapsedTimerInterval) clearInterval(elapsedTimerInterval);
-                    elapsedTimerInterval = setInterval(function () {
-                      const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
-                      const m = Math.floor(elapsedSecs / 60);
-                      const s = elapsedSecs % 60;
-                      const curProgTimer = document.getElementById('ts-progress-timer');
-                      if (curProgTimer) {
-                        curProgTimer.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} elapsed`;
-                      }
-                      const curStatTimer = document.getElementById('ts-stat-elapsed-time');
-                      if (curStatTimer) {
-                        curStatTimer.textContent = (m > 0) ? `${m}m ${s}s` : `${s}s`;
-                      }
-                    }, 1000);
+                  let reCompletedCount = 0;
+                  let reFailedCount = 0;
 
-                    let reCompletedCount = 0;
-                    let reFailedCount = 0;
-
+                  try {
                     for (let i = 0; i < failedItems.length; i++) {
                       const item = failedItems[i];
                       const pId = item.postId;
@@ -1313,20 +1380,44 @@
                           const check = await core.validateProvider('chrome_ai', sourceLangCode, tLang, false);
                           if (check && check.available === false) {
                             const reasonMsg = check.reason || `Language pair (${sourceLangCode.toUpperCase()} → ${langUpper}) is not supported by Built-in AI.`;
-                            throw new Error(reasonMsg);
+                            const checkErr = new Error(reasonMsg);
+                            checkErr.errorObj = {
+                              reasonTitle: check.reasonTitle || 'Language Not Supported',
+                              reason: reasonMsg,
+                              reasonHTML: check.reasonHTML || `<p>${reasonMsg}</p>`,
+                              actionHTML: check.actionHtml || check.actionHTML || ''
+                            };
+                            throw checkErr;
                           }
                         }
 
-                        // 2. Extract strings from source post
-                        const extractRes = await fetch(restUrl + 'extract-strings', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-                          body: JSON.stringify({ post_id: pId, target_lang: tLang, builder: item.editorType }),
-                        });
+                        // 2. Extract strings from source post if not already cached
+                        let rawStrings = (postResultsMap[pId] && postResultsMap[pId].extractedStrings) || postExtractedStringsCache[pId];
 
-                        const extractData = await extractRes.json();
-                        let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
-                        rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
+                        if (!rawStrings) {
+                          const extractRes = await fetch(restUrl + 'extract-strings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+                            body: JSON.stringify({ post_id: pId, target_lang: tLang, builder: item.editorType }),
+                          });
+
+                          const extractData = await extractRes.json();
+                          rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
+                          rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
+
+                          const rawSlugTranslation = String(config.slugTranslation || 'slug_translate').toLowerCase().trim();
+                          const slugTranslation = ['keep_orignal', 'title_based', 'slug_translate'].includes(rawSlugTranslation)
+                            ? rawSlugTranslation
+                            : 'slug_translate';
+                          if (item.target_post_id > 0 || slugTranslation !== 'slug_translate') {
+                            rawStrings = rawStrings.filter((s) => s && s.name !== 'post_name');
+                          }
+
+                          if (postResultsMap[pId]) {
+                            postResultsMap[pId].extractedStrings = rawStrings;
+                          }
+                          postExtractedStringsCache[pId] = rawStrings;
+                        }
 
                         let itemChars = 0;
                         rawStrings.forEach(function (s) {
@@ -1378,6 +1469,12 @@
                       } catch (reErr) {
                         trans.status = 'failed';
                         trans.error = reErr.message || 'Translation failed during retry';
+                        trans.errorObj = reErr.errorObj || {
+                          reasonTitle: 'Translation Failed',
+                          reason: reErr.message || 'Translation failed during retry',
+                          reasonHTML: `<p>${escapeHtml(reErr.message || 'Translation failed during retry')}</p>`,
+                          actionHTML: ''
+                        };
                         reFailedCount++;
                       }
 
@@ -1388,6 +1485,9 @@
                     }
 
                     onBulkProgressComplete(reFailedCount === 0, 'Retry completed', reCompletedCount, failedItems.length);
+                  } catch (fatalErr) {
+                    console.error('[TranslateSense] Fatal error during retry:', fatalErr);
+                    onBulkProgressComplete(false, 'Retry interrupted', reCompletedCount, failedItems.length);
                   } finally {
                     const rBtn = document.getElementById('ts-bulk-retry-failed-btn');
                     if (rBtn) {
@@ -1396,7 +1496,8 @@
                   }
                 };
               } else {
-                retryBtn.style.display = 'none';
+                retryBtn.style.setProperty('display', 'none', 'important');
+                retryBtn.classList.add('ts-hide');
               }
             }
 
@@ -1446,9 +1547,16 @@
               const lang = selectedTargetLangs[i];
               const check = await core.validateProvider('chrome_ai', sourceLangCode, lang, false);
               if (check && check.available === false) {
+                const reason = check.reason || `Language ${lang.toUpperCase()} is not supported by Built-in AI.`;
                 unsupported.push({
                   lang: lang,
-                  reason: check.reason || `Language ${lang.toUpperCase()} is not supported by Built-in AI.`
+                  reason: reason,
+                  errorObj: {
+                    reasonTitle: check.reasonTitle || 'Language Not Supported',
+                    reason: reason,
+                    reasonHTML: check.reasonHTML ? check.reasonHTML : `<p>${reason}</p>`,
+                    actionHtml: check.actionHtml ? check.actionHtml : ''
+                  }
                 });
               } else {
                 supported.push(lang);
@@ -1462,12 +1570,14 @@
                 unsupported.forEach(function (uItem) {
                   const uLang = uItem.lang;
                   const reason = uItem.reason;
+                  const errorObj = uItem.errorObj;
                   postIds.forEach(function (pid) {
                     const pIdStr = String(pid);
                     if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
                       const trans = postResultsMap[pIdStr].translations[uLang];
                       trans.status = 'failed';
                       trans.error = reason;
+                      trans.errorObj = errorObj;
                       trans.targetTitle = postResultsMap[pIdStr].postTitle || `Post #${pid}`;
                     }
                   });
@@ -1483,12 +1593,14 @@
               unsupported.forEach(function (uItem) {
                 const uLang = uItem.lang;
                 const reason = uItem.reason;
+                const errorObj = uItem.errorObj;
                 postIds.forEach(function (pid) {
                   const pIdStr = String(pid);
                   if (postResultsMap[pIdStr] && postResultsMap[pIdStr].translations[uLang]) {
                     const trans = postResultsMap[pIdStr].translations[uLang];
                     trans.status = 'failed';
                     trans.error = reason;
+                    trans.errorObj = errorObj;
                     trans.targetTitle = postResultsMap[pIdStr].postTitle || `Post #${pid}`;
                   }
                 });
@@ -1759,32 +1871,41 @@
             updateBulkProgressUI(jobIndex, 0.05);
 
             try {
-              // 1. Extract strings for this post one by one passing editor_type
-              const extractRes = await fetch(restUrl + 'extract-strings', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-WP-Nonce': nonce,
-                },
-                body: JSON.stringify({
-                  post_id: postId,
-                  target_lang: targetLang,
-                  builder: postEditorType,
-                }),
-              });
+              // 1. Extract strings for this post one by one passing editor_type if not already cached
+              let rawStrings = (postResultsMap[postId] && postResultsMap[postId].extractedStrings) || postExtractedStringsCache[postId];
 
-              const extractData = await extractRes.json();
-              let rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
-              rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
+              if (!rawStrings) {
+                const extractRes = await fetch(restUrl + 'extract-strings', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': nonce,
+                  },
+                  body: JSON.stringify({
+                    post_id: postId,
+                    target_lang: targetLang,
+                    builder: postEditorType,
+                  }),
+                });
 
-              const rawSlugTranslation = String(config.slugTranslation || 'slug_translate').toLowerCase().trim();
-              const slugTranslation = ['keep_orignal', 'title_based', 'slug_translate'].includes(rawSlugTranslation)
-                ? rawSlugTranslation
-                : 'slug_translate';
-              // Existing translations keep their current URL slug. Do not
-              // send the slug package to Chrome AI during re-translation.
-              if (job.target_post_id > 0 || slugTranslation !== 'slug_translate') {
-                rawStrings = rawStrings.filter((s) => s && s.name !== 'post_name');
+                const extractData = await extractRes.json();
+                rawStrings = Array.isArray(extractData.strings) ? extractData.strings : [];
+                rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
+
+                const rawSlugTranslation = String(config.slugTranslation || 'slug_translate').toLowerCase().trim();
+                const slugTranslation = ['keep_orignal', 'title_based', 'slug_translate'].includes(rawSlugTranslation)
+                  ? rawSlugTranslation
+                  : 'slug_translate';
+                // Existing translations keep their current URL slug. Do not
+                // send the slug package to Chrome AI during re-translation.
+                if (job.target_post_id > 0 || slugTranslation !== 'slug_translate') {
+                  rawStrings = rawStrings.filter((s) => s && s.name !== 'post_name');
+                }
+
+                if (postResultsMap[postId]) {
+                  postResultsMap[postId].extractedStrings = rawStrings;
+                }
+                postExtractedStringsCache[postId] = rawStrings;
               }
 
               let postChars = 0;
@@ -1935,6 +2056,12 @@
                 const transObj = postResultsMap[postId].translations[targetLang];
                 transObj.status = 'failed';
                 transObj.error = err.message || 'Error';
+                transObj.errorObj = err.errorObj || {
+                  reasonTitle: 'Translation Failed',
+                  reason: err.message || 'Translation failed',
+                  reasonHTML: `<p>${escapeHtml(err.message || 'Translation failed')}</p>`,
+                  actionHTML: ''
+                };
                 renderResultsUI();
               }
 

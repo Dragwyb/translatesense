@@ -729,7 +729,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 75px;
   flex-shrink: 0;
 }
 
@@ -962,11 +961,17 @@ button.ts-error-detail-btn:hover {
   font-size: 13px !important;
   font-weight: 600 !important;
   padding: 8px 18px !important;
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center !important;
   gap: 5px !important;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+#ts-bulk-retry-failed-btn.hide,
+#ts-bulk-retry-failed-btn.ts-hide,
+#ts-bulk-retry-failed-btn[style*="display: none"] {
+  display: none !important;
 }
 
 .ts-bulk-btn-secondary:hover {

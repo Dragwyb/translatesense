@@ -333,12 +333,16 @@
       }
 
       // Check language support definition
-      if (typeof provider.isLanguageSupported === 'function') {
-        const supported = provider.isLanguageSupported(sourceLang, targetLang);
-        if (!supported) {
+      if (typeof provider.checkAvailability === 'function') {
+        const supported = await provider.checkAvailability(sourceLang, targetLang);
+
+        if (supported.available === false) {
           return {
             available: false,
-            reason: `Language pair (${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}) is not supported by ${provider.title}.`,
+            reason: supported.reason || `Language pair (${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}) is not supported by ${provider.title}.`,
+            reasonHTML: supported.reasonHTML || false,
+            reasonTitle: supported.reasonTitle || false,
+            actionHtml: supported.actionHtml || false,
             noticeType: 'warning',
           };
         }
