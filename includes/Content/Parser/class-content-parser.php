@@ -358,7 +358,12 @@ class Content_Parser {
 		} elseif ( isset( $data[0] ) || isset( $data['elType'] ) ) {
 			$new_elements = $data;
 		} else {
-			// No element tree in payload (e.g. settings-only update), element data did not change
+			// No element tree in payload (e.g. settings-only update), element data did not change.
+			$override_meta = array();
+			if ( isset( $data['settings']['post_title'] ) && is_string( $data['settings']['post_title'] ) ) {
+				$override_meta['post_title'] = $data['settings']['post_title'];
+			}
+			self::check_and_delete_changed_metadata_packages( $post_id, null, $override_meta );
 			return;
 		}
 
@@ -383,6 +388,13 @@ class Content_Parser {
 		// If new or existing data not same, trigger only delete_post_packages (do not parse here)
 		if ( $is_changed && class_exists( Hashing_Db::class ) ) {
 			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, 'elementor' );
+		} else {
+			// Elements condition is false: delete post_title / post_name package if changed
+			$override_meta = array();
+			if ( isset( $data['settings']['post_title'] ) && is_string( $data['settings']['post_title'] ) ) {
+				$override_meta['post_title'] = $data['settings']['post_title'];
+			}
+			self::check_and_delete_changed_metadata_packages( $post_id, null, $override_meta );
 		}
 	}
 
@@ -390,6 +402,7 @@ class Content_Parser {
 	 * Handle WordPress save_post action.
 	 * Compares new update data with existing saved data for post_content.
 	 * If they are not the same, triggers delete_post_packages (does not re-parse content).
+	 * If content did not change (delete condition false), deletes post_name or post_title package if value changed.
 	 *
 	 * @param int           $post_id Post ID
 	 * @param \WP_Post|null $post    Post object
@@ -427,14 +440,17 @@ class Content_Parser {
 		// Elementor content (_elementor_data) is handled in handle_elementor_save_post
 		if ( 'elementor' === $builder ) {
 			unset( self::$existing_post_content[ $post_id ] );
+			// If an Elementor post is saved via WP admin, check and delete changed title or slug
+			self::check_and_delete_changed_metadata_packages( $post_id, $post );
 			return;
 		}
 
 		$existing_content = self::$existing_post_content[ $post_id ] ?? null;
 		unset( self::$existing_post_content[ $post_id ] );
 
-		// If there is no existing content recorded (e.g. brand new post), do nothing
+		// If there is no existing content recorded (e.g. brand new post), check metadata
 		if ( null === $existing_content ) {
+			self::check_and_delete_changed_metadata_packages( $post_id, $post );
 			return;
 		}
 
@@ -447,7 +463,90 @@ class Content_Parser {
 		// If new or existing data not same, trigger only delete_post_packages (do not parse here)
 		if ( $normalized_new !== $normalized_existing && class_exists( Hashing_Db::class ) ) {
 			Hashing_Db::delete_post_packages( $post_id, ! empty( $lang ) ? $lang : null, ! empty( $builder ) ? $builder : null );
+		} else {
+			// Content condition is false: delete post_title / post_name package if value changed
+			self::check_and_delete_changed_metadata_packages( $post_id, $post );
 		}
+	}
+
+	/**
+	 * Check if post_title or post_name have changed compared to saved packages,
+	 * and simply delete the changed package record(s) so they are automatically
+	 * re-extracted during translation without deleting any content block packages.
+	 *
+	 * @param int           $post_id           Post ID.
+	 * @param \WP_Post|null $post              Post object (optional).
+	 * @param array         $override_metadata Explicit metadata overrides (optional).
+	 * @return bool True if any metadata package was deleted, false otherwise.
+	 */
+	public static function check_and_delete_changed_metadata_packages(
+		int $post_id,
+		$post = null,
+		array $override_metadata = array()
+	): bool {
+		if ( $post_id <= 0 || ! class_exists( Hashing_Db::class ) ) {
+			return false;
+		}
+
+		$post = $post instanceof \WP_Post ? $post : get_post( $post_id );
+		if ( ! $post ) {
+			return false;
+		}
+
+		$current_title = isset( $override_metadata['post_title'] ) ? trim( (string) $override_metadata['post_title'] ) : trim( (string) $post->post_title );
+		$current_slug  = isset( $override_metadata['post_name'] ) ? trim( (string) $override_metadata['post_name'] ) : trim( (string) $post->post_name );
+
+		global $wpdb;
+		$packages_table = Hashing_Db::get_packages_table();
+		$strings_table  = Hashing_Db::get_strings_table();
+
+		// Fetch currently saved post_title and post_name packages for this post
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$saved_rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.widget_name, s.source_string
+				FROM {$packages_table} p
+				INNER JOIN {$strings_table} s ON p.string_id = s.id
+				WHERE p.post_id = %d AND p.widget_name IN ('post_title', 'post_name')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$post_id
+			),
+			ARRAY_A
+		);
+
+		if ( empty( $saved_rows ) ) {
+			return false;
+		}
+
+		$delete_keys = array();
+		foreach ( $saved_rows as $row ) {
+			if ( 'post_title' === $row['widget_name'] && '' !== $current_title && $current_title !== (string) $row['source_string'] ) {
+				$delete_keys[] = 'post_title';
+			} elseif ( 'post_name' === $row['widget_name'] && '' !== $current_slug && $current_slug !== (string) $row['source_string'] ) {
+				$delete_keys[] = 'post_name';
+			}
+		}
+
+		if ( empty( $delete_keys ) ) {
+			return false;
+		}
+
+		$delete_keys  = array_unique( $delete_keys );
+		$placeholders = implode( ',', array_fill( 0, count( $delete_keys ), '%s' ) );
+		$params       = array_merge( array( $post_id ), $delete_keys );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$deleted = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$packages_table} WHERE post_id = %d AND widget_name IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$params
+			)
+		);
+
+		if ( $deleted ) {
+			Hashing_Db::cleanup_unused_strings();
+		}
+
+		return ! empty( $deleted );
 	}
 
 	/**
