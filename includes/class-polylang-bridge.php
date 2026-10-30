@@ -137,81 +137,251 @@ class Polylang_Bridge {
 	}
 
 	/**
+	 * Find the target-language translation for a source post.
+	 *
+	 * Polylang's translation map is authoritative. The TranslateSense source
+	 * marker is a recovery fallback for interrupted imports/older plugin builds.
+	 *
+	 * @param int    $source_post_id Source post ID.
+	 * @param string $target_lang    Target language slug.
+	 * @return int Target post ID, or 0 when none exists.
+	 */
+	public static function get_existing_translation_post_id( int $source_post_id, string $target_lang ): int {
+		$source_post_id = absint( $source_post_id );
+		$target_lang    = sanitize_key( $target_lang );
+
+		if ( $source_post_id <= 0 || '' === $target_lang ) {
+			return 0;
+		}
+
+		$source_language = self::get_post_language( $source_post_id );
+		if ( $source_language && $source_language === $target_lang ) {
+			return $source_post_id;
+		}
+
+		$translations = (array) self::get_post_translations( $source_post_id );
+		$target_id    = isset( $translations[ $target_lang ] ) ? absint( $translations[ $target_lang ] ) : 0;
+
+		if ( $target_id > 0 && $target_id !== $source_post_id ) {
+			$target_post = get_post( $target_id );
+			if ( $target_post && 'trash' !== $target_post->post_status ) {
+				return $target_id;
+			}
+		}
+
+		// Recover a target created by TranslateSense if a previous request
+		// stopped after insertion but before saving the Polylang group.
+		global $wpdb;
+
+		// Query the source marker directly so private/draft target posts are
+		// still discovered even when WP_Query visibility rules hide them.
+		// The REST permission callback checks edit_post on the resolved ID
+		// before any update is allowed.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$candidate_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT p.ID
+				FROM {$wpdb->posts} AS p
+				INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id
+				WHERE p.post_type = %s
+					AND pm.meta_key = %s
+					AND pm.meta_value = %d
+					AND p.post_status NOT IN ('trash', 'auto-draft')
+				ORDER BY p.ID DESC
+				LIMIT 20",
+				get_post_type( $source_post_id ),
+				'_translatesense_source_id',
+				$source_post_id
+			)
+		);
+
+		foreach ( (array) $candidate_ids as $candidate_id ) {
+			$candidate_id = absint( $candidate_id );
+			if ( $candidate_id > 0 && $candidate_id !== $source_post_id && self::get_post_language( $candidate_id ) === $target_lang ) {
+				return $candidate_id;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Create or update a translated version of a post.
 	 */
 	public static function create_or_update_translated_post( $source_post_id, $target_lang, $translated_title, $translated_content, $args = array() ) {
+		$source_post_id = absint( $source_post_id );
+		$target_lang    = sanitize_key( (string) $target_lang );
+		$args           = is_array( $args ) ? $args : array();
+
+		if ( $source_post_id <= 0 || '' === $target_lang ) {
+			return new WP_Error( 'invalid_translation_request', __( 'A valid source post and target language are required.', 'translatesense' ) );
+		}
+
 		$source_post = get_post( $source_post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ) );
 		}
 
-		$translations   = self::get_post_translations( $source_post_id );
-		$target_post_id = $translations[ $target_lang ] ?? 0;
+		// Refuse unsupported target languages before creating or modifying posts.
+		if ( function_exists( 'pll_languages_list' ) ) {
+			$language_slugs = pll_languages_list( array( 'fields' => 'slug' ) );
+			if ( is_array( $language_slugs ) && ! in_array( $target_lang, $language_slugs, true ) ) {
+				return new WP_Error( 'invalid_target_language', __( 'The requested target language is not configured in Polylang.', 'translatesense' ) );
+			}
+		}
+
+		$target_post_id = self::get_existing_translation_post_id( $source_post_id, $target_lang );
+		if ( $target_post_id === $source_post_id ) {
+			return new WP_Error( 'source_is_target_language', __( 'The source post already belongs to the requested target language.', 'translatesense' ) );
+		}
+
+		$is_existing = $target_post_id > 0;
+		$target_post = $is_existing ? get_post( $target_post_id ) : null;
+
+		if ( $is_existing && ( ! $target_post instanceof \WP_Post || $target_post->post_type !== $source_post->post_type ) ) {
+			return new WP_Error( 'invalid_translation_target', __( 'The existing translated post is not a valid target for this source post.', 'translatesense' ) );
+		}
+
+		if ( $is_existing ) {
+			$existing_language = self::get_post_language( $target_post_id );
+			if ( $existing_language && $existing_language !== $target_lang ) {
+				return new WP_Error( 'translation_language_mismatch', __( 'The existing translated post belongs to a different language.', 'translatesense' ) );
+			}
+		}
+
+		// A translated parent must be used for hierarchical post types.
+		$target_parent_id = 0;
+		if ( ! empty( $source_post->post_parent ) ) {
+			$target_parent_id = self::get_existing_translation_post_id( (int) $source_post->post_parent, $target_lang );
+			if ( $target_parent_id === (int) $source_post->post_parent ) {
+				$target_parent_id = 0;
+			}
+		}
 
 		$allowed_statuses = array( 'publish', 'draft', 'pending', 'private', 'future' );
-		$raw_status       = ! empty( $args['post_status'] ) ? sanitize_key( (string) $args['post_status'] ) : '';
-		$status           = in_array( $raw_status, $allowed_statuses, true ) ? $raw_status : ( ! empty( $source_post->post_status ) ? sanitize_key( (string) $source_post->post_status ) : 'draft' );
 
-		$post_data = array(
-			'post_title'   => $translated_title ? $translated_title : $source_post->post_title,
-			'post_content' => $translated_content,
-			'post_status'  => $status,
-			'post_type'    => $source_post->post_type,
-			'post_author'  => $source_post->post_author,
-			'post_excerpt' => $source_post->post_excerpt,
-		);
-
-		if ( ! empty( $args['post_name'] ) ) {
-			$post_data['post_name'] = sanitize_title( (string) $args['post_name'] );
+		// Existing translations retain their editorial status. Bulk status
+		// preferences apply only to newly inserted target posts.
+		if ( $is_existing ) {
+			$post_status = $target_post->post_status;
+		} else {
+			$requested_status = isset( $args['post_status'] ) ? sanitize_key( (string) $args['post_status'] ) : '';
+			$post_status      = in_array( $requested_status, $allowed_statuses, true )
+				? $requested_status
+				: ( in_array( $source_post->post_status, $allowed_statuses, true ) ? $source_post->post_status : 'draft' );
 		}
 
-		if ( $target_post_id && get_post( $target_post_id ) ) {
-			$post_data['ID'] = $target_post_id;
-			if ( ! empty( $post_data['post_name'] ) ) {
-				$post_data['post_name'] = wp_unique_post_slug(
-					$post_data['post_name'],
-					$target_post_id,
-					$status,
-					$source_post->post_type,
-					$source_post->post_parent
-				);
+		$translated_excerpt = isset( $args['post_excerpt'] ) && is_string( $args['post_excerpt'] )
+			? $args['post_excerpt']
+			: $source_post->post_excerpt;
+
+		if ( $is_existing ) {
+			// Re-translation updates only translated editorial fields. Preserve
+			// target-specific slug, status, parent, author, dates and settings.
+			$post_data = array(
+				'ID'           => $target_post_id,
+				'post_title'   => is_string( $translated_title ) && '' !== $translated_title ? $translated_title : $target_post->post_title,
+				'post_content' => $translated_content,
+				'post_excerpt' => $translated_excerpt,
+			);
+		} else {
+			$post_data = array(
+				'post_title'     => is_string( $translated_title ) && '' !== $translated_title ? $translated_title : $source_post->post_title,
+				'post_content'   => $translated_content,
+				'post_status'    => $post_status,
+				'post_type'      => $source_post->post_type,
+				'post_author'    => $source_post->post_author,
+				'post_excerpt'   => $translated_excerpt,
+				'post_parent'    => $target_parent_id,
+				'post_date'      => $source_post->post_date,
+				'post_date_gmt'  => $source_post->post_date_gmt,
+				'comment_status' => $source_post->comment_status,
+				'ping_status'    => $source_post->ping_status,
+				'menu_order'     => (int) $source_post->menu_order,
+				'post_password'  => $source_post->post_password,
+			);
+		}
+
+		// Slugs are creation-time data. Never include post_name in an update
+		// for an existing translation, even if a caller accidentally passes it.
+		if ( ! $is_existing ) {
+			$requested_slug = isset( $args['post_name'] ) ? sanitize_title( (string) $args['post_name'] ) : '';
+			if ( '' === $requested_slug ) {
+				$requested_slug = sanitize_title( $source_post->post_name . '-' . $target_lang );
 			}
-			$updated_id = wp_update_post( $post_data, true );
-			if ( is_wp_error( $updated_id ) ) {
-				return $updated_id;
+
+			$post_data['post_name'] = wp_unique_post_slug(
+				$requested_slug,
+				0,
+				$post_status,
+				$source_post->post_type,
+				$target_parent_id
+			);
+
+			// New target post: honor Polylang's post-field synchronization filter.
+			$sync_fields = array_keys( $post_data );
+			$sync_fields = array_combine( $sync_fields, $sync_fields );
+
+			/**
+			 * Filters the post fields copied from the source when creating a translation.
+		 *
+			 * @param array  $fields      Associative list of allowed post fields.
+			 * @param int    $post_id     Source post ID.
+			 * @param string $target_lang        Target language slug.
+			 * @param bool   $save_group  Whether the translation group is saved.
+			 */
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Polylang integration filter.
+			$sync_fields = apply_filters( 'pll_sync_post_fields', $sync_fields, $source_post_id, $target_lang, true );
+			$sync_fields = is_array( $sync_fields ) ? $sync_fields : array();
+
+			$always_keep = array_intersect_key(
+				$post_data,
+				array_flip( array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_type', 'post_status' ) )
+			);
+			$post_data   = array_merge( array_intersect_key( $post_data, $sync_fields ), $always_keep );
+
+			// WordPress always needs the post type and selected creation status.
+			$post_data['post_type']   = $source_post->post_type;
+			$post_data['post_status'] = $post_status;
+		}
+
+		/**
+		 * Fires immediately before TranslateSense inserts or updates a target post.
+		 *
+		 * @param int    $source_post_id Source post ID.
+		 * @param int    $target_post_id Existing target ID, or 0 for a new post.
+		 * @param string $target_lang    Target language slug.
+		 * @param bool   $is_existing    Whether this is a re-translation.
+		 * @param array  $post_data      Prepared wp_insert_post/wp_update_post data.
+		 */
+		do_action( 'translatesense_before_save_translation', $source_post_id, $target_post_id, $target_lang, $is_existing, $post_data );
+
+		if ( $is_existing ) {
+			$saved_id = wp_update_post( wp_slash( $post_data ), true );
+			if ( is_wp_error( $saved_id ) ) {
+				return $saved_id;
+			}
+			if ( absint( $saved_id ) !== $target_post_id ) {
+				return new WP_Error( 'translated_post_update_failed', __( 'The existing translated post could not be updated.', 'translatesense' ) );
 			}
 		} else {
-			if ( empty( $post_data['post_name'] ) ) {
-				$default_slug           = sanitize_title( $source_post->post_name . '-' . $target_lang );
-				$post_data['post_name'] = wp_unique_post_slug(
-					$default_slug,
-					0,
-					$status,
-					$source_post->post_type,
-					$source_post->post_parent
-				);
-			} else {
-				$post_data['post_name'] = wp_unique_post_slug(
-					$post_data['post_name'],
-					0,
-					$status,
-					$source_post->post_type,
-					$source_post->post_parent
-				);
+			$saved_id = wp_insert_post( wp_slash( $post_data ), true );
+			if ( is_wp_error( $saved_id ) ) {
+				return $saved_id;
 			}
-			$target_post_id = wp_insert_post( $post_data, true );
-			if ( is_wp_error( $target_post_id ) ) {
-				return $target_post_id;
-			}
+			$target_post_id = absint( $saved_id );
 		}
 
-		// Set target post language
+		if ( $target_post_id <= 0 ) {
+			return new WP_Error( 'translated_post_save_failed', __( 'The translated post could not be saved.', 'translatesense' ) );
+		}
+
+		// Language must be assigned before translation group and sync operations.
 		self::set_post_language( $target_post_id, $target_lang );
-
-		// translated flag on target post
 		update_post_meta( $target_post_id, '_translatesense_translated', '1' );
+		update_post_meta( $target_post_id, '_translatesense_source_id', $source_post_id );
 
-		// Update translation group
+		$translations                 = (array) self::get_post_translations( $source_post_id );
 		$translations[ $target_lang ] = $target_post_id;
 		$source_lang                  = self::get_post_language( $source_post_id );
 		if ( $source_lang ) {
@@ -219,11 +389,47 @@ class Polylang_Bridge {
 		}
 		self::save_post_translations( $translations );
 
-		// Copy thumbnail if present
-		$thumbnail_id = get_post_thumbnail_id( $source_post_id );
-		if ( $thumbnail_id ) {
-			set_post_thumbnail( $target_post_id, $thumbnail_id );
+		// Generic taxonomy/meta duplication runs only on first creation.
+		// Existing translations are content re-translations, not source copies.
+		$sync_result = Polylang_Synchronizer::synchronize(
+			$source_post_id,
+			$target_post_id,
+			$target_lang,
+			! $is_existing
+		);
+
+		Polylang_Synchronizer::attach_translated_media_to_post( $target_post_id );
+
+		update_post_meta(
+			$target_post_id,
+			'_translatesense_sync_status',
+			! empty( $sync_result['skipped'] ) ? 'not_required' : ( ! empty( $sync_result['success'] ) ? 'complete' : 'partial' )
+		);
+
+		if ( ! empty( $sync_result['warnings'] ) ) {
+			update_post_meta( $target_post_id, '_translatesense_sync_warnings', array_map( 'sanitize_text_field', (array) $sync_result['warnings'] ) );
+		} else {
+			delete_post_meta( $target_post_id, '_translatesense_sync_warnings' );
 		}
+
+		if ( 'post' === $source_post->post_type && function_exists( 'is_sticky' ) && function_exists( 'stick_post' ) && function_exists( 'unstick_post' ) ) {
+			if ( is_sticky( $source_post_id ) ) {
+				stick_post( $target_post_id );
+			} else {
+				unstick_post( $target_post_id );
+			}
+		}
+
+		/**
+		 * Fires after TranslateSense saves and links a target translation.
+		 *
+		 * @param int    $source_post_id Source post ID.
+		 * @param int    $target_post_id Saved target post ID.
+		 * @param string $target_lang    Target language slug.
+		 * @param bool   $is_existing    Whether an existing translation was updated.
+		 * @param array  $sync_result    Synchronization result and warnings.
+		 */
+		do_action( 'translatesense_after_save_translation', $source_post_id, $target_post_id, $target_lang, $is_existing, $sync_result );
 
 		return $target_post_id;
 	}

@@ -7,6 +7,7 @@ namespace TranslateSense\Includes\Translate\Builders;
 use WP_Post;
 use TranslateSense\Includes\Xml_Engine\Xml_Engine;
 use TranslateSense\Includes\Translate\Translate;
+use TranslateSense\Includes\Polylang_Synchronizer;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -178,7 +179,15 @@ class Elementor_Builder extends Base_Builder {
 	public function after_save_post( int $source_post_id, int $target_post_id, string $source_lang, string $target_lang, $translated_content ): void {
 		if ( ! empty( $translated_content ) ) {
 			update_post_meta( $target_post_id, '_elementor_edit_mode', 'builder' );
-			update_post_meta( $target_post_id, '_elementor_data', wp_slash( is_string( $translated_content ) ? $translated_content : wp_json_encode( $translated_content ) ) );
+
+			// Generic Polylang metadata copying excludes generated Elementor
+			// data. Resolve target-language media references after AI text
+			// translation and before storing the translated element tree.
+			$translated_content = Polylang_Synchronizer::translate_elementor_media_data( $translated_content, $target_lang );
+			$elementor_json = is_string( $translated_content ) ? $translated_content : wp_json_encode( $translated_content );
+			if ( is_string( $elementor_json ) ) {
+				update_post_meta( $target_post_id, '_elementor_data', wp_slash( $elementor_json ) );
+			}
 
 			$template_type = get_post_meta( $source_post_id, '_elementor_template_type', true );
 			if ( $template_type ) {
@@ -187,6 +196,7 @@ class Elementor_Builder extends Base_Builder {
 
 			$page_settings = get_post_meta( $source_post_id, '_elementor_page_settings', true );
 			if ( $page_settings ) {
+				$page_settings = Polylang_Synchronizer::translate_elementor_media_data( $page_settings, $target_lang );
 				update_post_meta( $target_post_id, '_elementor_page_settings', $page_settings );
 			}
 		}

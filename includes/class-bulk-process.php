@@ -62,54 +62,18 @@ class Bulk_Process {
 	 * @return int Target post ID if exists, or 0 if not
 	 */
 	public static function get_existing_translation_post_id( int $post_id, string $target_lang ): int {
-		if ( $post_id <= 0 || empty( $target_lang ) ) {
-			return 0;
-		}
-
-		// 1. If post itself is already in the target language
-		$post_lang = Polylang_Bridge::get_post_language( $post_id );
-		if ( ! empty( $post_lang ) && strtolower( $post_lang ) === strtolower( $target_lang ) ) {
-			return $post_id;
-		}
-
-		// 2. Check Polylang translations if active
-		if ( Polylang_Bridge::is_polylang_active() ) {
-			$translations = Polylang_Bridge::get_post_translations( $post_id );
-			if ( ! empty( $translations[ $target_lang ] ) ) {
-				$trans_id = (int) $translations[ $target_lang ];
-				if ( $trans_id > 0 && $trans_id !== $post_id && get_post( $trans_id ) && 'trash' !== get_post_status( $trans_id ) ) {
-					return $trans_id;
-				}
-			}
-		}
-
-		// 3. Fallback check: look for post with _translatesense_source_id meta
-		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$found_id = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT p.ID FROM {$wpdb->posts} p
-				 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-				 WHERE pm.meta_key = '_translatesense_source_id' AND pm.meta_value = %d
-				 AND p.post_status NOT IN ('trash', 'auto-draft')
-				 LIMIT 1",
-				$post_id
-			)
+		return Polylang_Bridge::get_existing_translation_post_id(
+			absint( $post_id ),
+			sanitize_key( $target_lang )
 		);
-
-		if ( $found_id > 0 && $found_id !== $post_id && get_post( $found_id ) ) {
-			$found_post_lang = Polylang_Bridge::get_post_language( $found_id );
-
-			if ( $found_post_lang === $target_lang ) {
-				return $found_id;
-			}
-		}
-
-		return 0;
 	}
 
 	/**
-	 * Create a new bulk translation batch.
+	 * Create a bulk translation batch.
+	 *
+	 * Existing target translations are queued for in-place re-translation.
+	 * Only a source post already in the requested language is marked as
+	 * already_exists and skipped.
 	 *
 	 * @param array  $post_ids
 	 * @param array  $target_languages
@@ -141,11 +105,17 @@ class Bulk_Process {
 				// Check if translation already exists for this post & target language
 				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
 
-				$already_exists = ( $existing_trans_id > 0 );
+				// If the selected source itself is already in the requested
+				// language, there is nothing to translate. A different existing
+				// translation is queued for re-translation/update in place.
+				$is_source_in_target_language = $existing_trans_id === $post_id;
+				$has_existing_target           = $existing_trans_id > 0 && ! $is_source_in_target_language;
 
-				$job_status      = $already_exists ? 'already_exists' : 'pending';
-				$progress_status = $already_exists ? 'Already Exists' : 'Queued';
-				$target_post_id  = $already_exists ? $existing_trans_id : 0;
+				$job_status      = $is_source_in_target_language ? 'already_exists' : 'pending';
+				$progress_status = $is_source_in_target_language
+					? 'Source already uses target language'
+					: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
+				$target_post_id  = $has_existing_target ? $existing_trans_id : 0;
 
 				$insert_data = array(
 					'batch_id'          => $batch_id,
@@ -173,11 +143,11 @@ class Bulk_Process {
 
 				$job_id                           = (int) $wpdb->insert_id;
 				$insert_data['id']                = $job_id;
-				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $already_exists ? $target_post_id : $post_id );
+				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $post_id );
 				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
-				$insert_data['target_post_title'] = $already_exists ? ( get_the_title( $target_post_id ) ?: '' ) : '';
-				$insert_data['view_url']          = $already_exists ? get_permalink( $target_post_id ) : '';
-				$insert_data['edit_url']          = $already_exists && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				$insert_data['target_post_title'] = $has_existing_target ? ( get_the_title( $target_post_id ) ?: '' ) : '';
+				$insert_data['view_url']          = $has_existing_target ? get_permalink( $target_post_id ) : '';
+				$insert_data['edit_url']          = $has_existing_target && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 				$created_jobs[]                   = $insert_data;
 			}
 		}
@@ -269,15 +239,17 @@ class Bulk_Process {
 
 		$job_id      = (int) $job['id'];
 		$post_id     = (int) $job['post_id'];
-		$target_lang = $job['target_language'];
-		$provider    = $job['provider'];
+		$target_lang             = $job['target_language'];
+		$provider                = $job['provider'];
+		$existing_target_post_id = absint( $job['target_post_id'] );
+		$is_retranslation        = $existing_target_post_id > 0 && $existing_target_post_id !== $post_id;
 
 		// Mark as running
 		self::update_job(
 			$job_id,
 			array(
 				'status'          => 'running',
-				'progress_status' => 'Extracting strings...',
+				'progress_status' => $is_retranslation ? 'Preparing existing translation update...' : 'Extracting strings...',
 				'updated_at'      => current_time( 'mysql' ),
 			)
 		);
@@ -308,7 +280,7 @@ class Bulk_Process {
 
 			foreach ( $packages as $idx => $pkg ) {
 				$pkg_name = sanitize_key( is_array( $pkg ) ? ( $pkg['name'] ?? ( $pkg['widget_name'] ?? '' ) ) : '' );
-				if ( 'slug_translate' !== $slug_translation && 'post_name' === $pkg_name ) {
+				if ( ( $is_retranslation || 'slug_translate' !== $slug_translation ) && 'post_name' === $pkg_name ) {
 					continue;
 				}
 				if ( isset( $pkg['value'] ) && ! empty( $pkg['value'] ) ) {
@@ -324,7 +296,9 @@ class Bulk_Process {
 				$job_id,
 				array(
 					'total_strings'   => $total_str,
-					'progress_status' => sprintf( 'Translating strings (%d found)...', $total_str ),
+					'progress_status' => $is_retranslation
+						? sprintf( 'Updating existing translation (%d strings)...', $total_str )
+						: sprintf( 'Translating strings (%d found)...', $total_str ),
 					'sent_data'       => wp_json_encode( $strings_to_send ),
 					'updated_at'      => current_time( 'mysql' ),
 				)
@@ -383,7 +357,15 @@ class Bulk_Process {
 				throw new \Exception( $result->get_error_message() );
 			}
 
-			$target_post_id = $result['target_post_id'] ?? 0;
+			$target_post_id = isset( $result['target_post_id'] ) ? absint( $result['target_post_id'] ) : 0;
+			$sync_warnings  = ! empty( $result['sync_warnings'] ) ? (array) $result['sync_warnings'] : array();
+			$completed_label = $is_retranslation
+				? __( 'Existing translation updated successfully', 'translatesense' )
+				: __( 'Completed successfully', 'translatesense' );
+
+			if ( $sync_warnings ) {
+				$completed_label = __( 'Translation completed with synchronization warnings. Review the target post.', 'translatesense' );
+			}
 
 			// If target post contains Gutenberg blocks, mark for block recovery check
 			if ( $target_post_id > 0 ) {
@@ -398,7 +380,7 @@ class Bulk_Process {
 				$job_id,
 				array(
 					'status'            => 'completed',
-					'progress_status'   => 'Completed successfully',
+					'progress_status'   => $completed_label,
 					'completed_strings' => $total_str,
 					'target_post_id'    => $target_post_id,
 					'receive_data'      => wp_json_encode( $translated_content ),

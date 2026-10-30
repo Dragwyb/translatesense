@@ -1206,6 +1206,13 @@
             if (job.editor_type) {
               trans.editorType = job.editor_type;
             }
+            if (job.target_post_id > 0 && job.status === 'pending') {
+              trans.targetPostId = job.target_post_id;
+              trans.targetTitle = job.target_post_title || job.post_title;
+              trans.viewUrl = job.view_url || `/?p=${job.target_post_id}`;
+              trans.editUrl = job.edit_url || `post.php?post=${job.target_post_id}&action=edit`;
+              trans.progressStatus = job.progress_status || 'Queued to update existing translation';
+            }
             if (job.status === 'already_exists') {
               trans.status = 'already_exists';
               trans.targetPostId = job.target_post_id;
@@ -1425,7 +1432,9 @@
               const slugTranslation = ['keep_orignal', 'title_based', 'slug_translate'].includes(rawSlugTranslation)
                 ? rawSlugTranslation
                 : 'slug_translate';
-              if (slugTranslation !== 'slug_translate') {
+              // Existing translations keep their current URL slug. Do not
+              // send the slug package to Chrome AI during re-translation.
+              if (job.target_post_id > 0 || slugTranslation !== 'slug_translate') {
                 rawStrings = rawStrings.filter((s) => s && s.name !== 'post_name');
               }
 

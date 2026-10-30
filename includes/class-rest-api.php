@@ -946,17 +946,9 @@ class Rest_Api {
 				? $post_type->cap->create_posts
 				: 'edit_posts';
 
-			$translations = function_exists( 'pll_get_post_translations' )
-				? pll_get_post_translations( $post_id )
-				: array();
-
-			$translations = is_array( $translations ) ? $translations : array();
-
 			foreach ( $clean_languages as $target_language ) {
 
-				$target_post_id = ! empty( $translations[ $target_language ] )
-					? absint( $translations[ $target_language ] )
-					: 0;
+				$target_post_id = self::get_existing_translation_post_id( $post_id, $target_language );
 
 				if ( $target_post_id ) {
 
@@ -3154,29 +3146,13 @@ class Rest_Api {
 	 * @return int Target post ID or 0.
 	 */
 	private static function get_existing_translation_post_id( $source_post_id, $target_language ) {
-
-		$source_post_id  = absint( $source_post_id );
-		$target_language = sanitize_key( $target_language );
-
-		if ( ! $source_post_id || empty( $target_language ) ) {
-			return 0;
-		}
-
-		if ( ! function_exists( 'pll_get_post_translations' ) ) {
-			return 0;
-		}
-
-		$translations = pll_get_post_translations( $source_post_id );
-
-		if ( ! is_array( $translations ) || empty( $translations[ $target_language ] ) ) {
-			return 0;
-		}
-
-		$target_post_id = absint( $translations[ $target_language ] );
-
-		return ( $target_post_id && get_post( $target_post_id ) )
-			? $target_post_id
-			: 0;
+		// Use the same authoritative Polylang + TranslateSense recovery lookup
+		// as the save pipeline. This also ensures permission checks cover an
+		// orphaned target recovered through _translatesense_source_id.
+		return Polylang_Bridge::get_existing_translation_post_id(
+			absint( $source_post_id ),
+			sanitize_key( (string) $target_language )
+		);
 	}
 
 	/**

@@ -8,6 +8,7 @@ use WP_Post;
 use WP_Error;
 use TranslateSense\Includes\Translate\Translate;
 use TranslateSense\Includes\Polylang_Bridge;
+use TranslateSense\Includes\Polylang_Synchronizer;
 use TranslateSense\Includes\Editor_Integration;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -149,6 +150,10 @@ abstract class Base_Builder {
 		}
 
 		$is_bulk          = ! empty( $options['is_bulk'] );
+		$existing_post_id = Polylang_Bridge::get_existing_translation_post_id( $post_id, $target_lang );
+		$is_existing      = $existing_post_id > 0 && $existing_post_id !== $post_id;
+		Polylang_Synchronizer::reset_media_tracking();
+
 		$settings         = get_option( 'translatesense_settings', array() );
 		$raw_slug_mode    = ( $is_bulk && ! empty( $settings['slug_translation'] ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate';
 		$slug_mode        = in_array( $raw_slug_mode, array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ? $raw_slug_mode : 'slug_translate';
@@ -166,12 +171,27 @@ abstract class Base_Builder {
 			$custom_opts['in_memory_translations'] = $in_memory_translations;
 		}
 
-		// 1. Translate Title & Excerpt
-		$translated_title     = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
-		$translated_excerpt   = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
-		$translated_post_name = ( $is_bulk && 'slug_translate' !== $slug_mode )
+		/**
+		 * Fires before TranslateSense translates a source post for a target language.
+		 *
+		 * @param int    $post_id          Source post ID.
+		 * @param string $target_lang      Target language slug.
+		 * @param bool   $is_existing      Whether a target translation already exists.
+		 * @param int    $existing_post_id Existing target post ID, if any.
+		 * @param array  $options          Translation options.
+		 */
+		do_action( 'translatesense_before_translate_post', $post_id, $target_lang, $is_existing, $existing_post_id, $options );
+
+		// 1. Translate Title & Excerpt.
+		$translated_title   = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_excerpt = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
+
+		// Never translate or change the slug of an existing target translation.
+		$translated_post_name = $is_existing
 			? $source_post->post_name
-			: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts );
+			: ( ( $is_bulk && 'slug_translate' !== $slug_mode )
+				? $source_post->post_name
+				: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts ) );
 
 		// Allow style CSS properities temporarily
 		add_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
@@ -184,9 +204,22 @@ abstract class Base_Builder {
 
 		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
-		// Determine post creation arguments (post_status & post_name)
-		$create_args = array();
-		if ( $is_bulk ) {
+		// Translate attachment IDs and links after text translation, before
+		// persistence. Elementor's structured data is handled by its builder.
+		$wp_post_content = Polylang_Synchronizer::translate_content_media_references(
+			$wp_post_content,
+			$target_lang,
+			$this->get_builder_slug(),
+			$source_lang
+		);
+
+		// Existing translations are updated in place. Slug and status settings
+		// are creation-only and must not overwrite editorial choices on a target.
+		$create_args = array(
+			'post_excerpt' => $translated_excerpt,
+		);
+
+		if ( $is_bulk && ! $is_existing ) {
 			$create_args['post_status'] = $bulk_post_status;
 
 			if ( 'keep_orignal' === $slug_mode ) {
@@ -194,12 +227,14 @@ abstract class Base_Builder {
 			} elseif ( 'title_based' === $slug_mode ) {
 				$slug_candidate           = sanitize_title( (string) $translated_title );
 				$create_args['post_name'] = ! empty( $slug_candidate ) ? $slug_candidate : sanitize_title( (string) $source_post->post_name );
-			} else { // 'slug_translate'
+			} else {
 				$slug_candidate = ! empty( $translated_post_name ) ? sanitize_title( (string) $translated_post_name ) : '';
 				if ( ! empty( $slug_candidate ) ) {
 					$create_args['post_name'] = $slug_candidate;
 				}
 			}
+		} elseif ( ! $is_existing && ! $is_bulk && ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
+			$create_args['post_name'] = sanitize_title( $translated_post_name );
 		}
 
 		// 3. Create or update Polylang translated post
@@ -207,7 +242,7 @@ abstract class Base_Builder {
 			$post_id,
 			$target_lang,
 			$translated_title,
-			wp_slash( $wp_post_content ),
+			$wp_post_content,
 			$create_args
 		);
 
@@ -215,28 +250,20 @@ abstract class Base_Builder {
 			return $created_post_id;
 		}
 
-		// 4. Run builder post-insert lifecycle hook with translated content passed in last parameter
+		// 4. Builder-specific persistence runs after the post and Polylang
 		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
+		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
 
-		// Update excerpt if translated
-		if ( ! empty( $translated_excerpt ) && $translated_excerpt !== $source_post->post_excerpt ) {
-			wp_update_post(
-				array(
-					'ID'           => $created_post_id,
-					'post_excerpt' => $translated_excerpt,
-				)
-			);
-		}
-
-		// Update slug if translated and not bulk
-		if ( ! $is_bulk && ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
-			wp_update_post(
-				array(
-					'ID'        => $created_post_id,
-					'post_name' => sanitize_title( $translated_post_name ),
-				)
-			);
-		}
+		/**
+		 * Fires after the complete TranslateSense post translation pipeline.
+		 *
+		 * @param int    $source_post_id Source post ID.
+		 * @param int    $target_post_id Target post ID.
+		 * @param string $target_lang    Target language slug.
+		 * @param bool   $is_existing    Whether an existing translation was updated.
+		 * @param array  $options        Translation options.
+		 */
+		do_action( 'translatesense_after_translate_post', $post_id, $created_post_id, $target_lang, $is_existing, $options );
 
 		$editor_type = Editor_Integration::get_post_editor_type( $created_post_id );
 		$edit_url    = Editor_Integration::get_post_edit_link( $created_post_id );
@@ -249,6 +276,9 @@ abstract class Base_Builder {
 			'target_language'   => $target_lang,
 			'translated_title'  => $translated_title,
 			'target_post_title' => $translated_title,
+			'is_retranslation'  => $is_existing,
+			'sync_status'       => get_post_meta( $created_post_id, '_translatesense_sync_status', true ),
+			'sync_warnings'     => (array) get_post_meta( $created_post_id, '_translatesense_sync_warnings', true ),
 			'builder'           => $this->get_builder_slug(),
 			'editor_type'       => $editor_type,
 			'edit_url'          => $edit_url,
