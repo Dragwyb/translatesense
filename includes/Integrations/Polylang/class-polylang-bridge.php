@@ -171,27 +171,29 @@ class Polylang_Bridge {
 
 		// Recover a target created by TranslateSense if a previous request
 		// stopped after insertion but before saving the Polylang group.
-		global $wpdb;
+		// Include non-public editorial statuses so draft/private translations
+		// can also be recovered. The REST permission callback must still check
+		// edit_post on the resolved ID before allowing an update.
+		$searchable_statuses = array_values(
+			array_diff(
+				get_post_stati( array(), 'names' ),
+				array( 'trash', 'auto-draft' )
+			)
+		);
 
-		// Query the source marker directly so private/draft target posts are
-		// still discovered even when WP_Query visibility rules hide them.
-		// The REST permission callback checks edit_post on the resolved ID
-		// before any update is allowed.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$candidate_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT p.ID
-				FROM {$wpdb->posts} AS p
-				INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id
-				WHERE p.post_type = %s
-					AND pm.meta_key = %s
-					AND pm.meta_value = %d
-					AND p.post_status NOT IN ('trash', 'auto-draft')
-				ORDER BY p.ID DESC
-				LIMIT 20",
-				get_post_type( $source_post_id ),
-				'_translatesense_source_id',
-				$source_post_id
+		$candidate_ids = get_posts(
+			array(
+				'post_type'              => get_post_type( $source_post_id ),
+				'post_status'            => $searchable_statuses,
+				'meta_key'               => '_translatesense_source_id',
+				'meta_value'             => $source_post_id,
+				'fields'                 => 'ids',
+				'posts_per_page'         => 20,
+				'orderby'                => 'ID',
+				'order'                  => 'DESC',
+				'no_found_rows'          => true,
+				'update_post_meta_cache' => false,
+				'update_post_term_cache' => false,
 			)
 		);
 
@@ -469,18 +471,25 @@ class Polylang_Bridge {
 			return 0;
 		}
 
-		global $wpdb;
+		// Fetch all direct children, including non-public editorial statuses,
+		// while excluding posts that are no longer valid translation candidates.
+		$searchable_statuses = array_values(
+			array_diff(
+				get_post_stati( array(), 'names' ),
+				array( 'trash', 'auto-draft' )
+			)
+		);
 
-		// Fetch all direct children of the source post for the same post type.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$child_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts}
-				WHERE post_parent = %d
-					AND post_type = %s
-					AND post_status NOT IN ('trash', 'auto-draft')",
-				$source_post_id,
-				$source_post->post_type
+		$child_ids = get_posts(
+			array(
+				'post_type'              => $source_post->post_type,
+				'post_status'            => $searchable_statuses,
+				'post_parent'            => $source_post_id,
+				'fields'                 => 'ids',
+				'posts_per_page'         => -1,
+				'no_found_rows'          => true,
+				'update_post_meta_cache' => false,
+				'update_post_term_cache' => false,
 			)
 		);
 
@@ -526,7 +535,7 @@ class Polylang_Bridge {
 
 				if ( ! is_wp_error( $result ) ) {
 					clean_post_cache( $target_child_id );
-					$updated_count++;
+					++$updated_count;
 
 					/**
 					 * Fires after a child translation's post_parent is updated to match the translated parent.
