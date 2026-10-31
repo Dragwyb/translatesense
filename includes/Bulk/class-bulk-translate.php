@@ -52,11 +52,13 @@ class Bulk_Translate {
 			return;
 		}
 
-		$btn_id = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
+		$btn_id     = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
+		$has_active = Bulk_Process::has_active_background_jobs();
 		?>
-		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn">
+		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn<?php echo $has_active ? ' ts-has-active-jobs' : ''; ?>">
 			<span class="dashicons dashicons-translation"></span>
 			<?php esc_html_e( 'Bulk Translate', 'translatesense' ); ?>
+			<span class="ts-active-pulse-dot" style="<?php echo $has_active ? '' : 'display: none;'; ?>" title="<?php esc_attr_e( 'Background translations running', 'translatesense' ); ?>"></span>
 		</button>
 		<?php
 	}
