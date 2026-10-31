@@ -985,7 +985,7 @@
             root.innerHTML = '';
             const errModalRoot = document.getElementById('ts-error-modal-root');
             if (errModalRoot) errModalRoot.remove();
-            checkHasActiveBackgroundJobs();
+            window.location.reload();
           }
         });
       }
@@ -2007,7 +2007,7 @@
           if (doneBtn) {
             doneBtn.disabled = false;
             doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary';
-            doneBtn.innerHTML = '<span class="dashicons dashicons-yes-alt" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px; margin-right: 4px;"></span> Done (Close)';
+            doneBtn.innerHTML = '<span class="dashicons dashicons-yes-alt" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px;"></span> Done (Reload)';
             doneBtn.onclick = function () {
               stopGlobalElapsedTimer();
               if (inModalPollingTimer) {
