@@ -156,6 +156,7 @@ class Bulk_Translate {
 				'defaultProvider'         => $settings['provider'] ?? '',
 				'enabledProviders'        => class_exists( 'Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
 				'pluginUrl'               => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'                 => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'settingsUrl'             => Admin_Menu::get_dashboard_url( 'settings' ),
 				'connectorsUrl'           => admin_url( 'options-connectors.php' ),
 				'hasOpenAiKey'            => ! empty( $settings['openai_api_key'] ),

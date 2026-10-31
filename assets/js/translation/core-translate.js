@@ -1011,8 +1011,52 @@
         });
       }
     }
+
+    /**
+     * Generate a documentation link with UTM tracking parameters.
+     *
+     * @param {string} pageName Page path or slug (e.g., 'openai-setup', 'chrome-ai').
+     * @param {string} medium UTM medium (e.g., 'bulk-translate', 'editor', 'dashboard').
+     * @param {string} campaign UTM campaign (e.g., 'help', 'docs', 'settings').
+     * @returns {string} Full URL with UTM parameters.
+     */
+    generateUTMUrl(pageName = '', medium = '', campaign = '') {
+      const baseUrl = (typeof window !== 'undefined' && (
+        (window.TranslateSenseBulkData && window.TranslateSenseBulkData.docsUrl) ||
+        (window.TranslateSenseEditorData && window.TranslateSenseEditorData.docsUrl) ||
+        (window.TranslateSenseData && window.TranslateSenseData.docsUrl) ||
+        window.TRANSLATESENSE_DOCS_URL
+      )) || 'https://docs.dragwyb.com/';
+
+      let cleanBase = String(baseUrl).trim().replace(/\/+$/, '') + '/';
+      const cleanPage = String(pageName || '').trim().replace(/^\/+/, '');
+      let fullUrl = cleanBase + cleanPage;
+
+      const params = new URLSearchParams();
+      params.set('utm_source', 'wpplugin');
+
+      const cleanMedium = String(medium || '').trim();
+      if (cleanMedium) {
+        params.set('utm_medium', cleanMedium);
+      }
+
+      const cleanCampaign = String(campaign || '').trim();
+      if (cleanCampaign) {
+        params.set('utm_campaign', cleanCampaign);
+      }
+
+      const queryString = params.toString();
+      if (queryString) {
+        fullUrl += (fullUrl.includes('?') ? '&' : '?') + queryString;
+      }
+
+      return fullUrl;
+    }
   }
 
   // Export class definition on window (instantiated internally per session for security)
+  TranslateSenseCore.generateUTMUrl = function (pageName = '', medium = '', campaign = '') {
+    return TranslateSenseCore.prototype.generateUTMUrl.call(null, pageName, medium, campaign);
+  };
   window.TranslateSenseCore = TranslateSenseCore;
 })(window);

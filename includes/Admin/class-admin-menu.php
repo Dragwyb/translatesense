@@ -128,6 +128,7 @@ class Admin_Menu {
 				'providerModels'  => $provider_models,
 				'connectorsUrl'   => esc_url_raw( admin_url( 'options-connectors.php' ) ),
 				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'         => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'version'         => TRANSLATESENSE_VERSION,
 			)
 		);

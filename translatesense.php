@@ -29,6 +29,7 @@ define( 'TRANSLATESENSE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'TRANSLATESENSE_ASSETS_EXT', '.min' );
+define( 'TRANSLATESENSE_DOCS_URL', 'https://docs.dragwyb.com/' );
 
 /**
  * Register PSR/WordPress dynamic class autoloader.
