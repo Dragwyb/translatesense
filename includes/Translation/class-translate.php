@@ -621,7 +621,7 @@ class Translate {
 		if ( 'openai' === $provider ) {
 			$model = $settings['openai_model'] ?? 'gpt-4o-mini';
 		} elseif ( 'gemini' === $provider ) {
-			$model = $settings['gemini_model'] ?? 'gemini-1.5-flash';
+			$model = $settings['gemini_model'] ?? 'gemini-3.5-flash-lite';
 		}
 
 			$batch_size  = ! empty( $settings['batch_size'] ) ? max( 1, (int) $settings['batch_size'] ) : 25;

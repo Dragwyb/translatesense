@@ -2090,7 +2090,7 @@ class Rest_Api {
 			'openai_api_key'    => '',
 			'openai_model'      => 'gpt-4o-mini',
 			'gemini_api_key'    => '',
-			'gemini_model'      => 'gemini-1.5-flash',
+			'gemini_model'      => 'gemini-3.5-flash-lite',
 			'enabled_providers' => array(
 				'chrome_ai',
 				'openai',
@@ -2160,7 +2160,7 @@ class Rest_Api {
 		$response_settings = $settings;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ] = ! empty( $settings[ $secret_key ] );
+			$response_settings[ $secret_key ] = ! empty( $settings[ $secret_key ] ) ? (string) $settings[ $secret_key ] : '';
 		}
 
 		return rest_ensure_response(
@@ -2235,7 +2235,8 @@ class Rest_Api {
 		$response_settings = $updated;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ] = ! empty( $updated[ $secret_key ] );
+			$response_settings[ $secret_key ]          = ! empty( $updated[ $secret_key ] ) ? (string) $updated[ $secret_key ] : '';
+			$response_settings[ 'has_' . $secret_key ] = ! empty( $updated[ $secret_key ] );
 		}
 
 		return rest_ensure_response(
@@ -2338,13 +2339,18 @@ class Rest_Api {
 				continue;
 			}
 
+			if ( is_bool( $input[ $key ] ) ) {
+				continue;
+			}
+
 			$value = trim( (string) $input[ $key ] );
 
 			/*
-			 * REST GET exposes only a boolean for credentials. An empty
-			 * submitted value therefore means "keep the current credential".
+			 * If empty string is submitted, allow removing the API key.
 			 */
-			if ( '' !== $value ) {
+			if ( '' === $value ) {
+				$updated[ $key ] = '';
+			} elseif ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
 				$updated[ $key ] = sanitize_text_field( $value );
 			}
 		}

@@ -98,8 +98,8 @@ class Ai_Connector_Bridge {
 		$legacy_opt    = get_option( 'translatesense_api_keys', array() );
 
 		$this->legacy_keys = array(
-			'openai' => ! empty( $legacy_opt['openai'] ) ? (string) $legacy_opt['openai'] : ( ! empty( $main_settings['openai_api_key'] ) ? (string) $main_settings['openai_api_key'] : '' ),
-			'gemini' => ! empty( $legacy_opt['gemini'] ) ? (string) $legacy_opt['gemini'] : ( ! empty( $main_settings['gemini_api_key'] ) ? (string) $main_settings['gemini_api_key'] : '' ),
+			'openai' => isset( $main_settings['openai_api_key'] ) ? (string) $main_settings['openai_api_key'] : ( ! empty( $legacy_opt['openai'] ) ? (string) $legacy_opt['openai'] : '' ),
+			'gemini' => isset( $main_settings['gemini_api_key'] ) ? (string) $main_settings['gemini_api_key'] : ( ! empty( $legacy_opt['gemini'] ) ? (string) $legacy_opt['gemini'] : '' ),
 		);
 	}
 
@@ -565,7 +565,7 @@ class Ai_Connector_Bridge {
 
 			case 'gemini':
 				$api_key = ! empty( $settings['gemini_api_key'] ) ? (string) $settings['gemini_api_key'] : ( $this->legacy_keys['gemini'] ?? '' );
-				$model   = ! empty( $model ) ? $model : ( $settings['gemini_model'] ?? 'gemini-1.5-flash' );
+				$model   = ! empty( $model ) ? $model : ( $settings['gemini_model'] ?? 'gemini-3.5-flash-lite' );
 
 				if ( empty( $api_key ) ) {
 					return new WP_Error( 'missing_api_key', __( 'Google Gemini API key is missing. Please configure it in TranslateSense Settings.', 'translatesense' ), array( 'status' => 401 ) );
