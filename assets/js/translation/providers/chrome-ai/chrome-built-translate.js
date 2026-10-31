@@ -1104,10 +1104,9 @@
     const isChromeAiEnabled =
       !enabledProviders ||
       (Array.isArray(enabledProviders) &&
-        (enabledProviders.includes('chrome_ai') ||
-          enabledProviders.includes('chrome_local_ai'))) ||
+        enabledProviders.includes('chrome_ai')) ||
       (typeof enabledProviders === 'object' &&
-        (enabledProviders.chrome_ai || enabledProviders.chrome_local_ai));
+        enabledProviders.chrome_ai);
 
     if (!isChromeAiEnabled) {
       return;

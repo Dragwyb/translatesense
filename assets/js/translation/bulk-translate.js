@@ -199,7 +199,7 @@
       };
 
       const isProviderAvailable = (id) => {
-        if (id === 'chrome_ai' || id === 'chrome_local_ai') {
+        if (id === 'chrome_ai' || id === 'edge_ai') {
           const chromeProv = providers.find((p) => p.id === id);
           return !(chromeProv && chromeProv.isSupported && false === chromeProv.isSupported.available);
         }
@@ -224,7 +224,7 @@
 
         const providerRowsHtml = providers.map((p) => {
           const status = getProviderStatus(p.id);
-          const isFrontend = (p.id === 'chrome_ai' || p.id === 'chrome_local_ai');
+          const isFrontend = (p.id === 'chrome_ai' || p.id === 'edge_ai');
           const isConnector = Boolean(status.connectors && status.isProviderInstall);
 
           let isAvailable = false;
@@ -760,7 +760,17 @@
             return;
           }
 
-          const isChromeAi = (selectedProvider === 'chrome_ai' || selectedProvider === 'chrome_local_ai');
+          const matchingProvider = providers.find((p) => p.id === selectedProvider);
+          const isChromeAi = Boolean(
+            selectedProvider === 'chrome_ai' ||
+            selectedProvider === 'edge_ai' ||
+            (matchingProvider && (
+              matchingProvider.id === 'chrome_ai' ||
+              matchingProvider.id === 'edge_ai' ||
+              matchingProvider.browserType === 'edge' ||
+              matchingProvider.browserType === 'chrome'
+            ))
+          );
 
           // Switch UI view: Hide provider view, show dedicated progress view
           const view2 = document.getElementById('ts-view-step-2');
@@ -776,11 +786,16 @@
           if (footerProgress) footerProgress.style.display = 'flex';
           const initRetryBtn = document.getElementById('ts-bulk-retry-failed-btn');
           if (initRetryBtn) {
-            initRetryBtn.style.setProperty('display', 'none', 'important');
-            initRetryBtn.classList.add('ts-hide');
+            if (isChromeAi) {
+              initRetryBtn.style.setProperty('display', 'none', 'important');
+              initRetryBtn.classList.add('ts-hide');
+              initRetryBtn.remove();
+            } else {
+              initRetryBtn.style.setProperty('display', 'none', 'important');
+              initRetryBtn.classList.add('ts-hide');
+            }
           }
 
-          const matchingProvider = providers.find((p) => p.id === selectedProvider);
           if (providerLabel && matchingProvider) {
             providerLabel.textContent = matchingProvider.title;
           }
@@ -960,7 +975,7 @@
                 const trans = postData.translations[langSlug];
                 const isAlreadyExists = trans.status === 'already_exists';
                 const isDone = trans.status === 'completed';
-                const isFail = trans.status === 'failed';
+                const isFail = trans.status === 'failed' || Boolean(trans.error) || Boolean(trans.errorObj);
                 const isRunning = trans.status === 'running';
 
                 const langUpper = langSlug.toUpperCase();
@@ -1003,7 +1018,7 @@
                 if (isAvailable) {
                   actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn view" title="View translated post on site"><span class="dashicons dashicons-visibility"></span> View</a>`;
                   actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn edit" title="Edit translated post"><span class="dashicons dashicons-edit"></span> Edit</a>`;
-                } else {
+                } else if (!isFail) {
                   actionsHtml += `<span class="ts-row-action-btn view disabled"><span class="dashicons dashicons-visibility"></span> View</span>`;
                   actionsHtml += `<span class="ts-row-action-btn edit disabled"><span class="dashicons dashicons-edit"></span> Edit</span>`;
                 }
@@ -1042,21 +1057,28 @@
 
             resultsListEl.innerHTML = html;
 
-            // Guarantee retryBtn is never visible when any post is in running or pending state
+            // Guarantee retryBtn is never visible when any post is in running or pending state,
+            // and never added or shown if provider is chrome_ai or edge_ai
             const activeRetryBtn = document.getElementById('ts-bulk-retry-failed-btn');
             if (activeRetryBtn) {
-              let isAnyActive = false;
-              Object.keys(postResultsMap).forEach(function (pid) {
-                Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
-                  const st = postResultsMap[pid].translations[lang].status;
-                  if (st === 'running' || st === 'pending') {
-                    isAnyActive = true;
-                  }
-                });
-              });
-              if (isAnyActive) {
+              if (isChromeAi) {
                 activeRetryBtn.style.setProperty('display', 'none', 'important');
                 activeRetryBtn.classList.add('ts-hide');
+                activeRetryBtn.remove();
+              } else {
+                let isAnyActive = false;
+                Object.keys(postResultsMap).forEach(function (pid) {
+                  Object.keys(postResultsMap[pid].translations).forEach(function (lang) {
+                    const st = postResultsMap[pid].translations[lang].status;
+                    if (st === 'running' || st === 'pending') {
+                      isAnyActive = true;
+                    }
+                  });
+                });
+                if (isAnyActive) {
+                  activeRetryBtn.style.setProperty('display', 'none', 'important');
+                  activeRetryBtn.classList.add('ts-hide');
+                }
               }
             }
           }
@@ -1278,9 +1300,14 @@
             });
 
             // Show "Retry Failed" button ONLY after translation is fully complete (no pending or running posts) AND failures exist
+            // BUT if provider is chrome_ai or edge_ai, don't add or show Retry Failed button in modal footer
             const retryBtn = document.getElementById('ts-bulk-retry-failed-btn');
             if (retryBtn) {
-              if (!hasAnyRunningOrPending && hasAnyFailedItems) {
+              if (isChromeAi) {
+                retryBtn.style.setProperty('display', 'none', 'important');
+                retryBtn.classList.add('ts-hide');
+                retryBtn.remove();
+              } else if (!hasAnyRunningOrPending && hasAnyFailedItems) {
                 retryBtn.style.setProperty('display', 'inline-flex', 'important');
                 retryBtn.classList.remove('ts-hide');
                 retryBtn.disabled = false;
@@ -1503,7 +1530,7 @@
 
           if (noticeBanner) {
             if (isChromeAi) {
-              const engineTitle = (matchingProvider && matchingProvider.browserType === 'edge') ? 'Microsoft Edge Built-in AI' : 'Google Chrome Built-in AI';
+              const engineTitle = (matchingProvider && (matchingProvider.browserType === 'edge' || matchingProvider.id === 'edge_ai' || selectedProvider === 'edge_ai')) ? 'Microsoft Edge Built-in AI' : 'Google Chrome Built-in AI';
               noticeBanner.className = 'ts-modal-notice-banner warning';
               noticeBanner.style.display = 'flex';
               noticeBanner.innerHTML = `
@@ -1936,10 +1963,11 @@
                   updateBulkProgressUI(jobIndex, 0.05 + (strRatio * 0.85));
                 };
 
-                // Run client-side Chrome AI translation
+                // Run client-side Chrome / Edge AI translation
                 if (core) {
+                  const clientProviderId = (selectedProvider === 'edge_ai' && core.getProvider && core.getProvider('edge_ai')) ? 'edge_ai' : 'chrome_ai';
                   await core.translate(
-                    'chrome_ai',
+                    clientProviderId,
                     {
                       items: itemsToTranslate,
                       sourceLang: 'en',
@@ -1966,7 +1994,7 @@
                 body: JSON.stringify({
                   post_id: postId,
                   target_lang: targetLang,
-                  provider: 'chrome_ai',
+                  provider: (selectedProvider === 'edge_ai' ? 'edge_ai' : 'chrome_ai'),
                   in_memory_translations: inMemoryTranslations,
                   is_bulk: true,
                 }),
