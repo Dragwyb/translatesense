@@ -1723,13 +1723,20 @@
 
 
             let pollingTimer = null;
+            let isRunning = false;
             const pollStatus = async () => {
+              if (isRunning) return;
+              isRunning = true;
+
               try {
                 const statusRes = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(batchId)}`, {
                   headers: { 'X-WP-Nonce': nonce },
                 });
 
-                if (!statusRes.ok) return;
+                if (!statusRes.ok) {
+                  isRunning = false;
+                  return;
+                }
 
                 const data = await statusRes.json();
                 const pct = data.progress_percent || 0;
@@ -1794,8 +1801,11 @@
                   }
                   onBulkProgressComplete(isDone, msg, (doneCount + existsCount), data.total_jobs);
                 }
+
+                isRunning = false;
               } catch (pollErr) {
                 console.warn('[TranslateSense] Polling error:', pollErr);
+                isRunning = false;
               }
             };
 
