@@ -159,49 +159,13 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'get_page_content' ),
 				'permission_callback' => array( __CLASS__, 'permission_get_page_content' ),
 				'args'                => array(
-					'post_id'          => array(
+					'post_id' => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
-					),
-					'status'           => array(
-						'required'          => false,
-						'type'              => 'string',
-						'default'           => 'success',
-						'sanitize_callback' => 'sanitize_key',
-					),
-					'total_characters' => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'total_strings'    => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'provider'         => array(
-						'required'          => false,
-						'type'              => 'string',
-						'default'           => '',
-						'sanitize_callback' => 'sanitize_key',
-					),
-					'time_take'        => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'time_taken'       => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -454,13 +418,43 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'bulk_update_job' ),
 				'permission_callback' => array( __CLASS__, 'permission_bulk_update_job' ),
 				'args'                => array(
-					'job_id' => array(
+					'job_id'           => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'status'           => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'success',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'total_characters' => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'total_strings'    => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'provider'         => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'time_take'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -559,12 +553,6 @@ class Rest_Api {
 						'default'           => 0,
 						'sanitize_callback' => 'absint',
 					),
-					'time_taken'       => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
 				),
 			)
 		);
@@ -580,49 +568,13 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'clear_block_repair' ),
 				'permission_callback' => array( __CLASS__, 'permission_clear_block_repair' ),
 				'args'                => array(
-					'post_id'          => array(
+					'post_id' => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
-					),
-					'status'           => array(
-						'required'          => false,
-						'type'              => 'string',
-						'default'           => 'success',
-						'sanitize_callback' => 'sanitize_key',
-					),
-					'total_characters' => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'total_strings'    => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'provider'         => array(
-						'required'          => false,
-						'type'              => 'string',
-						'default'           => '',
-						'sanitize_callback' => 'sanitize_key',
-					),
-					'time_take'        => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
-					),
-					'time_taken'       => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'default'           => 0,
-						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -3331,7 +3283,7 @@ class Rest_Api {
 
 			$time_take = isset( $updates['time_take'] )
 				? absint( $updates['time_take'] )
-				: ( isset( $updates['time_taken'] ) ? absint( $updates['time_taken'] ) : 0 );
+				: 0;
 
 			Statics::update_translation_statistics(
 				array(
@@ -3455,7 +3407,7 @@ class Rest_Api {
 		$total_characters = absint( $request->get_param( 'total_characters' ) );
 		$total_strings    = absint( $request->get_param( 'total_strings' ) );
 		$provider         = sanitize_key( (string) $request->get_param( 'provider' ) );
-		$time_take        = absint( $request->get_param( 'time_take' ) ?: $request->get_param( 'time_taken' ) );
+		$time_take        = absint( $request->get_param( 'time_take' ) );
 
 		$stats = null;
 		if ( $total_characters > 0 || $total_strings > 0 || ! empty( $provider ) || $time_take > 0 ) {

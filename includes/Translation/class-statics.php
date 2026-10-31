@@ -37,8 +37,7 @@ class Statics {
 			'failed_translations'     => 0,
 			'total_characters'        => 0,
 			'total_strings'           => 0,
-			'time_taken'              => 0, // In milliseconds.
-			'time_take'               => 0, // Alias for time_taken.
+			'time_take'               => 0,
 			'providers'               => array(),
 			'last_updated'            => '',
 		);
@@ -63,13 +62,6 @@ class Statics {
 			$stats['providers'] = array();
 		}
 
-		// Ensure time_taken and time_take remain synchronized.
-		if ( ! isset( $stats['time_taken'] ) && isset( $stats['time_take'] ) ) {
-			$stats['time_taken'] = (int) $stats['time_take'];
-		} elseif ( ! isset( $stats['time_take'] ) && isset( $stats['time_taken'] ) ) {
-			$stats['time_take'] = (int) $stats['time_taken'];
-		}
-
 		return $stats;
 	}
 
@@ -84,7 +76,6 @@ class Statics {
 	 *     @type int        $total_strings    Number of strings translated.
 	 *     @type string     $provider         AI provider key/slug.
 	 *     @type int|float  $time_take        Execution time taken in milliseconds.
-	 *     @type int|float  $time_taken       Execution time taken in milliseconds (alias).
 	 *     @type string     $request_id       Optional unique request identifier for duplicate prevention.
 	 * }
 	 * @return array Updated translation statistics.
@@ -130,12 +121,10 @@ class Statics {
 		$provider = ! empty( $data['provider'] ) ? sanitize_key( (string) $data['provider'] ) : 'unknown';
 
 		// Parse time taken (kept in milliseconds).
-		$time_taken = 0;
-		if ( isset( $data['time_taken'] ) ) {
-			$time_taken = max( 0, (float) $data['time_taken'] );
-		} elseif ( isset( $data['time_take'] ) ) {
+		if ( isset( $data['time_take'] ) ) {
 			$time_taken = max( 0, (float) $data['time_take'] );
 		}
+
 		$time_taken = (int) round( $time_taken );
 
 		// Update global statistics.
@@ -147,8 +136,7 @@ class Statics {
 		}
 		$stats['total_characters'] += $characters;
 		$stats['total_strings']    += $strings;
-		$stats['time_taken']       += $time_taken;
-		$stats['time_take']         = $stats['time_taken'];
+		$stats['time_take']        += $time_taken;
 		$stats['last_updated']      = current_time( 'mysql' );
 
 		// Update per-provider statistics breakdown.
@@ -159,7 +147,6 @@ class Statics {
 				'failed_translations'     => 0,
 				'total_characters'        => 0,
 				'total_strings'           => 0,
-				'time_taken'              => 0,
 				'time_take'               => 0,
 				'last_used'               => '',
 			);
@@ -174,8 +161,7 @@ class Statics {
 		}
 		$p_stats['total_characters'] += $characters;
 		$p_stats['total_strings']    += $strings;
-		$p_stats['time_taken']       += $time_taken;
-		$p_stats['time_take']         = $p_stats['time_taken'];
+		$p_stats['time_take']        += $time_taken;
 		$p_stats['last_used']         = current_time( 'mysql' );
 
 		update_option( self::OPTION_TRANSLATION_STATISTICS, $stats, false );
