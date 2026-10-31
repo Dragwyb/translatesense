@@ -104,7 +104,7 @@
       btn.type = 'button';
       btn.id = 'ts-quick-filter-translate-btn';
       btn.className = 'button button-primary ts-filter-action-btn';
-      btn.innerHTML = '<span class="dashicons dashicons-translation"></span> Translate Selected';
+      btn.innerHTML = '<span class="dashicons dashicons-translation"></span> Bulk Translate';
       postQuerySubmit.insertAdjacentElement('afterend', btn);
     }
 
@@ -114,7 +114,7 @@
       btnBottom.type = 'button';
       btnBottom.id = 'ts-quick-filter-translate-btn-bottom';
       btnBottom.className = 'button button-primary ts-filter-action-btn';
-      btnBottom.innerHTML = '<span class="dashicons dashicons-translation"></span> Translate Selected';
+      btnBottom.innerHTML = '<span class="dashicons dashicons-translation"></span> Bulk Translate';
       doAction2.insertAdjacentElement('afterend', btnBottom);
     }
 
@@ -128,7 +128,7 @@
       return ids;
     }
 
-    // Direct click on "Translate Selected" button (top or bottom)
+    // Direct click on "Bulk Translate" button (top or bottom)
     document.addEventListener('click', async function (e) {
       const target = e.target.closest('.ts-filter-action-btn');
       if (target) {

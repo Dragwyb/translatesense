@@ -12,14 +12,14 @@
   z-index: 999999;
 }
 
-#ts-quick-filter-translate-btn{
-  line-height: 1;
-  margin-bottom: 1rem;
+.ts-filter-action-btn{
+  line-height: 1 !important;
+  margin-bottom: 1rem !important;
 }
 
-#ts-quick-filter-translate-btn .dashicons{
-  line-height: 1;
-  color: inherit;
+.ts-filter-action-btn .dashicons{
+  line-height: 1 !important;
+  color: inherit !important;
 }
 
 /* ==========================================================================

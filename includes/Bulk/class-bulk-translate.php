@@ -56,7 +56,7 @@ class Bulk_Translate {
 		?>
 		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn">
 			<span class="dashicons dashicons-translation"></span>
-			<?php esc_html_e( 'Translate Selected', 'translatesense' ); ?>
+			<?php esc_html_e( 'Bulk Translate', 'translatesense' ); ?>
 		</button>
 		<?php
 	}
