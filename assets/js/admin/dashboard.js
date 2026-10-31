@@ -31,7 +31,7 @@
       openai_api_key: '',
       openai_model: 'gpt-4o-mini',
       gemini_api_key: '',
-      gemini_model: 'gemini-1.5-flash',
+      gemini_model: 'gemini-3.5-flash-lite',
       enabled_providers: ['chrome_ai', 'openai', 'gemini'],
       batch_size: 5,
     });
@@ -102,7 +102,12 @@
         });
 
         if (settingsRes.settings) {
-          setSettings(settingsRes.settings);
+          const s = settingsRes.settings;
+          setSettings({
+            ...s,
+            gemini_api_key: typeof s.gemini_api_key === 'string' ? s.gemini_api_key : '',
+            openai_api_key: typeof s.openai_api_key === 'string' ? s.openai_api_key : '',
+          });
         }
         if (settingsRes.languages) {
           setLanguages(settingsRes.languages);
@@ -185,13 +190,27 @@
     const handleSaveSettings = async (e) => {
       if (e) e.preventDefault();
       try {
+        const payload = { ...settings };
+        if (typeof payload.gemini_api_key !== 'string') {
+          payload.gemini_api_key = '';
+        }
+        if (typeof payload.openai_api_key !== 'string') {
+          payload.openai_api_key = '';
+        }
         const res = await window.wp.apiFetch({
           path: '/translatesense/v1/settings',
           method: 'POST',
-          data: settings,
+          data: payload,
         });
         showNotice(res.message || 'Settings saved successfully!');
-        if (res.settings) setSettings(res.settings);
+        if (res.settings) {
+          setSettings((prev) => ({
+            ...prev,
+            ...res.settings,
+            gemini_api_key: typeof res.settings.gemini_api_key === 'string' ? res.settings.gemini_api_key : '',
+            openai_api_key: typeof res.settings.openai_api_key === 'string' ? res.settings.openai_api_key : '',
+          }));
+        }
         if (res.active_providers) setActiveProviders(res.active_providers);
         if (res.provider_models) setProviderModels(res.provider_models);
       } catch (err) {
@@ -1099,7 +1118,11 @@
           isProviderActive: meta.isProviderActive !== undefined ? Boolean(meta.isProviderActive) : true,
         };
       }
-      const isKeyConfigured = (id === 'openai') ? Boolean(settings.openai_api_key) : (id === 'gemini') ? Boolean(settings.gemini_api_key) : true;
+      const isKeyConfigured = (id === 'openai')
+        ? Boolean(typeof settings.openai_api_key === 'string' ? settings.openai_api_key.trim() : settings.openai_api_key)
+        : (id === 'gemini')
+          ? Boolean(typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key.trim() : settings.gemini_api_key)
+          : true;
       return {
         isConnected: isKeyConfigured,
         connectors: false,
@@ -1117,9 +1140,9 @@
       { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo ( Legacy )' },
     ];
     const defaultGeminiModels = [
-      { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash ( High Speed & Quality )' },
-      { id: 'gemini-1.5-pro', name: 'gemini-1.5-pro ( Advanced Multilingual )' },
-      { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash ( Next-Gen Flash )' },
+      { id: 'gemini-3.8-flash', name: 'gemini-3.8-flash ( High Speed & Quality )' },
+      { id: 'gemini-3.5-live-translate', name: 'gemini-3.5-live-translate ( Advanced Multilingual )' },
+      { id: 'gemini-3.5-flash-lite', name: 'gemini-3.5-flash-lite ( Next-Gen Flash )' },
     ];
 
     const openAiModels = (providerModels && Array.isArray(providerModels.openai) && providerModels.openai.length > 0)
@@ -1241,8 +1264,9 @@
           openAiConnectorBtnText = '↗ Manage in WP Connectors';
         }
       } else {
-        openAiTagClass = settings.openai_api_key ? 'ready' : 'key-needed';
-        openAiTagText = settings.openai_api_key ? '✓ Configured' : '⚠️ API Key Needed';
+        const hasOpenAiKey = Boolean(typeof settings.openai_api_key === 'string' ? settings.openai_api_key.trim() : settings.openai_api_key);
+        openAiTagClass = hasOpenAiKey ? 'ready' : 'key-needed';
+        openAiTagText = hasOpenAiKey ? '✓ Configured' : '⚠️ API Key Needed';
       }
     }
 
@@ -1271,18 +1295,19 @@
           geminiConnectorBtnText = '↗ Manage in WP Connectors';
         }
       } else {
-        geminiTagClass = settings.gemini_api_key ? 'ready' : 'key-needed';
-        geminiTagText = settings.gemini_api_key ? '✓ Configured' : '⚠️ API Key Needed';
+        const hasGeminiKey = Boolean(typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key.trim() : settings.gemini_api_key);
+        geminiTagClass = hasGeminiKey ? 'ready' : 'key-needed';
+        geminiTagText = hasGeminiKey ? '✓ Configured' : '⚠️ API Key Needed';
       }
     }
 
     const isOpenAiConnected = (openAiStatus.connectors && openAiStatus.isProviderInstall)
       ? Boolean(openAiStatus.isConnected && openAiStatus.isProviderActive)
-      : Boolean(settings.openai_api_key && settings.openai_api_key.trim());
+      : Boolean(typeof settings.openai_api_key === 'string' ? settings.openai_api_key.trim() : settings.openai_api_key);
 
     const isGeminiConnected = (geminiStatus.connectors && geminiStatus.isProviderInstall)
       ? Boolean(geminiStatus.isConnected && geminiStatus.isProviderActive)
-      : Boolean(settings.gemini_api_key && settings.gemini_api_key.trim());
+      : Boolean(typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key.trim() : settings.gemini_api_key);
 
     return el(
       'form',
@@ -1441,7 +1466,7 @@
                     el('input', {
                       type: showOpenAiKey ? 'text' : 'password',
                       className: 'ts-form-input',
-                      value: settings.openai_api_key || '',
+                      value: (typeof settings.openai_api_key === 'string') ? settings.openai_api_key : '',
                       placeholder: 'sk-proj-...',
                       disabled: !enabledProviders.includes('openai'),
                       onChange: (e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() }),
@@ -1580,7 +1605,7 @@
                     el('input', {
                       type: showGeminiKey ? 'text' : 'password',
                       className: 'ts-form-input',
-                      value: settings.gemini_api_key || '',
+                      value: (typeof settings.gemini_api_key === 'string') ? settings.gemini_api_key : '',
                       placeholder: 'AIzaSy...',
                       disabled: !enabledProviders.includes('gemini'),
                       onChange: (e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() }),
@@ -1606,7 +1631,7 @@
                     'select',
                     {
                       className: 'ts-form-select',
-                      value: settings.gemini_model || (geminiModels[0] && geminiModels[0].id) || 'gemini-1.5-flash',
+                      value: settings.gemini_model || 'gemini-3.5-flash-lite',
                       disabled: !enabledProviders.includes('gemini'),
                       onChange: (e) => setSettings({ ...settings, gemini_model: e.target.value }),
                     },
