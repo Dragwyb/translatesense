@@ -88,7 +88,7 @@ class Bulk_Process {
 		global $wpdb;
 
 		$table        = self::get_table_name_internal();
-		$batch_id     = 'batch_' . wp_generate_uuid4();
+		$batch_id     = wp_generate_uuid4();
 		$provider     = sanitize_text_field( $provider );
 		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
 
@@ -341,16 +341,16 @@ class Bulk_Process {
 					}
 
 					if ( ! empty( $hash ) ) {
-						// Set translated value to hash in DB
-						if ( Translate::should_cache_provider( $provider ) ) {
-							Hashing_Db::save_translation_result( $hash, $target_lang, $translated_str );
-						}
 						$in_memory_translations[ $hash ] = $translated_str;
 					}
 				}
 
 				if ( ! empty( $orig_str ) ) {
 					$in_memory_translations[ $orig_str ] = $translated_str;
+					if ( Translate::should_cache_provider( $provider ) ) {
+						$string_hash = md5( (string) $orig_str );
+						Hashing_Db::save_translation_result( $string_hash, $target_lang, $translated_str );
+					}
 				}
 			}
 
@@ -367,7 +367,7 @@ class Bulk_Process {
 				? __( 'Existing translation updated successfully', 'translatesense' )
 				: __( 'Completed successfully', 'translatesense' );
 
-			if ( $sync_warnings ) {
+			if ( ! empty( $sync_warnings ) ) {
 				$completed_label = __( 'Translation completed with synchronization warnings. Review the target post.', 'translatesense' );
 			}
 

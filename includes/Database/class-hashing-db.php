@@ -35,7 +35,7 @@ class Hashing_Db {
 	}
 
 	/**
-	 * Table name for translation results cache (Linked to string_id).
+	 * Table name for translation results cache (Linked to string_hash).
 	 */
 	final public static function get_translations_table(): string {
 		global $wpdb;
@@ -188,66 +188,34 @@ class Hashing_Db {
 	/**
 	 * Save translated string result into translatesense_translations table.
 	 *
-	 * @param int|string $identifier        string_id (int), package_hash (string), or string_hash (string)
-	 * @param string     $target_lang       Target language code
-	 * @param string     $translated_string Translated content
-	 * @param string     $source_string     Optional original string to resolve string_id
+	 * @param string $string_hash       32-char md5 string hash
+	 * @param string $target_lang       Target language code
+	 * @param string $translated_string Translated content
 	 * @return bool
 	 */
-	public static function save_translation_result( $identifier, string $target_lang, string $translated_string, string $source_string = '' ): bool {
+	public static function save_translation_result( string $string_hash, string $target_lang, string $translated_string ): bool {
 		global $wpdb;
 
-		if ( '' === trim( $translated_string ) || empty( $target_lang ) ) {
+		$string_hash       = trim( $string_hash );
+		$translated_string = trim( $translated_string );
+		$target_lang       = sanitize_text_field( trim( $target_lang ) );
+
+		if ( '' === $string_hash || '' === $translated_string || '' === $target_lang ) {
 			return false;
 		}
 
 		$translations_table = self::get_translations_table();
-		$string_id          = 0;
 
-		// 1. Resolve string_id
-		if ( is_numeric( $identifier ) && (int) $identifier > 0 ) {
-			$string_id = (int) $identifier;
-		} elseif ( ! empty( $source_string ) ) {
-			$string_id = self::get_or_create_string_id( $source_string );
-		} elseif ( is_string( $identifier ) && '' !== trim( $identifier ) ) {
-			$strings_table  = self::get_strings_table();
-			$packages_table = self::get_packages_table();
-
-			// Check if identifier is string_hash in translatesense_strings
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-			$string_id = (int) $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT id FROM {$strings_table} WHERE string_hash = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-					$identifier
-				)
-			);
-
-			// If not found, check if identifier is package_hash in translatesense_packages
-			if ( $string_id <= 0 ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-				$string_id = (int) $wpdb->get_var(
-					$wpdb->prepare(
-						"SELECT string_id FROM {$packages_table} WHERE package_hash = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-						$identifier
-					)
-				);
-			}
-		}
-
-		if ( $string_id <= 0 ) {
-			return false;
-		}
-
-		// 2. Insert or update translation linked to string_id and language
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$result = $wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO {$translations_table} (`string_id`, `language`, `translated_string`, `created_at`, `updated_at`) VALUES (%d, %s, %s, NOW(), NOW()) ON DUPLICATE KEY UPDATE  `translated_string` = VALUES(`translated_string`), `updated_at` = NOW()", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$string_id,
-				sanitize_text_field( $target_lang ),
+				"INSERT INTO {$translations_table} (`string_hash`, `language`, `translated_string`, `created_at`, `updated_at`) VALUES (%s, %s, %s, NOW(), NOW()) ON DUPLICATE KEY UPDATE `translated_string` = VALUES(`translated_string`), `updated_at` = NOW()", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$string_hash,
+				$target_lang,
 				$translated_string
 			)
 		);
+
 		return false !== $result;
 	}
 
@@ -269,7 +237,7 @@ class Hashing_Db {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$row = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT translated_string FROM {$table_translations} WHERE string_id = %d AND language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash WHERE s.id = %d AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					(int) $identifier,
 					$target_lang
 				),
@@ -278,11 +246,11 @@ class Hashing_Db {
 			return ! empty( $row['translated_string'] ) ? (string) $row['translated_string'] : null;
 		}
 
-		// Check by package_hash
+		// Check by string_hash
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_id = p.string_id WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT translated_string FROM {$table_translations} WHERE string_hash = %s AND language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$identifier,
 				$target_lang
 			),
@@ -293,11 +261,11 @@ class Hashing_Db {
 			return (string) $row['translated_string'];
 		}
 
-		// Check by string_hash
+		// Check by package_hash
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_id = s.id WHERE s.string_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash INNER JOIN {$table_packages} p ON s.id = p.string_id WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$identifier,
 				$target_lang
 			),
@@ -337,7 +305,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_id = p.string_id WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT p.package_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash INNER JOIN {$table_packages} p ON s.id = p.string_id WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$params
 			),
 			ARRAY_A
@@ -360,7 +328,7 @@ class Hashing_Db {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$string_rows = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT s.string_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_id = s.id WHERE s.string_hash IN ($rem_placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"SELECT string_hash, translated_string FROM {$table_translations} WHERE string_hash IN ($rem_placeholders) AND language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$rem_params
 				),
 				ARRAY_A
@@ -451,10 +419,10 @@ class Hashing_Db {
 			"DELETE s FROM {$strings_table} s LEFT JOIN {$packages_table} p ON s.id = p.string_id WHERE p.string_id IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
-		// 2. Delete orphan cached translations whose string_id no longer exists
+		// 2. Delete orphan cached translations whose string_hash no longer exists
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"DELETE t FROM {$translations_table} t LEFT JOIN {$strings_table} s ON t.string_id = s.id WHERE s.id IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"DELETE t FROM {$translations_table} t LEFT JOIN {$strings_table} s ON t.string_hash = s.string_hash WHERE s.string_hash IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return false !== $deleted_strings ? (int) $deleted_strings : 0;

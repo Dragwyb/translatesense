@@ -63,14 +63,14 @@ class Activator {
 		$table_translations = $wpdb->prefix . 'translatesense_translations';
 		$sql_translations   = "CREATE TABLE {$table_translations} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            string_id bigint(20) unsigned NOT NULL,
+            string_hash varchar(32) NOT NULL,
             language varchar(10) NOT NULL,
             translated_string longtext NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            UNIQUE KEY string_lang_unique (string_id, language),
-            KEY string_index (string_id),
+            UNIQUE KEY string_lang_unique (string_hash, language),
+            KEY string_index (string_hash),
             KEY language_index (language)
         ) {$charset_collate};";
 

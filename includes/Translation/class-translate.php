@@ -590,8 +590,8 @@ class Translate {
 	 * @return bool
 	 */
 	public static function should_cache_provider( $provider ) {
-		$no_cache_providers = array( 'chrome_ai', 'chrome_local_ai' );
-		return ! in_array( $provider, $no_cache_providers, true );
+		$no_cache_providers = array( 'gemini', 'openai' );
+		return in_array( $provider, $no_cache_providers, true );
 	}
 
 	/**
