@@ -356,7 +356,7 @@ class Bulk_Process {
 
 				if ( ! empty( $orig_str ) ) {
 					$in_memory_translations[ $orig_str ] = $translated_str;
-					if ( Translate::should_cache_provider( $provider ) ) {
+					if ( Translate::should_cache_provider( $provider ) && $orig_str !== $translated_str ) {
 						$string_hash = md5( (string) $orig_str );
 						Hashing_Db::save_translation_result( $string_hash, $target_lang, $translated_str );
 					}

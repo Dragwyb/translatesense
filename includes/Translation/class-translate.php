@@ -568,7 +568,10 @@ class Translate {
 			$trans = isset( $translated_batch[ $idx ] ) && '' !== trim( (string) $translated_batch[ $idx ] ) ? (string) $translated_batch[ $idx ] : (string) $str;
 
 			if ( ! empty( $trans ) && self::should_cache_provider( $provider ) ) {
-				Hashing_Db::save_translation_result( $h, $target_lang, $trans );
+				$trans_hase = md5( $trans );
+				if ( $trans_hase !== $h ) {
+					Hashing_Db::save_translation_result( $h, $target_lang, $trans );
+				}
 			}
 
 			$results[ $idx ] = array(
