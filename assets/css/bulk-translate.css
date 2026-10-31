@@ -1180,3 +1180,207 @@ button.ts-error-detail-btn:hover {
   }
 }
 
+/* ==========================================================================
+   Previously Running Background Translations & Skip Functionality Styles
+   ========================================================================== */
+.ts-previous-active-notice {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ts-previous-active-notice .ts-notice-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.ts-previous-active-notice .ts-notice-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ts-previous-active-notice .ts-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #166534;
+}
+
+.ts-previous-active-notice .ts-notice-title {
+  font-weight: 600;
+}
+
+.ts-previous-active-notice .ts-notice-desc {
+  color: #15803d;
+  font-size: 12px;
+}
+
+.ts-previous-active-notice .ts-show-running-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 12px;
+  height: 30px;
+  line-height: 28px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.ts-post-skip-btn {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  border-radius: 3px !important;
+  padding: 2px 10px !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 26px !important;
+  line-height: 24px !important;
+  transition: all 0.15s ease !important;
+  margin-right: 8px !important;
+}
+
+.ts-post-skip-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #1e293b !important;
+}
+
+.ts-post-skip-btn .dashicons {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+}
+
+.ts-row-status.skipped,
+.ts-post-status-pill.skipped {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.ts-row-status.cancelling,
+.ts-post-status-pill.cancelling {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.ts-stat-card.gray {
+  border-left: 4px solid #94a3b8;
+}
+
+.ts-stat-icon-box.gray {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.ts-skip-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 1000001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.ts-skip-dialog-box {
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 440px;
+  overflow: hidden;
+  animation: tsDialogFadeIn 0.2s ease-out;
+}
+
+@keyframes tsDialogFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ts-skip-dialog-header {
+  padding: 18px 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ts-skip-dialog-header .ts-skip-warn-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: #f59e0b;
+  line-height: 24px;
+}
+
+.ts-skip-dialog-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ts-skip-dialog-body {
+  padding: 16px 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.ts-skip-dialog-footer {
+  padding: 12px 20px 16px;
+  background: #f8fafc;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.button-danger.ts-skip-confirm-btn {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+.button-danger.ts-skip-confirm-btn:hover {
+  background: #b91c1c !important;
+  border-color: #991b1b !important;
+}
+
+.ts-batch-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.ts-batch-select {
+  flex: 1;
+  max-width: 320px;
+}
+

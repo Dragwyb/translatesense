@@ -187,6 +187,49 @@ class Bulk_Process {
 	}
 
 	/**
+	 * Check if table has active backend background jobs for eligible AI providers (OpenAI, Gemini).
+	 */
+	public static function has_active_background_jobs(): bool {
+		global $wpdb;
+		$table = self::get_table_name_internal();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$count = (int) $wpdb->get_var(
+			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND provider IN ('openai', 'gemini')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		return $count > 0;
+	}
+
+	/**
+	 * Get list of active background batches (OpenAI / Gemini) with status.
+	 *
+	 * @return array
+	 */
+	public static function get_active_background_batches(): array {
+		global $wpdb;
+		$table = self::get_table_name_internal();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$batch_ids = $wpdb->get_col(
+			"SELECT DISTINCT batch_id FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND provider IN ('openai', 'gemini') ORDER BY id DESC" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		if ( empty( $batch_ids ) ) {
+			return array();
+		}
+
+		$batches = array();
+		foreach ( $batch_ids as $b_id ) {
+			$batch_status = self::get_batch_status( (string) $b_id );
+			if ( ! empty( $batch_status['items'] ) ) {
+				$batches[] = $batch_status;
+			}
+		}
+
+		return $batches;
+	}
+
+	/**
 	 * Schedule cron if needed for backend jobs.
 	 */
 	public static function schedule_cron_if_needed(): void {
@@ -227,7 +270,13 @@ class Bulk_Process {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		// Clean up any stale cancelling jobs older than 10 minutes
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$wpdb->query(
+			"UPDATE {$table} SET status = 'skipped', progress_status = 'Skipped by user' WHERE status = 'cancelling' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -237,7 +286,7 @@ class Bulk_Process {
 		);
 
 		if ( ! $job ) {
-			// No more pending jobs, remove cron if everything is completed/failed
+			// No more pending jobs, remove cron if everything is completed/failed/skipped
 			self::unschedule_cron_if_idle();
 			return;
 		}
@@ -249,15 +298,26 @@ class Bulk_Process {
 		$existing_target_post_id = absint( $job['target_post_id'] );
 		$is_retranslation        = $existing_target_post_id > 0 && $existing_target_post_id !== $post_id;
 
-		// Mark as running
-		self::update_job(
-			$job_id,
-			array(
-				'status'          => 'running',
-				'progress_status' => $is_retranslation ? 'Preparing existing translation update...' : 'Extracting strings...',
-				'updated_at'      => current_time( 'mysql' ),
+		// Atomically claim and mark as running
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$claimed = $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET status = 'running', progress_status = %s, updated_at = %s WHERE id = %d AND status = 'pending'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$is_retranslation ? 'Preparing existing translation update...' : 'Extracting strings...',
+				current_time( 'mysql' ),
+				$job_id
 			)
 		);
+
+		if ( ! $claimed ) {
+			// Job was claimed by another thread or already skipped
+			if ( self::has_pending_or_running_jobs() ) {
+				self::process_cron_tick();
+			} else {
+				self::unschedule_cron_if_idle();
+			}
+			return;
+		}
 
 		$start_time  = microtime( true );
 		$total_str   = 0;
@@ -304,6 +364,33 @@ class Bulk_Process {
 				$total_chars += mb_strlen( (string) $str_to_count );
 			}
 
+			// Check if cancellation was requested before calling AI
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$pre_ai_status = $wpdb->get_var(
+				$wpdb->prepare( "SELECT status FROM {$table} WHERE id = %d", $job_id ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+
+			if ( 'cancelling' === $pre_ai_status || 'skipped' === $pre_ai_status ) {
+				// Cancellation requested: skip immediately without calling AI
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						__( 'Skipped by user', 'translatesense' ),
+						current_time( 'mysql' ),
+						$job_id
+					)
+				);
+
+				if ( self::has_pending_or_running_jobs() ) {
+					self::process_cron_tick();
+					self::trigger_async_cron();
+				} else {
+					self::unschedule_cron_if_idle();
+				}
+				return;
+			}
+
 			// Save AI request data with clean source strings array
 			self::update_job(
 				$job_id,
@@ -327,6 +414,33 @@ class Bulk_Process {
 
 			if ( is_wp_error( $ai_response ) ) {
 				throw new \Exception( 'Failed to translate strings: ' . $ai_response->get_error_message() );
+			}
+
+			// Check if cancellation was requested while AI was processing
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$post_ai_status = $wpdb->get_var(
+				$wpdb->prepare( "SELECT status FROM {$table} WHERE id = %d", $job_id ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+
+			if ( 'cancelling' === $post_ai_status || 'skipped' === $post_ai_status ) {
+				// Cancellation requested: DO NOT apply AI response to target post and DO NOT save translation
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						__( 'Skipped by user', 'translatesense' ),
+						current_time( 'mysql' ),
+						$job_id
+					)
+				);
+
+				if ( self::has_pending_or_running_jobs() ) {
+					self::process_cron_tick();
+					self::trigger_async_cron();
+				} else {
+					self::unschedule_cron_if_idle();
+				}
+				return;
 			}
 
 			$translated_content     = array();
@@ -363,6 +477,32 @@ class Bulk_Process {
 				}
 			}
 
+			// Final pre-save check: ensure cancellation was not requested immediately before DB write
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$pre_save_status = $wpdb->get_var(
+				$wpdb->prepare( "SELECT status FROM {$table} WHERE id = %d", $job_id ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+
+			if ( 'cancelling' === $pre_save_status || 'skipped' === $pre_save_status ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						__( 'Skipped by user', 'translatesense' ),
+						current_time( 'mysql' ),
+						$job_id
+					)
+				);
+
+				if ( self::has_pending_or_running_jobs() ) {
+					self::process_cron_tick();
+					self::trigger_async_cron();
+				} else {
+					self::unschedule_cron_if_idle();
+				}
+				return;
+			}
+
 			// 4. Execute post translation
 			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider, $in_memory_translations );
 
@@ -388,17 +528,17 @@ class Bulk_Process {
 				}
 			}
 
-			// 5. Mark as completed and save translated strings array
-			self::update_job(
-				$job_id,
-				array(
-					'status'            => 'completed',
-					'progress_status'   => $completed_label,
-					'completed_strings' => $total_str,
-					'target_post_id'    => $target_post_id,
-					'receive_data'      => wp_json_encode( $translated_content ),
-					'error_message'     => null,
-					'updated_at'        => current_time( 'mysql' ),
+			// 5. Mark as completed and save translated strings array (only if job was still running)
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table} SET status = 'completed', progress_status = %s, completed_strings = %d, target_post_id = %d, receive_data = %s, error_message = NULL, updated_at = %s WHERE id = %d AND status = 'running'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$completed_label,
+					$total_str,
+					$target_post_id,
+					wp_json_encode( $translated_content ),
+					current_time( 'mysql' ),
+					$job_id
 				)
 			);
 
@@ -414,27 +554,45 @@ class Bulk_Process {
 				)
 			);
 		} catch ( \Throwable $e ) {
-			self::update_job(
-				$job_id,
-				array(
-					'status'          => 'failed',
-					'progress_status' => 'Failed: ' . substr( $e->getMessage(), 0, 80 ),
-					'error_message'   => $e->getMessage(),
-					'updated_at'      => current_time( 'mysql' ),
-				)
+			// Check if failure occurred during or after a cancellation request
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$err_status = $wpdb->get_var(
+				$wpdb->prepare( "SELECT status FROM {$table} WHERE id = %d", $job_id ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			);
 
-			$elapsed_ms = isset( $start_time ) ? (int) round( ( microtime( true ) - $start_time ) * 1000 ) : 0;
-			Statics::update_translation_statistics(
-				array(
-					'status'           => 'failed',
-					'total_characters' => isset( $total_chars ) ? $total_chars : 0,
-					'total_strings'    => isset( $total_str ) ? $total_str : 0,
-					'provider'         => $provider,
-					'time_take'        => $elapsed_ms,
-					'request_id'       => 'bulk_cron_job_' . $job_id,
-				)
-			);
+			if ( 'cancelling' === $err_status || 'skipped' === $err_status ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						__( 'Skipped by user', 'translatesense' ),
+						current_time( 'mysql' ),
+						$job_id
+					)
+				);
+			} else {
+				self::update_job(
+					$job_id,
+					array(
+						'status'          => 'failed',
+						'progress_status' => 'Failed: ' . substr( $e->getMessage(), 0, 80 ),
+						'error_message'   => $e->getMessage(),
+						'updated_at'      => current_time( 'mysql' ),
+					)
+				);
+
+				$elapsed_ms = isset( $start_time ) ? (int) round( ( microtime( true ) - $start_time ) * 1000 ) : 0;
+				Statics::update_translation_statistics(
+					array(
+						'status'           => 'failed',
+						'total_characters' => isset( $total_chars ) ? $total_chars : 0,
+						'total_strings'    => isset( $total_str ) ? $total_str : 0,
+						'provider'         => $provider,
+						'time_take'        => $elapsed_ms,
+						'request_id'       => 'bulk_cron_job_' . $job_id,
+					)
+				);
+			}
 		}
 
 		// Check if more pending jobs exist
@@ -443,7 +601,7 @@ class Bulk_Process {
 			self::process_cron_tick();
 			self::trigger_async_cron();
 		} else {
-			// All jobs completed or failed -> remove/clear cron
+			// All jobs completed, skipped, or failed -> remove/clear cron
 			self::unschedule_cron_if_idle();
 		}
 	}
@@ -547,6 +705,7 @@ class Bulk_Process {
 		$failed_jobs         = 0;
 		$running_jobs        = 0;
 		$pending_jobs        = 0;
+		$skipped_jobs        = 0;
 
 		$total_strings     = 0;
 		$completed_strings = 0;
@@ -555,7 +714,7 @@ class Bulk_Process {
 
 		foreach ( $rows as $row ) {
 			$post_id = (int) $row['post_id'];
-			if ( $post_id > 0 && ! current_user_can( 'edit_post', $post_id ) ) {
+			if ( $post_id > 0 && is_user_logged_in() && ! current_user_can( 'edit_post', $post_id ) ) {
 				continue;
 			}
 
@@ -566,8 +725,10 @@ class Bulk_Process {
 				++$already_exists_jobs;
 			} elseif ( 'failed' === $status ) {
 				++$failed_jobs;
-			} elseif ( 'running' === $status ) {
+			} elseif ( 'running' === $status || 'cancelling' === $status ) {
 				++$running_jobs;
+			} elseif ( 'skipped' === $status ) {
+				++$skipped_jobs;
 			} else {
 				++$pending_jobs;
 			}
@@ -587,11 +748,11 @@ class Bulk_Process {
 			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
 
 			$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-			$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
+			$view_url = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
 
-			if ( 'completed' === $status || 'already_exists' === $status ) {
+			if ( 'completed' === $status || 'already_exists' === $status || 'skipped' === $status ) {
 				$item_progress = 100;
-			} elseif ( 'running' === $status || 'processing' === $status ) {
+			} elseif ( 'running' === $status || 'processing' === $status || 'cancelling' === $status ) {
 				$item_progress = $t_str > 0 ? (int) round( min( 100, max( 0, ( $c_str / $t_str ) * 100 ) ) ) : 0;
 			} elseif ( 'failed' === $status ) {
 				$item_progress = $t_str > 0 ? (int) round( min( 100, max( 0, ( $c_str / $t_str ) * 100 ) ) ) : 0;
@@ -623,6 +784,8 @@ class Bulk_Process {
 			);
 		}
 
+		$total_jobs = count( $items );
+
 		$pending_strings = max( 0, $total_strings - $completed_strings );
 
 		// Calculate overall batch progress percentage (post-weighted: each post contributes equally)
@@ -631,9 +794,9 @@ class Bulk_Process {
 			$total_progress_sum = 0;
 			foreach ( $items as $it ) {
 				$st = $it['status'];
-				if ( 'completed' === $st || 'already_exists' === $st ) {
+				if ( 'completed' === $st || 'already_exists' === $st || 'skipped' === $st ) {
 					$total_progress_sum += 100;
-				} elseif ( 'running' === $st || 'processing' === $st || 'failed' === $st ) {
+				} elseif ( 'running' === $st || 'processing' === $st || 'failed' === $st || 'cancelling' === $st ) {
 					$it_t = (int) $it['total_strings'];
 					$it_c = (int) $it['completed_strings'];
 					if ( $it_t > 0 ) {
@@ -645,9 +808,15 @@ class Bulk_Process {
 		}
 
 		$overall_status = 'pending';
-		$done_jobs      = $completed_jobs + $already_exists_jobs + $failed_jobs;
+		$done_jobs      = $completed_jobs + $already_exists_jobs + $failed_jobs + $skipped_jobs;
 		if ( $total_jobs > 0 && $done_jobs === $total_jobs ) {
-			$overall_status = ( $failed_jobs === $total_jobs ) ? 'failed' : 'completed';
+			if ( $failed_jobs === $total_jobs ) {
+				$overall_status = 'failed';
+			} elseif ( $skipped_jobs === $total_jobs ) {
+				$overall_status = 'skipped';
+			} else {
+				$overall_status = 'completed';
+			}
 		} elseif ( $running_jobs > 0 || $completed_jobs > 0 ) {
 			$overall_status = 'running';
 		}
@@ -664,11 +833,17 @@ class Bulk_Process {
 				/* translators: %d: Number of translated posts */
 				$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );
 			}
+			if ( $skipped_jobs > 0 ) {
+				/* translators: %d: Number of skipped translation jobs */
+				$current_status .= sprintf( ' (' . __( '%d skipped', 'translatesense' ) . ')', $skipped_jobs );
+			}
+		} elseif ( 'skipped' === $overall_status ) {
+			$current_status = __( 'Batch translations skipped.', 'translatesense' );
 		} elseif ( 'failed' === $overall_status ) {
 			$current_status = __( 'Batch translation failed.', 'translatesense' );
 		} elseif ( $running_jobs > 0 ) {
 			/* translators: 1: Completed jobs count, 2: Total jobs count */
-			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + $already_exists_jobs + 1, $total_jobs );
+			$current_status = sprintf( __( 'Processing (%1$d/%2$d jobs)...', 'translatesense' ), $completed_jobs + $already_exists_jobs + $skipped_jobs + 1, $total_jobs );
 		}
 
 		return array(
@@ -683,10 +858,123 @@ class Bulk_Process {
 			'failed_jobs'         => $failed_jobs,
 			'running_jobs'        => $running_jobs,
 			'pending_jobs'        => $pending_jobs,
+			'skipped_jobs'        => $skipped_jobs,
 			'total_strings'       => $total_strings,
 			'completed_strings'   => $completed_strings,
 			'pending_strings'     => $pending_strings,
 			'items'               => $items,
+		);
+	}
+
+	/**
+	 * Skip pending and record cancellation for running background translations of a specific post in a batch.
+	 *
+	 * Restricted strictly to OpenAI and Gemini server-side background translation jobs.
+	 *
+	 * @param string $batch_id Batch UUID.
+	 * @param int    $post_id  Source Post ID.
+	 * @return array|WP_Error
+	 */
+	public static function skip_post_in_batch( string $batch_id, int $post_id ) {
+		global $wpdb;
+		$table = self::get_table_name_internal();
+
+		if ( empty( $batch_id ) || $post_id <= 0 ) {
+			return new WP_Error(
+				'invalid_parameters',
+				__( 'Invalid batch ID or post ID provided.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Verify job records exist for this batch and post
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$jobs = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$batch_id,
+				$post_id
+			),
+			ARRAY_A
+		);
+
+		if ( empty( $jobs ) ) {
+			return new WP_Error(
+				'jobs_not_found',
+				__( 'No translation jobs found for the specified batch and post.', 'translatesense' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		// Validate provider: MUST be OpenAI or Gemini server-side background provider
+		foreach ( $jobs as $j ) {
+			$prov = strtolower( (string) $j['provider'] );
+			if ( ! in_array( $prov, array( 'openai', 'gemini' ), true ) ) {
+				return new WP_Error(
+					'unsupported_provider',
+					__( 'Skip functionality is only available for OpenAI and Google Gemini background translations.', 'translatesense' ),
+					array( 'status' => 400 )
+				);
+			}
+		}
+
+		// Check if any job is pending or running
+		$has_active = false;
+		foreach ( $jobs as $j ) {
+			if ( in_array( $j['status'], array( 'pending', 'running' ), true ) ) {
+				$has_active = true;
+				break;
+			}
+		}
+
+		if ( ! $has_active ) {
+			return new WP_Error(
+				'no_active_jobs',
+				__( 'No pending or running translation jobs remain to skip for this post.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$now = current_time( 'mysql' );
+
+		// 1. Atomically update all pending jobs for this post & batch to skipped
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$skipped_count = (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE batch_id = %s AND post_id = %d AND status = 'pending' AND provider IN ('openai', 'gemini')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				__( 'Skipped by user', 'translatesense' ),
+				$now,
+				$batch_id,
+				$post_id
+			)
+		);
+
+		// 2. Atomically record cancellation request for active running job
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$cancelling_count = (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET status = 'cancelling', progress_status = %s, updated_at = %s WHERE batch_id = %s AND post_id = %d AND status = 'running' AND provider IN ('openai', 'gemini')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				__( 'Cancellation requested...', 'translatesense' ),
+				$now,
+				$batch_id,
+				$post_id
+			)
+		);
+
+		// If no active jobs left, unschedule cron
+		self::unschedule_cron_if_idle();
+
+		// Return updated batch status
+		$updated_status = self::get_batch_status( $batch_id );
+
+		return array(
+			'success'          => true,
+			'message'          => __( 'Translations skipped successfully.', 'translatesense' ),
+			'batch_id'         => $batch_id,
+			'post_id'          => $post_id,
+			'skipped_count'    => $skipped_count,
+			'cancelling_count' => $cancelling_count,
+			'batch_status'     => $updated_status,
 		);
 	}
 }

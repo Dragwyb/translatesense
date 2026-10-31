@@ -80,10 +80,12 @@
     switch (status) {
       case 'completed':
       case 'already_exists':
+      case 'skipped':
         return 100;
 
       case 'running':
       case 'processing':
+      case 'cancelling':
         return totalStrings > 0
           ? Math.min(100, Math.max(0, (completedStrings / totalStrings) * 100))
           : 0;
@@ -95,12 +97,12 @@
       default:
         return status === 'failed'
           ? Math.min(
-              100,
-              Math.max(
-                0,
-                totalStrings > 0 ? (completedStrings / totalStrings) * 100 : 0
-              )
+            100,
+            Math.max(
+              0,
+              totalStrings > 0 ? (completedStrings / totalStrings) * 100 : 0
             )
+          )
           : 0;
     }
   }
@@ -189,6 +191,751 @@
       return ids;
     }
 
+    let globalRunningPollingTimer = null;
+    let inModalPollingTimer = null;
+    let activeBatchesPollTimeout = null;
+    let isActiveBatchesFetching = false;
+    let hasActiveBackgroundBatches = Boolean(config.hasActiveBackgroundJobs);
+    let activeBackgroundBatchesList = [];
+
+    // Helper: Safely escape HTML strings
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /**
+     * Stop background active batches polling timer.
+     */
+    function stopActiveBatchesPolling() {
+      if (activeBatchesPollTimeout) {
+        clearTimeout(activeBatchesPollTimeout);
+        activeBatchesPollTimeout = null;
+      }
+    }
+
+    /**
+     * Sequentially query bulk-active-batches endpoint.
+     * Before triggering next polling, wait for previous one to finish.
+     * If active batches found, start/continue sequential polling.
+     * If no active batches found, stop this polling interval.
+     */
+    async function checkHasActiveBackgroundJobs() {
+      if (isActiveBatchesFetching) {
+        return hasActiveBackgroundBatches;
+      }
+      isActiveBatchesFetching = true;
+
+      try {
+        const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+        const nonce = config.nonce || '';
+        const res = await fetch(`${restUrl}bulk-active-batches`, {
+          headers: { 'X-WP-Nonce': nonce },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const batches = Array.isArray(data.batches) ? data.batches : [];
+          activeBackgroundBatchesList = batches;
+          hasActiveBackgroundBatches = batches.length > 0;
+
+          // Update Previous Background Translation Notice (Workflow A) if present in DOM
+          const noticeEl = document.getElementById('ts-previous-active-notice');
+          if (noticeEl) {
+            noticeEl.style.display = hasActiveBackgroundBatches ? 'flex' : 'none';
+          }
+
+          // If active batches found: schedule next poll sequentially (wait for completion before next poll)
+          if (hasActiveBackgroundBatches) {
+            stopActiveBatchesPolling();
+            activeBatchesPollTimeout = setTimeout(function () {
+              checkHasActiveBackgroundJobs();
+            }, 5000);
+          } else {
+            // If not active batches found then stop this polling interval
+            stopActiveBatchesPolling();
+          }
+        } else {
+          stopActiveBatchesPolling();
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Error checking active batches:', err);
+        stopActiveBatchesPolling();
+      } finally {
+        isActiveBatchesFetching = false;
+      }
+
+      return hasActiveBackgroundBatches;
+    }
+
+    // Trigger bulk-active-batches on window load
+    window.addEventListener('load', function () {
+      checkHasActiveBackgroundJobs();
+    });
+    // Also trigger on first time script initialization
+    checkHasActiveBackgroundJobs();
+
+    // Modal Confirmation Dialog for Skip Action
+    function showSkipConfirmationDialog(batchId, postId, onSkippedCallback) {
+      const oldDialog = document.getElementById('ts-skip-dialog-overlay');
+      if (oldDialog) oldDialog.remove();
+
+      const dialogEl = document.createElement('div');
+      dialogEl.id = 'ts-skip-dialog-overlay';
+      dialogEl.className = 'ts-skip-dialog-overlay';
+      dialogEl.innerHTML = `
+        <div class="ts-skip-dialog-box">
+          <div class="ts-skip-dialog-header">
+            <span class="dashicons dashicons-warning ts-skip-warn-icon"></span>
+            <h3 class="ts-skip-dialog-title">Skip remaining translations?</h3>
+          </div>
+          <div class="ts-skip-dialog-body">
+            <p>This will skip the remaining pending translations for this post in the selected batch. Completed translations will not be affected.</p>
+          </div>
+          <div class="ts-skip-dialog-footer">
+            <button type="button" class="button button-secondary" id="ts-skip-cancel-btn">Keep Translating</button>
+            <button type="button" class="button button-primary button-danger ts-skip-confirm-btn" id="ts-skip-confirm-btn">Skip Remaining Translations</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(dialogEl);
+
+      const cancelBtn = document.getElementById('ts-skip-cancel-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function () {
+          dialogEl.remove();
+        });
+      }
+
+      dialogEl.addEventListener('click', function (e) {
+        if (e.target === dialogEl) {
+          dialogEl.remove();
+        }
+      });
+
+      const confirmBtn = document.getElementById('ts-skip-confirm-btn');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', async function () {
+          confirmBtn.disabled = true;
+          confirmBtn.innerHTML = '<span class="ts-spinner-circle"></span> Skipping...';
+
+          try {
+            const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+            const nonce = config.nonce || '';
+            const res = await fetch(`${restUrl}bulk-skip-post`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': nonce,
+              },
+              body: JSON.stringify({
+                batch_id: batchId,
+                post_id: parseInt(postId, 10),
+              }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.message || 'Failed to skip translations');
+            }
+
+            dialogEl.remove();
+
+            if (typeof onSkippedCallback === 'function') {
+              onSkippedCallback(data);
+            }
+          } catch (err) {
+            alert(err.message || 'Failed to skip translations');
+            dialogEl.remove();
+          }
+        });
+      }
+    }
+
+    // Workflow B: Previously Running Translations Progress Workflow
+    async function openPreviouslyRunningModal(targetBatchId = null) {
+      if (globalRunningPollingTimer) {
+        clearInterval(globalRunningPollingTimer);
+        globalRunningPollingTimer = null;
+      }
+
+      const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
+      const nonce = config.nonce || '';
+      const allLanguages = config.languages || [];
+
+      let root = document.getElementById('translatesense-bulk-modal-root');
+      if (!root) {
+        root = document.createElement('div');
+        root.id = 'translatesense-bulk-modal-root';
+        document.body.appendChild(root);
+      }
+
+      // Fetch active background batches
+      let activeBatches = [];
+      try {
+        const res = await fetch(`${restUrl}bulk-active-batches`, {
+          headers: { 'X-WP-Nonce': nonce },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          activeBatches = data.batches || [];
+        }
+      } catch (err) {
+        console.warn('[TranslateSense] Error fetching active batches:', err);
+      }
+
+      if (activeBatches.length === 0 && targetBatchId) {
+        try {
+          const res = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(targetBatchId)}`, {
+            headers: { 'X-WP-Nonce': nonce },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.items) activeBatches = [data];
+          }
+        } catch (e) { }
+      }
+
+      if (activeBatches.length === 0) {
+        root.innerHTML = `
+          <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
+            <div class="ts-bulk-modal">
+              ${core.createHeaderHTML({
+          icon: '⚡',
+          title: 'Background Translation Monitor',
+          subtitle: 'No active background translations',
+          closeId: 'ts-bulk-close-btn',
+        })}
+              <div class="ts-bulk-body" style="padding: 30px; text-align: center;">
+                <p style="font-size: 14px; color: #475569;">There are no previously running background translations active at this time.</p>
+              </div>
+              ${core.createFooterHTML({
+          id: 'ts-footer-empty',
+          buttons: [
+            { id: 'ts-bulk-done-btn', label: 'Close', variant: 'primary' }
+          ]
+        })}
+            </div>
+          </div>
+        `;
+        const closeBtn = document.getElementById('ts-bulk-close-btn');
+        if (closeBtn) closeBtn.onclick = () => { root.innerHTML = ''; checkHasActiveBackgroundJobs(); };
+        const doneBtn = document.getElementById('ts-bulk-done-btn');
+        if (doneBtn) doneBtn.onclick = () => { root.innerHTML = ''; checkHasActiveBackgroundJobs(); };
+        const overlayEl = document.getElementById('ts-bulk-modal-overlay');
+        if (overlayEl) overlayEl.onclick = (e) => { if (e.target === overlayEl) { root.innerHTML = ''; checkHasActiveBackgroundJobs(); } };
+        return;
+      }
+
+      let currentBatch = targetBatchId
+        ? (activeBatches.find((b) => b.batch_id === targetBatchId) || activeBatches[0])
+        : activeBatches[0];
+
+      let runningPostResultsMap = {};
+      let runningExpandedPosts = {};
+
+      function populateRunningMap(batchData) {
+        if (!Array.isArray(batchData.items)) return;
+        batchData.items.forEach(function (item) {
+          const pId = String(item.post_id);
+          const tLang = String(item.target_language);
+
+          if (!runningPostResultsMap[pId]) {
+            runningPostResultsMap[pId] = {
+              postId: item.post_id,
+              postTitle: item.post_title || `Post #${item.post_id}`,
+              provider: item.provider,
+              translations: {},
+            };
+          }
+          if (item.post_title) runningPostResultsMap[pId].postTitle = item.post_title;
+          if (item.provider) runningPostResultsMap[pId].provider = item.provider;
+
+          runningPostResultsMap[pId].translations[tLang] = {
+            targetLang: item.target_language,
+            targetPostId: item.target_post_id,
+            targetTitle: item.target_post_title || (item.status === 'already_exists' || item.status === 'completed' ? (item.target_post_title || item.post_title) : (item.progress_status || 'Processing...')),
+            editorType: item.editor_type,
+            status: item.status,
+            completedStrings: item.completed_strings,
+            totalStrings: item.total_strings,
+            progressPercent: getPostProgress(item),
+            progressStatus: item.progress_status || '',
+            editUrl: item.edit_url || (item.target_post_id ? `post.php?post=${item.target_post_id}&action=edit` : ''),
+            viewUrl: item.view_url || (item.target_post_id ? `/?p=${item.target_post_id}` : ''),
+            error: item.error_message,
+            provider: item.provider,
+          };
+        });
+      }
+
+      populateRunningMap(currentBatch);
+
+      const initialPct = currentBatch.items && currentBatch.items.length > 0
+        ? Math.round(getOverallProgress(currentBatch.items))
+        : Math.round(currentBatch.progress_percent || 0);
+
+      const initialDone = (currentBatch.completed_jobs || 0) + (currentBatch.already_exists_jobs || 0) + (currentBatch.skipped_jobs || 0);
+
+      root.innerHTML = `
+        <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
+          <div class="ts-bulk-modal">
+            ${core.createHeaderHTML({
+        icon: '⚡',
+        title: 'Previously Running Background Translations',
+        subtitle: 'Monitor and manage active background translation jobs',
+        closeId: 'ts-bulk-close-btn',
+      })}
+            
+            <div class="ts-bulk-body">
+              ${activeBatches.length > 1 ? `
+                <div class="ts-batch-select-wrap">
+                  <label for="ts-batch-select"><strong>Background Batch:</strong></label>
+                  <select id="ts-batch-select" class="ts-batch-select">
+                    ${activeBatches.map((b) => `
+                      <option value="${b.batch_id}" ${b.batch_id === currentBatch.batch_id ? 'selected' : ''}>
+                        Batch ${b.batch_id.substring(0, 8)}... (${(b.completed_jobs || 0) + (b.already_exists_jobs || 0) + (b.skipped_jobs || 0)}/${b.total_jobs} done, ${b.overall_status})
+                      </option>
+                    `).join('')}
+                  </select>
+                </div>
+              ` : ''}
+
+              <!-- Progress Bar Card -->
+              <div class="ts-progress-card" id="ts-running-progress-card">
+                <div class="ts-progress-header">
+                  <span class="ts-progress-status" id="ts-running-progress-status">${escapeHtml(currentBatch.current_status || 'Translating content in background...')}</span>
+                  <div class="ts-progress-meta">
+                    <span id="ts-running-posts-count">${initialDone} / ${currentBatch.total_jobs} posts (${initialPct}%)</span>
+                  </div>
+                </div>
+                <div class="ts-progress-bar-bg" id="ts-running-progress-bar-bg">
+                  <div class="ts-progress-bar-fill" id="ts-running-progress-bar-fill" style="width: ${initialPct}%;"></div>
+                </div>
+              </div>
+
+              <!-- Summary Stats Grid -->
+              <div class="ts-summary-stats-grid" id="ts-running-stats-grid" style="display: grid; margin-bottom: 16px;">
+                <div class="ts-stat-card green">
+                  <div class="ts-stat-icon-box green">
+                    <span class="dashicons dashicons-yes-alt"></span>
+                  </div>
+                  <div class="ts-stat-info">
+                    <div class="ts-stat-label">Completed Posts</div>
+                    <div class="ts-stat-val" id="ts-running-stat-completed">${(currentBatch.completed_jobs || 0) + (currentBatch.already_exists_jobs || 0)} / ${currentBatch.total_jobs}</div>
+                  </div>
+                </div>
+
+                <div class="ts-stat-card blue">
+                  <div class="ts-stat-icon-box blue">
+                    <span class="dashicons dashicons-update"></span>
+                  </div>
+                  <div class="ts-stat-info">
+                    <div class="ts-stat-label">Pending / Running</div>
+                    <div class="ts-stat-val" id="ts-running-stat-pending">${(currentBatch.running_jobs || 0) + (currentBatch.pending_jobs || 0)}</div>
+                  </div>
+                </div>
+
+                <div class="ts-stat-card gray">
+                  <div class="ts-stat-icon-box gray">
+                    <span class="dashicons dashicons-controls-skipforward"></span>
+                  </div>
+                  <div class="ts-stat-info">
+                    <div class="ts-stat-label">Skipped Posts</div>
+                    <div class="ts-stat-val" id="ts-running-stat-skipped">${currentBatch.skipped_jobs || 0}</div>
+                  </div>
+                </div>
+
+                <div class="ts-stat-card red">
+                  <div class="ts-stat-icon-box red">
+                    <span class="dashicons dashicons-dismiss"></span>
+                  </div>
+                  <div class="ts-stat-info">
+                    <div class="ts-stat-label">Failed Posts</div>
+                    <div class="ts-stat-val" id="ts-running-stat-failed">${currentBatch.failed_jobs || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Post Accordion Group List -->
+              <div class="ts-results-container" id="ts-running-results-container">
+                <div class="ts-results-list" id="ts-running-results-list"></div>
+              </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="ts-common-footer ts-review-footer" id="ts-running-footer" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-running-back-new-btn">
+                  &larr; New Translation
+                </button>
+              </div>
+              <div class="ts-footer-buttons-group">
+                <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-running-done-btn">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const runningResultsListEl = document.getElementById('ts-running-results-list');
+
+      function updateRunningProgressCards(bStatus) {
+        const barFill = document.getElementById('ts-running-progress-bar-fill');
+        const postsCount = document.getElementById('ts-running-posts-count');
+        const statusEl = document.getElementById('ts-running-progress-status');
+        const statComp = document.getElementById('ts-running-stat-completed');
+        const statPend = document.getElementById('ts-running-stat-pending');
+        const statSkip = document.getElementById('ts-running-stat-skipped');
+        const statFail = document.getElementById('ts-running-stat-failed');
+
+        const pct = Array.isArray(bStatus.items) && bStatus.items.length > 0
+          ? Math.round(getOverallProgress(bStatus.items))
+          : Math.round(bStatus.progress_percent || 0);
+
+        const doneTotal = (bStatus.completed_jobs || 0) + (bStatus.already_exists_jobs || 0) + (bStatus.skipped_jobs || 0);
+
+        if (barFill) barFill.style.width = pct + '%';
+        if (postsCount) postsCount.textContent = `${doneTotal} / ${bStatus.total_jobs} posts (${pct}%)`;
+        if (statusEl) statusEl.textContent = bStatus.current_status || `Processing background translations... (${pct}%)`;
+
+        if (statComp) statComp.textContent = `${(bStatus.completed_jobs || 0) + (bStatus.already_exists_jobs || 0)} / ${bStatus.total_jobs}`;
+        if (statPend) statPend.textContent = `${(bStatus.running_jobs || 0) + (bStatus.pending_jobs || 0)}`;
+        if (statSkip) statSkip.textContent = `${bStatus.skipped_jobs || 0}`;
+        if (statFail) statFail.textContent = `${bStatus.failed_jobs || 0}`;
+      }
+
+      function renderRunningResultsUI() {
+        if (!runningResultsListEl) return;
+
+        let html = '';
+        const postIdsList = Object.keys(runningPostResultsMap);
+
+        postIdsList.forEach(function (pId) {
+          const postData = runningPostResultsMap[pId];
+          const transKeys = Object.keys(postData.translations);
+
+          let compCount = 0;
+          let failCount = 0;
+          let runCount = 0;
+          let pendCount = 0;
+          let skipCount = 0;
+
+          transKeys.forEach(function (langSlug) {
+            const trans = postData.translations[langSlug];
+            if (trans.status === 'completed' || trans.status === 'already_exists') {
+              compCount++;
+            } else if (trans.status === 'skipped') {
+              skipCount++;
+            } else if (trans.status === 'failed') {
+              failCount++;
+            } else if (trans.status === 'running' || trans.status === 'cancelling') {
+              runCount++;
+            } else {
+              pendCount++;
+            }
+          });
+
+          // Post header pill
+          let headerStatusHtml = '';
+          if (failCount > 0) {
+            headerStatusHtml = `<span class="ts-post-status-pill failed"><span class="dashicons dashicons-dismiss"></span> Failed (${failCount})</span>`;
+          } else if (runCount > 0) {
+            headerStatusHtml = '<span class="ts-post-status-pill in-progress"><span class="ts-dots-spinner"></span> In Progress</span>';
+          } else if (skipCount > 0 && (skipCount + compCount === transKeys.length) && compCount === 0) {
+            headerStatusHtml = '<span class="ts-post-status-pill skipped"><span class="dashicons dashicons-controls-skipforward"></span> Skipped</span>';
+          } else if (compCount === transKeys.length) {
+            headerStatusHtml = '<span class="ts-post-status-pill completed"><span class="dashicons dashicons-yes"></span> Completed</span>';
+          }
+
+          // Skip action button: Strictly visible ONLY in Previously Running Translations Progress View
+          // and ONLY for eligible OpenAI or Gemini background jobs with pending or running items.
+          let postSkipBtnHtml = '';
+          const hasActiveJobs = (runCount > 0 || pendCount > 0);
+          const prov = (postData.provider || currentBatch.provider || '').toLowerCase();
+          const isEligibleProvider = (prov === 'openai' || prov === 'gemini');
+          if (isEligibleProvider && hasActiveJobs) {
+            postSkipBtnHtml = `<button type="button" class="ts-post-skip-btn button button-small" data-post-id="${escapeHtml(pId)}" data-batch-id="${escapeHtml(currentBatch.batch_id)}" title="Skip remaining translations for this post in this batch"><span class="dashicons dashicons-controls-skipforward"></span> Skip</button>`;
+          }
+
+          let isExpanded = true;
+          if (runningExpandedPosts[pId] !== undefined) {
+            isExpanded = runningExpandedPosts[pId];
+          }
+
+          html += `
+            <div class="ts-post-group-card ${isExpanded ? 'expanded' : ''}" data-post-id="${pId}">
+              <div class="ts-post-group-header">
+                <div class="ts-post-source-info">
+                  <div class="ts-post-icon-box">
+                    <span class="dashicons dashicons-media-text"></span>
+                  </div>
+                  <span class="ts-source-title-text">${escapeHtml(postData.postTitle || `Post #${pId}`)}</span>
+                  <span class="ts-post-id-tag">#${pId}</span>
+                </div>
+                <div class="ts-post-header-right">
+                  ${postSkipBtnHtml}
+                  ${headerStatusHtml}
+                  <span class="ts-post-chevron dashicons dashicons-arrow-down-alt2"></span>
+                </div>
+              </div>
+              <div class="ts-post-translations-list">
+          `;
+
+          transKeys.forEach(function (langSlug) {
+            const trans = postData.translations[langSlug];
+            const isAlreadyExists = trans.status === 'already_exists';
+            const isDone = trans.status === 'completed';
+            const isFail = trans.status === 'failed' || Boolean(trans.error);
+            const isRunning = trans.status === 'running';
+            const isSkipped = trans.status === 'skipped';
+            const isCancelling = trans.status === 'cancelling';
+
+            const langUpper = langSlug.toUpperCase();
+            const langObj = allLanguages.find(function (l) { return l.slug === langSlug; });
+
+            let rowStatusHtml = '';
+            if (isAlreadyExists || isDone) {
+              rowStatusHtml = '<span class="ts-row-status completed"><span class="dashicons dashicons-yes-alt"></span> Completed</span>';
+            } else if (isSkipped) {
+              rowStatusHtml = '<span class="ts-row-status skipped"><span class="dashicons dashicons-controls-skipforward"></span> Skipped</span>';
+            } else if (isCancelling) {
+              rowStatusHtml = '<span class="ts-row-status cancelling"><span class="ts-spinner-circle"></span> Cancelling...</span>';
+            } else if (isFail) {
+              rowStatusHtml = '<span class="ts-row-status failed"><span class="dashicons dashicons-dismiss"></span> Failed</span>';
+            } else if (isRunning) {
+              rowStatusHtml = `<span class="ts-row-status translating">
+                  <span class="ts-spinner-circle"></span>
+                  <span class="ts-translating-label">Translating</span>
+                  <span class="ts-ellipsis-dots">
+                    <span class="ts-dot"></span>
+                    <span class="ts-dot"></span>
+                    <span class="ts-dot"></span>
+                  </span>
+                </span>`;
+            } else {
+              rowStatusHtml = '<span class="ts-row-status pending"><span class="dashicons dashicons-clock"></span> Pending...</span>';
+            }
+
+            const isAvailable = isDone || isAlreadyExists;
+            const editHref = trans.editUrl || '#';
+            const viewHref = trans.viewUrl || '#';
+
+            let actionsHtml = '';
+            if (isAvailable) {
+              actionsHtml += `<a href="${viewHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn view" title="View translated post on site"><span class="dashicons dashicons-visibility"></span> View</a>`;
+              actionsHtml += `<a href="${editHref}" target="_blank" rel="noopener noreferrer" class="ts-row-action-btn edit" title="Edit translated post"><span class="dashicons dashicons-edit"></span> Edit</a>`;
+            } else {
+              actionsHtml += `<span class="ts-row-action-btn view disabled"><span class="dashicons dashicons-visibility"></span> View</span>`;
+              actionsHtml += `<span class="ts-row-action-btn edit disabled"><span class="dashicons dashicons-edit"></span> Edit</span>`;
+            }
+
+            const displayTitle = trans.targetTitle
+              || (isAlreadyExists || isDone ? (trans.targetTitle || postData.postTitle)
+                : (isSkipped || isFail ? (postData.postTitle || `Post #${pId}`)
+                  : (isRunning ? 'Translating content...'
+                    : (postData.postTitle || `Post #${pId}`))));
+
+            html += `
+              <div class="ts-translation-item ${trans.status}">
+                <div class="ts-trans-lang-col">
+                  <span class="ts-trans-lang-flag">${getLanguageFlagHtml(langObj || langSlug, allLanguages)}</span>
+                  <span class="ts-trans-lang-code">${langUpper}</span>
+                </div>
+                <div class="ts-trans-title-col">
+                  <span class="ts-trans-title-text" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</span>
+                </div>
+                <div class="ts-trans-status-col">
+                  ${rowStatusHtml}
+                </div>
+                <div class="ts-trans-actions-col">
+                  ${actionsHtml}
+                </div>
+              </div>
+            `;
+          });
+
+          html += `
+              </div>
+            </div>
+          `;
+        });
+
+        runningResultsListEl.innerHTML = html;
+      }
+
+      renderRunningResultsUI();
+
+      // Header click for expand/collapse (ignores Skip button and action links)
+      runningResultsListEl.addEventListener('click', function (e) {
+        if (e.target.closest('.ts-post-skip-btn') || e.target.closest('.ts-row-action-btn')) {
+          return;
+        }
+        const header = e.target.closest('.ts-post-group-header');
+        if (header) {
+          const card = header.closest('.ts-post-group-card');
+          if (card) {
+            const pId = card.getAttribute('data-post-id');
+            card.classList.toggle('expanded');
+            runningExpandedPosts[pId] = card.classList.contains('expanded');
+          }
+        }
+      });
+
+      // Skip button click handler inside Workflow B
+      runningResultsListEl.addEventListener('click', function (e) {
+        const skipBtn = e.target.closest('.ts-post-skip-btn');
+        if (skipBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const pId = skipBtn.getAttribute('data-post-id');
+          const bId = skipBtn.getAttribute('data-batch-id');
+          if (!pId || !bId) return;
+
+          showSkipConfirmationDialog(bId, pId, function (data) {
+            const pIdStr = String(pId);
+            if (runningPostResultsMap[pIdStr] && runningPostResultsMap[pIdStr].translations) {
+              Object.keys(runningPostResultsMap[pIdStr].translations).forEach(function (lang) {
+                const t = runningPostResultsMap[pIdStr].translations[lang];
+                if (t.status === 'pending') {
+                  t.status = 'skipped';
+                  t.progressStatus = 'Skipped by user';
+                } else if (t.status === 'running') {
+                  t.status = 'cancelling';
+                  t.progressStatus = 'Cancellation requested...';
+                }
+              });
+            }
+
+            if (data && data.batch_status) {
+              updateRunningProgressCards(data.batch_status);
+            }
+
+            renderRunningResultsUI();
+          });
+        }
+      });
+
+      // Batch selector change listener
+      const batchSelectEl = document.getElementById('ts-batch-select');
+      if (batchSelectEl) {
+        batchSelectEl.addEventListener('change', function () {
+          const newBatchId = this.value;
+          if (globalRunningPollingTimer) {
+            clearInterval(globalRunningPollingTimer);
+            globalRunningPollingTimer = null;
+          }
+          openPreviouslyRunningModal(newBatchId);
+        });
+      }
+
+      // Close button
+      const closeBtn = document.getElementById('ts-bulk-close-btn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function () {
+          if (globalRunningPollingTimer) {
+            clearTimeout(globalRunningPollingTimer);
+            globalRunningPollingTimer = null;
+          }
+          root.innerHTML = '';
+          checkHasActiveBackgroundJobs();
+        });
+      }
+
+      // Done button
+      const doneBtn = document.getElementById('ts-running-done-btn');
+      if (doneBtn) {
+        doneBtn.addEventListener('click', function () {
+          if (globalRunningPollingTimer) {
+            clearTimeout(globalRunningPollingTimer);
+            globalRunningPollingTimer = null;
+          }
+          root.innerHTML = '';
+          checkHasActiveBackgroundJobs();
+        });
+      }
+
+      // Modal overlay click
+      const runningOverlay = document.getElementById('ts-running-modal-overlay');
+      if (runningOverlay) {
+        runningOverlay.addEventListener('click', function (e) {
+          if (e.target === runningOverlay) {
+            if (globalRunningPollingTimer) {
+              clearTimeout(globalRunningPollingTimer);
+              globalRunningPollingTimer = null;
+            }
+            root.innerHTML = '';
+            checkHasActiveBackgroundJobs();
+          }
+        });
+      }
+
+      // Back to New Translation button
+      const backNewBtn = document.getElementById('ts-running-back-new-btn');
+      if (backNewBtn) {
+        backNewBtn.addEventListener('click', function () {
+          if (globalRunningPollingTimer) {
+            clearTimeout(globalRunningPollingTimer);
+            globalRunningPollingTimer = null;
+          }
+          const selectedPosts = getSelectedPostIds();
+          if (selectedPosts.length > 0) {
+            openBulkTranslateWizard(selectedPosts);
+          } else {
+            root.innerHTML = '';
+            alert('Please select posts in the table to start a new translation.');
+            checkHasActiveBackgroundJobs();
+          }
+        });
+      }
+
+      // Sequential Polling in Workflow B (waits for previous request to complete)
+      let isPollingRunning = false;
+      const pollRunningBatch = async () => {
+        if (isPollingRunning) return;
+        isPollingRunning = true;
+
+        try {
+          const res = await fetch(`${restUrl}bulk-status?batch_id=${encodeURIComponent(currentBatch.batch_id)}`, {
+            headers: { 'X-WP-Nonce': nonce },
+          });
+
+          if (!res.ok) {
+            globalRunningPollingTimer = setTimeout(pollRunningBatch, 5000);
+            return;
+          }
+
+          const data = await res.json();
+          currentBatch = data;
+          populateRunningMap(data);
+          updateRunningProgressCards(data);
+          renderRunningResultsUI();
+
+          if (data.overall_status === 'completed' || data.overall_status === 'failed' || data.overall_status === 'skipped') {
+            if (globalRunningPollingTimer) {
+              clearTimeout(globalRunningPollingTimer);
+              globalRunningPollingTimer = null;
+            }
+            checkHasActiveBackgroundJobs();
+          } else {
+            globalRunningPollingTimer = setTimeout(pollRunningBatch, 5000);
+          }
+        } catch (pollErr) {
+          console.warn('[TranslateSense] Polling error in Workflow B:', pollErr);
+          globalRunningPollingTimer = setTimeout(pollRunningBatch, 5000);
+        } finally {
+          isPollingRunning = false;
+        }
+      };
+
+      globalRunningPollingTimer = setTimeout(pollRunningBatch, 5000);
+    }
+
     // Direct click on "Bulk Translate" button (top or bottom)
     document.addEventListener('click', async function (e) {
       const target = e.target.closest('.ts-filter-action-btn');
@@ -196,6 +943,14 @@
         e.preventDefault();
         const selectedPosts = getSelectedPostIds();
         if (selectedPosts.length === 0) {
+          let hasActive = hasActiveBackgroundBatches;
+          if (!hasActive) {
+            hasActive = await checkHasActiveBackgroundJobs();
+          }
+          if (hasActive) {
+            await openPreviouslyRunningModal();
+            return false;
+          }
           alert('Please select posts first.');
           return false;
         }
@@ -393,6 +1148,18 @@
       })}
             
             <div class="ts-bulk-body">
+              <!-- Notice for previously running translations (when eligible OpenAI/Gemini jobs are active) -->
+              <div id="ts-previous-active-notice" class="ts-previous-active-notice" style="display: none;">
+                <div class="ts-notice-inner">
+                  <span class="ts-notice-icon">ℹ️</span>
+                  <div class="ts-notice-text">
+                    <span class="ts-notice-title">Background translations running</span>
+                    <span class="ts-notice-desc">Previous translations are currently processing on the server.</span>
+                  </div>
+                </div>
+                <button type="button" class="button button-secondary ts-show-running-btn" id="ts-show-running-posts-btn">Show Running Posts &rarr;</button>
+              </div>
+
               <!-- Step 1 View: Languages -->
               <div id="ts-view-step-1">
                 <div class="ts-step-bar">
@@ -590,9 +1357,46 @@
       const closeBtn = document.getElementById('ts-bulk-close-btn');
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
+          if (inModalPollingTimer) {
+            clearTimeout(inModalPollingTimer);
+            inModalPollingTimer = null;
+          }
           root.innerHTML = '';
           const errModalRoot = document.getElementById('ts-error-modal-root');
           if (errModalRoot) errModalRoot.remove();
+          checkHasActiveBackgroundJobs();
+        });
+      }
+
+      // Modal overlay click handler
+      const modalOverlay = document.getElementById('ts-bulk-modal-overlay');
+      if (modalOverlay) {
+        modalOverlay.addEventListener('click', function (e) {
+          if (e.target === modalOverlay) {
+            if (inModalPollingTimer) {
+              clearTimeout(inModalPollingTimer);
+              inModalPollingTimer = null;
+            }
+            root.innerHTML = '';
+            const errModalRoot = document.getElementById('ts-error-modal-root');
+            if (errModalRoot) errModalRoot.remove();
+            checkHasActiveBackgroundJobs();
+          }
+        });
+      }
+
+      // Check and display Previous Background Translation Notice (Workflow A)
+      checkHasActiveBackgroundJobs().then(function (hasActive) {
+        const noticeEl = document.getElementById('ts-previous-active-notice');
+        if (noticeEl && hasActive) {
+          noticeEl.style.display = 'flex';
+        }
+      });
+
+      const showRunningBtn = document.getElementById('ts-show-running-posts-btn');
+      if (showRunningBtn) {
+        showRunningBtn.addEventListener('click', function () {
+          openPreviouslyRunningModal();
         });
       }
 
@@ -1047,6 +1851,10 @@
                   rowStatusHtml = '<span class="ts-row-status completed"><span class="dashicons dashicons-yes-alt"></span> Completed</span>';
                 } else if (isDone) {
                   rowStatusHtml = '<span class="ts-row-status completed"><span class="dashicons dashicons-yes-alt"></span> Completed</span>';
+                } else if (trans.status === 'skipped') {
+                  rowStatusHtml = '<span class="ts-row-status skipped"><span class="dashicons dashicons-controls-skipforward"></span> Skipped</span>';
+                } else if (trans.status === 'cancelling') {
+                  rowStatusHtml = '<span class="ts-row-status cancelling"><span class="ts-spinner-circle"></span> Cancelling...</span>';
                 } else if (isFail) {
                   const isUnsupported = trans.error && (trans.error.toLowerCase().includes('not supported') || trans.error.toLowerCase().includes('unavailable') || trans.error.toLowerCase().includes('requires a user'));
                   const failText = isUnsupported ? 'Language not supported' : 'Failed';
@@ -1793,8 +2601,14 @@
           if (!isChromeAi) {
             if (statusText) statusText.textContent = 'Background bulk translation queued. Polling status every 5 seconds...';
 
+            // Trigger bulk-active-batches tracking for OpenAI / Gemini
+            checkHasActiveBackgroundJobs();
 
-            let pollingTimer = null;
+            if (inModalPollingTimer) {
+              clearTimeout(inModalPollingTimer);
+              inModalPollingTimer = null;
+            }
+
             let isRunning = false;
             const pollStatus = async () => {
               if (isRunning) return;
@@ -1806,7 +2620,7 @@
                 });
 
                 if (!statusRes.ok) {
-                  isRunning = false;
+                  inModalPollingTimer = setTimeout(pollStatus, 5000);
                   return;
                 }
 
@@ -1821,8 +2635,6 @@
                   postsCountEl.textContent = `${doneCount} / ${data.total_jobs || (postIds.length * selectedTargetLangs.length)} posts (${pct}%)`;
                 }
                 if (statusText) statusText.textContent = data.current_status || `Translating content with ${providerName}... (${pct}%)`;
-
-
 
                 // Update Grouped Results Map from Polling Items
                 if (Array.isArray(data.items)) {
@@ -1858,37 +2670,45 @@
                 }
 
                 // Check Completion
-                if (data.overall_status === 'completed' || data.overall_status === 'failed') {
-                  clearInterval(pollingTimer);
-                  pollingTimer = null;
+                if (data.overall_status === 'completed' || data.overall_status === 'failed' || data.overall_status === 'skipped') {
+                  if (inModalPollingTimer) {
+                    clearTimeout(inModalPollingTimer);
+                    inModalPollingTimer = null;
+                  }
                   const isDone = data.overall_status === 'completed';
                   const existsCount = data.already_exists_jobs || 0;
                   const doneCount = data.completed_jobs || 0;
+                  const skipCount = data.skipped_jobs || 0;
                   let msg = '';
-                  if (isDone) {
+                  if (data.overall_status === 'skipped') {
+                    msg = `Batch translation skipped (${skipCount} skipped).`;
+                  } else if (isDone) {
                     if (existsCount > 0 && doneCount > 0) {
-                      msg = `🎉 Bulk Translation Complete! (${doneCount} translated, ${existsCount} already existed)`;
+                      msg = `🎉 Bulk Translation Complete! (${doneCount} translated, ${existsCount} already existed${skipCount > 0 ? `, ${skipCount} skipped` : ''})`;
                     } else if (existsCount > 0 && doneCount === 0) {
                       msg = `ℹ️ All ${existsCount} translation(s) already exist.`;
                     } else {
-                      msg = `🎉 Bulk Translation Complete! (${doneCount}/${data.total_jobs} posts translated)`;
+                      msg = `🎉 Bulk Translation Complete! (${doneCount}/${data.total_jobs} posts translated${skipCount > 0 ? `, ${skipCount} skipped` : ''})`;
                     }
                   } else {
                     msg = `Batch translation completed with issues (${data.failed_jobs} failed).`;
                   }
-                  onBulkProgressComplete(isDone, msg, (doneCount + existsCount), data.total_jobs);
+                  onBulkProgressComplete(isDone, msg, (doneCount + existsCount + skipCount), data.total_jobs);
+                  checkHasActiveBackgroundJobs();
+                } else {
+                  // Wait for complete previous one before next polling
+                  inModalPollingTimer = setTimeout(pollStatus, 5000);
                 }
-
-                isRunning = false;
               } catch (pollErr) {
                 console.warn('[TranslateSense] Polling error:', pollErr);
+                inModalPollingTimer = setTimeout(pollStatus, 5000);
+              } finally {
                 isRunning = false;
               }
             };
 
-            // First poll immediately, then every 5 seconds
+            // Start sequential polling immediately
             pollStatus();
-            pollingTimer = setInterval(pollStatus, 5000);
             return;
           }
 

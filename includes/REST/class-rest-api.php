@@ -467,6 +467,50 @@ class Rest_Api {
 		);
 
 		/*
+		 * 11b. Bulk translation skip post jobs.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-skip-post',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_skip_post' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_skip' ),
+				'args'                => array(
+					'batch_id' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $value ) {
+							return '' !== trim( (string) $value );
+						},
+					),
+					'post_id'  => array(
+						'required'          => true,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+						'validate_callback' => static function ( $value ) {
+							return absint( $value ) > 0;
+						},
+					),
+				),
+			)
+		);
+
+		/*
+		 * 11c. Get active background translation batches.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-active-batches',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'bulk_active_batches' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_active_batches' ),
+			)
+		);
+
+		/*
 		 * 12. Mark post as translated.
 		 */
 		register_rest_route(
@@ -1345,6 +1389,137 @@ class Rest_Api {
 		);
 
 		return $expected_target_id === $target_post_id;
+	}
+
+	/**
+	 * Permission: GET /bulk-active-batches.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_active_batches( WP_REST_Request $request ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return self::permission_error(
+				__( 'You are not allowed to view active translation batches.', 'translatesense' )
+			);
+		}
+		return true;
+	}
+
+	/**
+	 * Permission: POST /bulk-skip-post.
+	 *
+	 * Validates:
+	 * - batch_id and post_id.
+	 * - User capability for the source post and any target posts.
+	 * - Provider is strictly OpenAI or Gemini.
+	 * - Current job status: must have at least one pending or running job.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_skip( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+
+		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
+		if ( '' === $batch_id && is_array( $params ) && ! empty( $params['batch_id'] ) ) {
+			$batch_id = sanitize_text_field( (string) $params['batch_id'] );
+		}
+
+		$post_id = absint( $request->get_param( 'post_id' ) );
+		if ( ! $post_id && is_array( $params ) && ! empty( $params['post_id'] ) ) {
+			$post_id = absint( $params['post_id'] );
+		}
+
+		if ( '' === $batch_id || ! $post_id ) {
+			return self::permission_error(
+				__( 'A valid batch ID and post ID are required.', 'translatesense' ),
+				'rest_invalid_params',
+				400
+			);
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return self::permission_error(
+				__( 'The requested post could not be found.', 'translatesense' ),
+				'rest_post_not_found',
+				404
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return self::permission_error(
+				__( 'You are not allowed to modify translations for this post.', 'translatesense' )
+			);
+		}
+
+		global $wpdb;
+		$table = Bulk_Process::get_table_name();
+
+		if ( ! is_string( $table ) || '' === $table ) {
+			return self::permission_error(
+				__( 'The translation batch storage is unavailable.', 'translatesense' ),
+				'rest_batch_storage_error',
+				500
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, post_id, target_post_id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$batch_id,
+				$post_id
+			),
+			ARRAY_A
+		);
+
+		if ( empty( $rows ) ) {
+			return self::permission_error(
+				__( 'No translation jobs found for the requested post in this batch.', 'translatesense' ),
+				'rest_jobs_not_found',
+				404
+			);
+		}
+
+		// Provider validation: STRICTLY restricted to OpenAI and Gemini
+		foreach ( $rows as $row ) {
+			$provider = strtolower( (string) $row['provider'] );
+			if ( ! in_array( $provider, array( 'openai', 'gemini' ), true ) ) {
+				return self::permission_error(
+					__( 'Skip functionality is strictly restricted to OpenAI and Google Gemini background translations.', 'translatesense' ),
+					'rest_unsupported_provider',
+					403
+				);
+			}
+
+			$target_post_id = ! empty( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
+			if ( $target_post_id && get_post( $target_post_id ) && ! current_user_can( 'edit_post', $target_post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to modify target translations for this post.', 'translatesense' )
+				);
+			}
+		}
+
+		// Status validation: At least one job must be in pending or running state
+		$has_active = false;
+		foreach ( $rows as $row ) {
+			if ( in_array( $row['status'], array( 'pending', 'running' ), true ) ) {
+				$has_active = true;
+				break;
+			}
+		}
+
+		if ( ! $has_active ) {
+			return self::permission_error(
+				__( 'No pending or running translation jobs remain to skip for this post.', 'translatesense' ),
+				'rest_no_active_jobs',
+				400
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -3174,6 +3349,50 @@ class Rest_Api {
 			array(
 				'success' => (bool) $updated,
 				'job_id'  => $job_id,
+			)
+		);
+	}
+
+	/**
+	 * Bulk Skip Post Jobs Endpoint.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function bulk_skip_post( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+
+		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
+		if ( '' === $batch_id && is_array( $params ) && ! empty( $params['batch_id'] ) ) {
+			$batch_id = sanitize_text_field( (string) $params['batch_id'] );
+		}
+
+		$post_id = absint( $request->get_param( 'post_id' ) );
+		if ( ! $post_id && is_array( $params ) && ! empty( $params['post_id'] ) ) {
+			$post_id = absint( $params['post_id'] );
+		}
+
+		$result = Bulk_Process::skip_post_in_batch( $batch_id, $post_id );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Bulk Active Batches Endpoint.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function bulk_active_batches( WP_REST_Request $request ) {
+		$batches = Bulk_Process::get_active_background_batches();
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'batches' => $batches,
 			)
 		);
 	}

@@ -156,9 +156,10 @@ class Bulk_Translate {
 				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
 				'settingsUrl'      => Admin_Menu::get_dashboard_url( 'settings' ),
 				'connectorsUrl'    => admin_url( 'options-connectors.php' ),
-				'hasOpenAiKey'     => ! empty( $settings['openai_api_key'] ),
-				'hasGeminiKey'     => ! empty( $settings['gemini_api_key'] ),
-				'slugTranslation'  => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
+				'hasOpenAiKey'            => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'            => ! empty( $settings['gemini_api_key'] ),
+				'hasActiveBackgroundJobs' => Bulk_Process::has_active_background_jobs(),
+				'slugTranslation'         => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
 				'postStatus'       => ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft',
 			)
 		);
