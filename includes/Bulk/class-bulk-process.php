@@ -440,6 +440,7 @@ class Bulk_Process {
 		// Check if more pending jobs exist
 		if ( self::has_pending_or_running_jobs() ) {
 			// Trigger next tick immediately
+			self::process_cron_tick();
 			self::trigger_async_cron();
 		} else {
 			// All jobs completed or failed -> remove/clear cron
