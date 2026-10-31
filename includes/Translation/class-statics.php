@@ -1,22 +1,22 @@
 <?php
 /**
- * Helper utilities.
+ * Statics utilities.
  *
  * @package TranslateSense
  */
 
 declare(strict_types=1);
 
-namespace TranslateSense\Includes\Helper;
+namespace TranslateSense\Includes\Translation;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 /**
- * Helper class.
+ * Statics class.
  */
-class Helper {
+class Statics {
 
 	/**
 	 * Option key for storing translation statistics.
@@ -148,8 +148,8 @@ class Helper {
 		$stats['total_characters'] += $characters;
 		$stats['total_strings']    += $strings;
 		$stats['time_taken']       += $time_taken;
-		$stats['time_take']        = $stats['time_taken'];
-		$stats['last_updated']     = current_time( 'mysql' );
+		$stats['time_take']         = $stats['time_taken'];
+		$stats['last_updated']      = current_time( 'mysql' );
 
 		// Update per-provider statistics breakdown.
 		if ( ! isset( $stats['providers'][ $provider ] ) || ! is_array( $stats['providers'][ $provider ] ) ) {
@@ -165,7 +165,7 @@ class Helper {
 			);
 		}
 
-		$p_stats = &$stats['providers'][ $provider ];
+		$p_stats                        = &$stats['providers'][ $provider ];
 		$p_stats['total_translations'] += 1;
 		if ( $is_success ) {
 			$p_stats['successful_translations'] += 1;
@@ -175,12 +175,11 @@ class Helper {
 		$p_stats['total_characters'] += $characters;
 		$p_stats['total_strings']    += $strings;
 		$p_stats['time_taken']       += $time_taken;
-		$p_stats['time_take']        = $p_stats['time_taken'];
-		$p_stats['last_used']        = current_time( 'mysql' );
+		$p_stats['time_take']         = $p_stats['time_taken'];
+		$p_stats['last_used']         = current_time( 'mysql' );
 
 		update_option( self::OPTION_TRANSLATION_STATISTICS, $stats, false );
 
 		return $stats;
 	}
 }
-
