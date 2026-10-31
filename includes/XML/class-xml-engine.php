@@ -7,7 +7,6 @@ namespace TranslateSense\Includes\XML;
 use TranslateSense\Includes\XML\Builders\Base_Builder;
 use TranslateSense\Includes\XML\Builders\Gutenberg_Builder;
 use TranslateSense\Includes\XML\Builders\Elementor_Builder;
-use TranslateSense\Includes\XML\Builders\Classic_Builder;
 
 use WP_Error;
 use DOMDocument;
@@ -23,7 +22,7 @@ class Xml_Engine {
 	/**
 	 * Supported builders.
 	 */
-	const BUILDERS = array( 'gutenberg', 'elementor', 'classic' );
+	const BUILDERS = array( 'gutenberg', 'elementor' );
 
 	/**
 	 * Canonical option key for unified 'all' editor configuration.
@@ -80,7 +79,6 @@ class Xml_Engine {
 			self::$builder_instances = array(
 				'gutenberg' => new Gutenberg_Builder(),
 				'elementor' => new Elementor_Builder(),
-				'classic'   => new Classic_Builder(),
 			);
 		}
 
@@ -324,7 +322,6 @@ class Xml_Engine {
 
 		$gb_builder = self::get_builder( 'gutenberg' );
 		$ew_builder = self::get_builder( 'elementor' );
-		$cf_builder = self::get_builder( 'classic' );
 
 		$gb_section = self::get_or_create_dom_child( $dom, $root, 'gutenberg-blocks' );
 		$ew_section = self::get_or_create_dom_child( $dom, $root, 'elementor-widgets' );
@@ -578,7 +575,7 @@ class Xml_Engine {
 			return $builder_obj->get_default_skeleton();
 		}
 
-		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n    </gutenberg-blocks>\n    <elementor-widgets>\n    </elementor-widgets>\n    <custom-fields>\n    </custom-fields>\n</wpml-config>";
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<wpml-config>\n    <gutenberg-blocks>\n    </gutenberg-blocks>\n    <elementor-widgets>\n    </elementor-widgets>\n</wpml-config>";
 	}
 
 	/**
@@ -790,8 +787,6 @@ class Xml_Engine {
 			$new_node = $snippet_doc->{'gutenberg-blocks'}->{'gutenberg-block'}[0];
 		} elseif ( 'elementor' === $target_builder && isset( $snippet_doc->{'elementor-widgets'}->widget ) ) {
 			$new_node = $snippet_doc->{'elementor-widgets'}->widget[0];
-		} elseif ( 'classic' === $target_builder && isset( $snippet_doc->{'custom-fields'}->{'custom-field'} ) ) {
-			$new_node = $snippet_doc->{'custom-fields'}->{'custom-field'}[0];
 		}
 
 		if ( ! $new_node ) {
@@ -828,8 +823,6 @@ class Xml_Engine {
 						$base_node = $base_doc->{'gutenberg-blocks'}->{'gutenberg-block'}[0];
 					} elseif ( 'elementor' === $target_builder && isset( $base_doc->{'elementor-widgets'}->widget ) ) {
 						$base_node = $base_doc->{'elementor-widgets'}->widget[0];
-					} elseif ( 'classic' === $target_builder && isset( $base_doc->{'custom-fields'}->{'custom-field'} ) ) {
-						$base_node = $base_doc->{'custom-fields'}->{'custom-field'}[0];
 					}
 					if ( $base_node ) {
 						$base_dom       = dom_import_simplexml( $base_node );
@@ -882,7 +875,7 @@ class Xml_Engine {
 				return self::$parsed_rules;
 			}
 			if ( 'classic' === $editor ) {
-				return self::$parsed_rules['custom_fields'] ?? array();
+				return array();
 			}
 			return self::$parsed_rules[ $editor ] ?? array();
 		}
@@ -914,7 +907,7 @@ class Xml_Engine {
 			return self::$parsed_rules;
 		}
 		if ( 'classic' === $editor ) {
-			return self::$parsed_rules['custom_fields'] ?? array();
+			return array();
 		}
 		return self::$parsed_rules[ $editor ] ?? array();
 	}
@@ -937,6 +930,26 @@ class Xml_Engine {
 
 		foreach ( self::get_builders() as $builder_obj ) {
 			$builder_obj->parse_rules( $xml, $rules, $source );
+		}
+
+		if ( isset( $xml->{'custom-fields'}->{'custom-field'} ) ) {
+			foreach ( $xml->{'custom-fields'}->{'custom-field'} as $cf ) {
+				$field_name      = trim( (string) $cf );
+				$action          = (string) ( $cf['action'] ?? 'translate' );
+				$is_no_translate = isset( $cf['noTranslate'] ) && in_array( strtolower( (string) $cf['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+				if ( $is_no_translate || 'ignore' === $action ) {
+					if ( isset( $rules['custom_fields'][ $field_name ] ) ) {
+						unset( $rules['custom_fields'][ $field_name ] );
+					}
+					$rules['custom_fields_no_translate'][ $field_name ] = true;
+					continue;
+				}
+				$rules['custom_fields'][ $field_name ] = array(
+					'name'   => $field_name,
+					'action' => $action,
+					'source' => $source,
+				);
+			}
 		}
 	}
 

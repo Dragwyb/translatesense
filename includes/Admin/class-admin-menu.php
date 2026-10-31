@@ -73,7 +73,6 @@ class Admin_Menu {
 			'gutenberg' => (bool) $is_gutenberg,
 			'elementor' => (bool) $is_elementor,
 			'divi'      => (bool) $is_divi,
-			'classic'   => (bool) $is_classic,
 		);
 	}
 
@@ -137,7 +136,7 @@ class Admin_Menu {
 	/**
 	 * Get Dashboard Page URL with optional tab parameter.
 	 *
-	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor', 'classic', 'xml_editor')
+	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor', 'xml_editor')
 	 * @return string
 	 */
 	public static function get_dashboard_url( string $tab = '' ): string {

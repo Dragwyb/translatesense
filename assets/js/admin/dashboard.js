@@ -10,23 +10,22 @@
     const getInitialTab = () => {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get('tab');
-      const validTabs = ['gutenberg', 'elementor', 'classic', 'xml_editor', 'settings'];
+      const validTabs = ['gutenberg', 'elementor', 'xml_editor', 'settings'];
       if (urlTab && validTabs.includes(urlTab)) {
         return urlTab;
       }
       return 'gutenberg';
     };
 
-    const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false, classic: false });
+    const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false });
     const [activeTab, setActiveTab] = useState(getInitialTab);
     const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
-    const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [], classic: [] });
+    const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [] });
     const [xmlConfigs, setXmlConfigs] = useState({
       all: '',
       gutenberg: '',
       elementor: '',
-      classic: '',
-    });
+          });
     const [settings, setSettings] = useState({
       openai_api_key: '',
       openai_model: 'gpt-4o-mini',
@@ -54,7 +53,7 @@
     // Tab Change handler that updates URL query param
     const handleTabChange = (newTab) => {
       setActiveTab(newTab);
-      if (['gutenberg', 'elementor', 'classic'].includes(newTab)) {
+      if (['gutenberg', 'elementor'].includes(newTab)) {
         setSearchQuery('');
         setSelectedCategory('all');
         setSelectedStatus('all');
@@ -70,7 +69,7 @@
       const onPopState = () => {
         const params = new URLSearchParams(window.location.search);
         const tabFromUrl = params.get('tab');
-        const validTabs = ['gutenberg', 'elementor', 'classic', 'xml_editor', 'settings'];
+        const validTabs = ['gutenberg', 'elementor', 'xml_editor', 'settings'];
         if (tabFromUrl && validTabs.includes(tabFromUrl)) {
           setActiveTab(tabFromUrl);
         }
@@ -98,7 +97,7 @@
           all: xmlRes.custom_xml || '',
           gutenberg: xmlRes.gutenberg_xml || '',
           elementor: xmlRes.elementor_xml || '',
-          classic: xmlRes.classic_xml || '',
+          
         });
 
         if (settingsRes.settings) {
@@ -370,16 +369,6 @@
           },
           '🎨 Elementor Widgets',
           el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
-        ),
-        activeBuilders.classic &&
-        el(
-          'button',
-          {
-            className: `ts-tab-btn ${activeTab === 'classic' ? 'active' : ''}`,
-            onClick: () => handleTabChange('classic'),
-          },
-          '📝 Classic / Custom Fields',
-          el('span', { className: 'ts-tab-count' }, widgetsData.classic ? widgetsData.classic.length : 0)
         ),
         el(
           'button',
@@ -1059,7 +1048,7 @@
       el(
         'div',
         { style: { display: 'flex', gap: '10px', marginBottom: '16px' } },
-        ['gutenberg', 'elementor', 'classic'].map((ed) =>
+        ['gutenberg', 'elementor'].map((ed) =>
           el(
             'button',
             {

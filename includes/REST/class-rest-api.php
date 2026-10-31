@@ -1538,7 +1538,6 @@ class Rest_Api {
 		$response = array(
 			'gutenberg' => self::get_gutenberg_widgets_list( $rules['gutenberg'] ),
 			'elementor' => self::get_elementor_widgets_list( $rules['elementor'] ),
-			'classic'   => self::get_classic_widgets_list( $rules['custom_fields'] ),
 		);
 
 		return rest_ensure_response( $response );
@@ -1885,7 +1884,6 @@ class Rest_Api {
 			'custom_xml'    => Xml_Engine::get_config( $builder ),
 			'gutenberg_xml' => Xml_Engine::get_config( 'gutenberg' ),
 			'elementor_xml' => Xml_Engine::get_config( 'elementor' ),
-			'classic_xml'   => Xml_Engine::get_config( 'classic' ),
 			'rules'         => Xml_Engine::get_all_rules( $builder ),
 			'all_rules'     => Xml_Engine::get_all_rules( 'all' ),
 		);
@@ -2192,7 +2190,7 @@ class Rest_Api {
 			return new WP_Error(
 				'invalid_editor',
 				__(
-					'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor, classic).',
+					'Invalid or missing editor parameter. Please specify a specific editor (gutenberg, elementor).',
 					'translatesense'
 				),
 				array(
@@ -2545,7 +2543,7 @@ class Rest_Api {
 	 * @return bool
 	 */
 	private static function is_valid_builder( $builder, $allow_all = false ) {
-		$allowed = array( 'gutenberg', 'elementor', 'classic' );
+		$allowed = array( 'gutenberg', 'elementor' );
 
 		if ( $allow_all ) {
 			$allowed[] = 'all';
