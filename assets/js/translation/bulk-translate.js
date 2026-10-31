@@ -1728,9 +1728,11 @@
                   <div class="ts-trans-status-col">
                     ${rowStatusHtml}
                   </div>
-                  <div class="ts-trans-actions-col">
-                    ${actionsHtml}
-                  </div>
+                  ${actionsHtml !== '' ?
+                  `<div class="ts-trans-actions-col">
+                      ${actionsHtml}
+                    </div>` : ''
+                }
                 </div>
               `;
             });
@@ -2323,7 +2325,7 @@
               if (!extRes.ok || !extData.success) {
                 throw new Error(extData.message || `Failed to extract content for post #${postId}`);
               }
-              rawStrings = extData.data || [];
+              rawStrings = extData.strings || [];
               postExtractedStringsCache[postId] = rawStrings;
             }
 
@@ -2353,8 +2355,8 @@
               postChars += str.length;
 
               try {
-                if (core && typeof core.translateText === 'function') {
-                  translatedStr = await core.translateText('chrome_ai', str, sourceLangCode, targetLang);
+                if (core && typeof core.translate === 'function') {
+                  translatedStr = await core.translate('chrome_ai', str, sourceLangCode, targetLang);
                 }
               } catch (tErr) {
                 console.warn(`[TranslateSense] String translation fallback for string ${sIdx}:`, tErr);
@@ -2393,22 +2395,17 @@
               indexedTranslated[idx] = transMap[orig] !== undefined ? transMap[orig] : orig;
             });
 
-            const createRes = await fetch(restUrl + 'create-post', {
+            const createRes = await fetch(restUrl + 'translate-post', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-WP-Nonce': nonce,
               },
               body: JSON.stringify({
-                source_post_id: parseInt(postId, 10),
-                target_language: targetLang,
-                data: indexedTranslated,
-                total_strings: rawStrings.length,
-                completed_strings: rawStrings.length,
-                total_characters: postChars,
-                time_take: Math.round(performance.now() - jobStartTime),
-                editor_type: postEditorType,
+                post_id: postId,
+                target_lang: targetLang,
                 provider: 'chrome_ai',
+                in_memory_translations: indexedTranslated,
               }),
             });
 

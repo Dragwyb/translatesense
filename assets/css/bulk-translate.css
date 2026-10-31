@@ -917,7 +917,7 @@ button.ts-error-detail-btn:hover {
   padding: 5px 14px;
   font-size: 12px;
   font-weight: 600;
-  border-radius: var(--ts-radius-md);
+  border-radius: var(--ts-radius-md) !important;
   text-decoration: none;
   transition: all 0.15s ease;
   box-sizing: border-box;
@@ -936,6 +936,7 @@ button.ts-error-detail-btn:hover {
   background: #ffffff;
   color: #0f172a;
   border: 1px solid #cbd5e1;
+  box-shadow: unset !important;
 }
 
 .ts-row-action-btn.view:hover {
