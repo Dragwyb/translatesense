@@ -1973,6 +1973,7 @@
             }
             updateBulkProgressUI(jobIndex, 0.05);
 
+            const jobStartTime = performance.now();
             try {
               // 1. Extract strings for this post one by one passing editor_type if not already cached
               let rawStrings = (postResultsMap[postId] && postResultsMap[postId].extractedStrings) || postExtractedStringsCache[postId];
@@ -2113,6 +2114,8 @@
                     progress_status: 'Completed successfully',
                     total_strings: rawStrings.length,
                     completed_strings: rawStrings.length,
+                    total_characters: postChars,
+                    time_take: Math.round(performance.now() - jobStartTime),
                     target_post_id: postRes.target_post_id,
                     sent_data: indexedStrings,
                     receive_data: indexedTranslated,
@@ -2152,6 +2155,9 @@
                     status: 'failed',
                     progress_status: `Failed: ${err.message}`,
                     error_message: err.message,
+                    total_strings: (rawStrings ? rawStrings.length : 0),
+                    total_characters: (typeof postChars !== 'undefined' ? postChars : 0),
+                    time_take: Math.round(performance.now() - jobStartTime),
                   },
                 }),
               });

@@ -975,6 +975,7 @@
 
         this.translationStats = {
           timeTaken: timeFormatted,
+          timeTakenMs: Math.round(elapsedMs),
           totalChars: totalSourceChars,
           translatedChars: totalTransChars,
           stringCount: total,
@@ -1460,8 +1461,28 @@
       const nonce = this.config.nonce || '';
       const currentPostId = this.postId || this.config.postId || 0;
 
-      // Mark this post with _translatesense_translated
+      // Mark this post with _translatesense_translated and update translation statistics
       if (currentPostId) {
+        const totalCharsFallback = Array.isArray(this.strings)
+          ? this.strings.reduce((sum, s) => {
+            const isTrans = s.translated && String(s.translated).trim() !== '';
+            return sum + (isTrans ? String(s.value || '').length : 0);
+          }, 0)
+          : 0;
+        const totalStrsFallback = Array.isArray(this.strings)
+          ? this.strings.filter((s) => s.translated && String(s.translated).trim() !== '').length
+          : 0;
+
+        const charsToSend = this.translationStats && typeof this.translationStats.translatedChars === 'number'
+          ? this.translationStats.translatedChars
+          : (this.translationStats && typeof this.translationStats.totalChars === 'number' ? this.translationStats.totalChars : totalCharsFallback);
+        const strsToSend = this.translationStats && typeof this.translationStats.stringCount === 'number'
+          ? this.translationStats.stringCount
+          : totalStrsFallback;
+        const timeTakeToSend = this.translationStats && typeof this.translationStats.timeTakenMs === 'number'
+          ? this.translationStats.timeTakenMs
+          : 0;
+
         fetch(restUrl + 'mark-translated', {
           method: 'POST',
           headers: {
@@ -1469,10 +1490,15 @@
             'X-WP-Nonce': nonce,
           },
           body: JSON.stringify({
-            post_id: currentPostId
+            post_id: currentPostId,
+            status: 'success',
+            total_characters: charsToSend,
+            total_strings: strsToSend,
+            provider: this.selectedProvider || 'openai',
+            time_take: timeTakeToSend,
           }),
         }).catch((err) => {
-          console.warn('[TranslateSense] Could not update translated flag:', err);
+          console.warn('[TranslateSense] Could not update translated flag and stats:', err);
         });
       }
 

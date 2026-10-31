@@ -9,6 +9,7 @@ use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Admin\Editor_Integration;
+use TranslateSense\Includes\Translation\Statics;
 
 use WP_Error;
 
@@ -258,6 +259,10 @@ class Bulk_Process {
 			)
 		);
 
+		$start_time  = microtime( true );
+		$total_str   = 0;
+		$total_chars = 0;
+
 		try {
 			$source_post = get_post( $post_id );
 			if ( ! $source_post ) {
@@ -293,7 +298,11 @@ class Bulk_Process {
 				}
 			}
 
-			$total_str = count( $strings_to_send );
+			$total_str   = count( $strings_to_send );
+			$total_chars = 0;
+			foreach ( $strings_to_send as $str_to_count ) {
+				$total_chars += mb_strlen( (string) $str_to_count );
+			}
 
 			// Save AI request data with clean source strings array
 			self::update_job(
@@ -392,6 +401,18 @@ class Bulk_Process {
 					'updated_at'        => current_time( 'mysql' ),
 				)
 			);
+
+			$elapsed_ms = (int) round( ( microtime( true ) - $start_time ) * 1000 );
+			Statics::update_translation_statistics(
+				array(
+					'status'           => 'success',
+					'total_characters' => $total_chars,
+					'total_strings'    => $total_str,
+					'provider'         => $provider,
+					'time_take'        => $elapsed_ms,
+					'request_id'       => 'bulk_cron_job_' . $job_id,
+				)
+			);
 		} catch ( \Throwable $e ) {
 			self::update_job(
 				$job_id,
@@ -400,6 +421,18 @@ class Bulk_Process {
 					'progress_status' => 'Failed: ' . substr( $e->getMessage(), 0, 80 ),
 					'error_message'   => $e->getMessage(),
 					'updated_at'      => current_time( 'mysql' ),
+				)
+			);
+
+			$elapsed_ms = isset( $start_time ) ? (int) round( ( microtime( true ) - $start_time ) * 1000 ) : 0;
+			Statics::update_translation_statistics(
+				array(
+					'status'           => 'failed',
+					'total_characters' => isset( $total_chars ) ? $total_chars : 0,
+					'total_strings'    => isset( $total_str ) ? $total_str : 0,
+					'provider'         => $provider,
+					'time_take'        => $elapsed_ms,
+					'request_id'       => 'bulk_cron_job_' . $job_id,
 				)
 			);
 		}

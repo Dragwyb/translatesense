@@ -13,6 +13,7 @@ use TranslateSense\Includes\Admin\Admin_Menu;
 use TranslateSense\Includes\AI\Ai_Connector_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Bulk\Bulk_Process;
+use TranslateSense\Includes\Translation\Statics;
 
 use WP_REST_Server;
 use WP_REST_Request;
@@ -158,13 +159,49 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'get_page_content' ),
 				'permission_callback' => array( __CLASS__, 'permission_get_page_content' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'          => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'status'           => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'success',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'total_characters' => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'total_strings'    => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'provider'         => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'time_take'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'time_taken'       => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -440,13 +477,49 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'mark_translated' ),
 				'permission_callback' => array( __CLASS__, 'permission_mark_translated' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'          => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'status'           => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'success',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'total_characters' => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'total_strings'    => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'provider'         => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'time_take'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'time_taken'       => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -463,13 +536,49 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'clear_block_repair' ),
 				'permission_callback' => array( __CLASS__, 'permission_clear_block_repair' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'          => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'status'           => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'success',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'total_characters' => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'total_strings'    => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'provider'         => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'time_take'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
+					),
+					'time_taken'       => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -3029,6 +3138,38 @@ class Rest_Api {
 			return $updated;
 		}
 
+		if ( isset( $clean_data['status'] ) && in_array( $clean_data['status'], array( 'completed', 'failed' ), true ) ) {
+			$job_provider = ! empty( $job->provider ) ? $job->provider : 'chrome_ai';
+			$c_strings    = isset( $clean_data['completed_strings'] )
+				? (int) $clean_data['completed_strings']
+				: ( isset( $clean_data['total_strings'] ) ? (int) $clean_data['total_strings'] : 0 );
+			$c_chars      = isset( $updates['total_characters'] ) ? absint( $updates['total_characters'] ) : 0;
+
+			if ( 0 === $c_chars && ! empty( $clean_data['sent_data'] ) ) {
+				$sent_arr = json_decode( $clean_data['sent_data'], true );
+				if ( is_array( $sent_arr ) ) {
+					foreach ( $sent_arr as $item_text ) {
+						$c_chars += mb_strlen( (string) $item_text );
+					}
+				}
+			}
+
+			$time_take = isset( $updates['time_take'] )
+				? absint( $updates['time_take'] )
+				: ( isset( $updates['time_taken'] ) ? absint( $updates['time_taken'] ) : 0 );
+
+			Statics::update_translation_statistics(
+				array(
+					'status'           => 'completed' === $clean_data['status'] ? 'success' : 'failed',
+					'total_characters' => $c_chars,
+					'total_strings'    => $c_strings,
+					'provider'         => $job_provider,
+					'time_take'        => $time_take,
+					'request_id'       => 'bulk_job_' . $job_id,
+				)
+			);
+		}
+
 		return rest_ensure_response(
 			array(
 				'success' => (bool) $updated,
@@ -3089,10 +3230,33 @@ class Rest_Api {
 			'1'
 		);
 
+		// Extract and sanitize translation statistics parameters.
+		$raw_status       = $request->get_param( 'status' );
+		$status           = ! empty( $raw_status ) ? sanitize_key( (string) $raw_status ) : 'success';
+		$total_characters = absint( $request->get_param( 'total_characters' ) );
+		$total_strings    = absint( $request->get_param( 'total_strings' ) );
+		$provider         = sanitize_key( (string) $request->get_param( 'provider' ) );
+		$time_take        = absint( $request->get_param( 'time_take' ) ?: $request->get_param( 'time_taken' ) );
+
+		$stats = null;
+		if ( $total_characters > 0 || $total_strings > 0 || ! empty( $provider ) || $time_take > 0 ) {
+			$stats = Statics::update_translation_statistics(
+				array(
+					'status'           => $status,
+					'total_characters' => $total_characters,
+					'total_strings'    => $total_strings,
+					'provider'         => $provider,
+					'time_take'        => $time_take,
+					'request_id'       => 'mark_translated_' . $post_id . '_' . $provider . '_' . current_time( 'timestamp' ),
+				)
+			);
+		}
+
 		return rest_ensure_response(
 			array(
 				'success' => true,
 				'post_id' => $post_id,
+				'stats'   => $stats,
 			)
 		);
 	}
