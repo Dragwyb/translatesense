@@ -1713,8 +1713,9 @@
               const displayTitle = trans.targetTitle
                 || (isAlreadyExists ? (trans.targetTitle || postData.postTitle)
                   : (isDone ? (trans.targetTitle || postData.postTitle)
-                    : (isSkipped || isFail ? (postData.postTitle || `Post #${pId}`)
-                      : (postData.postTitle || `Post #${pId}`))));
+                    : (isFail ? `Post #${pId}`
+                      : (isRunning ? 'Translating content...'
+                        : 'Waiting in queue'))));
 
               html += `
                 <div class="ts-translation-item ${trans.status}">
@@ -2342,44 +2343,44 @@
               throw new Error('No translatable text found in post.');
             }
 
-            const transMap = {};
-            const translatedCount = 0;
+            // Local in-memory dictionary for pre-translated strings
+            const inMemoryTranslations = {};
+            let jobStringsCompleted = 0;
 
             if (statusText) {
-              statusText.textContent = `Translating ${postTitle} (${targetLang.toUpperCase()}) [0/${stringsToTranslate.length} strings]...`;
+              statusText.textContent = `Translating ${rawStrings.length} strings on-device with Chrome Local AI for ${postTitle} (${targetLang.toUpperCase()})...`;
             }
 
-            for (let sIdx = 0; sIdx < stringsToTranslate.length; sIdx++) {
-              const str = stringsToTranslate[sIdx];
-              let translatedStr = str;
-              postChars += str.length;
+            const itemsToTranslate = rawStrings.map((s) => ({
+              hash: s.hash,
+              widget_id: s.name,
+              field: s.key,
+              content: s.value,
+            }));
 
-              try {
-                if (core && typeof core.translate === 'function') {
-                  translatedStr = await core.translate('chrome_ai', str, sourceLangCode, targetLang);
-                }
-              } catch (tErr) {
-                console.warn(`[TranslateSense] String translation fallback for string ${sIdx}:`, tErr);
-                translatedStr = str;
+            const onStringProgress = (resItem) => {
+              if (resItem && resItem.translated) {
+                if (resItem.hash) inMemoryTranslations[resItem.hash] = resItem.translated;
               }
+              completedBatchStrings++;
+              jobStringsCompleted++;
+              const strRatio = rawStrings.length > 0 ? (jobStringsCompleted / rawStrings.length) : 1;
+              // Map string translation to 0.05 -> 0.90 of this job's slice
+              updateBulkProgressUI(jobIndex, 0.05 + (strRatio * 0.85));
+            };
 
-              transMap[str] = translatedStr;
-              const currentStringCount = sIdx + 1;
-              const fraction = 0.05 + 0.70 * (currentStringCount / stringsToTranslate.length);
-              updateBulkProgressUI(jobIndex, fraction);
-
-              if (statusText) {
-                statusText.textContent = `Translating ${postTitle} (${targetLang.toUpperCase()}) [${currentStringCount}/${stringsToTranslate.length} strings]...`;
-              }
-
-              if (postResultsMap[postId] && postResultsMap[postId].translations[targetLang]) {
-                const transObj = postResultsMap[postId].translations[targetLang];
-                transObj.completedStrings = currentStringCount;
-                transObj.totalStrings = stringsToTranslate.length;
-                transObj.completedCharacters = postChars;
-                transObj.totalCharacters = postChars;
-                renderResultsUI();
-              }
+            // Run client-side Chrome AI translation
+            if (core) {
+              await core.translate(
+                'chrome_ai',
+                {
+                  items: itemsToTranslate,
+                  sourceLang: 'en',
+                  targetLang: targetLang,
+                  postId: postId,
+                },
+                onStringProgress
+              );
             }
 
             if (statusText) {
@@ -2390,9 +2391,9 @@
             const indexedStrings = {};
             const indexedTranslated = {};
             rawStrings.forEach(function (item, idx) {
-              const orig = item.value || '';
-              indexedStrings[idx] = orig;
-              indexedTranslated[idx] = transMap[orig] !== undefined ? transMap[orig] : orig;
+              const hash = typeof item === 'object' ? item.hash : '';
+              indexedStrings[idx] = typeof item === 'object' ? item.content || item.value || '' : String(item);
+              indexedTranslated[idx] = inMemoryTranslations[hash] || inMemoryTranslations[indexedStrings[idx]] || indexedStrings[idx];
             });
 
             const createRes = await fetch(restUrl + 'translate-post', {
@@ -2405,7 +2406,7 @@
                 post_id: postId,
                 target_lang: targetLang,
                 provider: 'chrome_ai',
-                in_memory_translations: indexedTranslated,
+                in_memory_translations: inMemoryTranslations,
               }),
             });
 

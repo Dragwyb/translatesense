@@ -816,6 +816,10 @@
   flex-shrink: 0;
 }
 
+.ts-trans-status-col:last-child {
+  justify-content: flex-end;
+}
+
 .ts-row-status {
   font-size: 11.5px;
   font-weight: 600;
@@ -874,6 +878,7 @@ button.ts-row-status {
 button.ts-error-detail-btn {
   cursor: pointer;
   border-radius: var(--ts-radius-md);
+  padding: 6px 12px;
 }
 
 button.ts-error-detail-btn:hover {
