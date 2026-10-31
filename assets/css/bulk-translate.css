@@ -71,7 +71,7 @@
 }
 
 /* ==========================================================================
-   Step Indicator Bar (Steps 1, 2, 3 - Matching Screenshot)
+   Step Indicator Bar (Steps 1, 2, 3)
    ========================================================================== */
 .ts-step-bar {
   display: flex;
@@ -108,7 +108,7 @@
   right: 0;
   height: 2px;
   background: #2563eb;
-  border-radius: 1px;
+  border-radius: var(--ts-radius-xs);
 }
 
 .ts-step-number {
@@ -160,7 +160,7 @@
 .ts-lang-action-btn {
   background: #ffffff;
   border: 1px solid var(--ts-border-dark, #cbd5e1);
-  border-radius: 3px;
+  border-radius: var(--ts-radius-md);
   padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -184,7 +184,7 @@
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   padding: 4px 12px;
-  border-radius: 3px;
+  border-radius: var(--ts-radius-md);
   letter-spacing: 0.01em;
 }
 
@@ -208,11 +208,11 @@
 }
 .ts-lang-grid::-webkit-scrollbar-track {
   background: #f1f5f9;
-  border-radius: 3px;
+  border-radius: var(--ts-radius-md);
 }
 .ts-lang-grid::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: var(--ts-radius-md);
 }
 .ts-lang-grid::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
@@ -220,7 +220,7 @@
 
 .ts-lang-card {
   border: 1.5px solid var(--ts-border, #e2e8f0);
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   padding: 10px 14px;
   display: flex;
   align-items: center;
@@ -252,7 +252,7 @@
   width: 15px;
   height: 15px;
   accent-color: #2563eb;
-  border-radius: 2px;
+  border-radius: var(--ts-radius-xs);
   flex-shrink: 0;
 }
 
@@ -285,7 +285,7 @@
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--ts-radius-sm);
   letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
@@ -304,7 +304,7 @@
   width: 15px;
   height: 10px;
   object-fit: cover;
-  border-radius: 1px;
+  border-radius: var(--ts-radius-xs);
   display: inline-block;
   vertical-align: middle;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -325,7 +325,7 @@
 .ts-summary-box {
   background: #f8fafc;
   border: 1px solid var(--ts-border, #e2e8f0);
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   padding: 10px 14px;
   margin-bottom: 16px;
   font-size: 13px;
@@ -350,22 +350,16 @@
 }
 
 /* ==========================================================================
-   Bulk Modal Sizing (Spacious Layout Matching Screenshots)
+   Bulk Modal Sizing
    ========================================================================== */
 .ts-bulk-modal {
   max-width: 760px !important;
 }
 
 /* ==========================================================================
-   Step 3: Keep Window Open Notice Banner (Matching Screenshot 1)
+   Step 3: Keep Window Open Notice Banner
    ========================================================================== */
 .ts-modal-notice-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 14px;
   background: #fffbeb;
   border: 1.5px solid #fde68a;
   border-left: 4px solid #f59e0b;
@@ -416,12 +410,12 @@
 }
 
 /* ==========================================================================
-   Step 3: Progress Bar Card (Matching Screenshot 3)
+   Step 3: Progress Bar Card
    ========================================================================== */
 .ts-progress-card {
   background: #ffffff;
   border: 1.5px solid var(--ts-border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: var(--ts-radius-md);
   padding: 13px 16px;
   margin-bottom: 14px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
@@ -478,7 +472,7 @@
 }
 
 /* ==========================================================================
-   Step 3: Summary Stats Grid after translation (Matching Screenshot 2 & Updated UI)
+   Step 3: Summary Stats Grid after translation
    ========================================================================== */
 .ts-summary-stats-grid {
   display: grid;
@@ -492,7 +486,7 @@
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--ts-radius-md);
   border: 1px solid transparent;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
@@ -540,7 +534,7 @@
 .ts-stat-icon-box.blue {
   background: #2563eb;
   color: #ffffff;
-  border-radius: 6px;
+  border-radius: var(--ts-radius-md);
 }
 
 .ts-stat-icon-box.orange {
@@ -595,7 +589,7 @@
 }
 .ts-results-container::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: var(--ts-radius-sm);
 }
 
 .ts-results-list {
@@ -607,7 +601,7 @@
 .ts-post-group-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: var(--ts-radius-md);
   overflow: hidden;
   transition: all 0.2s ease;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
@@ -640,7 +634,7 @@
   width: 30px;
   height: 30px;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: var(--ts-radius-md);
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -672,7 +666,7 @@
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   margin-left: 2px;
   flex-shrink: 0;
 }
@@ -795,7 +789,7 @@
   border: 1px solid #e2e8f0;
   color: #475569;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   letter-spacing: 0.02em;
 }
 
@@ -879,7 +873,7 @@ button.ts-row-status {
 
 button.ts-error-detail-btn {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
 }
 
 button.ts-error-detail-btn:hover {
@@ -923,7 +917,7 @@ button.ts-error-detail-btn:hover {
   padding: 5px 14px;
   font-size: 12px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--ts-radius-md);
   text-decoration: none;
   transition: all 0.15s ease;
   box-sizing: border-box;
@@ -990,7 +984,7 @@ button.ts-error-detail-btn:hover {
 .ts-footer-filter-label input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   border: 1.5px solid #cbd5e1;
   cursor: pointer;
   margin: 0;
@@ -1007,7 +1001,7 @@ button.ts-error-detail-btn:hover {
   background: #ffffff !important;
   color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 6px !important;
+  border-radius: var(--ts-radius-md) !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   padding: 8px 18px !important;
@@ -1040,7 +1034,7 @@ button.ts-error-detail-btn:hover {
   background: #0073e6 !important;
   border-color: #0073e6 !important;
   color: #ffffff !important;
-  border-radius: 6px !important;
+  border-radius: var(--ts-radius-md) !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   padding: 8px 20px !important;
@@ -1063,33 +1057,7 @@ button.ts-error-detail-btn:hover {
   line-height: 16px;
 }
 
-/* Modal Close Button Styling */
-.ts-bulk-modal .ts-common-close,
-.ts-bulk-modal .ts-bulk-close {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 6px !important;
-  border: 1px solid #e2e8f0 !important;
-  background: #ffffff !important;
-  color: #64748b !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 16px !important;
-  cursor: pointer !important;
-  transition: all 0.15s ease !important;
-  line-height: 1 !important;
-  padding: 0 !important;
-}
-
-.ts-bulk-modal .ts-common-close:hover,
-.ts-bulk-modal .ts-bulk-close:hover {
-  background: #f8fafc !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-
-/* Dotted spinner animation matching Screenshot 1 */
+/* Dotted spinner animation matching */
 .ts-dots-spinner {
   width: 13px;
   height: 13px;
@@ -1234,13 +1202,19 @@ button.ts-error-detail-btn:hover {
 .ts-previous-active-notice {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 6px;
+  border-radius: var(--ts-radius-md);
   padding: 12px 16px;
   margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* Strictly hide background translation running notice in Step 3 / Background Translation Monitor */
+.ts-bulk-modal[data-step="3"] #ts-previous-active-notice,
+.ts-bulk-modal.ts-is-progress-step #ts-previous-active-notice {
+  display: none !important;
 }
 
 .ts-previous-active-notice .ts-notice-inner {
@@ -1287,7 +1261,7 @@ button.ts-error-detail-btn:hover {
   background: #f8fafc !important;
   border: 1px solid #cbd5e1 !important;
   color: #475569 !important;
-  border-radius: 3px !important;
+  border-radius: var(--ts-radius-sm) !important;
   padding: 2px 10px !important;
   font-size: 12px !important;
   cursor: pointer !important;
@@ -1352,7 +1326,7 @@ button.ts-error-detail-btn:hover {
 
 .ts-skip-dialog-box {
   background: #ffffff;
-  border-radius: 6px;
+  border-radius: var(--ts-radius-md);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
   width: 90%;
   max-width: 440px;
@@ -1423,7 +1397,7 @@ button.ts-error-detail-btn:hover {
   padding: 8px 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  border-radius: var(--ts-radius-md);
   font-size: 13px;
 }
 
