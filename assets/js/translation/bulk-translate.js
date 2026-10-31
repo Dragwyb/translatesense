@@ -509,7 +509,6 @@
             <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
               <div class="ts-bulk-modal">
                 ${core.createHeaderHTML({
-            icon: '⚡',
             title: 'Background Translation Monitor',
             subtitle: 'No active background translations',
             closeId: 'ts-bulk-close-btn',
@@ -714,7 +713,6 @@
         <div class="ts-bulk-overlay" id="ts-bulk-modal-overlay">
           <div class="ts-bulk-modal ${isPreviouslyRunning ? 'ts-is-progress-step' : ''}" data-step="${isPreviouslyRunning ? '3' : '1'}">
             ${core.createHeaderHTML({
-        icon: '⚡',
         title: isPreviouslyRunning ? 'Background Translation Monitor' : 'TranslateSense Bulk Translation',
         subtitle: isPreviouslyRunning ? 'Monitor active background translation jobs' : 'Choose a translation provider',
         closeId: 'ts-bulk-close-btn',
@@ -1213,7 +1211,6 @@
         card.addEventListener('click', function (e) {
           const slug = card.getAttribute('data-lang');
           const isInput = e.target && e.target.type === 'checkbox';
-
           if (isInput) {
             const checked = e.target.checked;
             if (checked) {
@@ -1225,7 +1222,7 @@
             if (selectedTargetLangs.includes(slug)) {
               selectedTargetLangs = selectedTargetLangs.filter((s) => s !== slug);
             } else {
-              selectedTargetLangs = selectedTargetLangs.push(slug);
+              selectedTargetLangs.push(slug);
             }
           }
 

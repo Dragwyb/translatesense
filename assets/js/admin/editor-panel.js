@@ -197,7 +197,6 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container" style="max-width: 560px;" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-        icon: '⚡',
         title: modalTitle,
         closeId: 'ts-source-prompt-close',
       })}
@@ -339,7 +338,6 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container ts-provider-modal-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-        icon: '⚡',
         title: 'Choose Translation Provider',
         subtitle: 'Choose a translation provider',
         closeId: 'ts-provider-modal-close',
@@ -587,7 +585,6 @@
       return providers.find((p) => p.id === this.selectedProvider) || {
         id: this.selectedProvider,
         title: this.selectedProvider.toUpperCase(),
-        icon: '⚡',
       };
     }
 

@@ -847,7 +847,7 @@
      * Create unified Common Header HTML string.
      *
      * @param {Object} options Header options
-     * @param {string} [options.icon='⚡'] Icon HTML, image URL, dashicons class, or emoji
+     * @param {string} [options.icon=''] Icon HTML, image URL, dashicons class, or emoji
      * @param {string} [options.title=''] Modal title string or HTML
      * @param {string} [options.subtitle=''] Optional subtitle string or HTML
      * @param {Array<string>|string} [options.badges=[]] Optional badge pills (array or HTML string)
@@ -861,7 +861,7 @@
      */
     createHeaderHTML(options = {}) {
       const {
-        icon = '⚡',
+        icon = '',
         title = '',
         subtitle = '',
         badges = [],
@@ -873,14 +873,22 @@
         customRightHtml = '',
       } = options;
 
+      let iconImg = icon;
+      if (iconImg === '') {
+        const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+        if (config && config.pluginUrl) {
+          iconImg = config.pluginUrl + '/assets/img/logo.png';
+        }
+      }
+
       let iconHtml = '';
-      if (icon) {
-        if (typeof icon === 'string' && (icon.includes('<') || icon.includes('dashicons-'))) {
-          iconHtml = icon.startsWith('<') ? icon : `<span class="dashicons ${icon}"></span>`;
-        } else if (typeof icon === 'string' && (icon.startsWith('http') || icon.includes('/') || icon.includes('.png') || icon.includes('.svg'))) {
-          iconHtml = `<img src="${icon}" alt="${title}" class="ts-provider-logo-img" />`;
+      if (iconImg) {
+        if (typeof iconImg === 'string' && (iconImg.includes('<') || iconImg.includes('dashicons-'))) {
+          iconHtml = iconImg.startsWith('<') ? iconImg : `<span class="dashicons ${iconImg}"></span>`;
+        } else if (typeof iconImg === 'string' && (iconImg.startsWith('http') || iconImg.includes('/') || iconImg.includes('.png') || iconImg.includes('.svg'))) {
+          iconHtml = `<img src="${iconImg}" alt="${title}" class="ts-provider-logo-img" />`;
         } else {
-          iconHtml = `<span class="ts-emoji-icon">${icon}</span>`;
+          iconHtml = `<span class="ts-emoji-icon">${iconImg}</span>`;
         }
       }
 
