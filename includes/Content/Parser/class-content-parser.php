@@ -209,17 +209,18 @@ class Content_Parser {
 				// 1. Post Title
 				$title = $post_obj->post_title;
 				if ( ! empty( $title ) && '' !== trim( (string) $title ) && ! in_array( 'post_title', $existing_names, true ) ) {
-					$title_hash = Hashing_Db::generate_hash( 'post_title', $title );
-					$string_id  = Hashing_Db::get_or_create_string_id( $title, $title );
+					$title_hash  = Hashing_Db::generate_hash( 'post_title', $title );
+					$string_hash = md5( $title );
+					$string_id   = Hashing_Db::get_or_create_string_id( $title, $title );
 					if ( $string_id > 0 ) {
-						Hashing_Db::record_package( $post_id, $lang, $title_hash, $builder, 'post_title', 'Post/Page Title', $title, $title, $string_id );
+						Hashing_Db::record_package( $post_id, $lang, $title_hash, $builder, 'post_title', 'Post/Page Title', $title, $title, $string_hash );
 						$extracted[] = array(
-							'hash'      => $title_hash,
-							'name'      => 'post_title',
-							'key'       => 'Post/Page Title',
-							'source'    => $title,
-							'value'     => $title,
-							'string_id' => $string_id,
+							'hash'        => $title_hash,
+							'name'        => 'post_title',
+							'key'         => 'Post/Page Title',
+							'source'      => $title,
+							'value'       => $title,
+							'string_hash' => $string_hash,
 						);
 					}
 				}
@@ -227,17 +228,18 @@ class Content_Parser {
 				// 2. Post Name (Slug)
 				$slug = $post_obj->post_name;
 				if ( ! empty( $slug ) && '' !== trim( (string) $slug ) && ! in_array( 'post_name', $existing_names, true ) ) {
-					$slug_hash = Hashing_Db::generate_hash( 'post_name', $slug );
-					$string_id = Hashing_Db::get_or_create_string_id( $slug, $slug );
+					$slug_hash   = Hashing_Db::generate_hash( 'post_name', $slug );
+					$string_hash = md5( $slug );
+					$string_id   = Hashing_Db::get_or_create_string_id( $slug, $slug );
 					if ( $string_id > 0 ) {
-						Hashing_Db::record_package( $post_id, $lang, $slug_hash, $builder, 'post_name', 'Post/Page Slug', $slug, $slug, $string_id );
+						Hashing_Db::record_package( $post_id, $lang, $slug_hash, $builder, 'post_name', 'Post/Page Slug', $slug, $slug, $string_hash );
 						$extracted[] = array(
-							'hash'      => $slug_hash,
-							'name'      => 'post_name',
-							'key'       => 'Post/Page Slug',
-							'source'    => $slug,
-							'value'     => $slug,
-							'string_id' => $string_id,
+							'hash'        => $slug_hash,
+							'name'        => 'post_name',
+							'key'         => 'Post/Page Slug',
+							'source'      => $slug,
+							'value'       => $slug,
+							'string_hash' => $string_hash,
 						);
 					}
 				}
@@ -246,16 +248,17 @@ class Content_Parser {
 				$excerpt = $post_obj->post_excerpt;
 				if ( ! empty( $excerpt ) && '' !== trim( (string) $excerpt ) && ! in_array( 'post_excerpt', $existing_names, true ) ) {
 					$excerpt_hash = Hashing_Db::generate_hash( 'post_excerpt', $excerpt );
+					$string_hash  = md5( $excerpt );
 					$string_id    = Hashing_Db::get_or_create_string_id( $excerpt, $excerpt );
 					if ( $string_id > 0 ) {
-						Hashing_Db::record_package( $post_id, $lang, $excerpt_hash, $builder, 'post_excerpt', 'Post/Page Excerpt', $excerpt, $excerpt, $string_id );
+						Hashing_Db::record_package( $post_id, $lang, $excerpt_hash, $builder, 'post_excerpt', 'Post/Page Excerpt', $excerpt, $excerpt, $string_hash );
 						$extracted[] = array(
-							'hash'      => $excerpt_hash,
-							'name'      => 'post_excerpt',
-							'key'       => 'Post/Page Excerpt',
-							'source'    => $excerpt,
-							'value'     => $excerpt,
-							'string_id' => $string_id,
+							'hash'        => $excerpt_hash,
+							'name'        => 'post_excerpt',
+							'key'         => 'Post/Page Excerpt',
+							'source'      => $excerpt,
+							'value'       => $excerpt,
+							'string_hash' => $string_hash,
 						);
 					}
 				}
@@ -506,7 +509,7 @@ class Content_Parser {
 			$wpdb->prepare(
 				"SELECT p.widget_name, s.source_string
 				FROM {$packages_table} p
-				INNER JOIN {$strings_table} s ON p.string_id = s.id
+				INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash
 				WHERE p.post_id = %d AND p.widget_name IN ('post_title', 'post_name')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id
 			),

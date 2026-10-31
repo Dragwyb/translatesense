@@ -3255,7 +3255,7 @@ class Rest_Api {
 		$query = $wpdb->prepare(
 			"SELECT DISTINCT s.source_string
 			 FROM `{$packages_table}` p
-			 INNER JOIN `{$strings_table}` s ON p.string_id = s.id
+			 INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
 			 WHERE p.post_id = %d",
 			$source_post_id
 		);

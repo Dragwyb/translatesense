@@ -47,7 +47,7 @@ class Activator {
 		$sql_packages   = "CREATE TABLE {$table_packages} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             post_id bigint(20) unsigned NOT NULL,
-            string_id bigint(20) unsigned NOT NULL,
+            string_hash varchar(32) NOT NULL,
             language varchar(10) NOT NULL,
             package_hash varchar(32) NOT NULL,
             editor_type varchar(50) NOT NULL,
@@ -56,7 +56,7 @@ class Activator {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             UNIQUE KEY post_package_unique (post_id, package_hash),
-            KEY string_index (string_id)
+            KEY string_index (string_hash)
         ) {$charset_collate};";
 
 		// 3. Custom translations table (Linked directly to strings)

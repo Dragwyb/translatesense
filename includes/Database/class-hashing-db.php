@@ -114,7 +114,7 @@ class Hashing_Db {
 	 * @param string      $widget_key
 	 * @param string      $source_string
 	 * @param string      $filter_string
-	 * @param int         $string_id Optional string_id if already resolved
+	 * @param string      $string_hash Optional string_hash if already resolved
 	 * @return int Package ID
 	 */
 	public static function record_package(
@@ -126,7 +126,7 @@ class Hashing_Db {
 		$widget_key,
 		$source_string,
 		$filter_string = '',
-		$string_id = 0
+		$string_hash = ''
 	): int {
 		global $wpdb;
 
@@ -141,18 +141,20 @@ class Hashing_Db {
 
 		$packages_table = self::get_packages_table();
 
-		// 1. Resolve or create string_id in translatesense_strings
-		$string_id = (int) $string_id;
-		if ( $string_id <= 0 && '' !== trim( (string) $filter_string ) ) {
-			$string_id = self::get_or_create_string_id( (string) $filter_string, $source_string );
+		// 1. Resolve or compute string_hash and ensure string is recorded in central strings table
+		$string_hash = is_string( $string_hash ) ? trim( $string_hash ) : '';
+		if ( empty( $string_hash ) ) {
+			$string_hash = md5( (string) $filter_string );
 		}
 
-		if ( $string_id <= 0 ) {
+		self::get_or_create_string_id( (string) $filter_string, (string) $source_string );
+
+		if ( empty( $string_hash ) ) {
 			return 0;
 		}
 
 		// 2. Calculate package hash
-		$package_hash = ! empty( $hash ) ? (string) $hash : md5( $string_id . $widget_name );
+		$package_hash = ! empty( $hash ) ? (string) $hash : md5( $string_hash . $widget_name );
 
 		// Check if package already exists
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -171,9 +173,9 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT IGNORE INTO {$packages_table} (`post_id`, `string_id`, `language`, `package_hash`, `editor_type`, `widget_name`, `widget_key`, `created_at`) VALUES (%d, %d, %s, %s, %s, %s, %s, NOW())", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"INSERT IGNORE INTO {$packages_table} (`post_id`, `string_hash`, `language`, `package_hash`, `editor_type`, `widget_name`, `widget_key`, `created_at`) VALUES (%d, %s, %s, %s, %s, %s, %s, NOW())", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
-				$string_id,
+				$string_hash,
 				sanitize_text_field( (string) $target_lang ),
 				sanitize_text_field( $package_hash ),
 				sanitize_text_field( (string) $editor_type ),
@@ -265,7 +267,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash INNER JOIN {$table_packages} p ON s.id = p.string_id WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$identifier,
 				$target_lang
 			),
@@ -305,7 +307,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash INNER JOIN {$table_packages} p ON s.id = p.string_id WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT p.package_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$params
 			),
 			ARRAY_A
@@ -363,7 +365,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_id FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_id = s.id WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_hash FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$lang,
 				$editor_type
@@ -416,7 +418,7 @@ class Hashing_Db {
 		// 1. Delete orphan strings not referenced in any packages
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$deleted_strings = $wpdb->query(
-			"DELETE s FROM {$strings_table} s LEFT JOIN {$packages_table} p ON s.id = p.string_id WHERE p.string_id IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"DELETE s FROM {$strings_table} s LEFT JOIN {$packages_table} p ON s.string_hash = p.string_hash WHERE p.string_hash IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		// 2. Delete orphan cached translations whose string_hash no longer exists
