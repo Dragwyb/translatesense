@@ -268,11 +268,19 @@ class Elementor_Builder extends Base_Builder {
 				$final_specs[ $path ] = $new_fields_map[ $path ];
 			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
 				// Explicitly marked noTranslate
-				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' ) );
+				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array(
+					'path'        => $path,
+					'type'        => 'title',
+					'editor_type' => 'LINE',
+				) );
 				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			} else {
 				// First removal: mark as noTranslate="true" to preserve for auto-updating prevention
-				$spec                 = is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' );
+				$spec                 = is_array( $info ) ? $info : array(
+					'path'        => $path,
+					'type'        => 'title',
+					'editor_type' => 'LINE',
+				);
 				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			}
 		}
@@ -284,7 +292,11 @@ class Elementor_Builder extends Base_Builder {
 				$final_specs[ $path ] = $new_fields_map[ $path ];
 			} elseif ( isset( $new_no_translate_map[ $path ] ) ) {
 				// Kept as noTranslate
-				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' ) );
+				$spec                 = is_array( $new_no_translate_map[ $path ] ) ? $new_no_translate_map[ $path ] : ( is_array( $info ) ? $info : array(
+					'path'        => $path,
+					'type'        => 'title',
+					'editor_type' => 'LINE',
+				) );
 				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			} else {
 				// Second removal: already had noTranslate, user removed it again -> permanently delete it!
@@ -301,7 +313,11 @@ class Elementor_Builder extends Base_Builder {
 		// 4. New explicit noTranslate fields added
 		foreach ( $new_no_translate_map as $path => $info ) {
 			if ( ! isset( $existing_fields_map[ $path ] ) && ! isset( $existing_no_translate_map[ $path ] ) ) {
-				$spec                 = is_array( $info ) ? $info : array( 'path' => $path, 'type' => 'title', 'editor_type' => 'LINE' );
+				$spec                 = is_array( $info ) ? $info : array(
+					'path'        => $path,
+					'type'        => 'title',
+					'editor_type' => 'LINE',
+				);
 				$final_specs[ $path ] = array_merge( $spec, array( 'noTranslate' => true ) );
 			}
 		}
