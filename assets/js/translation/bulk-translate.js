@@ -65,6 +65,67 @@
     return flagHtml ? `${flagHtml} (${code})` : `(${code})`;
   }
 
+  /**
+   * Calculate individual translation job progress percentage.
+   *
+   * @param {Object} item Translation job item.
+   * @return {number} Progress percentage between 0 and 100.
+   */
+  function getPostProgress(item) {
+    if (!item) return 0;
+    const status = item.status;
+    const totalStrings = Number(item.total_strings !== undefined ? item.total_strings : item.totalStrings) || 0;
+    const completedStrings = Number(item.completed_strings !== undefined ? item.completed_strings : item.completedStrings) || 0;
+
+    switch (status) {
+      case 'completed':
+      case 'already_exists':
+        return 100;
+
+      case 'running':
+      case 'processing':
+        return totalStrings > 0
+          ? Math.min(100, Math.max(0, (completedStrings / totalStrings) * 100))
+          : 0;
+
+      case 'pending':
+        return 0;
+
+      case 'failed':
+      default:
+        return status === 'failed'
+          ? Math.min(
+              100,
+              Math.max(
+                0,
+                totalStrings > 0 ? (completedStrings / totalStrings) * 100 : 0
+              )
+            )
+          : 0;
+    }
+  }
+
+  /**
+   * Calculate post-weighted overall progress percentage across all batch jobs.
+   *
+   * @param {Array} items Array of translation jobs.
+   * @return {number} Overall progress percentage between 0 and 100.
+   */
+  function getOverallProgress(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return 0;
+    }
+
+    const totalProgress = items.reduce((total, item) => {
+      return total + getPostProgress(item);
+    }, 0);
+
+    return Math.min(
+      100,
+      Math.max(0, totalProgress / items.length)
+    );
+  }
+
   function initBulkTranslate() {
     const config = window.TranslateSenseBulkData || {};
 
@@ -1714,6 +1775,17 @@
           });
           renderResultsUI();
 
+          if (jobsList.length > 0) {
+            const initialPct = Math.round(getOverallProgress(jobsList));
+            const initialDone = jobsList.filter((j) => j.status === 'already_exists' || j.status === 'completed').length;
+            if (barFill && initialPct > 0) {
+              barFill.style.width = initialPct + '%';
+            }
+            if (postsCountEl && initialDone > 0) {
+              postsCountEl.textContent = `${initialDone} / ${jobsList.length} posts (${initialPct}%)`;
+            }
+          }
+
           // =========================================================================
           // WORKFLOW A: Backend AI Providers (OpenAI, Gemini, etc.) -> Backend Cron & 5s Polling
           // Frontend does NOT translate strings or call AI providers in JS.
@@ -1739,11 +1811,14 @@
                 }
 
                 const data = await statusRes.json();
-                const pct = data.progress_percent || 0;
+                const pct = Array.isArray(data.items) && data.items.length > 0
+                  ? Math.round(getOverallProgress(data.items))
+                  : Math.round(data.progress_percent || 0);
 
                 if (barFill) barFill.style.width = pct + '%';
                 if (postsCountEl) {
-                  postsCountEl.textContent = `${data.completed_jobs || 0} / ${data.total_jobs || (postIds.length * selectedTargetLangs.length)} posts (${pct}%)`;
+                  const doneCount = (data.completed_jobs || 0) + (data.already_exists_jobs || 0);
+                  postsCountEl.textContent = `${doneCount} / ${data.total_jobs || (postIds.length * selectedTargetLangs.length)} posts (${pct}%)`;
                 }
                 if (statusText) statusText.textContent = data.current_status || `Translating content with ${providerName}... (${pct}%)`;
 
@@ -1772,6 +1847,8 @@
                       status: item.status,
                       completedStrings: item.completed_strings,
                       totalStrings: item.total_strings,
+                      progressPercent: getPostProgress(item),
+                      progressStatus: item.progress_status || '',
                       editUrl: item.edit_url || (item.target_post_id ? `post.php?post=${item.target_post_id}&action=edit` : ''),
                       viewUrl: item.view_url || (item.target_post_id ? `/?p=${item.target_post_id}` : ''),
                       error: item.error_message,

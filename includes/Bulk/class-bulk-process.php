@@ -555,15 +555,14 @@ class Bulk_Process {
 			$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 			$view_url = $target_post_id ? get_permalink( $target_post_id ) : '';
 
-			if ( 'already_exists' === $status ) {
+			if ( 'completed' === $status || 'already_exists' === $status ) {
 				$item_progress = 100;
+			} elseif ( 'running' === $status || 'processing' === $status ) {
+				$item_progress = $t_str > 0 ? (int) round( min( 100, max( 0, ( $c_str / $t_str ) * 100 ) ) ) : 0;
+			} elseif ( 'failed' === $status ) {
+				$item_progress = $t_str > 0 ? (int) round( min( 100, max( 0, ( $c_str / $t_str ) * 100 ) ) ) : 0;
 			} else {
 				$item_progress = 0;
-				if ( 'completed' === $status ) {
-					$item_progress = 100;
-				} elseif ( $t_str > 0 ) {
-					$item_progress = (int) round( ( $c_str / $t_str ) * 100 );
-				}
 			}
 
 			$items[] = array(
@@ -592,22 +591,23 @@ class Bulk_Process {
 
 		$pending_strings = max( 0, $total_strings - $completed_strings );
 
-		// Calculate overall batch progress percentage
+		// Calculate overall batch progress percentage (post-weighted: each post contributes equally)
 		$overall_progress = 0;
 		if ( $total_jobs > 0 ) {
-			$done_jobs = $completed_jobs + $already_exists_jobs + $failed_jobs;
-			if ( $done_jobs === $total_jobs ) {
-				$overall_progress = 100;
-			} else {
-				$job_pct = ( $done_jobs / $total_jobs ) * 100;
-				if ( $total_strings > 0 ) {
-					$str_pct          = ( $completed_strings / $total_strings ) * 100;
-					$overall_progress = (int) round( ( $job_pct * 0.5 ) + ( $str_pct * 0.5 ) );
-				} else {
-					$overall_progress = (int) round( $job_pct );
+			$total_progress_sum = 0;
+			foreach ( $items as $it ) {
+				$st = $it['status'];
+				if ( 'completed' === $st || 'already_exists' === $st ) {
+					$total_progress_sum += 100;
+				} elseif ( 'running' === $st || 'processing' === $st || 'failed' === $st ) {
+					$it_t = (int) $it['total_strings'];
+					$it_c = (int) $it['completed_strings'];
+					if ( $it_t > 0 ) {
+						$total_progress_sum += min( 100, max( 0, ( $it_c / $it_t ) * 100 ) );
+					}
 				}
-				$overall_progress = min( 99, max( 0, $overall_progress ) );
 			}
+			$overall_progress = (int) round( min( 100, max( 0, $total_progress_sum / $total_jobs ) ) );
 		}
 
 		$overall_status = 'pending';

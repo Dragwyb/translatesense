@@ -141,7 +141,6 @@ class Ai_Connector_Bridge {
 
 		$active_providers = $this->get_active_providers( false, array( $provider ) );
 		$provider_info    = $active_providers[ $provider ] ?? null;
-		$uses_connector   = $this->has_wp_ai && ! empty( $provider_info['connectors'] );
 
 		// Condition A: If WP 7.0+ and connectors are installed for this provider, always send request through WP Core Connectors
 		if ( ! empty( $provider_info['connectors'] ) && ! empty( $provider_info['isProviderInstall'] ) ) {
