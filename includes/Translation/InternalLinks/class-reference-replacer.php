@@ -143,8 +143,9 @@ class Reference_Replacer {
 			// 3. Link URL
 			if ( ( $is_link_context || in_array( $key_str, array( 'url', 'link', 'href', 'button_link', 'website_link' ), true ) )
 				&& is_string( $item ) ) {
-				if ( isset( $url_map[ $item ] ) ) {
-					$item = $url_map[ $item ];
+				$target = $url_map[ $item ] ?? $url_map[ rawurldecode( $item ) ] ?? null;
+				if ( null !== $target ) {
+					$item = $target;
 				}
 				continue;
 			}
@@ -227,9 +228,13 @@ class Reference_Replacer {
 
 					// Link URLs in block attributes
 					foreach ( array( 'url', 'href', 'link', 'linkUrl' ) as $l_key ) {
-						if ( isset( $attrs[ $l_key ] ) && is_string( $attrs[ $l_key ] ) && isset( $url_map[ $attrs[ $l_key ] ] ) ) {
-							$attrs[ $l_key ] = $url_map[ $attrs[ $l_key ] ];
-							$modified        = true;
+						if ( isset( $attrs[ $l_key ] ) && is_string( $attrs[ $l_key ] ) ) {
+							$val    = $attrs[ $l_key ];
+							$target = $url_map[ $val ] ?? $url_map[ rawurldecode( $val ) ] ?? null;
+							if ( null !== $target ) {
+								$attrs[ $l_key ] = $target;
+								$modified        = true;
+							}
 						}
 					}
 
@@ -349,9 +354,14 @@ class Reference_Replacer {
 			$content = preg_replace_callback(
 				'/\bhref\s*=\s*(["\'])(.*?)\1/i',
 				function ( $matches ) use ( $url_map ) {
-					$url = $matches[2];
-					if ( isset( $url_map[ $url ] ) ) {
-						return 'href=' . $matches[1] . esc_url( $url_map[ $url ] ) . $matches[1];
+					$raw_url = $matches[2];
+					$url     = htmlspecialchars_decode( $raw_url );
+					$target  = $url_map[ $url ] ?? $url_map[ $raw_url ] ?? null;
+					if ( null === $target ) {
+						$target = $url_map[ rawurldecode( $url ) ] ?? null;
+					}
+					if ( null !== $target ) {
+						return 'href=' . $matches[1] . esc_url( $target ) . $matches[1];
 					}
 					return $matches[0];
 				},
@@ -407,6 +417,32 @@ class Reference_Replacer {
 				},
 				$content
 			);
+		}
+
+		// 5. Plain text internal URL replacement (e.g. links written as text or link text matching URL)
+		if ( ! empty( $url_map ) ) {
+			// Sort URLs by length descending to prevent partial URL replacements
+			$sorted_url_map = $url_map;
+			uksort(
+				$sorted_url_map,
+				static function ( $a, $b ) {
+					return strlen( (string) $b ) <=> strlen( (string) $a );
+				}
+			);
+
+			foreach ( $sorted_url_map as $orig_url => $trans_url ) {
+				if ( '' === $orig_url || $orig_url === $trans_url ) {
+					continue;
+				}
+
+				// Only replace absolute URLs in plain text to avoid matching relative fragments in text
+				if ( ! str_starts_with( $orig_url, 'http://' ) && ! str_starts_with( $orig_url, 'https://' ) ) {
+					continue;
+				}
+
+				$pattern = '/(?<![a-zA-Z0-9_])' . preg_quote( $orig_url, '/' ) . '(?![a-zA-Z0-9_\-\/?#&=%~+@])/iu';
+				$content = preg_replace( $pattern, $trans_url, $content );
+			}
 		}
 
 		return $content;

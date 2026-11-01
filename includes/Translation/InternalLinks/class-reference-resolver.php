@@ -116,6 +116,31 @@ class Reference_Resolver {
 			$translated_url = $this->url_resolver->resolve_translated_url( $url, $target_language, $cache );
 			if ( is_string( $translated_url ) && '' !== $translated_url && $translated_url !== $url ) {
 				$url_map[ $url ] = $translated_url;
+
+				// Register decoded key if original was percent-encoded
+				$decoded_url = $this->url_resolver->decode_url( $url );
+				if ( $decoded_url !== $url ) {
+					$url_map[ $decoded_url ] = $translated_url;
+				}
+
+				// Also register trailing slash variant if path without query/fragment
+				if ( ! str_contains( $url, '?' ) && ! str_contains( $url, '#' ) ) {
+					if ( str_ends_with( $url, '/' ) ) {
+						$u_alt = rtrim( $url, '/' );
+						$t_alt = rtrim( $translated_url, '/' );
+					} else {
+						$u_alt = $url . '/';
+						$t_alt = str_ends_with( $translated_url, '/' ) ? $translated_url : $translated_url . '/';
+					}
+
+					if ( '' !== $u_alt && ! isset( $url_map[ $u_alt ] ) ) {
+						$url_map[ $u_alt ] = $t_alt;
+						$decoded_alt       = $this->url_resolver->decode_url( $u_alt );
+						if ( $decoded_alt !== $u_alt ) {
+							$url_map[ $decoded_alt ] = $t_alt;
+						}
+					}
+				}
 			}
 		}
 

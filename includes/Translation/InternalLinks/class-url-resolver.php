@@ -115,6 +115,14 @@ class URL_Resolver {
 		// Identify the object referenced by this URL
 		$object = $this->resolve_url_object( $url, $parsed, $query_params );
 		if ( ! $object ) {
+			// If it is an internal URL that contains percent-encoded characters, decode it so it's readable
+			if ( str_contains( $url, '%' ) ) {
+				$decoded = $this->decode_url( $url );
+				if ( $decoded !== $url ) {
+					$cache->set_url( $url, $decoded );
+					return $decoded;
+				}
+			}
 			$cache->set_url( $url, null );
 			return null;
 		}
@@ -138,7 +146,21 @@ class URL_Resolver {
 					$translated_base = get_permalink( $translated_id );
 					if ( is_string( $translated_base ) && '' !== $translated_base ) {
 						$translated_url = $this->rebuild_url( $translated_base, $query_params, $fragment, array( 'p', 'page_id', 'post_type' ) );
+						$orig_path      = $parsed['path'] ?? '';
+						if ( '' !== $orig_path && ! str_ends_with( $orig_path, '/' ) && empty( $query_params ) && empty( $fragment ) ) {
+							$translated_url = rtrim( $translated_url, '/' );
+						}
+						// Decode percent-encoded Unicode characters (e.g. Hindi, Arabic, Cyrillic)
+						// so that URLs appear clean and readable in href and text.
+						$translated_url = $this->decode_url( $translated_url );
 					}
+				}
+			} elseif ( $translated_id === $post_id ) {
+				// The URL already references the target language post.
+				// If it is percent-encoded, provide the clean decoded version.
+				$decoded = $this->decode_url( $url );
+				if ( $decoded !== $url ) {
+					$translated_url = $decoded;
 				}
 			}
 		} elseif ( 'term' === $object['type'] && ! empty( $object['taxonomy'] ) ) {
@@ -157,6 +179,17 @@ class URL_Resolver {
 				$term_link = get_term_link( $translated_id, $taxonomy );
 				if ( is_string( $term_link ) && ! is_wp_error( $term_link ) ) {
 					$translated_url = $this->rebuild_url( $term_link, $query_params, $fragment, array( 'cat', 'tag_id', 'tag', $taxonomy ) );
+					$orig_path      = $parsed['path'] ?? '';
+					if ( '' !== $orig_path && ! str_ends_with( $orig_path, '/' ) && empty( $query_params ) && empty( $fragment ) ) {
+						$translated_url = rtrim( $translated_url, '/' );
+					}
+					// Decode percent-encoded Unicode characters for terms as well.
+					$translated_url = $this->decode_url( $translated_url );
+				}
+			} elseif ( $translated_id === $term_id ) {
+				$decoded = $this->decode_url( $url );
+				if ( $decoded !== $url ) {
+					$translated_url = $decoded;
 				}
 			}
 		}
@@ -216,6 +249,10 @@ class URL_Resolver {
 		// 3. Absolute URL for WordPress URL-to-post ID lookup
 		$full_url = $this->make_absolute_url( $url );
 		$post_id  = url_to_postid( $full_url );
+		if ( $post_id <= 0 && str_contains( $full_url, '%' ) ) {
+			// Fallback: try decoded URL in case rewrite rules match decoded Unicode slug
+			$post_id = url_to_postid( $this->decode_url( $full_url ) );
+		}
 		if ( $post_id > 0 ) {
 			return $this->build_post_object_result( $post_id );
 		}
@@ -350,5 +387,58 @@ class URL_Resolver {
 		}
 
 		return $base_url;
+	}
+
+	/**
+	 * Decode a URL so that non-ASCII Unicode characters (e.g. Hindi, Arabic, Cyrillic)
+	 * are human-readable instead of %xx percent-encoded sequences.
+	 * Preserves query parameter delimiters (&, =, +, #, ?).
+	 *
+	 * @param string $url
+	 * @return string
+	 */
+	public function decode_url( string $url ): string {
+		$url = trim( $url );
+		if ( '' === $url || ! str_contains( $url, '%' ) ) {
+			return $url;
+		}
+
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) ) {
+			return rawurldecode( $url );
+		}
+
+		$scheme = '';
+		if ( str_starts_with( $url, '//' ) ) {
+			$scheme = '//';
+		} elseif ( isset( $parts['scheme'] ) ) {
+			$scheme = $parts['scheme'] . '://';
+		}
+
+		$host     = $parts['host'] ?? '';
+		$port     = isset( $parts['port'] ) ? ':' . $parts['port'] : '';
+		$user     = $parts['user'] ?? '';
+		$pass     = isset( $parts['pass'] ) ? ':' . $parts['pass'] : '';
+		$auth     = ( '' !== $user || '' !== $pass ) ? $user . $pass . '@' : '';
+		$path     = isset( $parts['path'] ) ? implode( '/', array_map( 'rawurldecode', explode( '/', (string) $parts['path'] ) ) ) : '';
+		$query    = '';
+		if ( isset( $parts['query'] ) ) {
+			$decoded_query = preg_replace_callback(
+				'/%[0-9a-fA-F]{2}/',
+				static function ( $m ) {
+					$hex = strtoupper( $m[0] );
+					// Do not decode reserved query characters &, =, +, #, ?, space
+					if ( in_array( $hex, array( '%26', '%3D', '%2B', '%23', '%3F', '%20' ), true ) ) {
+						return $m[0];
+					}
+					return rawurldecode( $m[0] );
+				},
+				(string) $parts['query']
+			);
+			$query = '?' . $decoded_query;
+		}
+		$fragment = isset( $parts['fragment'] ) ? '#' . rawurldecode( (string) $parts['fragment'] ) : '';
+
+		return $scheme . $auth . $host . $port . $path . $query . $fragment;
 	}
 }

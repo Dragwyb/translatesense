@@ -292,6 +292,16 @@ class Reference_Collector {
 				}
 			}
 		}
+
+		// 6. Plain text URLs in content (e.g. user added a link as text in content)
+		if ( preg_match_all( '/(?:\bhttps?:\/\/|\bwww\.)[^\s<>"\'{}|\\\\^`]+[^\s<>"\'{}|\\\\^`.,;:?!)\'"]/iu', $content, $text_url_matches ) ) {
+			foreach ( $text_url_matches[0] as $t_url ) {
+				$t_url = trim( $t_url );
+				if ( '' !== $t_url ) {
+					$urls[] = $t_url;
+				}
+			}
+		}
 	}
 }
 
