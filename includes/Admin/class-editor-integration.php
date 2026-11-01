@@ -266,22 +266,8 @@ class Editor_Integration {
 			true
 		);
 		wp_enqueue_script(
-			'translatesense-live-gutenberg',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/gutenberg' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-live-meta-fields' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-		wp_enqueue_script(
-			'translatesense-live-elementor',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/elementor' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-live-meta-fields' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-		wp_enqueue_script(
-			'translatesense-live-classic',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/classic' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
+			'translatesense-live-' . esc_attr( $editor_type ),
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/' . esc_attr( $editor_type ) . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
 			array( 'translatesense-live-meta-fields' ),
 			TRANSLATESENSE_VERSION,
 			true
@@ -289,7 +275,7 @@ class Editor_Integration {
 		wp_enqueue_script(
 			'translatesense-page-editor',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-live-meta-fields', 'translatesense-live-gutenberg', 'translatesense-live-elementor', 'translatesense-live-classic' ),
+			array( 'translatesense-live-meta-fields', 'translatesense-live-' . esc_attr( $editor_type ) ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
