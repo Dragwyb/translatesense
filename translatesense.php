@@ -34,7 +34,7 @@ define( 'TRANSLATESENSE_DOCS_URL', 'https://docs.dragwyb.com/' );
 /**
  * Register PSR/WordPress dynamic class autoloader.
  */
-require_once TRANSLATESENSE_PLUGIN_DIR . 'class-translatesense-autoload.php';
+require_once TRANSLATESENSE_PLUGIN_DIR . 'class-autoload.php';
 Autoload::instance();
 
 /**
