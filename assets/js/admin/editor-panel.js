@@ -43,7 +43,7 @@
   // Universal TranslateSense Editor Controller (Pure Vanilla JS)
   class TranslateSenseEditor {
     constructor() {
-      this.config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
+      this.config = window.TranslateSenseEditorData || {};
       this.postId = this.config.postId || 0;
       this.editorType = this.config.editorType || 'classic';
       this.sourcePostId = this.config.sourcePostId || 0;
@@ -173,7 +173,6 @@
      * @param {boolean} isPageLoad Whether this was triggered automatically on page load.
      */
     async showSourceEditorPromptModal(isPageLoad = false) {
-
       if (!window.TranslateSenseEditorData || !window.TranslateSenseEditorData.showInitialPromptModal) {
         return;
       }

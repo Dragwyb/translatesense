@@ -122,6 +122,18 @@ class Editor_Integration {
 			return 'elementor';
 		}
 
+		$post = get_post( $post_id );
+
+		if ( ! $post instanceof \WP_Post ) {
+			return 'classic';
+		}
+
+		if ( function_exists( 'use_block_editor_for_post' ) ) {
+			if ( ! use_block_editor_for_post( $post ) ) {
+				return 'classic';
+			}
+		}
+
 		// 2. Check Gutenberg (has blocks)
 		$post = get_post( $post_id );
 		if ( $post && function_exists( 'has_blocks' ) && has_blocks( $post->post_content ) ) {
