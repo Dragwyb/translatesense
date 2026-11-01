@@ -262,45 +262,43 @@ class Classic_Builder extends Base_Builder {
 						}
 					}
 				}
-			} else {
-				if ( preg_match( '/^<([a-zA-Z0-9:_-]+)/', $raw, $m ) ) {
+			} elseif ( preg_match( '/^<([a-zA-Z0-9:_-]+)/', $raw, $m ) ) {
 					$open_tag = strtolower( $m[1] );
 					$is_self  = in_array( $open_tag, self::VOID_TAGS, true ) || preg_match( '/\/\s*>$/', $raw );
 
-					if ( ! $is_self ) {
-						if ( in_array( $open_tag, $auto_close, true ) ) {
-                            for ( $k = count( $stack ) - 1; $k >= 0; $k-- ) {
-								if ( $stack[ $k ]['tag'] === $open_tag ) {
-									$idx = $stack[ $k ]['idx'];
-									$elements_by_tag[ $open_tag ][ $idx ]['inner_end']    = $offset;
-									$elements_by_tag[ $open_tag ][ $idx ]['close_offset'] = $offset;
-									$elements_by_tag[ $open_tag ][ $idx ]['raw_inner']    = substr(
-										$content,
-										$elements_by_tag[ $open_tag ][ $idx ]['inner_start'],
-										$offset - $elements_by_tag[ $open_tag ][ $idx ]['inner_start']
-									);
-									array_splice( $stack, $k );
-									break;
-								}
+				if ( ! $is_self ) {
+					if ( in_array( $open_tag, $auto_close, true ) ) {
+						for ( $k = count( $stack ) - 1; $k >= 0; $k-- ) {
+							if ( $stack[ $k ]['tag'] === $open_tag ) {
+								$idx = $stack[ $k ]['idx'];
+								$elements_by_tag[ $open_tag ][ $idx ]['inner_end']    = $offset;
+								$elements_by_tag[ $open_tag ][ $idx ]['close_offset'] = $offset;
+								$elements_by_tag[ $open_tag ][ $idx ]['raw_inner']    = substr(
+									$content,
+									$elements_by_tag[ $open_tag ][ $idx ]['inner_start'],
+									$offset - $elements_by_tag[ $open_tag ][ $idx ]['inner_start']
+								);
+								array_splice( $stack, $k );
+								break;
 							}
 						}
-
-						$idx = count( $elements_by_tag[ $open_tag ] ?? array() );
-						$elements_by_tag[ $open_tag ][ $idx ] = array(
-							'tag_idx'      => $idx,
-							'tag'          => $open_tag,
-							'open_offset'  => $offset,
-							'open_raw'     => $raw,
-							'inner_start'  => $offset + strlen( $raw ),
-							'inner_end'    => strlen( $content ),
-							'close_offset' => strlen( $content ),
-							'raw_inner'    => substr( $content, $offset + strlen( $raw ) ),
-						);
-						$stack[] = array(
-							'tag' => $open_tag,
-							'idx' => $idx,
-						);
 					}
+
+					$idx                                  = count( $elements_by_tag[ $open_tag ] ?? array() );
+					$elements_by_tag[ $open_tag ][ $idx ] = array(
+						'tag_idx'      => $idx,
+						'tag'          => $open_tag,
+						'open_offset'  => $offset,
+						'open_raw'     => $raw,
+						'inner_start'  => $offset + strlen( $raw ),
+						'inner_end'    => strlen( $content ),
+						'close_offset' => strlen( $content ),
+						'raw_inner'    => substr( $content, $offset + strlen( $raw ) ),
+					);
+					$stack[]                              = array(
+						'tag' => $open_tag,
+						'idx' => $idx,
+					);
 				}
 			}
 		}
@@ -652,7 +650,7 @@ class Classic_Builder extends Base_Builder {
 
 		$inline_nodes = array();
 
-		$flush_inline = function() use ( &$inline_nodes, $dom, &$dom_units, $container ) {
+		$flush_inline = function () use ( &$inline_nodes, $dom, &$dom_units, $container ) {
 			if ( empty( $inline_nodes ) ) {
 				return;
 			}
