@@ -15,6 +15,7 @@ use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Bulk\Bulk_Process;
 use TranslateSense\Includes\Translation\Statics;
 use TranslateSense\Includes\Content\Processor\Block_Processor;
+use TranslateSense\Includes\Core\Detector;
 
 use WP_REST_Server;
 use WP_REST_Request;
