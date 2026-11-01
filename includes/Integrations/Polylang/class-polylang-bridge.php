@@ -72,8 +72,8 @@ class Polylang_Bridge {
 		$result = array();
 		if ( ! empty( $languages ) ) {
 			foreach ( $languages as $lang ) {
-				$flag_url = $lang->flag_url ?? ( $lang->flag ?? '' );
-				$result[] = array(
+				$flag_url              = $lang->flag_url ?? ( $lang->flag ?? '' );
+				$result[ $lang->slug ] = array(
 					'slug'       => $lang->slug,
 					'name'       => $lang->name,
 					'locale'     => $lang->locale,
