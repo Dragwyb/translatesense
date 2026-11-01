@@ -2722,6 +2722,16 @@ class Rest_Api {
 			$post_id
 		);
 
+		if ( ! $source_language ) {
+			return new WP_Error(
+				'invalid_source_language',
+				__( 'Source language is required. It seems the post is not assigned a language.', 'translatesense' ),
+				array(
+					'status' => 400,
+				)
+			);
+		}
+
 		$package_strings = Hashing_Db::get_post_package(
 			$post_id,
 			$source_language,
