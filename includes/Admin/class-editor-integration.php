@@ -83,9 +83,9 @@ class Editor_Integration {
 
 			if ( ! empty( $nonce ) ) {
 				if (
-					wp_verify_nonce( $nonce, 'new-post-translation' )
-					|| wp_verify_nonce( $nonce, 'update-post_' . $post_id )
-					|| wp_verify_nonce( $nonce, 'add-post' )
+				wp_verify_nonce( $nonce, 'new-post-translation' )
+				|| wp_verify_nonce( $nonce, 'update-post_' . $post_id )
+				|| wp_verify_nonce( $nonce, 'add-post' )
 				) {
 					$is_valid_nonce = true;
 				}
@@ -337,6 +337,18 @@ class Editor_Integration {
 			return;
 		}
 
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return;
+		}
+
+		if ( ! property_exists( get_current_screen(), 'is_block_editor' ) ) {
+			return;
+		}
+
+		if ( ! get_current_screen()->is_block_editor ) {
+			return;
+		}
+
 		$post_id = (int) $post->ID;
 
 		// Check and enqueue Gutenberg Block Recovery System if pending
@@ -370,11 +382,6 @@ class Editor_Integration {
 			return;
 		}
 
-		$post = get_post( $post_id );
-		if ( ! $post || ! function_exists( 'has_blocks' ) || ! has_blocks( $post->post_content ) ) {
-			return;
-		}
-
 		if ( ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
@@ -391,8 +398,8 @@ class Editor_Integration {
 		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
 
 		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/translation/block-recovery' . $assets_ext . '.js' )
-			? 'assets/js/translation/block-recovery' . $assets_ext . '.js'
-			: 'assets/js/block-recovery.js';
+		? 'assets/js/translation/block-recovery' . $assets_ext . '.js'
+		: 'assets/js/block-recovery.js';
 
 		wp_enqueue_script(
 			'translatesense-block-recovery',
@@ -514,12 +521,18 @@ class Editor_Integration {
 			return;
 		}
 
+		if ( function_exists( 'get_current_screen' ) ) {
+			if ( property_exists( get_current_screen(), 'is_block_editor' ) && ! get_current_screen()->is_block_editor ) {
+				return;
+			}
+		}
+
 		$post_types = Polylang_Bridge::get_translated_post_types();
 
 		foreach ( $post_types as $post_type ) {
 			add_meta_box(
 				'translatesense-editor-metabox',
-				__( '⚡ TranslateSense', 'translatesense' ),
+				__( 'TransalteSense', 'translatesense' ),
 				array( __CLASS__, 'render_editor_meta_box' ),
 				$post_type,
 				'side',
@@ -544,14 +557,27 @@ class Editor_Integration {
 			return;
 		}
 
-		$current_lang = Polylang_Bridge::get_post_language( $post_id );
+		$current_lang  = Polylang_Bridge::get_post_language( $post_id );
+		$source_lang   = Polylang_Bridge::get_post_language( $source_post_id );
+		$polylang_lang = Polylang_Bridge::get_languages();
+
+		$source_lang_flag  = '';
+		$current_lang_flag = '';
+
+		if ( isset( $polylang_lang[ $current_lang ] ) && ! empty( isset( $polylang_lang[ $current_lang ] ) ) ) {
+			$current_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $current_lang ]['flag'] ), esc_attr( $polylang_lang[ $current_lang ]['name'] ) );
+		}
+		if ( isset( $polylang_lang[ $source_lang ] ) && ! empty( isset( $polylang_lang[ $source_lang ] ) ) ) {
+			$source_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $source_lang ]['flag'] ), esc_attr( $polylang_lang[ $source_lang ]['name'] ) );
+		}
 		?>
-		<div class="translatesense-metabox-content" style="padding: 6px 0;">
-			<button type="button" id="ts-metabox-translate-btn" class="button button-primary widefat ts-open-translate-btn" style="margin-bottom: 4px; font-weight: 600; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #fff; padding: 6px 12px; height: auto;">
-				<?php esc_html_e( '⚡ Translate Page', 'translatesense' ); ?>
+		<div class="translatesense-metabox-content">
+			<button type="button" id="ts-metabox-translate-btn" class="button button-primary widefat ts-open-translate-btn">
+			<span class="dashicons dashicons-translation"></span>	
+			<?php esc_html_e( 'Auto Translate', 'translatesense' ); ?>
 			</button>
-			<p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0;">
-				Language: <strong><?php echo esc_html( strtoupper( $current_lang ?: 'EN' ) ); ?></strong>
+			<p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0; font-weight: 500; font-size: 14px">
+				<?php printf( __( 'Language: %1$s (%2$s) to %3$s (%4$s)' ), $source_lang_flag, esc_html( strtoupper( $source_lang ) ), $current_lang_flag, esc_html( strtoupper( $current_lang ) ) ); ?>
 			</p>
 		</div>
 		<?php
@@ -583,11 +609,10 @@ class Editor_Integration {
 			return;
 		}
 
-		$current_lang = $post_id ? Polylang_Bridge::get_post_language( $post_id ) : '';
 		?>
-		<button type="button" id="ts-media-translate-btn" class="button ts-open-translate-btn" style="margin-left: 5px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;">
-			<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1.2;"></span>
-			<?php esc_html_e( 'Translate Page', 'translatesense' ); ?>
+		<button type="button" id="ts-media-translate-btn" class="button button-primary ts-open-translate-btn">
+			<span class="dashicons dashicons-translation"></span>
+			<?php esc_html_e( 'Auto Translate', 'translatesense' ); ?>
 		</button>
 		<?php
 	}
