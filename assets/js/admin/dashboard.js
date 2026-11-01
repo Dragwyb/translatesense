@@ -10,7 +10,7 @@
     const getInitialTab = () => {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get('tab');
-      const validTabs = ['gutenberg', 'elementor', 'xml_editor', 'settings'];
+      const validTabs = ['gutenberg', 'elementor', 'settings'];
       if (urlTab && validTabs.includes(urlTab)) {
         return urlTab;
       }
@@ -69,7 +69,7 @@
       const onPopState = () => {
         const params = new URLSearchParams(window.location.search);
         const tabFromUrl = params.get('tab');
-        const validTabs = ['gutenberg', 'elementor', 'xml_editor', 'settings'];
+        const validTabs = ['gutenberg', 'elementor', 'settings'];
         if (tabFromUrl && validTabs.includes(tabFromUrl)) {
           setActiveTab(tabFromUrl);
         }
@@ -125,7 +125,7 @@
         }
         if (settingsRes.active_builders) {
           setActiveBuilders(settingsRes.active_builders);
-          if (!settingsRes.active_builders[activeTab] && activeTab !== 'xml_editor' && activeTab !== 'settings') {
+          if (!settingsRes.active_builders[activeTab] && activeTab !== 'settings') {
             const firstActive = Object.keys(settingsRes.active_builders).find((k) => settingsRes.active_builders[k]);
             if (firstActive) handleTabChange(firstActive);
           }
@@ -283,8 +283,6 @@
       );
     }
 
-    const currentBuilderXml = xmlConfigs[activeTab] || xmlConfigs.all;
-
     return el(
       'div',
       { className: 'translatesense-dashboard' },
@@ -373,14 +371,6 @@
         el(
           'button',
           {
-            className: `ts-tab-btn ${activeTab === 'xml_editor' ? 'active' : ''}`,
-            onClick: () => handleTabChange('xml_editor'),
-          },
-          '📋 XML Configs'
-        ),
-        el(
-          'button',
-          {
             className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
             onClick: () => handleTabChange('settings'),
           },
@@ -400,213 +390,211 @@
           connectorsUrl,
           providerModels,
         })
-        : activeTab === 'xml_editor'
-          ? el(AllXmlEditor, { xmlConfigs, onSave: handleSaveXml })
-          : el(
+        : el(
+          'div',
+          null,
+          // Controls Bar
+          el(
             'div',
-            null,
-            // Controls Bar
+            { className: 'ts-controls-bar' },
             el(
               'div',
-              { className: 'ts-controls-bar' },
+              { className: 'ts-controls-left' },
               el(
                 'div',
-                { className: 'ts-controls-left' },
-                el(
-                  'div',
-                  { className: 'ts-search-box' },
-                  el('span', { className: 'ts-search-icon' }, '🔍'),
-                  el('input', {
-                    type: 'text',
-                    className: 'ts-search-input',
-                    placeholder: `Search ${activeTab} items...`,
-                    value: searchQuery,
-                    onChange: (e) => setSearchQuery(e.target.value),
-                  })
-                ),
-                // Category Filter
-                el(
-                  'select',
-                  {
-                    className: 'ts-filter-select',
-                    value: selectedCategory,
-                    onChange: (e) => setSelectedCategory(e.target.value),
-                    title: 'Filter by Category',
-                  },
-                  el('option', { value: 'all' }, '📂 All Categories'),
-                  availableCategories.map((cat) =>
-                    el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
-                  )
-                ),
-                // Support Status Filter
-                el(
-                  'select',
-                  {
-                    className: 'ts-filter-select',
-                    value: selectedStatus,
-                    onChange: (e) => setSelectedStatus(e.target.value),
-                    title: 'Filter by Support Status',
-                  },
-                  el('option', { value: 'all' }, '🏷️ All Statuses'),
-                  el('option', { value: 'supported' }, '✓ Supported'),
-                  el('option', { value: 'custom' }, '★ Custom Config'),
-                  el('option', { value: 'unsupported' }, '✕ Unsupported')
-                ),
-                // Sort By
-                el(
-                  'select',
-                  {
-                    className: 'ts-filter-select',
-                    value: sortBy,
-                    onChange: (e) => setSortBy(e.target.value),
-                    title: 'Sort Items',
-                  },
-                  el('option', { value: 'name_asc' }, '🔤 Name (A → Z)'),
-                  el('option', { value: 'name_desc' }, '🔤 Name (Z → A)'),
-                  el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
-                  el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
-                  el('option', { value: 'status' }, '⚡ Status (Supported first)')
-                ),
-                // Reset Filters Button if any filter active
-                (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
-                el(
-                  'button',
-                  {
-                    className: 'ts-btn ts-btn-secondary ts-btn-sm ts-reset-filter-btn',
-                    onClick: () => {
-                      setSearchQuery('');
-                      setSelectedCategory('all');
-                      setSelectedStatus('all');
-                      setSortBy('name_asc');
-                    },
-                    title: 'Reset filters to default',
-                  },
-                  '✕ Reset'
-                ),
-                // View Switcher (Grid vs List)
-                el(
-                  'div',
-                  { className: 'ts-view-switcher' },
-                  el(
-                    'button',
-                    {
-                      className: `ts-view-btn ${viewMode === 'grid' ? 'active' : ''}`,
-                      onClick: () => setViewMode('grid'),
-                      title: 'Grid Card View',
-                    },
-                    '⊞ Grid'
-                  ),
-                  el(
-                    'button',
-                    {
-                      className: `ts-view-btn ${viewMode === 'list' ? 'active' : ''}`,
-                      onClick: () => setViewMode('list'),
-                      title: 'Table List View',
-                    },
-                    '☰ List'
-                  )
+                { className: 'ts-search-box' },
+                el('span', { className: 'ts-search-icon' }, '🔍'),
+                el('input', {
+                  type: 'text',
+                  className: 'ts-search-input',
+                  placeholder: `Search ${activeTab} items...`,
+                  value: searchQuery,
+                  onChange: (e) => setSearchQuery(e.target.value),
+                })
+              ),
+              // Category Filter
+              el(
+                'select',
+                {
+                  className: 'ts-filter-select',
+                  value: selectedCategory,
+                  onChange: (e) => setSelectedCategory(e.target.value),
+                  title: 'Filter by Category',
+                },
+                el('option', { value: 'all' }, '📂 All Categories'),
+                availableCategories.map((cat) =>
+                  el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
                 )
               ),
-
-              // Two Global Actions: "Generate Config" and "Edit Config"
+              // Support Status Filter
+              el(
+                'select',
+                {
+                  className: 'ts-filter-select',
+                  value: selectedStatus,
+                  onChange: (e) => setSelectedStatus(e.target.value),
+                  title: 'Filter by Support Status',
+                },
+                el('option', { value: 'all' }, '🏷️ All Statuses'),
+                el('option', { value: 'supported' }, '✓ Supported'),
+                el('option', { value: 'custom' }, '★ Custom Config'),
+                el('option', { value: 'unsupported' }, '✕ Unsupported')
+              ),
+              // Sort By
+              el(
+                'select',
+                {
+                  className: 'ts-filter-select',
+                  value: sortBy,
+                  onChange: (e) => setSortBy(e.target.value),
+                  title: 'Sort Items',
+                },
+                el('option', { value: 'name_asc' }, '🔤 Name (A → Z)'),
+                el('option', { value: 'name_desc' }, '🔤 Name (Z → A)'),
+                el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
+                el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
+                el('option', { value: 'status' }, '⚡ Status (Supported first)')
+              ),
+              // Reset Filters Button if any filter active
+              (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
+              el(
+                'button',
+                {
+                  className: 'ts-btn ts-btn-secondary ts-btn-sm ts-reset-filter-btn',
+                  onClick: () => {
+                    setSearchQuery('');
+                    setSelectedCategory('all');
+                    setSelectedStatus('all');
+                    setSortBy('name_asc');
+                  },
+                  title: 'Reset filters to default',
+                },
+                '✕ Reset'
+              ),
+              // View Switcher (Grid vs List)
               el(
                 'div',
-                { className: 'ts-controls-right' },
+                { className: 'ts-view-switcher' },
                 el(
                   'button',
                   {
-                    className: 'ts-btn ts-btn-primary button-primary',
-                    disabled: isCreatingSandbox,
-                    onClick: () => handleGenerateConfigSandbox(activeTab),
-                    title: "Open editor sandbox with placeholder 'Translate This Content'",
+                    className: `ts-view-btn ${viewMode === 'grid' ? 'active' : ''}`,
+                    onClick: () => setViewMode('grid'),
+                    title: 'Grid Card View',
                   },
-                  isCreatingSandbox ? 'Opening...' : `⚡ Generate ${activeTab.toUpperCase()} Config`
+                  '⊞ Grid'
                 ),
                 el(
                   'button',
                   {
-                    className: 'ts-btn ts-btn-secondary',
-                    onClick: () => {
-                      setSelectedWidget(null);
-                      setModalTargetBuilder(activeTab);
-                      setIsXmlModalOpen(true);
-                    },
-                    title: `View & Edit ${activeTab}-config.xml`,
+                    className: `ts-view-btn ${viewMode === 'list' ? 'active' : ''}`,
+                    onClick: () => setViewMode('list'),
+                    title: 'Table List View',
                   },
-                  `📝 Edit ${activeTab.toUpperCase()} Config`
+                  '☰ List'
                 )
               )
             ),
 
-            // Content: Grid View or List / Table View
-            viewMode === 'grid'
-              ? el(
-                'div',
-                { className: 'ts-widget-grid' },
-                filteredWidgets.length > 0
-                  ? filteredWidgets.map((widget) =>
-                    el(WidgetCard, {
-                      key: widget.id,
-                      widget,
-                      activeTab,
-                      onEdit: (w) => {
-                        setSelectedWidget(w);
-                        setModalTargetBuilder(activeTab);
-                        setIsXmlModalOpen(true);
-                      },
-                      onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
-                    })
-                  )
-                  : el(
-                    'div',
-                    { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
-                    'No items found matching your search.'
-                  )
+            // Two Global Actions: "Generate Config" and "Edit Config"
+            el(
+              'div',
+              { className: 'ts-controls-right' },
+              el(
+                'button',
+                {
+                  className: 'ts-btn ts-btn-primary button-primary',
+                  disabled: isCreatingSandbox,
+                  onClick: () => handleGenerateConfigSandbox(activeTab),
+                  title: "Open editor sandbox with placeholder 'Translate This Content'",
+                },
+                isCreatingSandbox ? 'Opening...' : `⚡ Generate ${activeTab.toUpperCase()} Config`
+              ),
+              el(
+                'button',
+                {
+                  className: 'ts-btn ts-btn-secondary',
+                  onClick: () => {
+                    setSelectedWidget(null);
+                    setModalTargetBuilder(activeTab);
+                    setIsXmlModalOpen(true);
+                  },
+                  title: `View & Edit ${activeTab}-config.xml`,
+                },
+                `📝 Edit ${activeTab.toUpperCase()} Config`
               )
-              : el(
-                'div',
-                { className: 'ts-table-container' },
+            )
+          ),
+
+          // Content: Grid View or List / Table View
+          viewMode === 'grid'
+            ? el(
+              'div',
+              { className: 'ts-widget-grid' },
+              filteredWidgets.length > 0
+                ? filteredWidgets.map((widget) =>
+                  el(WidgetCard, {
+                    key: widget.id,
+                    widget,
+                    activeTab,
+                    onEdit: (w) => {
+                      setSelectedWidget(w);
+                      setModalTargetBuilder(activeTab);
+                      setIsXmlModalOpen(true);
+                    },
+                    onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                  })
+                )
+                : el(
+                  'div',
+                  { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
+                  'No items found matching your search.'
+                )
+            )
+            : el(
+              'div',
+              { className: 'ts-table-container' },
+              el(
+                'table',
+                { className: 'ts-list-table' },
                 el(
-                  'table',
-                  { className: 'ts-list-table' },
+                  'thead',
+                  null,
                   el(
-                    'thead',
+                    'tr',
                     null,
-                    el(
+                    el('th', { style: { width: '35%' } }, 'Block / Widget Name'),
+                    el('th', { style: { width: '15%' } }, 'Category'),
+                    el('th', { style: { width: '15%' } }, 'Mapped Fields'),
+                    el('th', { style: { width: '15%' } }, 'Status'),
+                    el('th', { style: { width: '20%', textAlign: 'right' } }, 'Actions')
+                  )
+                ),
+                el(
+                  'tbody',
+                  null,
+                  filteredWidgets.length > 0
+                    ? filteredWidgets.map((widget) =>
+                      el(WidgetTableRow, {
+                        key: widget.id,
+                        widget,
+                        onEdit: (w) => {
+                          setSelectedWidget(w);
+                          setModalTargetBuilder(activeTab);
+                          setIsXmlModalOpen(true);
+                        },
+                        onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                      })
+                    )
+                    : el(
                       'tr',
                       null,
-                      el('th', { style: { width: '35%' } }, 'Block / Widget Name'),
-                      el('th', { style: { width: '15%' } }, 'Category'),
-                      el('th', { style: { width: '15%' } }, 'Mapped Fields'),
-                      el('th', { style: { width: '15%' } }, 'Status'),
-                      el('th', { style: { width: '20%', textAlign: 'right' } }, 'Actions')
+                      el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
                     )
-                  ),
-                  el(
-                    'tbody',
-                    null,
-                    filteredWidgets.length > 0
-                      ? filteredWidgets.map((widget) =>
-                        el(WidgetTableRow, {
-                          key: widget.id,
-                          widget,
-                          onEdit: (w) => {
-                            setSelectedWidget(w);
-                            setModalTargetBuilder(activeTab);
-                            setIsXmlModalOpen(true);
-                          },
-                          onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
-                        })
-                      )
-                      : el(
-                        'tr',
-                        null,
-                        el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
-                      )
-                  )
                 )
               )
-          ),
+            )
+        ),
 
       // XML Config Modal
       isXmlModalOpen &&
@@ -803,24 +791,7 @@
     );
   }
 
-  // Helpers for extracting and injecting child <xpath> tags into Gutenberg blocks
-  function extractXpathsFromXml(xmlStr) {
-    if (!xmlStr) return '';
-    const regex = /<xpath\b([^>]*)>([\s\S]*?)<\/xpath>/gi;
-    const items = [];
-    let m;
-    while ((m = regex.exec(xmlStr)) !== null) {
-      const attrs = m[1].trim();
-      const val = m[2].trim();
-      if (attrs) {
-        items.push('<xpath ' + attrs + '>' + val + '</xpath>');
-      } else {
-        items.push(val);
-      }
-    }
-    return items.join('\n');
-  }
-
+  // Helper for injecting child <xpath> tags into Gutenberg blocks XML snippet
   function injectXpathsIntoXml(xmlStr, xpathsText, builderType) {
     if (!xmlStr || builderType !== 'gutenberg') return xmlStr;
     const lines = (xpathsText || '').split('\n').map((l) => l.trim()).filter(Boolean);
@@ -868,6 +839,7 @@
       if (widget && widget.xpaths && widget.xpaths.length > 0) {
         return widget.xpaths
           .map((x) => {
+            if (typeof x === 'string') return x;
             const attrs = Object.keys(x)
               .filter((k) => k !== 'value')
               .map((k) => `${k}="${x[k]}"`)
@@ -879,10 +851,8 @@
       if (widget && widget.xpath) {
         return widget.xpath;
       }
-      return extractXpathsFromXml(xmlCode);
+      return '';
     };
-
-    const [xpathValue, setXpathValue] = useState(isGutenberg ? getInitialXpaths() : '');
 
     useEffect(() => {
       let initialCode = '';
@@ -896,37 +866,19 @@
         } else {
           initialCode = `<?xml version="1.0" encoding="UTF-8"?>\n<wpml-config>\n    <custom-fields>\n        <custom-field action="translate">${widget.id}</custom-field>\n    </custom-fields>\n</wpml-config>`;
         }
+
+        if (isGutenberg) {
+          const widgetXpaths = getInitialXpaths();
+          if (widgetXpaths && !/<xpath\b/i.test(initialCode)) {
+            initialCode = injectXpathsIntoXml(initialCode, widgetXpaths, builder);
+          }
+        }
       } else {
         initialCode = xmlCode || '';
       }
 
-      if (isGutenberg) {
-        const detectedXpaths = extractXpathsFromXml(initialCode) || getInitialXpaths();
-        if (detectedXpaths && !extractXpathsFromXml(initialCode)) {
-          initialCode = injectXpathsIntoXml(initialCode, detectedXpaths, builder);
-        }
-        setXpathValue(detectedXpaths || '');
-      }
       setEditorCode(initialCode);
     }, [widget, builder, xmlCode, isGutenberg]);
-
-    const handleXpathChange = (newXpath) => {
-      setXpathValue(newXpath);
-      setEditorCode((prevCode) => injectXpathsIntoXml(prevCode, newXpath, builder));
-    };
-
-    const handleEditorChange = (newCode) => {
-      setEditorCode(newCode);
-      if (isGutenberg) {
-        const detected = extractXpathsFromXml(newCode);
-        setXpathValue(detected);
-      }
-    };
-
-    const handleSaveClick = () => {
-      const finalXml = isGutenberg ? injectXpathsIntoXml(editorCode, xpathValue, builder) : editorCode;
-      onSave(finalXml);
-    };
 
     return el(
       'div',
@@ -937,7 +889,13 @@
         el(
           'div',
           { className: 'ts-modal-header' },
-          el('h3', null, widget ? `Configure XML: ${widget.name} (${builder.toUpperCase()})` : `Edit ${builder.toUpperCase()} Custom XML Configuration`),
+          el(
+            'h3',
+            null,
+            widget
+              ? `Configure XML: ${widget.name} (${builder.toUpperCase()})`
+              : `Edit ${builder.toUpperCase()} Custom XML Configuration`
+          ),
           el('button', { className: 'ts-modal-close', onClick: onClose }, '✕')
         ),
         el(
@@ -950,54 +908,11 @@
               ? 'Specify translation mappings and child <xpath> tags for GUTENBERG. When saved, this updates the active configuration.'
               : `Specify translation mappings for ${builder.toUpperCase()}. When saved, this updates the active configuration.`
           ),
-          isGutenberg &&
-          el(
-            'div',
-            { style: { marginBottom: '14px' } },
-            el(
-              'label',
-              {
-                style: {
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#334155',
-                  marginBottom: '6px',
-                },
-              },
-              '🎯 Child <xpath> Selectors (One per line)'
-            ),
-            el('textarea', {
-              className: 'ts-input',
-              rows: 3,
-              style: {
-                width: '100%',
-                padding: '8px 12px',
-                fontSize: '12px',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                boxSizing: 'border-box',
-                fontFamily: 'monospace',
-                background: '#f8fafc',
-                resize: 'vertical',
-                lineHeight: '1.5',
-              },
-              placeholder: '//h3[contains(@class, "eb-cia-title")]\n//p[contains(@class, "eb-cia-description")]\n<xpath type="link">//a/@href</xpath>',
-              value: xpathValue,
-              onChange: (e) => handleXpathChange(e.target.value),
-            }),
-            el(
-              'span',
-              { style: { display: 'block', fontSize: '11px', color: '#64748b', marginTop: '4px' } },
-              'Each line becomes a child <xpath> tag under <gutenberg-block>. Attributes like type="link" are fully supported.'
-            )
-          ),
           el('textarea', {
             className: 'ts-xml-editor',
+            style: { height: '380px' },
             value: editorCode,
-            onChange: (e) => handleEditorChange(e.target.value),
+            onChange: (e) => setEditorCode(e.target.value),
             spellCheck: 'false',
           })
         ),
@@ -1009,72 +924,11 @@
             'button',
             {
               className: 'ts-btn ts-btn-primary button-primary',
-              onClick: handleSaveClick,
+              onClick: () => onSave(editorCode),
             },
             '💾 Save Config'
           )
         )
-      )
-    );
-  }
-
-  // Tab to View/Edit All Separate Editor XMLs
-  function AllXmlEditor({ xmlConfigs, onSave }) {
-    const [selectedEditor, setSelectedEditor] = useState('gutenberg');
-    const [currentCode, setCurrentCode] = useState(xmlConfigs.gutenberg || '');
-
-    useEffect(() => {
-      setCurrentCode(xmlConfigs[selectedEditor] || '');
-    }, [selectedEditor, xmlConfigs]);
-
-    return el(
-      'div',
-      { className: 'ts-settings-card', style: { maxWidth: '1000px' } },
-      el(
-        'div',
-        { className: 'ts-settings-card-header' },
-        el(
-          'div',
-          { className: 'ts-settings-card-title-group' },
-          el('h3', null, '📝 Editor-Specific XML Configurations'),
-          el(
-            'p',
-            null,
-            'TranslateSense maintains isolated XML configuration rules for each editor. Select an editor below to inspect or edit its custom XML mapping.'
-          )
-        )
-      ),
-
-      el(
-        'div',
-        { style: { display: 'flex', gap: '10px', marginBottom: '16px' } },
-        ['gutenberg', 'elementor'].map((ed) =>
-          el(
-            'button',
-            {
-              key: ed,
-              className: `ts-btn ${selectedEditor === ed ? 'ts-btn-primary button-primary' : 'ts-btn-secondary'}`,
-              onClick: () => setSelectedEditor(ed),
-            },
-            `${ed.toUpperCase()} XML`
-          )
-        )
-      ),
-
-      el('textarea', {
-        className: 'ts-xml-editor',
-        style: { height: '380px', marginBottom: '20px' },
-        value: currentCode,
-        onChange: (e) => setCurrentCode(e.target.value),
-        spellCheck: 'false',
-      }),
-      el(
-        'button',
-        {
-          className: 'ts-btn ts-btn-primary button-primary',
-          onClick: () => onSave(currentCode, selectedEditor),
-        },
-        `💾 Save ${selectedEditor.toUpperCase()} Custom XML`
       )
     );
   }

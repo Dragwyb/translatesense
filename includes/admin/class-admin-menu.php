@@ -137,7 +137,7 @@ class Admin_Menu {
 	/**
 	 * Get Dashboard Page URL with optional tab parameter.
 	 *
-	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor', 'xml_editor')
+	 * @param string $tab Optional tab name ('settings', 'gutenberg', 'elementor')
 	 * @return string
 	 */
 	public static function get_dashboard_url( string $tab = '' ): string {
