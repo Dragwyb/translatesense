@@ -3048,6 +3048,10 @@ class Rest_Api {
 			return $result;
 		}
 
+		if ( is_array( $result ) ) {
+			$result['post_ids'] = $clean_post_ids;
+		}
+
 		return rest_ensure_response( $result );
 	}
 

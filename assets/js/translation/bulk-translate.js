@@ -1346,7 +1346,7 @@
           inModalPollingTimer = null;
         }
 
-        const effectivePostIds = runOptions.targetPostIds || postIds;
+        let effectivePostIds = (runOptions.targetPostIds || postIds).slice();
         const effectiveTargetLangs = runOptions.effectiveTargetLangs || selectedTargetLangs;
         const selectedProvider = runOptions.selectedProvider || (currentBatch && currentBatch.provider) || 'openai';
 
@@ -1522,6 +1522,15 @@
         function populateMapFromBatch(batchData) {
           if (!batchData || !Array.isArray(batchData.items)) return;
           if (batchData.provider) activeBatchProvider = batchData.provider;
+
+          // Prune any posts from postResultsMap that are not in the batch items
+          const batchItemPostIds = new Set(batchData.items.map(function (it) { return String(it.post_id); }));
+          Object.keys(postResultsMap).forEach(function (pid) {
+            if (!batchItemPostIds.has(String(pid))) {
+              delete postResultsMap[pid];
+            }
+          });
+
           batchData.items.forEach(function (item) {
             const pId = String(item.post_id);
             const tLang = String(item.target_language);
@@ -1984,8 +1993,9 @@
           const totalCharsEl = document.getElementById('ts-stat-total-characters');
           const elapsedTimeEl = document.getElementById('ts-stat-elapsed-time');
 
-          if (compPostsEl) compPostsEl.textContent = `${completedLangPosts} / ${totalLangPosts || totalJobs}`;
-          if (failPostsEl) failPostsEl.textContent = `${failedLangPosts} / ${totalLangPosts || totalJobs}`;
+          const finalTotalCount = totalJobs || totalLangPosts;
+          if (compPostsEl) compPostsEl.textContent = `${completedLangPosts} / ${finalTotalCount}`;
+          if (failPostsEl) failPostsEl.textContent = `${failedLangPosts} / ${finalTotalCount}`;
           if (totalCharsEl) {
             totalCharsEl.textContent = `${formatNumber(completedCharactersSum)}`;
             totalCharsEl.title = `${completedCharactersSum.toLocaleString()} characters`;
@@ -2046,7 +2056,8 @@
             if (barFill) barFill.style.width = pct + '%';
             if (postsCountEl) {
               const doneCount = (data.completed_jobs || 0) + (data.already_exists_jobs || 0) + (data.skipped_jobs || 0);
-              postsCountEl.textContent = `${doneCount} / ${data.total_jobs || (effectivePostIds.length * effectiveTargetLangs.length)} posts (${pct}%)`;
+              const totalJobsInBatch = typeof data.total_jobs !== 'undefined' ? Number(data.total_jobs) : (effectivePostIds.length * effectiveTargetLangs.length);
+              postsCountEl.textContent = `${doneCount} / ${totalJobsInBatch} posts (${pct}%)`;
             }
             if (statusText) statusText.textContent = data.current_status || `Translating content with ${providerName}... (${pct}%)`;
 
@@ -2139,6 +2150,26 @@
         activeBatchId = batchData.batch_id;
         const jobsList = batchData.jobs || [];
 
+        // Deduplicate and sync effectivePostIds from the actual jobs / post_ids returned by the backend
+        const returnedPostIds = Array.isArray(batchData.post_ids) && batchData.post_ids.length > 0
+          ? batchData.post_ids.map(Number)
+          : Array.from(new Set(jobsList.map(function (j) { return Number(j.post_id); })));
+
+        if (returnedPostIds.length > 0) {
+          effectivePostIds = returnedPostIds;
+        }
+
+        // CRITICAL: Prune postResultsMap so ONLY posts that actually exist in the created batch are retained.
+        // This removes any linked duplicate post (e.g. 'hi') that was cleaned out on the backend!
+        const validPostIdSet = new Set(
+          jobsList.map(function (j) { return String(j.post_id); })
+        );
+        Object.keys(postResultsMap).forEach(function (pIdKey) {
+          if (!validPostIdSet.has(String(pIdKey))) {
+            delete postResultsMap[pIdKey];
+          }
+        });
+
         // Populate post titles & editor types from batch jobs
         jobsList.forEach(function (job) {
           const pId = String(job.post_id);
@@ -2192,15 +2223,14 @@
         });
         renderResultsUI();
 
-        if (jobsList.length > 0) {
-          const initialPct = Math.round(getOverallProgress(jobsList));
-          const initialDone = jobsList.filter((j) => j.status === 'already_exists' || j.status === 'completed').length;
-          if (barFill && initialPct > 0) {
-            barFill.style.width = initialPct + '%';
-          }
-          if (postsCountEl && initialDone > 0) {
-            postsCountEl.textContent = `${initialDone} / ${jobsList.length} posts (${initialPct}%)`;
-          }
+        const actualTotalJobs = typeof batchData.total_jobs !== 'undefined' ? Number(batchData.total_jobs) : jobsList.length;
+        const initialPct = jobsList.length > 0 ? Math.round(getOverallProgress(jobsList)) : 0;
+        const initialDone = jobsList.filter((j) => j.status === 'already_exists' || j.status === 'completed').length;
+        if (barFill) {
+          barFill.style.width = initialPct + '%';
+        }
+        if (postsCountEl) {
+          postsCountEl.textContent = `${initialDone} / ${actualTotalJobs} posts (${initialPct}%)`;
         }
 
         // If Backend AI provider (OpenAI, Gemini), start background polling

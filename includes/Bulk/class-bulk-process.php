@@ -262,6 +262,7 @@ class Bulk_Process {
 			'batch_id'   => $batch_id,
 			'total_jobs' => count( $created_jobs ),
 			'jobs'       => $created_jobs,
+			'post_ids'   => $post_ids,
 			'is_backend' => ! $is_chrome_ai,
 			'provider'   => $provider,
 		);
