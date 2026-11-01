@@ -359,6 +359,8 @@
               node.setAttribute('data-ts-tag-idx', String(cidx));
             });
 
+            const tempDiv = doc.createElement('div');
+
             const extractDomRecursive = (container, depth = 0) => {
               if (depth > 50) return;
 
@@ -369,10 +371,12 @@
 
                 let inlineHtml = '';
                 inlineNodes.forEach((n) => {
-                  if (n.nodeType === Node.TEXT_NODE) {
-                    inlineHtml += n.nodeValue;
-                  } else if (n.nodeType === Node.ELEMENT_NODE) {
+                  if (n.nodeType === Node.ELEMENT_NODE) {
                     inlineHtml += n.outerHTML;
+                  } else if (n.nodeType === Node.TEXT_NODE) {
+                    tempDiv.textContent = '';
+                    tempDiv.appendChild(n.cloneNode(true));
+                    inlineHtml += tempDiv.innerHTML;
                   }
                 });
                 inlineNodes = [];
@@ -515,6 +519,7 @@
             const len = rawInner.length - leadWs - trailWs;
 
             if (len > 0) {
+              const exactSource = html.substring(start, start + len);
               units.push({
                 type: du.type,
                 name: du.name,
@@ -522,8 +527,8 @@
                 tag: tag,
                 offset: start,
                 length: len,
-                value: du.value,
-                source: html.substring(start, start + len),
+                value: exactSource,
+                source: exactSource,
               });
               extractedRanges.push([start, start + len]);
               sourcePos = start + len;
@@ -532,7 +537,7 @@
           }
 
           // Standalone paragraph or text run
-          const val = du.value;
+          let val = du.value;
           let pos = html.indexOf(val, sourcePos);
           let foundLen = val.length;
 
@@ -541,6 +546,7 @@
             if (decoded) {
               pos = decoded.offset;
               foundLen = decoded.length;
+              val = html.substring(pos, pos + foundLen);
             }
           }
 
@@ -552,7 +558,7 @@
               tag: tag,
               offset: pos,
               length: foundLen,
-              value: du.value,
+              value: val,
               source: html.substring(pos, pos + foundLen),
             });
             extractedRanges.push([pos, pos + foundLen]);
@@ -642,43 +648,97 @@
       const provider = options.provider || this.provider || '';
       const core = this.core || options.core || (typeof window.TranslateSenseCore === 'object' ? window.TranslateSenseCore : null);
 
-      // Build quick lookup maps
-      const stringsByKey = new Map();
-      const stringsByValue = new Map();
+      // Normalize a string for robust comparison (handles HTML entities & whitespace)
+      const normalize = (str) => {
+        if (!str || typeof str !== 'string') return '';
+        const dec = this.decodeHtmlEntities(str);
+        return dec.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
+      };
+
+      // Build quick lookup structures
+      const stringsByKeyAndValue = new Map();
+      const stringsByValueQueue = new Map();
 
       strings.forEach((s) => {
         const trans = (s.translated || s.translate || '').trim();
         if (!trans) return;
 
-        if (s.key) {
-          stringsByKey.set(s.key, s.translated || s.translate);
+        const val = (typeof s.value === 'string') ? s.value : '';
+        const src = (typeof s.source === 'string') ? s.source : '';
+        const normVal = normalize(val);
+        const normSrc = normalize(src);
+
+        if (s.key && normVal) {
+          stringsByKeyAndValue.set(`${s.key}:::${normVal}`, s.translated || s.translate);
         }
-        if (s.value && typeof s.value === 'string') {
-          stringsByValue.set(s.value.trim(), s.translated || s.translate);
-          const dec = this.decodeHtmlEntities(s.value).trim();
-          if (dec && dec !== s.value.trim()) {
-            stringsByValue.set(dec, s.translated || s.translate);
+
+        if (normVal) {
+          if (!stringsByValueQueue.has(normVal)) {
+            stringsByValueQueue.set(normVal, []);
           }
+          stringsByValueQueue.get(normVal).push({
+            trans: s.translated || s.translate,
+            key: s.key || '',
+            name: s.name || '',
+            tag: s.tag || '',
+            used: false,
+          });
         }
-        if (s.source && typeof s.source === 'string') {
-          stringsByValue.set(s.source.trim(), s.translated || s.translate);
+
+        if (normSrc && normSrc !== normVal) {
+          if (!stringsByValueQueue.has(normSrc)) {
+            stringsByValueQueue.set(normSrc, []);
+          }
+          stringsByValueQueue.get(normSrc).push({
+            trans: s.translated || s.translate,
+            key: s.key || '',
+            name: s.name || '',
+            tag: s.tag || '',
+            used: false,
+          });
         }
       });
 
-      const resolveTrans = (key, val, name) => {
-        if (key && stringsByKey.has(key)) {
-          return stringsByKey.get(key);
+      const resolveTrans = (unit) => {
+        const origVal = unit.value;
+        const normOrig = normalize(origVal);
+        if (!normOrig) return null;
+
+        // 1. Key + exact normalized value match (100% unambiguous 1:1 match)
+        const kvKey = `${unit.key}:::${normOrig}`;
+        if (stringsByKeyAndValue.has(kvKey)) {
+          return stringsByKeyAndValue.get(kvKey);
         }
-        const cleanVal = (val || '').trim();
-        if (cleanVal && stringsByValue.has(cleanVal)) {
-          return stringsByValue.get(cleanVal);
+
+        // 2. Value match from queue (preferring same tag/name or key)
+        if (stringsByValueQueue.has(normOrig)) {
+          const candidates = stringsByValueQueue.get(normOrig);
+          // Prefer matching name/tag or key
+          for (const item of candidates) {
+            if (!item.used && (item.name === unit.name || item.tag === unit.tag || item.key === unit.key)) {
+              item.used = true;
+              return item.trans;
+            }
+          }
+          // Otherwise take first unused candidate in document order
+          for (const item of candidates) {
+            if (!item.used) {
+              item.used = true;
+              return item.trans;
+            }
+          }
+          // If all candidates are used (e.g. repeated exact phrases), reuse the first
+          return candidates[0].trans;
         }
+
+        // 3. Fallback to core.getTranslatedString by value
         if (core && typeof core.getTranslatedString === 'function') {
-          const trans = core.getTranslatedString(name || 'generic', cleanVal, provider, name);
+          const trans = core.getTranslatedString(unit.name || 'generic', origVal.trim(), provider, unit.name);
           if (trans && (trans.translate || typeof trans === 'string')) {
             return trans.translate || trans;
           }
         }
+
         return null;
       };
 
@@ -694,9 +754,9 @@
         const origVal = unit.value;
         if (!origVal || !origVal.trim()) return;
 
-        const trans = resolveTrans(unit.key, origVal, unit.name);
+        const trans = resolveTrans(unit);
         if (trans && trans !== origVal && trans.trim()) {
-          const replacementStr = unit.type === 'attribute'
+          const replacementStr = (unit.type === 'attribute' || (unit.name && unit.name.startsWith('classic_attr_')))
             ? this.escapeHtml(trans)
             : trans;
 
