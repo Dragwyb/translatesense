@@ -998,6 +998,8 @@ class Rest_Api {
 			)
 		);
 
+		$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
+
 		$clean_languages = array_values(
 			array_unique(
 				array_filter(
@@ -3023,6 +3025,8 @@ class Rest_Api {
 		$clean_post_ids = array_values(
 			array_unique( $clean_post_ids )
 		);
+
+		$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
 
 		if ( empty( $clean_post_ids ) ) {
 			return new WP_Error(

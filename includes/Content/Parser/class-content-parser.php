@@ -300,6 +300,7 @@ class Content_Parser {
 		// Check all linked Polylang translation posts
 		if ( class_exists( 'TranslateSense\\Includes\\Integrations\\Polylang\\Polylang_Bridge' ) && Polylang_Bridge::is_polylang_active() ) {
 			$default_lang = Polylang_Bridge::get_default_language();
+			$post_lang    = Polylang_Bridge::get_post_language( $post_id );
 			$translations = Polylang_Bridge::get_post_translations( $post_id );
 
 			if ( ! empty( $translations ) && is_array( $translations ) ) {
@@ -308,6 +309,10 @@ class Content_Parser {
 					if ( $linked_post_id > 0 && $linked_post_id !== (int) $post_id ) {
 						// If any linked post is in Polylang default language and already has packages saved, return false
 						if ( $lang === $default_lang && class_exists( Hashing_Db::class ) && Hashing_Db::has_post_packages( $linked_post_id ) ) {
+							return false;
+						}
+						// If this post is not default language, and another linked post already has packages saved, return false
+						if ( $post_lang !== $default_lang && class_exists( Hashing_Db::class ) && Hashing_Db::has_post_packages( $linked_post_id ) ) {
 							return false;
 						}
 					}

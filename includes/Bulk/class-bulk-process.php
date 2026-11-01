@@ -75,17 +75,110 @@ class Bulk_Process {
 	}
 
 	/**
-	 * Create a bulk translation batch.
+	 * Filter and deduplicate user-passed post IDs for bulk translation so that
+	 * linked translations of the same content are not duplicated in the batch.
 	 *
-	 * Existing target translations are queued for in-place re-translation.
-	 * Only a source post already in the requested language is marked as
-	 * already_exists and skipped.
-	 *
-	 * @param array  $post_ids
-	 * @param array  $target_languages
-	 * @param string $provider
-	 * @return array
+	 * @param array $post_ids Raw or sanitized post IDs passed by the user.
+	 * @return int[] Filtered post IDs with linked duplicates removed.
 	 */
+	public static function filter_linked_posts( array $post_ids ): array {
+		$clean_post_ids = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'absint', $post_ids )
+				)
+			)
+		);
+
+		if ( empty( $clean_post_ids ) ) {
+			return array();
+		}
+
+		// If Polylang is not active, posts cannot be linked translations via Polylang
+		if ( ! class_exists( Polylang_Bridge::class ) || ! Polylang_Bridge::is_polylang_active() ) {
+			return $clean_post_ids;
+		}
+
+		$default_lang = Polylang_Bridge::get_default_language();
+
+		$processed_group_keys = array();
+		$filtered_post_ids    = array();
+
+		foreach ( $clean_post_ids as $post_id ) {
+			if ( $post_id <= 0 ) {
+				continue;
+			}
+
+			// Retrieve all linked translations for this post
+			$translations = (array) Polylang_Bridge::get_post_translations( $post_id );
+
+			// If no linked translations found, keep the post as-is
+			if ( empty( $translations ) ) {
+				if ( ! in_array( $post_id, $filtered_post_ids, true ) ) {
+					$filtered_post_ids[] = $post_id;
+				}
+				continue;
+			}
+
+			// Create a unique group key based on sorted translation post IDs
+			$group_ids = array_values( array_unique( array_filter( array_map( 'absint', $translations ) ) ) );
+			sort( $group_ids );
+			$group_key = implode( '_', $group_ids );
+
+			// If this translation group has already been handled, skip
+			if ( isset( $processed_group_keys[ $group_key ] ) ) {
+				continue;
+			}
+			$processed_group_keys[ $group_key ] = true;
+
+			// Posts from this translation group that were passed in the user's post_ids
+			$selected_in_group = array();
+			foreach ( $clean_post_ids as $pid ) {
+				if ( in_array( $pid, $group_ids, true ) ) {
+					$selected_in_group[] = $pid;
+				}
+			}
+
+			if ( empty( $selected_in_group ) ) {
+				continue;
+			}
+
+			// Identify default language post ID for this group
+			$default_post_id      = isset( $translations[ $default_lang ] ) ? absint( $translations[ $default_lang ] ) : 0;
+			$default_in_user_list = ( $default_post_id > 0 && in_array( $default_post_id, $selected_in_group, true ) );
+
+			// Check which selected posts have package strings saved in translatesense_packages
+			$posts_with_packages = array();
+			if ( class_exists( Hashing_Db::class ) ) {
+				foreach ( $selected_in_group as $pid ) {
+					if ( Hashing_Db::has_post_packages( $pid ) ) {
+						$posts_with_packages[] = $pid;
+					}
+				}
+			}
+
+			$chosen_id = 0;
+
+			if ( ! empty( $posts_with_packages ) ) {
+				if ( $default_in_user_list && in_array( $default_post_id, $posts_with_packages, true ) ) {
+					$chosen_id = $default_post_id;
+				} else {
+					$chosen_id = $posts_with_packages[0];
+				}
+			} elseif ( $default_in_user_list ) {
+					$chosen_id = $default_post_id;
+			} else {
+				$chosen_id = $selected_in_group[0];
+			}
+
+			if ( $chosen_id > 0 && ! in_array( $chosen_id, $filtered_post_ids, true ) ) {
+				$filtered_post_ids[] = $chosen_id;
+			}
+		}
+
+		return $filtered_post_ids;
+	}
+
 	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai' ): array {
 		global $wpdb;
 
@@ -94,6 +187,7 @@ class Bulk_Process {
 		$provider     = sanitize_text_field( $provider );
 		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
 
+		$post_ids     = self::filter_linked_posts( $post_ids );
 		$created_jobs = array();
 
 		foreach ( $post_ids as $p_id ) {
