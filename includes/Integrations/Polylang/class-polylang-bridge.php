@@ -140,7 +140,7 @@ class Polylang_Bridge {
 	 * Find the target-language translation for a source post.
 	 *
 	 * Polylang's translation map is authoritative. The TranslateSense source
-	 * marker is a recovery fallback for interrupted imports/older plugin builds.
+	 * marker is a processor fallback for interrupted imports/older plugin builds.
 	 *
 	 * @param int    $source_post_id Source post ID.
 	 * @param string $target_lang    Target language slug.

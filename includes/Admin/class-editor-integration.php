@@ -6,6 +6,7 @@ namespace TranslateSense\Includes\Admin;
 
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\AI\Ai_Connector_Bridge;
+use TranslateSense\Includes\Content\Processor\Block_Processor;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -363,8 +364,8 @@ class Editor_Integration {
 
 		$post_id = (int) $post->ID;
 
-		// Check and enqueue Gutenberg Block Recovery System if pending
-		self::maybe_enqueue_block_recovery_assets( $post_id );
+		// Check and enqueue Gutenberg Block Processor System if pending
+		self::maybe_enqueue_block_processor_assets( $post_id );
 
 		if ( self::is_post_already_translated( $post_id ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
 			return;
@@ -374,23 +375,23 @@ class Editor_Integration {
 	}
 
 	/**
-	 * Maybe enqueue Gutenberg Block Recovery assets based on strict post meta condition.
+	 * Maybe enqueue Gutenberg Block Processor assets based on strict post meta condition.
 	 *
-	 * Only loads if BOTH '_translatesense_translated' and '_block_repair_pending' post meta are present,
+	 * Only loads if BOTH '_translatesense_translated' and 'block process meta are present,
 	 * the post has Gutenberg blocks, and the user has permission to edit the post.
 	 *
 	 * @param int $post_id Post ID.
 	 */
-	public static function maybe_enqueue_block_recovery_assets( int $post_id ): void {
+	public static function maybe_enqueue_block_processor_assets( int $post_id ): void {
 		if ( $post_id <= 0 ) {
 			return;
 		}
 
-		$is_translated     = get_post_meta( $post_id, '_translatesense_translated', true );
-		$is_repair_pending = get_post_meta( $post_id, '_block_repair_pending', true );
+		$is_translated          = get_post_meta( $post_id, '_translatesense_translated', true );
+		$is_block_state_pending = Block_Processor::is_block_state_pending( $post_id );
 
 		// Strictly check that BOTH conditions are fulfilled
-		if ( empty( $is_translated ) || '0' === (string) $is_translated || empty( $is_repair_pending ) || '0' === (string) $is_repair_pending ) {
+		if ( empty( $is_translated ) || '0' === (string) $is_translated || ! $is_block_state_pending ) {
 			return;
 		}
 
@@ -398,23 +399,23 @@ class Editor_Integration {
 			return;
 		}
 
-		self::enqueue_block_recovery_assets( $post_id );
+		self::enqueue_block_processor_assets( $post_id );
 	}
 
 	/**
-	 * Enqueue dedicated Block Recovery CSS and JS assets.
+	 * Enqueue dedicated Block Processor CSS and JS assets.
 	 *
 	 * @param int $post_id Post ID.
 	 */
-	public static function enqueue_block_recovery_assets( int $post_id ): void {
+	public static function enqueue_block_processor_assets( int $post_id ): void {
 		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
 
-		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/translation/block-recovery' . $assets_ext . '.js' )
-		? 'assets/js/translation/block-recovery' . $assets_ext . '.js'
-		: 'assets/js/block-recovery.js';
+		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/translation/block-processor' . $assets_ext . '.js' )
+		? 'assets/js/translation/block-processor' . $assets_ext . '.js'
+		: 'assets/js/block-processor.js';
 
 		wp_enqueue_script(
-			'translatesense-block-recovery',
+			'translatesense-block-processor',
 			TRANSLATESENSE_PLUGIN_URL . $js_file,
 			array( 'wp-blocks', 'wp-element', 'wp-components', 'wp-data', 'wp-editor', 'wp-edit-post', 'wp-i18n', 'wp-notices', 'wp-plugins' ),
 			TRANSLATESENSE_VERSION,
@@ -422,8 +423,8 @@ class Editor_Integration {
 		);
 
 		wp_localize_script(
-			'translatesense-block-recovery',
-			'TranslateSenseRecoveryData',
+			'translatesense-block-processor',
+			'TranslateSenseProcessorData',
 			array(
 				'postId'    => $post_id,
 				'isPending' => true,

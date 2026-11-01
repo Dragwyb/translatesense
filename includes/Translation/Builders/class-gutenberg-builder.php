@@ -304,8 +304,8 @@ class Gutenberg_Builder extends Base_Builder {
 			return $html;
 		}
 
-		// DOMDocument repairs incomplete HTML fragments. Parse a working copy only;
-		// never serialize that repaired DOM back into Gutenberg's original fragment.
+		// DOMDocument process incomplete HTML fragments. Parse a working copy only;
+		// never serialize that processed DOM back into Gutenberg's original fragment.
 		$dom              = new DOMDocument( '1.0', 'UTF-8' );
 		$previous_setting = libxml_use_internal_errors( true );
 		$wrapped          = '<?xml encoding="UTF-8"><body>' . $html . '</body>';
@@ -477,7 +477,7 @@ class Gutenberg_Builder extends Base_Builder {
 
 	/**
 	 * Replace a translated DOM value in the original source without serializing the
-	 * repaired DOM. This preserves incomplete opening/closing tag boundaries in
+	 * processed DOM. This preserves incomplete opening/closing tag boundaries in
 	 * Gutenberg innerContent fragments.
 	 *
 	 * @param string  $source_html    Original source fragment (or already patched fragment).

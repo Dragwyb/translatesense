@@ -14,6 +14,7 @@ use TranslateSense\Includes\AI\Ai_Connector_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Bulk\Bulk_Process;
 use TranslateSense\Includes\Translation\Statics;
+use TranslateSense\Includes\Content\Processor\Block_Processor;
 
 use WP_REST_Server;
 use WP_REST_Request;
@@ -558,15 +559,15 @@ class Rest_Api {
 		);
 
 		/*
-		 * 13. Clear Gutenberg block repair pending flag.
+		 * 13. Clear Gutenberg block process pending flag.
 		 */
 		register_rest_route(
 			self::NAMESPACE,
-			'/clear-block-repair',
+			'/clear-block-state',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => array( __CLASS__, 'clear_block_repair' ),
-				'permission_callback' => array( __CLASS__, 'permission_clear_block_repair' ),
+				'callback'            => array( __CLASS__, 'clear_block_state' ),
+				'permission_callback' => array( __CLASS__, 'permission_clear_block_state' ),
 				'args'                => array(
 					'post_id' => array(
 						'required'          => true,
@@ -1489,16 +1490,16 @@ class Rest_Api {
 	}
 
 	/**
-	 * Permission: POST /clear-block-repair.
+	 * Permission: POST /clear-block-state.
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 * @return true|WP_Error
 	 */
-	public static function permission_clear_block_repair( WP_REST_Request $request ) {
+	public static function permission_clear_block_state( WP_REST_Request $request ) {
 
 		return self::require_edit_post(
 			self::get_request_post_id( $request ),
-			__( 'You are not allowed to clear block repair status for this post.', 'translatesense' )
+			__( 'You are not allowed to clear block process status for this post.', 'translatesense' )
 		);
 	}
 
@@ -3256,11 +3257,7 @@ class Rest_Api {
 
 			$target_post = get_post( $target_post_id );
 			if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
-				update_post_meta(
-					$target_post_id,
-					'_block_repair_pending',
-					'1'
-				);
+				Block_Processor::mark_process_pending( $target_post_id );
 			}
 		}
 
@@ -3441,12 +3438,12 @@ class Rest_Api {
 	}
 
 	/**
-	 * Clear block repair pending flag.
+	 * Clear block process pending flag.
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 * @return WP_REST_Response|WP_Error
 	 */
-	public static function clear_block_repair( WP_REST_Request $request ) {
+	public static function clear_block_state( WP_REST_Request $request ) {
 		$post_id = self::get_request_post_id( $request );
 
 		if ( ! $post_id ) {
@@ -3484,7 +3481,7 @@ class Rest_Api {
 			);
 		}
 
-		delete_post_meta( $post_id, '_block_repair_pending' );
+		Block_Processor::clear_process_flag( $post_id );
 
 		return rest_ensure_response(
 			array(
@@ -3502,7 +3499,7 @@ class Rest_Api {
 	 * @return int Target post ID or 0.
 	 */
 	private static function get_existing_translation_post_id( $source_post_id, $target_language ) {
-		// Use the same authoritative Polylang + TranslateSense recovery lookup
+		// Use the same authoritative Polylang + TranslateSense processor lookup
 		// as the save pipeline. This also ensures permission checks cover an
 		// orphaned target recovered through _translatesense_source_id.
 		return Polylang_Bridge::get_existing_translation_post_id(

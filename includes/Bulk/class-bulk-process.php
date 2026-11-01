@@ -10,6 +10,7 @@ use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Admin\Editor_Integration;
 use TranslateSense\Includes\Translation\Statics;
+use TranslateSense\Includes\Content\Processor\Block_Processor;
 
 use WP_Error;
 
@@ -520,11 +521,11 @@ class Bulk_Process {
 				$completed_label = __( 'Translation completed with synchronization warnings. Review the target post.', 'translatesense' );
 			}
 
-			// If target post contains Gutenberg blocks, mark for block recovery check
+			// If target post contains Gutenberg blocks, mark for block processor check
 			if ( $target_post_id > 0 ) {
 				$target_post = get_post( $target_post_id );
 				if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
-					update_post_meta( $target_post_id, '_block_repair_pending', '1' );
+					Block_Processor::mark_process_pending( $target_post_id );
 				}
 			}
 

@@ -1,8 +1,8 @@
 /**
- * TranslateSense - Gutenberg Block Recovery System (block-recovery.js)
+ * TranslateSense - Gutenberg Block Processor System (block-processor.js)
  * 
  * Production-ready, conservative, reliable Gutenberg block detection,
- * conservative default attribute recovery, and editor integration.
+ * conservative default attribute processor, and editor integration.
  */
 
 (function (window, wp) {
@@ -12,7 +12,7 @@
     return;
   }
 
-  const config = window.TranslateSenseRecoveryData || {};
+  const config = window.TranslateSenseProcessorData || {};
   const postId = parseInt(config.postId, 10) || 0;
   const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
   const nonce = config.nonce || '';
@@ -66,7 +66,7 @@
    * Normalize a string for source-to-translation matching. Original attribute
    * values are preserved unless an unambiguous mapping is found.
    */
-  function normalizeRepairString(value) {
+  function normalizeContentMap(value) {
     return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   }
 
@@ -75,9 +75,9 @@
    * source string maps to different translations, mark it ambiguous and never
    * use it for automatic replacement.
    */
-  function addRepairMapping(mapping, source, translated) {
-    const key = normalizeRepairString(source);
-    const value = normalizeRepairString(translated);
+  function addAttributeMapping(mapping, source, translated) {
+    const key = normalizeContentMap(source);
+    const value = normalizeContentMap(translated);
 
     if (!key || !value || key === value || mapping.ambiguous.has(key)) {
       return;
@@ -98,7 +98,7 @@
    * attributes are used to infer mappings. CSS classes, IDs and URLs are not
    * treated as translatable strings.
    */
-  function buildRepairStringMap(sourceHTML, translatedHTML) {
+  function buildContentMapMap(sourceHTML, translatedHTML) {
     const mapping = { values: new Map(), ambiguous: new Set() };
 
     if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML) {
@@ -123,7 +123,7 @@
         if (sourceNode.nodeType !== translatedNode.nodeType) return;
 
         if (sourceNode.nodeType === Node.TEXT_NODE) {
-          addRepairMapping(mapping, sourceNode.nodeValue, translatedNode.nodeValue);
+          addAttributeMapping(mapping, sourceNode.nodeValue, translatedNode.nodeValue);
           return;
         }
 
@@ -132,7 +132,7 @@
 
         translatableAttributes.forEach((attrName) => {
           if (sourceNode.hasAttribute(attrName) && translatedNode.hasAttribute(attrName)) {
-            addRepairMapping(
+            addAttributeMapping(
               mapping,
               sourceNode.getAttribute(attrName),
               translatedNode.getAttribute(attrName)
@@ -161,7 +161,7 @@
    * Recursively translate exact string values using only unambiguous mappings.
    * Objects/arrays are cloned; non-string values remain unchanged.
    */
-  function translateRepairValue(value, mapping, depth = 0) {
+  function translateResolveValue(value, mapping, depth = 0) {
     if (depth > 100) return value;
 
     if (/^\d+$/.test(value)) {
@@ -169,7 +169,7 @@
     }
 
     if (typeof value === 'string') {
-      let key = normalizeRepairString(value);
+      let key = normalizeContentMap(value);
 
       if (!key) {
         return value;
@@ -230,7 +230,7 @@
     }
 
     if (Array.isArray(value)) {
-      return value.map((item) => translateRepairValue(item, mapping, depth + 1));
+      return value.map((item) => translateResolveValue(item, mapping, depth + 1));
     }
 
     if (value && typeof value === 'object') {
@@ -239,7 +239,7 @@
 
       const result = {};
       Object.keys(value).forEach((key) => {
-        result[key] = translateRepairValue(value[key], mapping, depth + 1);
+        result[key] = translateResolveValue(value[key], mapping, depth + 1);
       });
 
       return result;
@@ -248,7 +248,7 @@
     return value;
   }
 
-  function cloneRepairValue(value) {
+  function cloneResolveValue(value) {
     if (value === undefined || value === null || typeof value !== 'object') return value;
     try {
       return JSON.parse(JSON.stringify(value));
@@ -261,7 +261,7 @@
     if (!block || typeof block !== 'object') return block;
     return {
       ...block,
-      attributes: cloneRepairValue(block.attributes || {}),
+      attributes: cloneResolveValue(block.attributes || {}),
       innerBlocks: Array.isArray(block.innerBlocks)
         ? block.innerBlocks.map(cloneBlockTree)
         : []
@@ -297,10 +297,10 @@
         typeof block.originalContent === 'string'
       ) {
         try {
-          const analysis = await analyzeBlockRepair(block);
-          isInvalid = analysis.canRepair === true;
+          const analysis = await analyzeBlockDataManager(block);
+          isInvalid = analysis.canResolve === true;
         } catch (error) {
-          console.warn('[TranslateSense Recovery] Block analysis failed:', error);
+          console.warn('[TranslateSense Processor] Block analysis failed:', error);
         }
       }
 
@@ -317,17 +317,17 @@
 
   /**
    * Analyze a block without inserting or mutating anything in the editor.
-   * A repair is offered only when candidate serialization matches saved markup.
+   * A process is offered only when candidate serialization matches saved markup.
    *
    * @param {Object} block Gutenberg block.
-   * @return {Promise<Object>} Repair analysis.
+   * @return {Promise<Object>} Process analysis.
    */
-  async function analyzeBlockRepair(block) {
+  async function analyzeBlockDataManager(block) {
     const blockName = block && block.name ? block.name : '';
     const blockType = blockName ? wp.blocks.getBlockType(blockName) : null;
     const base = {
       block,
-      canRepair: false,
+      canResolve: false,
       candidateBlock: null,
       restoredKeys: [],
       stringMappings: 0,
@@ -347,10 +347,10 @@
     }
 
     if (!block.validationIssues || block.validationIssues.length === 0) {
-      return { ...base, reason: 'Block is valid and does not need repair.' };
+      return { ...base, reason: 'Block is valid and does not need process.' };
     }
 
-    const restoredAttrs = cloneRepairValue(block.attributes || {}) || {};
+    const restoredAttrs = cloneResolveValue(block.attributes || {}) || {};
     const restoredKeys = [];
     let sourceHTML = ''
 
@@ -362,10 +362,10 @@
       sourceHTML = wp.blocks.getBlockContent(sourceBlock);
 
       if (typeof sourceHTML === 'string' && sourceHTML) {
-        mapping = buildRepairStringMap(sourceHTML, block.originalContent);
+        mapping = buildContentMapMap(sourceHTML, block.originalContent);
 
         if (mapping.values.size) {
-          const mappedAttrs = translateRepairValue(restoredAttrs, mapping);
+          const mappedAttrs = translateResolveValue(restoredAttrs, mapping);
 
           for (const key of Object.keys(mappedAttrs || {})) {
             if (
@@ -383,7 +383,7 @@
       return {
         ...base,
         restoredKeys,
-        reason: 'Could not generate or compare a safe repair candidate.',
+        reason: 'Could not generate or compare a safe process candidate.',
         diagnostic: error && error.message ? error.message : ''
       };
     }
@@ -408,7 +408,7 @@
 
           return {
             ...base,
-            canRepair: true,
+            canResolve: true,
             candidateBlock,
             restoredKeys: [{ key: 'originalContent', source: 'markup-sync' }],
             stringMappings: mapping.values.size,
@@ -441,7 +441,7 @@
 
     return {
       ...base,
-      canRepair: true,
+      canResolve: true,
       candidateBlock,
       restoredKeys,
       stringMappings: mapping.values.size,
@@ -469,17 +469,17 @@
           name,
           title,
           totalCount: 0,
-          repairableCount: 0,
+          resolvableCount: 0,
           unresolvedCount: 0,
           items: []
         };
       }
 
-      const analysis = await analyzeBlockRepair(block);
+      const analysis = await analyzeBlockDataManager(block);
       groups[name].totalCount++;
 
-      if (analysis.canRepair) {
-        groups[name].repairableCount++;
+      if (analysis.canResolve) {
+        groups[name].resolvableCount++;
       } else {
         groups[name].unresolvedCount++;
       }
@@ -494,9 +494,9 @@
      Server-Side Metadata Clearance
      ========================================================================== */
 
-  async function clearRecoveryMetadataOnServer() {
+  async function clearProcessorMetadataOnServer() {
     try {
-      const response = await fetch(restUrl + 'clear-block-repair', {
+      const response = await fetch(restUrl + 'clear-block-state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -508,12 +508,12 @@
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          isRecoveryPending = false;
+          isProcessorPending = false;
           return true;
         }
       }
     } catch (err) {
-      console.warn('[TranslateSense] Error clearing recovery metadata:', err);
+      console.warn('[TranslateSense] Error clearing processor metadata:', err);
     }
     return false;
   }
@@ -587,24 +587,24 @@
   }
 
   /* ==========================================================================
-     Direct Block Repair Workflow (No Modal)
+     Direct Block Process Workflow (No Modal)
      ========================================================================== */
 
-  async function executeRepairs(findings) {
+  async function processItems(findings) {
     const blockEditorDispatch = wp.data.dispatch('core/block-editor');
     const blockEditorSelect = wp.data.select('core/block-editor');
-    let repairedCount = 0;
+    let processedCount = 0;
     let failedCount = 0;
     const unresolvedItems = [];
 
     // 1. Create a replaceBlockCache array
     const replaceBlockCache = [];
     const directReplacements = [];
-    const stagedRepairs = [];
+    const pendingItems = [];
 
     for (const group of findings) {
       for (const item of group.items) {
-        if (!item.canRepair || !item.candidateBlock || !blockEditorDispatch) {
+        if (!item.canResolve || !item.candidateBlock || !blockEditorDispatch) {
           failedCount++;
           unresolvedItems.push({
             title: group.title || 'Block',
@@ -719,9 +719,9 @@
           continue;
         }
 
-        // Save this repair block in this innerBlock at right index where we need to replace
+        // Save this process block in this innerBlock at right index where we need to replace
         currentParentRef.innerBlocks[targetBlockIndex] = item.candidateBlock;
-        stagedRepairs.push({
+        pendingItems.push({
           item,
           groupTitle: group.title,
           groupName: group.name
@@ -729,7 +729,7 @@
       }
     }
 
-    // In attempt recovery case when block is in innerBlock, update top first root parent block instead of current block
+    // In attempt processor case when block is in innerBlock, update top first root parent block instead of current block
     const cachedRootIds = Object.keys(replaceBlockCache);
     for (const rootId of cachedRootIds) {
       const updatedRoot = replaceBlockCache[rootId];
@@ -750,7 +750,7 @@
         }
         blockEditorDispatch.replaceBlock(rootId, replacement || updatedRoot);
       } catch (err) {
-        console.error('[TranslateSense Recovery] Error replacing root parent block:', err);
+        console.error('[TranslateSense Processor] Error replacing root parent block:', err);
       }
     }
 
@@ -758,7 +758,7 @@
     for (const direct of directReplacements) {
       try {
         blockEditorDispatch.replaceBlock(direct.item.block.clientId, direct.item.candidateBlock);
-        stagedRepairs.push(direct);
+        pendingItems.push(direct);
       } catch (err) {
         failedCount++;
         unresolvedItems.push({
@@ -770,19 +770,19 @@
       }
     }
 
-    // Verify repaired blocks in editor state
-    for (const staged of stagedRepairs) {
+    // Verify processed blocks in editor state
+    for (const staged of pendingItems) {
       const candidateClientId = staged.item.candidateBlock ? staged.item.candidateBlock.clientId : null;
       const updatedBlock = candidateClientId && blockEditorSelect
         ? blockEditorSelect.getBlock(candidateClientId)
         : null;
 
       if (updatedBlock && updatedBlock.isValid !== false) {
-        repairedCount++;
+        processedCount++;
       } else if (!updatedBlock && blockEditorSelect) {
         const originalBlock = blockEditorSelect.getBlock(staged.item.block.clientId);
         if (!originalBlock || originalBlock.isValid !== false) {
-          repairedCount++;
+          processedCount++;
         } else {
           failedCount++;
           unresolvedItems.push({
@@ -804,8 +804,8 @@
     }
 
 
-    if (repairedCount > 0) {
-      await clearRecoveryMetadataOnServer();
+    if (processedCount > 0) {
+      await clearProcessorMetadataOnServer();
 
       // Save post to persist recovered block markup to the database
       const editorDispatch = wp.data.dispatch('core/editor');
@@ -813,7 +813,7 @@
         try {
           await editorDispatch.savePost();
         } catch (saveErr) {
-          console.warn('[TranslateSense Recovery] Auto-save post notice:', saveErr);
+          console.warn('[TranslateSense Processor] Auto-save post notice:', saveErr);
         }
       }
 
@@ -827,7 +827,7 @@
     }
 
     if (failedCount > 0) {
-      console.warn('[TranslateSense Recovery] Some blocks could not be repaired:', unresolvedItems);
+      console.warn('[TranslateSense Processor] Some blocks could not be processed:', unresolvedItems);
     }
   }
 
@@ -841,22 +841,22 @@
       initialScanPerformed = true;
 
       if (!Array.isArray(blocks) || blocks.length === 0) {
-        // Do not clear recovery metadata for an empty post.
+        // Do not clear processor metadata for an empty post.
         return;
       }
 
       const invalid = await scanInvalidBlocks(blocks);
 
       if (invalid.length === 0) {
-        await clearRecoveryMetadataOnServer();
+        await clearProcessorMetadataOnServer();
         return;
       }
 
       const grouped = await groupFindings(invalid);
-      await executeRepairs(grouped);
+      await processItems(grouped);
     })
     .catch((error) => {
-      console.warn('[TranslateSense Recovery] Editor readiness check failed:', error);
+      console.warn('[TranslateSense Processor] Editor readiness check failed:', error);
     });
 
 })(window, window.wp);

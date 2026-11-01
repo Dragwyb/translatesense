@@ -428,7 +428,7 @@
                 actionHtml = `<a href="${status.targetUrl}" target="_blank" class="ts-provider-badge error-badge api-required" onclick="event.stopPropagation();" title="Configure API Key in TranslateSense Settings">API key required</a>`;
               } else {
                 isAvailable = true;
-                actionHtml = '<span class="ts-provider-badge ready">Ready</span>';
+                actionHtml = '<span class="ts-provider-badge ready">Available</span>';
               }
             }
 

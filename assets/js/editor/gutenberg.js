@@ -136,7 +136,7 @@
      * Normalize a string for source-to-translation matching. Original attribute
      * values are preserved unless an unambiguous mapping is found.
      */
-    normalizeRepairString(value) {
+    normalizeContentMap(value) {
       return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
     },
 
@@ -144,7 +144,7 @@
      * Recursively translate exact string values using only unambiguous mappings.
      * Objects/arrays are cloned; non-string values remain unchanged.
      */
-    translateRepairValue(value, mapping, depth = 0) {
+    translateResolveValue(value, mapping, depth = 0) {
       if (depth > 100) return value;
 
       if (/^\d+$/.test(value)) {
@@ -152,7 +152,7 @@
       }
 
       if (typeof value === 'string') {
-        let key = this.normalizeRepairString(value);
+        let key = this.normalizeContentMap(value);
 
         if (!key) {
           return value;
@@ -213,7 +213,7 @@
       }
 
       if (Array.isArray(value)) {
-        return value.map((item) => this.translateRepairValue(item, mapping, depth + 1));
+        return value.map((item) => this.translateResolveValue(item, mapping, depth + 1));
       }
 
       if (value && typeof value === 'object') {
@@ -222,7 +222,7 @@
 
         const result = {};
         Object.keys(value).forEach((key) => {
-          result[key] = this.translateRepairValue(value[key], mapping, depth + 1);
+          result[key] = this.translateResolveValue(value[key], mapping, depth + 1);
         });
 
         return result;
@@ -233,9 +233,9 @@
 
     /**
        * Compare source HTML and translated HTML node-by-node to produce a mapping of
-       * original strings to translated strings (similar to block-recovery.js).
+       * original strings to translated strings (similar to block-processor.js).
        */
-    buildRepairStringMap(sourceHTML, translatedHTML) {
+    buildContentMapMap(sourceHTML, translatedHTML) {
       const mapping = new Map();
       if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML || typeof DOMParser === 'undefined') {
         return mapping;
@@ -501,9 +501,9 @@
               }
 
               if (transRecord.source && transRecord.translated) {
-                const repairMap = this.buildRepairStringMap(transRecord.source, transRecord.translated);
-                if (repairMap && repairMap.size > 0) {
-                  result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, repairMap);
+                const attributeMap = this.buildContentMapMap(transRecord.source, transRecord.translated);
+                if (attributeMap && attributeMap.size > 0) {
+                  result = updateAttributeTree(result.updated, rule.keys, blockType, missingStrings, attributeMap);
                 }
               }
             }
@@ -521,11 +521,11 @@
             }
 
             if (transRecord.source && transRecord.translated) {
-              const mapping = this.buildRepairStringMap(transRecord.source, transRecord.translated);
+              const mapping = this.buildContentMapMap(transRecord.source, transRecord.translated);
 
               if (mapping && mapping.size > 0) {
                 const restoredAttrs = block.attributes;
-                const mappedAttrs = this.translateRepairValue(restoredAttrs, mapping);
+                const mappedAttrs = this.translateResolveValue(restoredAttrs, mapping);
                 Object.assign(restoredAttrs, mappedAttrs);
               }
             }
