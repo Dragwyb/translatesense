@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Integrations\Polylang;
 
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
+use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 
 use WP_Error;
 use WP_Post;
@@ -694,75 +695,11 @@ class Polylang_Synchronizer {
 			return $content;
 		}
 
-		if ( function_exists( 'has_blocks' ) && has_blocks( $content ) && function_exists( 'parse_blocks' ) && function_exists( 'serialize_blocks' ) ) {
-			$blocks  = parse_blocks( $content );
-			$blocks  = self::translate_block_media( $blocks, $target_lang, $source_lang );
-			$content = serialize_blocks( $blocks );
-		} elseif ( 'elementor' === $builder ) {
-			$content = self::translate_elementor_media_json( $content, $target_lang );
-		}
+		$translator = new Internal_Link_Translator();
+		$batch      = array( 'content' => $content );
+		$translated = $translator->translate_batch( $batch, $target_lang );
 
-		// Update image tag IDs and URLs when a translated attachment exists.
-		$content = self::translate_html_image_references( $content, $target_lang );
-
-		// Translate attachment IDs in gallery/playlist shortcodes only.
-		$content = preg_replace_callback(
-			'/\[(gallery|playlist)\b([^\]]*)\]/i',
-			static function ( $matches ) use ( $target_lang ) {
-				$attributes = $matches[2];
-				$attributes = preg_replace_callback(
-					'/\bids\s*=\s*(["\'])(\d+(?:\s*,\s*\d+)*)\1/i',
-					static function ( $ids_match ) use ( $target_lang ) {
-						$ids = array_map( 'trim', explode( ',', $ids_match[2] ) );
-						$ids = array_map(
-							static function ( $id ) use ( $target_lang ) {
-								$translated_id = self::resolve_media_translation( absint( $id ), $target_lang );
-								return (string) ( $translated_id > 0 ? $translated_id : absint( $id ) );
-							},
-							$ids
-						);
-						return 'ids=' . $ids_match[1] . implode( ',', $ids ) . $ids_match[1];
-					},
-					$attributes
-				);
-				return '[' . $matches[1] . $attributes . ']';
-			},
-			$content
-		);
-
-		// Translate attachment IDs embedded in the legacy caption shortcodes.
-		$content = preg_replace_callback(
-			'/\[(caption|wp_caption)\b([^\]]*)\](.*?)\[\/\1\]/is',
-			static function ( $matches ) use ( $target_lang ) {
-				$attributes = $matches[2];
-				$content    = $matches[3];
-
-				$attributes = preg_replace_callback(
-					'/\bid\s*=\s*(["\'])(?:attachment_)?(\d+)\1/i',
-					static function ( $id_match ) use ( $target_lang, &$content ) {
-						$source_id = absint( $id_match[2] );
-						$target_id = self::resolve_media_translation( $source_id, $target_lang );
-						if ( $target_id <= 0 || $target_id === $source_id ) {
-							return $id_match[0];
-						}
-
-						$source_media = get_post( $source_id );
-						$target_media = get_post( $target_id );
-						if ( $source_media instanceof WP_Post && $target_media instanceof WP_Post && '' !== $source_media->post_excerpt ) {
-							$content = str_replace( $source_media->post_excerpt, wp_kses_post( $target_media->post_excerpt ), $content );
-						}
-
-						return 'id=' . $id_match[1] . 'attachment_' . $target_id . $id_match[1];
-					},
-					$attributes
-				);
-
-				return '[' . $matches[1] . $attributes . ']' . $content . '[/' . $matches[1] . ']';
-			},
-			$content
-		);
-
-		return $content;
+		return is_string( $translated['content'] ?? null ) ? $translated['content'] : $content;
 	}
 
 	/**
@@ -1022,15 +959,11 @@ class Polylang_Synchronizer {
 	 * @return mixed
 	 */
 	public static function translate_elementor_media_data( $data, string $target_lang ) {
-		if ( is_string( $data ) ) {
-			return self::translate_elementor_media_json( $data, $target_lang );
-		}
+		$translator = new Internal_Link_Translator();
+		$batch      = array( 'elementor' => $data );
+		$translated = $translator->translate_batch( $batch, $target_lang );
 
-		if ( is_array( $data ) ) {
-			return self::walk_elementor_media_data( $data, $target_lang, '' );
-		}
-
-		return $data;
+		return $translated['elementor'] ?? $data;
 	}
 
 	/**

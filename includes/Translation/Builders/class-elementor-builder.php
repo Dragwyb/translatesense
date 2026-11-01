@@ -6,6 +6,7 @@ namespace TranslateSense\Includes\Translation\Builders;
 
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
 
 use WP_Post;
@@ -181,10 +182,17 @@ class Elementor_Builder extends Base_Builder {
 		if ( ! empty( $translated_content ) ) {
 			update_post_meta( $target_post_id, '_elementor_edit_mode', 'builder' );
 
-			// Generic Polylang metadata copying excludes generated Elementor
-			// data. Resolve target-language media references after AI text
-			// translation and before storing the translated element tree.
-			$translated_content = Polylang_Synchronizer::translate_elementor_media_data( $translated_content, $target_lang );
+			// Batch translate internal links and media references across Elementor structures.
+			$translator    = new Internal_Link_Translator();
+			$content_batch = array(
+				'elementor_data' => $translated_content,
+			);
+			$page_settings = get_post_meta( $source_post_id, '_elementor_page_settings', true );
+			if ( $page_settings ) {
+				$content_batch['page_settings'] = $page_settings;
+			}
+			$translated_batch   = $translator->translate_batch( $content_batch, $target_lang );
+			$translated_content = $translated_batch['elementor_data'] ?? $translated_content;
 			$elementor_json     = is_string( $translated_content ) ? $translated_content : wp_json_encode( $translated_content );
 			if ( is_string( $elementor_json ) ) {
 				update_post_meta( $target_post_id, '_elementor_data', wp_slash( $elementor_json ) );
@@ -195,10 +203,8 @@ class Elementor_Builder extends Base_Builder {
 				update_post_meta( $target_post_id, '_elementor_template_type', $template_type );
 			}
 
-			$page_settings = get_post_meta( $source_post_id, '_elementor_page_settings', true );
-			if ( $page_settings ) {
-				$page_settings = Polylang_Synchronizer::translate_elementor_media_data( $page_settings, $target_lang );
-				update_post_meta( $target_post_id, '_elementor_page_settings', $page_settings );
+			if ( ! empty( $translated_batch['page_settings'] ) ) {
+				update_post_meta( $target_post_id, '_elementor_page_settings', $translated_batch['page_settings'] );
 			}
 		}
 	}

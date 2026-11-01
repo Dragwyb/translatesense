@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Translation\Builders;
 
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
 use TranslateSense\Includes\Admin\Editor_Integration;
@@ -213,14 +214,15 @@ abstract class Base_Builder {
 
 		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
-		// Translate attachment IDs and links after text translation, before
-		// persistence. Elementor's structured data is handled by its builder.
-		$wp_post_content = Polylang_Synchronizer::translate_content_media_references(
-			$wp_post_content,
-			$target_lang,
-			$this->get_builder_slug(),
-			$source_lang
+		// Translate internal references (URLs and media) across content strings in batch.
+		$translator         = new Internal_Link_Translator();
+		$content_batch      = array(
+			'post_content' => $wp_post_content,
+			'post_excerpt' => $translated_excerpt,
 		);
+		$translated_batch   = $translator->translate_batch( $content_batch, $target_lang );
+		$wp_post_content    = is_string( $translated_batch['post_content'] ?? null ) ? $translated_batch['post_content'] : $wp_post_content;
+		$translated_excerpt = is_string( $translated_batch['post_excerpt'] ?? null ) ? $translated_batch['post_excerpt'] : $translated_excerpt;
 
 		// Existing translations are updated in place. Slug and status settings
 		// are creation-only and must not overwrite editorial choices on a target.
