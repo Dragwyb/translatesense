@@ -14,6 +14,7 @@ use TranslateSense\Includes\Bulk\Bulk_Process;
 use TranslateSense\Includes\Admin\Editor_Integration;
 use TranslateSense\Includes\Content\Parser\Content_Parser;
 use TranslateSense\Includes\Cron\Cron;
+use TranslateSense\Includes\Admin\Feedback\Feedback_Form;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -64,5 +65,9 @@ class Plugin {
 		Editor_Integration::init();
 		Content_Parser::init();
 		Cron::init();
+
+		if ( is_admin() ) {
+			Feedback_Form::get_instance();
+		}
 	}
 }
