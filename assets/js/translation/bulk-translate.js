@@ -1482,6 +1482,7 @@
 
         // State tracking for grouped post results & activity
         let postResultsMap = {};
+        let orderedPostIds = [];
         const expandedPosts = {};
         const postExtractedStringsCache = {};
         let activeBatchId = runOptions.batchId || currentBatchId;
@@ -1491,6 +1492,9 @@
         if (!isPrevRunningMode) {
           effectivePostIds.forEach(function (pid) {
             const pIdStr = String(pid);
+            if (!orderedPostIds.includes(pIdStr)) {
+              orderedPostIds.push(pIdStr);
+            }
             postResultsMap[pIdStr] = {
               postId: pid,
               postTitle: `Post #${pid}`,
@@ -1530,6 +1534,24 @@
               delete postResultsMap[pid];
             }
           });
+
+          // Maintain execution order matching batch items (ordered by id ASC in database)
+          const itemsOrder = [];
+          batchData.items.forEach(function (it) {
+            const pidStr = String(it.post_id);
+            if (!itemsOrder.includes(pidStr)) {
+              itemsOrder.push(pidStr);
+            }
+          });
+          if (orderedPostIds.length === 0) {
+            orderedPostIds = itemsOrder;
+          } else {
+            const existing = orderedPostIds.filter(function (pid) { return itemsOrder.includes(pid); });
+            itemsOrder.forEach(function (pid) {
+              if (!existing.includes(pid)) existing.push(pid);
+            });
+            orderedPostIds = existing;
+          }
 
           batchData.items.forEach(function (item) {
             const pId = String(item.post_id);
@@ -1572,7 +1594,19 @@
           if (!resultsListEl) return;
 
           let html = '';
-          const postIdsList = Object.keys(postResultsMap);
+          let postIdsList = [];
+          if (Array.isArray(orderedPostIds) && orderedPostIds.length > 0) {
+            postIdsList = orderedPostIds.filter(function (pid) {
+              return Boolean(postResultsMap[pid]);
+            });
+            Object.keys(postResultsMap).forEach(function (pid) {
+              if (!postIdsList.includes(pid)) {
+                postIdsList.push(pid);
+              }
+            });
+          } else {
+            postIdsList = Object.keys(postResultsMap);
+          }
           let hasAnyFailedPosts = false;
 
           postIdsList.forEach(function (pId) {
@@ -1640,7 +1674,7 @@
             }
 
             html += `
-              <div class="ts-post-group-card ${isExpanded ? 'expanded' : ''}" data-post-id="${pId}">
+              <div class="ts-post-group-card ${isExpanded ? 'expanded extended' : ''}" data-post-id="${pId}">
                 <div class="ts-post-group-header">
                   <div class="ts-post-source-info">
                     <div class="ts-post-icon-box">
@@ -1655,7 +1689,7 @@
                     <span class="ts-post-chevron dashicons dashicons-arrow-down-alt2"></span>
                   </div>
                 </div>
-                <div class="ts-translations-accordion-body">
+                <div class="ts-post-translations-list ts-translations-accordion-body">
             `;
 
             displayKeys.forEach(function (langSlug) {
@@ -1810,9 +1844,10 @@
             const card = header.closest('.ts-post-group-card');
             if (!card) return;
             const pid = card.getAttribute('data-post-id');
-            const isNowExpanded = !card.classList.contains('expanded');
+            const isNowExpanded = !card.classList.contains('expanded') && !card.classList.contains('extended');
             expandedPosts[pid] = isNowExpanded;
             card.classList.toggle('expanded', isNowExpanded);
+            card.classList.toggle('extended', isNowExpanded);
           });
         }
 
@@ -1935,6 +1970,7 @@
             const found = activeBatches.find((b) => b.batch_id === currentBatchId);
             if (found) currentBatch = found;
             postResultsMap = {};
+            orderedPostIds = [];
             if (found && found.items) {
               populateMapFromBatch(found);
               renderResultsUI();
@@ -2159,6 +2195,20 @@
           effectivePostIds = returnedPostIds;
         }
 
+        // Establish strict post execution order matching batch jobs
+        const batchOrder = [];
+        jobsList.forEach(function (j) {
+          const pidStr = String(j.post_id);
+          if (!batchOrder.includes(pidStr)) {
+            batchOrder.push(pidStr);
+          }
+        });
+        if (batchOrder.length > 0) {
+          orderedPostIds = batchOrder;
+        } else if (returnedPostIds.length > 0) {
+          orderedPostIds = returnedPostIds.map(String);
+        }
+
         // CRITICAL: Prune postResultsMap so ONLY posts that actually exist in the created batch are retained.
         // This removes any linked duplicate post (e.g. 'hi') that was cleaned out on the backend!
         const validPostIdSet = new Set(
@@ -2168,6 +2218,9 @@
           if (!validPostIdSet.has(String(pIdKey))) {
             delete postResultsMap[pIdKey];
           }
+        });
+        orderedPostIds = orderedPostIds.filter(function (pid) {
+          return validPostIdSet.has(pid);
         });
 
         // Populate post titles & editor types from batch jobs

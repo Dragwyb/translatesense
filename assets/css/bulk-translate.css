@@ -740,17 +740,22 @@
   margin-left: 2px;
 }
 
-.ts-post-group-card.expanded .ts-post-chevron {
+.ts-post-group-card.expanded .ts-post-chevron,
+.ts-post-group-card.extended .ts-post-chevron {
   transform: rotate(180deg);
 }
 
 /* Post Translation Language Rows List */
-.ts-post-translations-list {
+.ts-post-translations-list,
+.ts-translations-accordion-body {
   display: none;
   border-top: 1px solid #f1f5f9;
 }
 
-.ts-post-group-card.expanded .ts-post-translations-list {
+.ts-post-group-card.expanded .ts-post-translations-list,
+.ts-post-group-card.expanded .ts-translations-accordion-body,
+.ts-post-group-card.extended .ts-post-translations-list,
+.ts-post-group-card.extended .ts-translations-accordion-body {
   display: block;
 }
 
