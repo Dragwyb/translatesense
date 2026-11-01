@@ -772,6 +772,12 @@
   color: #1e293b;
 }
 
+.ts-error-message *{
+  margin: 0;
+  line-height: 1;
+  font-size: 16px;
+}
+
 .ts-guidance-container {
   font-size: 13.5px;
   line-height: 1.6;
