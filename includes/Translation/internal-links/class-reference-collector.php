@@ -63,8 +63,8 @@ class Reference_Collector {
 			}
 
 			// Check if string is JSON data (e.g. Elementor data)
-			if ( ( str_starts_with( $trimmed, '[' ) && str_ends_with( $trimmed, ']' ) ) ||
-				( str_starts_with( $trimmed, '{' ) && str_ends_with( $trimmed, '}' ) ) ) {
+			if ( ( ( 0 === strpos( $trimmed, '[' ) ) && ( ']' === substr( $trimmed, -1 ) ) ) ||
+				( ( 0 === strpos( $trimmed, '{' ) ) && ( '}' === substr( $trimmed, -1 ) ) ) ) {
 				$decoded = json_decode( $trimmed, true );
 				if ( is_array( $decoded ) && json_last_error() === JSON_ERROR_NONE ) {
 					$this->extract_from_array( $decoded, $urls, $attachment_ids, $media_urls, $parent_key, $depth + 1 );
@@ -212,7 +212,7 @@ class Reference_Collector {
 		if ( preg_match_all( '/\bhref\s*=\s*(["\'])(.*?)\1/i', $content, $href_matches ) ) {
 			foreach ( $href_matches[2] as $href ) {
 				$href = trim( $href );
-				if ( '' !== $href && ! str_starts_with( $href, '#' ) && ! str_starts_with( $href, 'javascript:' ) && ! str_starts_with( $href, 'mailto:' ) && ! str_starts_with( $href, 'tel:' ) ) {
+				if ( '' !== $href && 0 !== strpos( $href, '#' ) && 0 !== strpos( $href, 'javascript:' ) && 0 !== strpos( $href, 'mailto:' ) && 0 !== strpos( $href, 'tel:' ) ) {
 					$urls[] = $href;
 				}
 			}
@@ -239,7 +239,7 @@ class Reference_Collector {
 				// src="..."
 				if ( preg_match( '/\bsrc\s*=\s*(["\'])(.*?)\1/i', $img_tag, $src_match ) ) {
 					$src = trim( $src_match[2] );
-					if ( '' !== $src && ! str_starts_with( $src, 'data:' ) ) {
+					if ( '' !== $src && 0 !== strpos( $src, 'data:' ) ) {
 						$media_urls[] = $src;
 					}
 				}
@@ -249,7 +249,7 @@ class Reference_Collector {
 					$candidates = explode( ',', $srcset_match[2] );
 					foreach ( $candidates as $candidate ) {
 						$parts = preg_split( '/\s+/', trim( $candidate ) );
-						if ( ! empty( $parts[0] ) && ! str_starts_with( $parts[0], 'data:' ) ) {
+						if ( ! empty( $parts[0] ) && 0 !== strpos( $parts[0], 'data:' ) ) {
 							$media_urls[] = $parts[0];
 						}
 					}

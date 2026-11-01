@@ -42,16 +42,16 @@ class URL_Resolver {
 	 */
 	public function is_internal_url( string $url ): bool {
 		$url = trim( $url );
-		if ( '' === $url || str_starts_with( $url, '#' ) || str_starts_with( $url, 'javascript:' ) || str_starts_with( $url, 'mailto:' ) || str_starts_with( $url, 'tel:' ) ) {
+		if ( '' === $url || 0 === strpos( $url, '#' ) || 0 === strpos( $url, 'javascript:' ) || 0 === strpos( $url, 'mailto:' ) || 0 === strpos( $url, 'tel:' ) ) {
 			return false;
 		}
 
 		// Relative URL with path or query
-		if ( str_starts_with( $url, '/' ) && ! str_starts_with( $url, '//' ) ) {
+		if ( 0 === strpos( $url, '/' ) && 0 !== strpos( $url, '//' ) ) {
 			return true;
 		}
 
-		if ( str_starts_with( $url, '?' ) ) {
+		if ( 0 === strpos( $url, '?' ) ) {
 			return true;
 		}
 
@@ -80,12 +80,16 @@ class URL_Resolver {
 	 * Resolve an internal URL into its translated counterpart if available.
 	 * Returns null if the URL is external, unknown, or has no target translation.
 	 *
-	 * @param string          $url
-	 * @param string          $target_language
-	 * @param Reference_Cache $cache
+	 * @param string               $url
+	 * @param string               $target_language
+	 * @param Reference_Cache|null $cache
 	 * @return string|null
 	 */
-	public function resolve_translated_url( string $url, string $target_language, Reference_Cache $cache ): ?string {
+	public function resolve_translated_url( string $url, string $target_language, ?Reference_Cache $cache = null ): ?string {
+		if ( ! $cache instanceof Reference_Cache ) {
+			$cache = new Reference_Cache();
+		}
+
 		$url = trim( $url );
 		if ( ! $this->is_internal_url( $url ) ) {
 			return null;
@@ -116,7 +120,7 @@ class URL_Resolver {
 		$object = $this->resolve_url_object( $url, $parsed, $query_params );
 		if ( ! $object ) {
 			// If it is an internal URL that contains percent-encoded characters, decode it so it's readable
-			if ( str_contains( $url, '%' ) ) {
+			if ( false !== strpos( $url, '%' ) ) {
 				$decoded = $this->decode_url( $url );
 				if ( $decoded !== $url ) {
 					$cache->set_url( $url, $decoded );
@@ -147,7 +151,7 @@ class URL_Resolver {
 					if ( is_string( $translated_base ) && '' !== $translated_base ) {
 						$translated_url = $this->rebuild_url( $translated_base, $query_params, $fragment, array( 'p', 'page_id', 'post_type' ) );
 						$orig_path      = $parsed['path'] ?? '';
-						if ( '' !== $orig_path && ! str_ends_with( $orig_path, '/' ) && empty( $query_params ) && empty( $fragment ) ) {
+						if ( '' !== $orig_path && substr( $orig_path, -1 ) !== '/' && empty( $query_params ) && empty( $fragment ) ) {
 							$translated_url = rtrim( $translated_url, '/' );
 						}
 						// Decode percent-encoded Unicode characters (e.g. Hindi, Arabic, Cyrillic)
@@ -180,7 +184,7 @@ class URL_Resolver {
 				if ( is_string( $term_link ) && ! is_wp_error( $term_link ) ) {
 					$translated_url = $this->rebuild_url( $term_link, $query_params, $fragment, array( 'cat', 'tag_id', 'tag', $taxonomy ) );
 					$orig_path      = $parsed['path'] ?? '';
-					if ( '' !== $orig_path && ! str_ends_with( $orig_path, '/' ) && empty( $query_params ) && empty( $fragment ) ) {
+					if ( '' !== $orig_path && substr( $orig_path, -1 ) !== '/' && empty( $query_params ) && empty( $fragment ) ) {
 						$translated_url = rtrim( $translated_url, '/' );
 					}
 					// Decode percent-encoded Unicode characters for terms as well.
@@ -248,8 +252,8 @@ class URL_Resolver {
 
 		// 3. Absolute URL for WordPress URL-to-post ID lookup
 		$full_url = $this->make_absolute_url( $url );
-		$post_id  = url_to_postid( $full_url );
-		if ( $post_id <= 0 && str_contains( $full_url, '%' ) ) {
+		$post_id  = function_exists( 'url_to_postid' ) ? url_to_postid( $full_url ) : 0;
+		if ( $post_id <= 0 && false !== strpos( $full_url, '%' ) && function_exists( 'url_to_postid' ) ) {
 			// Fallback: try decoded URL in case rewrite rules match decoded Unicode slug
 			$post_id = url_to_postid( $this->decode_url( $full_url ) );
 		}
@@ -301,7 +305,7 @@ class URL_Resolver {
 		$home_path = isset( $this->home_parts['path'] ) ? trim( (string) $this->home_parts['path'], '/' ) : '';
 		$url_path  = isset( $parsed['path'] ) ? trim( (string) $parsed['path'], '/' ) : '';
 
-		if ( '' !== $home_path && str_starts_with( $url_path, $home_path ) ) {
+		if ( '' !== $home_path && 0 === strpos( $url_path, $home_path ) ) {
 			$url_path = trim( substr( $url_path, strlen( $home_path ) ), '/' );
 		}
 
@@ -310,7 +314,7 @@ class URL_Resolver {
 		}
 
 		// Get all public taxonomies
-		$taxonomies = get_taxonomies( array( 'public' => true ), 'objects' );
+		$taxonomies = function_exists( 'get_taxonomies' ) ? get_taxonomies( array( 'public' => true ), 'objects' ) : array();
 		if ( empty( $taxonomies ) ) {
 			return null;
 		}
@@ -323,7 +327,7 @@ class URL_Resolver {
 			}
 
 			// Path starts with taxonomy rewrite slug (e.g. "category/news" or "product-category/shoes")
-			if ( str_starts_with( $url_path, $slug . '/' ) || $url_path === $slug ) {
+			if ( 0 === strpos( $url_path, $slug . '/' ) || $url_path === $slug ) {
 				$term_path = trim( substr( $url_path, strlen( $slug ) ), '/' );
 				if ( '' === $term_path ) {
 					continue;
@@ -354,12 +358,12 @@ class URL_Resolver {
 	 * @return string
 	 */
 	public function make_absolute_url( string $url ): string {
-		if ( str_starts_with( $url, 'http://' ) || str_starts_with( $url, 'https://' ) ) {
+		if ( 0 === strpos( $url, 'http://' ) || 0 === strpos( $url, 'https://' ) ) {
 			return $url;
 		}
 
 		$home = rtrim( home_url(), '/' );
-		if ( str_starts_with( $url, '/' ) ) {
+		if ( 0 === strpos( $url, '/' ) ) {
 			return $home . $url;
 		}
 
@@ -399,7 +403,7 @@ class URL_Resolver {
 	 */
 	public function decode_url( string $url ): string {
 		$url = trim( $url );
-		if ( '' === $url || ! str_contains( $url, '%' ) ) {
+		if ( '' === $url || false === strpos( $url, '%' ) ) {
 			return $url;
 		}
 
@@ -409,7 +413,7 @@ class URL_Resolver {
 		}
 
 		$scheme = '';
-		if ( str_starts_with( $url, '//' ) ) {
+		if ( 0 === strpos( $url, '//' ) ) {
 			$scheme = '//';
 		} elseif ( isset( $parts['scheme'] ) ) {
 			$scheme = $parts['scheme'] . '://';

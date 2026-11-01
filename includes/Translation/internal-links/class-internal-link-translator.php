@@ -70,7 +70,7 @@ class Internal_Link_Translator {
 	 * @param Reference_Cache|null $cache Optional cache instance to share across batches.
 	 */
 	public function __construct( $cache = null ) {
-		$this->cache            = $cache;
+		$this->cache            = ( $cache instanceof Reference_Cache ) ? $cache : new Reference_Cache();
 		$this->collector        = new Reference_Collector();
 		$this->media_translator = new Media_Reference_Translator();
 		$this->url_resolver     = new URL_Resolver();
@@ -116,6 +116,9 @@ class Internal_Link_Translator {
 		}
 
 		// 2. Resolve unique references and build verified replacement maps
+		if ( ! $this->cache instanceof Reference_Cache ) {
+			$this->cache = new Reference_Cache();
+		}
 		$maps                        = $this->resolver->resolve( $references, $target_language, $this->cache );
 		$this->last_replacement_maps = $maps;
 
@@ -132,7 +135,11 @@ class Internal_Link_Translator {
 	 * Clean all in-memory caches and stored replacement maps on this object.
 	 */
 	public function clean_cache(): void {
-		$this->cache->clear();
+		if ( $this->cache instanceof Reference_Cache ) {
+			$this->cache->clear();
+		} else {
+			$this->cache = new Reference_Cache();
+		}
 		$this->last_replacement_maps = array();
 	}
 
@@ -142,6 +149,9 @@ class Internal_Link_Translator {
 	 * @return Reference_Cache
 	 */
 	public function get_cache(): Reference_Cache {
+		if ( ! $this->cache instanceof Reference_Cache ) {
+			$this->cache = new Reference_Cache();
+		}
 		return $this->cache;
 	}
 

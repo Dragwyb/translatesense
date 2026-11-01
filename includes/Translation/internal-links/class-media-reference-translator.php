@@ -21,12 +21,16 @@ class Media_Reference_Translator {
 	 * Resolve translated attachment ID for a given source attachment ID.
 	 * Returns 0 if no translation exists or object is invalid.
 	 *
-	 * @param int             $attachment_id
-	 * @param string          $target_language
-	 * @param Reference_Cache $cache
+	 * @param int                  $attachment_id
+	 * @param string               $target_language
+	 * @param Reference_Cache|null $cache
 	 * @return int
 	 */
-	public function resolve_translated_attachment_id( int $attachment_id, string $target_language, Reference_Cache $cache ): int {
+	public function resolve_translated_attachment_id( int $attachment_id, string $target_language, ?Reference_Cache $cache = null ): int {
+		if ( ! $cache instanceof Reference_Cache ) {
+			$cache = new Reference_Cache();
+		}
+
 		if ( $attachment_id <= 0 ) {
 			return 0;
 		}
@@ -146,12 +150,16 @@ class Media_Reference_Translator {
 	/**
 	 * Resolve translated image URL from original image URL.
 	 *
-	 * @param string          $url
-	 * @param string          $target_language
-	 * @param Reference_Cache $cache
+	 * @param string               $url
+	 * @param string               $target_language
+	 * @param Reference_Cache|null $cache
 	 * @return string|null
 	 */
-	public function resolve_translated_media_url( string $url, string $target_language, Reference_Cache $cache ): ?string {
+	public function resolve_translated_media_url( string $url, string $target_language, ?Reference_Cache $cache = null ): ?string {
+		if ( ! $cache instanceof Reference_Cache ) {
+			$cache = new Reference_Cache();
+		}
+
 		$clean_url = preg_replace( '/[?#].*$/', '', trim( $url ) );
 		if ( '' === $clean_url ) {
 			return null;

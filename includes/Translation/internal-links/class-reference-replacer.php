@@ -71,8 +71,8 @@ class Reference_Replacer {
 		$trimmed = trim( $content );
 
 		// Check for Elementor JSON string
-		if ( ( str_starts_with( $trimmed, '[' ) && str_ends_with( $trimmed, ']' ) ) ||
-			( str_starts_with( $trimmed, '{' ) && str_ends_with( $trimmed, '}' ) ) ) {
+		if ( ( ( 0 === strpos( $trimmed, '[' ) ) && ( ']' === substr( $trimmed, -1 ) ) ) ||
+			( ( 0 === strpos( $trimmed, '{' ) ) && ( '}' === substr( $trimmed, -1 ) ) ) ) {
 			$decoded = json_decode( $trimmed, true );
 			if ( is_array( $decoded ) && json_last_error() === JSON_ERROR_NONE ) {
 				$updated = $this->replace_array_references( $decoded, $url_map, $media_id_map, $media_url_map, '' );
@@ -436,7 +436,7 @@ class Reference_Replacer {
 				}
 
 				// Only replace absolute URLs in plain text to avoid matching relative fragments in text
-				if ( ! str_starts_with( $orig_url, 'http://' ) && ! str_starts_with( $orig_url, 'https://' ) ) {
+				if ( 0 !== strpos( $orig_url, 'http://' ) && 0 !== strpos( $orig_url, 'https://' ) ) {
 					continue;
 				}
 

@@ -45,14 +45,18 @@ class Reference_Resolver {
 	 *
 	 * @param array           $references Collected references from Reference_Collector.
 	 * @param string          $target_language
-	 * @param Reference_Cache $cache
+	 * @param Reference_Cache|null $cache
 	 * @return array {
 	 *     @type array<string, string> $url_map       Map of original internal URLs to translated URLs.
 	 *     @type array<int, int>       $media_id_map  Map of original attachment IDs to translated IDs.
 	 *     @type array<string, string> $media_url_map Map of original media URLs to translated URLs.
 	 * }
 	 */
-	public function resolve( array $references, string $target_language, Reference_Cache $cache ): array {
+	public function resolve( array $references, string $target_language, ?Reference_Cache $cache = null ): array {
+		if ( ! $cache instanceof Reference_Cache ) {
+			$cache = new Reference_Cache();
+		}
+
 		$target_language = sanitize_key( $target_language );
 		if ( '' === $target_language ) {
 			return array(
@@ -124,13 +128,13 @@ class Reference_Resolver {
 				}
 
 				// Also register trailing slash variant if path without query/fragment
-				if ( ! str_contains( $url, '?' ) && ! str_contains( $url, '#' ) ) {
-					if ( str_ends_with( $url, '/' ) ) {
+				if ( false === strpos( $url, '?' ) && false === strpos( $url, '#' ) ) {
+					if ( substr( $url, -1 ) === '/' ) {
 						$u_alt = rtrim( $url, '/' );
 						$t_alt = rtrim( $translated_url, '/' );
 					} else {
 						$u_alt = $url . '/';
-						$t_alt = str_ends_with( $translated_url, '/' ) ? $translated_url : $translated_url . '/';
+						$t_alt = ( substr( $translated_url, -1 ) === '/' ) ? $translated_url : $translated_url . '/';
 					}
 
 					if ( '' !== $u_alt && ! isset( $url_map[ $u_alt ] ) ) {
