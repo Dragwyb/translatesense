@@ -25,7 +25,7 @@
       all: '',
       gutenberg: '',
       elementor: '',
-          });
+    });
     const [settings, setSettings] = useState({
       openai_api_key: '',
       openai_model: 'gpt-4o-mini',
@@ -97,7 +97,7 @@
           all: xmlRes.custom_xml || '',
           gutenberg: xmlRes.gutenberg_xml || '',
           elementor: xmlRes.elementor_xml || '',
-          
+
         });
 
         if (settingsRes.settings) {
@@ -515,7 +515,7 @@
                 el(
                   'button',
                   {
-                    className: 'ts-btn ts-btn-primary',
+                    className: 'ts-btn ts-btn-primary button-primary',
                     disabled: isCreatingSandbox,
                     onClick: () => handleGenerateConfigSandbox(activeTab),
                     title: "Open editor sandbox with placeholder 'Translate This Content'",
@@ -695,7 +695,7 @@
           : el(
             'button',
             {
-              className: 'ts-btn ts-btn-primary',
+              className: 'ts-btn ts-btn-primary button-primary',
               style: { flex: 1 },
               onClick: () => onGenerate(widget),
               title: "Open editor with 'Translate This Content' for this item",
@@ -791,7 +791,7 @@
             : el(
               'button',
               {
-                className: 'ts-btn ts-btn-primary',
+                className: 'ts-btn ts-btn-primary button-primary',
                 style: { padding: '6px 12px', fontSize: '12px' },
                 onClick: () => onGenerate(widget),
                 title: 'Generate XML configuration rule',
@@ -1008,7 +1008,7 @@
           el(
             'button',
             {
-              className: 'ts-btn ts-btn-primary',
+              className: 'ts-btn ts-btn-primary button-primary',
               onClick: handleSaveClick,
             },
             '💾 Save Config'
@@ -1053,7 +1053,7 @@
             'button',
             {
               key: ed,
-              className: `ts-btn ${selectedEditor === ed ? 'ts-btn-primary' : 'ts-btn-secondary'}`,
+              className: `ts-btn ${selectedEditor === ed ? 'ts-btn-primary button-primary' : 'ts-btn-secondary'}`,
               onClick: () => setSelectedEditor(ed),
             },
             `${ed.toUpperCase()} XML`
@@ -1071,7 +1071,7 @@
       el(
         'button',
         {
-          className: 'ts-btn ts-btn-primary',
+          className: 'ts-btn ts-btn-primary button-primary',
           onClick: () => onSave(currentCode, selectedEditor),
         },
         `💾 Save ${selectedEditor.toUpperCase()} Custom XML`
@@ -2069,7 +2069,7 @@
             {
               type: 'submit',
               disabled: isSaving,
-              className: 'ts-btn ts-btn-primary',
+              className: 'ts-btn ts-btn-primary button-primary',
               style: { padding: '10px 24px', fontSize: '14px' },
             },
             isSaving ? 'Saving...' : '💾 Save Settings'

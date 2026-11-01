@@ -463,7 +463,7 @@
       const targetBatchId = options && options.batchId ? options.batchId : null;
       const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
       const nonce = config.nonce || '';
-      const allLanguages = config.languages || [];
+      const allLanguages = Object.values(config.languages || {});
       const defaultLang = config.defaultLanguage || 'en';
 
       let currentStep = isPreviouslyRunning ? 3 : 1;
@@ -902,7 +902,7 @@
 
             <div class="ts-common-footer ts-review-footer" id="ts-footer-progress" style="${isPreviouslyRunning ? 'display: flex;' : 'display: none;'} justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-progress-back-btn" style="${(isPreviouslyRunning && postIds.length > 0) ? 'display: inline-flex;' : 'display: none;'}">
+                <button type="button" class="ts-btn ts-btn-secondary" id="ts-progress-back-btn" style="${(isPreviouslyRunning && postIds.length > 0) ? 'display: inline-flex;' : 'display: none;'}">
                   &larr; Back
                 </button>
                 <div class="ts-footer-filter-wrap" id="ts-footer-filter-wrap" style="display: none;">
@@ -913,10 +913,10 @@
                 </div>
               </div>
               <div class="ts-footer-buttons-group">
-                <button type="button" class="ts-bulk-btn ts-bulk-btn-secondary" id="ts-bulk-retry-failed-btn" style="display: none;">
+                <button type="button" class="ts-btn ts-btn-secondary" id="ts-bulk-retry-failed-btn" style="display: none;">
                   <span class="dashicons dashicons-update"></span> Retry Failed
                 </button>
-                <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-bulk-done-btn" ${isPreviouslyRunning ? '' : 'disabled'}>
+                <button type="button" class="ts-btn ts-btn-primary button-primary" id="ts-bulk-done-btn" ${isPreviouslyRunning ? '' : 'disabled'}>
                   ${isPreviouslyRunning ? 'Close' : '<span class="dashicons dashicons-hourglass" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px; margin-right: 4px;"></span> Translation In Progress...'}
                 </button>
               </div>
@@ -1166,7 +1166,7 @@
 
         // Error Modals Back & Close buttons
         root.querySelectorAll('.ts-error-container').forEach((errorModal) => {
-          const backBtn = errorModal.querySelector('.ts-bulk-btn-secondary');
+          const backBtn = errorModal.querySelector('.ts-btn-secondary');
           const errCloseBtn = errorModal.querySelector('.ts-bulk-close');
           const mainModal = root.querySelector('.ts-bulk-modal');
           if (backBtn) {
@@ -1276,7 +1276,7 @@
 
             const startBtnEl = document.getElementById('ts-bulk-start-btn');
             if (startBtnEl) {
-              startBtnEl.className = 'ts-bulk-btn ' + (step2Data.proidersAvailable ? 'ts-bulk-btn-primary' : 'ts-bulk-btn-disabled');
+              startBtnEl.className = 'ts-btn ' + (step2Data.proidersAvailable ? 'ts-btn-primary button-primary' : 'ts-btn-disabled');
               startBtnEl.disabled = !step2Data.proidersAvailable;
               startBtnEl.title = !step2Data.proidersAvailable ? 'Not available for translation. Select an available provider to start translation.' : 'Start Bulk Translation';
             }
@@ -1880,7 +1880,7 @@
             }) : `
                     <div class="ts-common-footer">
                       ${modalActionHtml ? `<div>${modalActionHtml}</div>` : ''}
-                      <button type="button" class="ts-bulk-btn ts-bulk-btn-primary" id="ts-err-modal-ok">Close</button>
+                      <button type="button" class="ts-btn ts-btn-primary button-primary" id="ts-err-modal-ok">Close</button>
                     </div>
                     </div>
                   `}
@@ -2006,8 +2006,8 @@
 
           if (doneBtn) {
             doneBtn.disabled = false;
-            doneBtn.className = 'ts-bulk-btn ts-bulk-btn-primary';
-            doneBtn.innerHTML = '<span class="dashicons dashicons-yes-alt" style="font-size: 15px; width: 15px; height: 15px; line-height: 15px;"></span> Done (Reload)';
+            doneBtn.className = 'ts-btn ts-btn-primary button-primary';
+            doneBtn.innerHTML = 'Done (Reload)';
             doneBtn.onclick = function () {
               stopGlobalElapsedTimer();
               if (inModalPollingTimer) {

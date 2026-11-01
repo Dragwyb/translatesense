@@ -6,7 +6,7 @@
 (function (window, document) {
   'use strict';
 
-  function getLanguageFlagHtml(langInput, allLanguages = []) {
+  function getLanguageFlagHtml(langInput, allLanguages = {}) {
     let slug = '';
     let flagUrl = '';
 
@@ -15,7 +15,7 @@
       flagUrl = langInput.flag || '';
     } else if (typeof langInput === 'string') {
       slug = langInput.toLowerCase();
-      const found = allLanguages.find((l) => (l.slug || '').toLowerCase() === slug);
+      const found = allLanguages[slug];
       if (found && found.flag) {
         flagUrl = found.flag;
       }
@@ -28,7 +28,7 @@
     return '';
   }
 
-  function getLanguageDisplay(langInput, allLanguages = []) {
+  function getLanguageDisplay(langInput, allLanguages = {}) {
     let slug = '';
     if (typeof langInput === 'object' && langInput !== null) {
       slug = (langInput.slug || '').toLowerCase();
@@ -185,9 +185,9 @@
       const existing = document.getElementById('ts-source-editor-guidance-modal');
       if (existing) existing.remove();
 
-      let modalTitle = '⚡ Translate Page Content';
+      let modalTitle = 'Translate Page Content';
       let modalMessage = '';
-      let actionBtnText = '🚀 Continue to Translation';
+      let actionBtnText = 'Continue to Translation';
       const srcDisplay = this.sourceLanguage ? `from <strong>${getLanguageDisplay(this.sourceLanguage, this.config.languages)}</strong> ` : '';
       modalMessage = `If you want to translate this post automatically ${srcDisplay}to <strong>${getLanguageDisplay(this.targetLang, this.config.languages)}</strong>, click to continue or close this modal.`;
 
@@ -277,7 +277,7 @@
       };
 
       insertMediaBtn();
-      setInterval(insertMediaBtn, 2000);
+      this.initPageLoadPrompt();
     }
 
     /**
@@ -300,7 +300,7 @@
       translateBtn.id = 'ts-elementor-translate-btn';
       translateBtn.className = 'elementor-button elementor-button-default ts-open-translate-btn';
       translateBtn.style.cssText = 'width: 100%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #fff; font-weight: 600;';
-      translateBtn.innerText = '⚡ Translate Page';
+      translateBtn.innerText = 'Translate Page';
 
       btnContainer.prepend(translateBtn)
 
@@ -527,7 +527,7 @@
 
       // Error Modals Back & Close buttons
       modalContainer.querySelectorAll('.ts-error-container').forEach((errorModal) => {
-        const backBtn = errorModal.querySelector('.ts-bulk-btn-secondary');
+        const backBtn = errorModal.querySelector('.ts-btn-secondary');
         const errCloseBtn = errorModal.querySelector('.ts-bulk-close');
         if (backBtn) {
           backBtn.addEventListener('click', (e) => {
@@ -1001,7 +1001,7 @@
         alert('Translation Batch Error: ' + (err.message || 'Error'));
       } finally {
         this.isTranslating = false;
-        this.updateReviewTableStatus('⚡ Re-Translate All');
+        this.updateReviewTableStatus('Re-Translate All');
       }
     }
 
@@ -1058,7 +1058,6 @@
       modalContainer.innerHTML = `
         <div class="ts-review-container" onclick="event.stopPropagation()">
           ${this.core.createHeaderHTML({
-        icon: '<span class="ts-header-trans-icon">A 文</span>',
         title: 'Review Translations',
         subtitle: 'Review and edit translations before applying to the page.',
         closeId: 'ts-review-modal-close',
@@ -1120,7 +1119,7 @@
         align: 'space-between',
         buttons: [
           { id: 'ts-review-cancel-btn', label: 'Cancel', variant: 'secondary' },
-          { id: 'ts-apply-to-editor-btn', label: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
+          { id: 'ts-apply-to-editor-btn', label: 'Apply to Page', variant: 'primary', disabled: Boolean(this.isExtracting || !this.strings.length) }
         ]
       })}
         </div>

@@ -258,7 +258,7 @@
       }
     }
 
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ts-bulk-btn ts-bulk-btn-primary">${label}</a>`;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ts-btn ts-btn-primary button-primary">${label}</a>`;
   }
 
   /**

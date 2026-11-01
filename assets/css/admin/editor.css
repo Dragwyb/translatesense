@@ -11,65 +11,14 @@
 /* ==========================================================================
    Editor Panel & Sidebar Controls
    ========================================================================== */
-.ts-editor-sidebar-panel {
-  padding: 16px;
+.ts-open-translate-btn {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #1e293b;
+  padding-inline: 16px !important;
 }
 
-.ts-editor-field {
-  margin-bottom: 14px;
-}
-
-.ts-editor-field label {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  color: #475569;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.ts-editor-select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 3px;
-  font-size: 13px;
-  background: #ffffff;
-  color: #1e293b;
-  outline: none;
-  transition: all 0.15s ease;
-}
-
-.ts-editor-select:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
-}
-
-.ts-btn-extract {
-  width: 100%;
-  padding: 9px 16px;
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
-  border-radius: 3px;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18);
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.ts-btn-extract:hover {
-  background: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
-  transform: translateY(-1px);
+.ts-open-translate-btn .dashicons{
+  color: inherit !important;
+  line-height: 1 !important;
 }
 
 .ts-lang-flag-img {

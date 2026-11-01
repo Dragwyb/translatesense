@@ -955,14 +955,14 @@
 
           const label = btn.label || btn.text || 'Button';
           const variant = btn.variant || (btn.primary ? 'primary' : btn.secondary ? 'secondary' : 'secondary');
-          const variantClass = variant === 'primary' ? 'ts-btn-primary ts-bulk-btn-primary' : variant === 'disabled' ? 'ts-btn-disabled ts-bulk-btn-disabled' : 'ts-btn-secondary ts-bulk-btn-secondary';
+          const variantClass = variant === 'primary' ? 'ts-btn-primary button-primary' : variant === 'disabled' ? 'ts-btn-disabled' : 'ts-btn-secondary secondary';
           const disabledAttr = btn.disabled || variant === 'disabled' ? ' disabled' : '';
           const idAttr = btn.id ? ` id="${btn.id}"` : '';
           const titleAttr = btn.title ? ` title="${btn.title}"` : '';
           const customClass = btn.class || btn.className || '';
           const extraAttrs = btn.attributes ? Object.entries(btn.attributes).map(([k, v]) => ` ${k}="${v}"`).join('') : '';
 
-          return `<button type="button" class="ts-common-btn ts-bulk-btn ${variantClass} ${customClass}"${idAttr}${titleAttr}${disabledAttr}${extraAttrs}>${label}</button>`;
+          return `<button type="button" class="ts-btn ${variantClass} ${customClass}"${idAttr}${titleAttr}${disabledAttr}${extraAttrs}>${label}</button>`;
         }).join('');
       } else if (typeof buttons === 'string') {
         buttonsHtml = buttons;

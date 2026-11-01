@@ -1003,64 +1003,10 @@ button.ts-error-detail-btn:hover {
   gap: 10px;
 }
 
-.ts-bulk-btn-secondary {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border: 1px solid #cbd5e1 !important;
-  border-radius: var(--ts-radius-md) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 8px 18px !important;
-  display: inline-flex;
-  align-items: center !important;
-  gap: 5px !important;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
 #ts-bulk-retry-failed-btn.hide,
 #ts-bulk-retry-failed-btn.ts-hide,
 #ts-bulk-retry-failed-btn[style*="display: none"] {
   display: none !important;
-}
-
-.ts-bulk-btn-secondary:hover {
-  background: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-.ts-bulk-btn-secondary .dashicons {
-  font-size: 15px;
-  width: 15px;
-  height: 15px;
-  line-height: 15px;
-}
-
-.ts-bulk-btn-primary {
-  background: #0073e6 !important;
-  border-color: #0073e6 !important;
-  color: #ffffff !important;
-  border-radius: var(--ts-radius-md) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 8px 20px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 115, 230, 0.25) !important;
-}
-
-.ts-bulk-btn-primary:hover {
-  background: #005bb5 !important;
-  border-color: #005bb5 !important;
-}
-
-.ts-bulk-btn-primary .dashicons {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  line-height: 16px;
 }
 
 /* Dotted spinner animation matching */
