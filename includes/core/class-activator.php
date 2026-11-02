@@ -54,9 +54,11 @@ class Activator {
             widget_name varchar(100) NOT NULL,
             widget_key varchar(100) NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            last_used_at datetime DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY post_package_unique (post_id, package_hash),
-            KEY string_index (string_hash)
+            KEY string_index (string_hash),
+            KEY last_used_index (last_used_at)
         ) {$charset_collate};";
 
 		// 3. Custom translations table (Linked directly to strings)
@@ -68,10 +70,12 @@ class Activator {
             translated_string longtext NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            last_used_at datetime DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY string_lang_unique (string_hash, language),
             KEY string_index (string_hash),
-            KEY language_index (language)
+            KEY language_index (language),
+            KEY last_used_index (last_used_at)
         ) {$charset_collate};";
 
 		// 4. Custom bulk translations workflow queue table
@@ -107,8 +111,6 @@ class Activator {
 		dbDelta( $sql_translations );
 		dbDelta( $sql_bulk );
 	}
-
-
 
 	/**
 	 * Initialize default plugin options.
@@ -150,11 +152,18 @@ class Activator {
 	}
 
 	/**
-	 * Schedule daily cache cleanup cron (Step 4.3).
+	 * Schedule 3-day cache cleanup cron.
 	 */
 	public static function schedule_cleanup_cron() {
-		if ( ! wp_next_scheduled( 'translatesense_cache_cleanup' ) ) {
-			wp_schedule_event( time(), 'daily', 'translatesense_cache_cleanup' );
+		$hook     = 'translatesense_cache_cleanup';
+		$schedule = 'every_three_days';
+
+		$current_schedule = wp_get_schedule( $hook );
+		if ( false === $current_schedule ) {
+			wp_schedule_event( time(), $schedule, $hook );
+		} elseif ( $current_schedule !== $schedule ) {
+			wp_clear_scheduled_hook( $hook );
+			wp_schedule_event( time(), $schedule, $hook );
 		}
 	}
 }

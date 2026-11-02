@@ -105,6 +105,7 @@ class Hashing_Db {
 
 	/**
 	 * Register/Store a translation package in db if not exists.
+	 * Initializes last_used_at with the current database datetime for new records.
 	 *
 	 * @param int         $post_id
 	 * @param string      $target_lang
@@ -170,10 +171,11 @@ class Hashing_Db {
 			return (int) $existing_id;
 		}
 
+		// Initialize last_used_at with current database datetime (NOW()) for newly inserted package
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT IGNORE INTO {$packages_table} (`post_id`, `string_hash`, `language`, `package_hash`, `editor_type`, `widget_name`, `widget_key`, `created_at`) VALUES (%d, %s, %s, %s, %s, %s, %s, NOW())", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"INSERT IGNORE INTO {$packages_table} (`post_id`, `string_hash`, `language`, `package_hash`, `editor_type`, `widget_name`, `widget_key`, `created_at`, `last_used_at`) VALUES (%d, %s, %s, %s, %s, %s, %s, NOW(), NOW())", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$string_hash,
 				sanitize_text_field( (string) $target_lang ),
@@ -189,6 +191,8 @@ class Hashing_Db {
 
 	/**
 	 * Save translated string result into translatesense_translations table.
+	 * Initializes last_used_at with current database datetime for new records.
+	 * Does not modify last_used_at on duplicate key update.
 	 *
 	 * @param string $string_hash       32-char md5 string hash
 	 * @param string $target_lang       Target language code
@@ -211,7 +215,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$result = $wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO {$translations_table} (`string_hash`, `language`, `translated_string`, `created_at`, `updated_at`) VALUES (%s, %s, %s, NOW(), NOW()) ON DUPLICATE KEY UPDATE `translated_string` = VALUES(`translated_string`), `updated_at` = NOW()", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"INSERT INTO {$translations_table} (`string_hash`, `language`, `translated_string`, `created_at`, `updated_at`, `last_used_at`) VALUES (%s, %s, %s, NOW(), NOW(), NOW()) ON DUPLICATE KEY UPDATE `translated_string` = VALUES(`translated_string`), `updated_at` = NOW()", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$string_hash,
 				$target_lang,
 				$translated_string
@@ -223,6 +227,7 @@ class Hashing_Db {
 
 	/**
 	 * Check if a translation exists for a package hash or string_id.
+	 * Updates last_used_at timestamp on successful retrieval.
 	 *
 	 * @param int|string $identifier  package_hash (string), string_hash (string), or string_id (int)
 	 * @param string     $target_lang
@@ -239,20 +244,32 @@ class Hashing_Db {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$row = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash WHERE s.id = %d AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"SELECT t.id, t.translated_string FROM {$table_translations} t INNER JOIN {$table_strings} s ON t.string_hash = s.string_hash WHERE s.id = %d AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					(int) $identifier,
 					$target_lang
 				),
 				ARRAY_A
 			);
-			return ! empty( $row['translated_string'] ) ? (string) $row['translated_string'] : null;
+			if ( ! empty( $row['translated_string'] ) ) {
+				if ( ! empty( $row['id'] ) ) {
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+					$wpdb->query(
+						$wpdb->prepare(
+							"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+							(int) $row['id']
+						)
+					);
+				}
+				return (string) $row['translated_string'];
+			}
+			return null;
 		}
 
 		// Check by string_hash
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT translated_string FROM {$table_translations} WHERE string_hash = %s AND language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT id, translated_string FROM {$table_translations} WHERE string_hash = %s AND language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$identifier,
 				$target_lang
 			),
@@ -260,6 +277,15 @@ class Hashing_Db {
 		);
 
 		if ( ! empty( $row['translated_string'] ) ) {
+			if ( ! empty( $row['id'] ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						(int) $row['id']
+					)
+				);
+			}
 			return (string) $row['translated_string'];
 		}
 
@@ -267,7 +293,7 @@ class Hashing_Db {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT t.id as translation_id, p.id as package_id, t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash = %s AND t.language = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$identifier,
 				$target_lang
 			),
@@ -275,6 +301,24 @@ class Hashing_Db {
 		);
 
 		if ( ! empty( $row['translated_string'] ) ) {
+			if ( ! empty( $row['translation_id'] ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						(int) $row['translation_id']
+					)
+				);
+			}
+			if ( ! empty( $row['package_id'] ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table_packages} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						(int) $row['package_id']
+					)
+				);
+			}
 			return (string) $row['translated_string'];
 		}
 
@@ -282,7 +326,30 @@ class Hashing_Db {
 	}
 
 	/**
+	 * Fetch a translated string directly by string_hash and language.
+	 *
+	 * @param string $string_hash 32-char md5 hash of the string
+	 * @param string $language    Language code
+	 * @return string|null
+	 */
+	public static function get_translation( string $string_hash, string $language ): ?string {
+		return self::get_cached_translation( $string_hash, $language );
+	}
+
+	/**
+	 * Bulk fetch translations by string hashes and language.
+	 *
+	 * @param array  $string_hashes Array of string hashes
+	 * @param string $language      Language code
+	 * @return array Hash => translated_string
+	 */
+	public static function get_translations_by_hashes( array $string_hashes, string $language ): array {
+		return self::get_cached_translations_batch( $string_hashes, $language );
+	}
+
+	/**
 	 * Batch get cached translations for multiple package hashes or string hashes.
+	 * Efficiently bulk-updates last_used_at for all matched translation and package records.
 	 *
 	 * @param array  $hashes
 	 * @param string $target_lang
@@ -299,15 +366,17 @@ class Hashing_Db {
 		$table_packages     = self::get_packages_table();
 		$table_strings      = self::get_strings_table();
 
-		$placeholders = implode( ',', array_fill( 0, count( $hashes ), '%s' ) );
-		$cache_map    = array();
+		$placeholders             = implode( ',', array_fill( 0, count( $hashes ), '%s' ) );
+		$cache_map                = array();
+		$translation_ids_to_touch = array();
+		$package_ids_to_touch     = array();
 
 		// 1. Check via package_hash mapping
 		$params = array_merge( $hashes, array( $target_lang ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash, t.translated_string FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT p.package_hash, t.translated_string, t.id as translation_id, p.id as package_id FROM {$table_translations} t INNER JOIN {$table_packages} p ON t.string_hash = p.string_hash WHERE p.package_hash IN ($placeholders) AND t.language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$params
 			),
 			ARRAY_A
@@ -317,6 +386,12 @@ class Hashing_Db {
 			foreach ( $rows as $row ) {
 				if ( ! empty( $row['translated_string'] ) ) {
 					$cache_map[ $row['package_hash'] ] = (string) $row['translated_string'];
+					if ( ! empty( $row['translation_id'] ) ) {
+						$translation_ids_to_touch[] = (int) $row['translation_id'];
+					}
+					if ( ! empty( $row['package_id'] ) ) {
+						$package_ids_to_touch[] = (int) $row['package_id'];
+					}
 				}
 			}
 		}
@@ -330,7 +405,7 @@ class Hashing_Db {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$string_rows = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT string_hash, translated_string FROM {$table_translations} WHERE string_hash IN ($rem_placeholders) AND language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"SELECT id, string_hash, translated_string FROM {$table_translations} WHERE string_hash IN ($rem_placeholders) AND language = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$rem_params
 				),
 				ARRAY_A
@@ -340,9 +415,38 @@ class Hashing_Db {
 				foreach ( $string_rows as $row ) {
 					if ( ! empty( $row['translated_string'] ) ) {
 						$cache_map[ $row['string_hash'] ] = (string) $row['translated_string'];
+						if ( ! empty( $row['id'] ) ) {
+							$translation_ids_to_touch[] = (int) $row['id'];
+						}
 					}
 				}
 			}
+		}
+
+		// Bulk update last_used_at for all matched translation records efficiently
+		if ( ! empty( $translation_ids_to_touch ) ) {
+			$translation_ids_to_touch = array_values( array_unique( $translation_ids_to_touch ) );
+			$ids_placeholders         = implode( ',', array_fill( 0, count( $translation_ids_to_touch ), '%d' ) );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id IN ($ids_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$translation_ids_to_touch
+				)
+			);
+		}
+
+		// Bulk update last_used_at for all matched package records efficiently
+		if ( ! empty( $package_ids_to_touch ) ) {
+			$package_ids_to_touch = array_values( array_unique( $package_ids_to_touch ) );
+			$pkg_placeholders     = implode( ',', array_fill( 0, count( $package_ids_to_touch ), '%d' ) );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table_packages} SET last_used_at = NOW() WHERE id IN ($pkg_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$package_ids_to_touch
+				)
+			);
 		}
 
 		return $cache_map;
@@ -350,6 +454,7 @@ class Hashing_Db {
 
 	/**
 	 * Get post packages joined with central translatesense_strings.
+	 * Updates last_used_at timestamp on successful package retrieval.
 	 *
 	 * @param int    $post_id
 	 * @param string $lang
@@ -373,7 +478,22 @@ class Hashing_Db {
 			ARRAY_A
 		);
 
-		return ! empty( $results ) ? $results : array();
+		if ( ! empty( $results ) ) {
+			// Update last_used_at for all matching retrieved packages efficiently
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$packages_table} SET last_used_at = NOW() WHERE post_id = %d AND language = %s AND editor_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$post_id,
+					$lang,
+					$editor_type
+				)
+			);
+
+			return $results;
+		}
+
+		return array();
 	}
 
 	/**

@@ -14,9 +14,6 @@ class Deactivator {
 	 * Run deactivation tasks.
 	 */
 	public static function deactivate() {
-		$timestamp = wp_next_scheduled( 'translatesense_cache_cleanup' );
-		if ( $timestamp ) {
-			wp_unschedule_event( $timestamp, 'translatesense_cache_cleanup' );
-		}
+		wp_clear_scheduled_hook( 'translatesense_cache_cleanup' );
 	}
 }
