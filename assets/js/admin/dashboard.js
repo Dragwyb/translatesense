@@ -7,6 +7,95 @@
 (function () {
   const { createElement: el, useState, useEffect, useMemo } = window.wp.element;
 
+  const getPluginUrl = (name) => {
+    if (!window.TranslateSenseData || !window.TranslateSenseData.adminUrl) {
+      return '#';
+    }
+
+    const adminUrl = window.TranslateSenseData.adminUrl;
+
+    return adminUrl + 'plugin-install.php?tab=plugin-information&plugin=' + name + '&TB_iframe=true&width=772&height=380';
+  }
+  // Crisp Modern SVG Icons
+  const Icons = {
+    search: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('circle', { cx: 11, cy: 11, r: 8 }),
+      el('line', { x1: 21, y1: 21, x2: 16.65, y2: 16.65 })
+    ),
+    pencil: (size = 12) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z' })
+    ),
+    eye: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' }),
+      el('circle', { cx: 12, cy: 12, r: 3 })
+    ),
+    eyeOff: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24' }),
+      el('line', { x1: 1, y1: 1, x2: 23, y2: 23 })
+    ),
+    check: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('polyline', { points: '20 6 9 17 4 12' })
+    ),
+    alert: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('circle', { cx: 12, cy: 12, r: 10 }),
+      el('line', { x1: 12, y1: 8, x2: 12, y2: 12 }),
+      el('line', { x1: 12, y1: 16, x2: 12.01, y2: 16 })
+    ),
+    globe: (size = 20) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('circle', { cx: 12, cy: 12, r: 10 }),
+      el('line', { x1: 2, y1: 12, x2: 22, y2: 12 }),
+      el('path', { d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z' })
+    ),
+    clock: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('circle', { cx: 12, cy: 12, r: 10 }),
+      el('polyline', { points: '12 6 12 12 16 14' })
+    ),
+    document: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+      el('polyline', { points: '14 2 14 8 20 8' })
+    ),
+    layers: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('polygon', { points: '12 2 2 7 12 12 22 7 12 2' }),
+      el('polyline', { points: '2 17 12 22 22 17' }),
+      el('polyline', { points: '2 12 12 17 22 12' })
+    ),
+    package: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' }),
+      el('polyline', { points: '3.27 6.96 12 12.01 20.73 6.96' }),
+      el('line', { x1: 12, y1: 22.08, x2: 12, y2: 12 })
+    ),
+    chart: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('line', { x1: 18, y1: 20, x2: 18, y2: 10 }),
+      el('line', { x1: 12, y1: 20, x2: 12, y2: 4 }),
+      el('line', { x1: 6, y1: 20, x2: 6, y2: 14 })
+    ),
+    bolt: (size = 13) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('polygon', { points: '13 2 3 14 12 14 11 22 21 10 12 10 13 2' })
+    ),
+    chat: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' })
+    ),
+    workflow: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('rect', { x: 3, y: 3, width: 6, height: 6, rx: 1 }),
+      el('rect', { x: 15, y: 15, width: 6, height: 6, rx: 1 }),
+      el('path', { d: 'M6 9v3a3 3 0 0 0 3 3h6' })
+    ),
+    shield: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' })
+    ),
+    lock: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('rect', { x: 3, y: 11, width: 18, height: 11, rx: 2, ry: 2 }),
+      el('path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' })
+    ),
+    spark: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'm12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z' })
+    ),
+    close: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('line', { x1: 18, y1: 6, x2: 6, y2: 18 }),
+      el('line', { x1: 6, y1: 6, x2: 18, y2: 18 })
+    ),
+  };
+
   function TranslateSenseApp() {
     const getInitialTab = () => {
       const params = new URLSearchParams(window.location.search);
@@ -52,7 +141,7 @@
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [sortBy, setSortBy] = useState('name_asc');
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 7; // Exactly 7 items per page as shown in screenshot
+    const pageSize = 10; // Exactly 7 items per page as shown in screenshot
 
     const [selectedWidget, setSelectedWidget] = useState(null);
     const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
@@ -307,10 +396,10 @@
         'div',
         { className: `ts-notice-banner ${notice.type}` },
         el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-          notice.type === 'error' ? '⚠️' : '✅',
+          notice.type === 'error' ? Icons.alert(16) : Icons.check(16),
           el('span', null, notice.text)
         ),
-        el('button', { className: 'ts-notice-close', onClick: () => setNotice(null) }, '✕')
+        el('button', { className: 'ts-notice-close', onClick: () => setNotice(null), 'aria-label': 'Close' }, Icons.close(14))
       ),
 
       // 3. Two-Column Layout (Main Area + Right Sidebar)
@@ -332,10 +421,19 @@
               'button',
               {
                 type: 'button',
+                className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
+                onClick: () => handleTabChange('settings'),
+              },
+              'General Settings'
+            ),
+            el(
+              'button',
+              {
+                type: 'button',
                 className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
                 onClick: () => handleTabChange('gutenberg'),
               },
-              '🧱 Gutenberg Blocks',
+              'Gutenberg Blocks',
               el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
             ),
             activeBuilders.elementor &&
@@ -346,18 +444,9 @@
                 className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
                 onClick: () => handleTabChange('elementor'),
               },
-              '🔲 Elementor Widgets',
+              'Elementor Widgets',
               el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
             ),
-            el(
-              'button',
-              {
-                type: 'button',
-                className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
-                onClick: () => handleTabChange('settings'),
-              },
-              '⚙️ General Settings'
-            )
           ),
 
           // Content of Tab
@@ -388,7 +477,7 @@
                   el(
                     'div',
                     { className: 'ts-search-box' },
-                    el('span', { className: 'ts-search-icon' }, '🔍'),
+                    el('span', { className: 'ts-search-icon' }, Icons.search()),
                     el('input', {
                       type: 'text',
                       className: 'ts-search-input',
@@ -410,7 +499,7 @@
                         setCurrentPage(1);
                       },
                     },
-                    el('option', { value: 'all' }, '📁 All Categories'),
+                    el('option', { value: 'all' }, 'All Categories'),
                     availableCategories.map((cat) =>
                       el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
                     )
@@ -425,10 +514,10 @@
                         setCurrentPage(1);
                       },
                     },
-                    el('option', { value: 'all' }, '🏷️ All Statuses'),
-                    el('option', { value: 'supported' }, '✓ Supported'),
-                    el('option', { value: 'custom' }, '★ Custom Config'),
-                    el('option', { value: 'unsupported' }, '✕ Unsupported')
+                    el('option', { value: 'all' }, 'All Statuses'),
+                    el('option', { value: 'supported' }, 'Supported'),
+                    el('option', { value: 'custom' }, 'Custom Config'),
+                    el('option', { value: 'unsupported' }, 'Unsupported')
                   ),
                   el(
                     'select',
@@ -440,11 +529,11 @@
                         setCurrentPage(1);
                       },
                     },
-                    el('option', { value: 'name_asc' }, '🔀 Name (A → Z)'),
-                    el('option', { value: 'name_desc' }, '🔀 Name (Z → A)'),
-                    el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
-                    el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
-                    el('option', { value: 'status' }, '⚡ Status (Supported first)')
+                    el('option', { value: 'name_asc' }, 'Name (A to Z)'),
+                    el('option', { value: 'name_desc' }, 'Name (Z to A)'),
+                    el('option', { value: 'fields_desc' }, 'Fields (High to Low)'),
+                    el('option', { value: 'fields_asc' }, 'Fields (Low to High)'),
+                    el('option', { value: 'status' }, 'Status (Supported first)')
                   )
                 ),
 
@@ -465,7 +554,7 @@
                           className: `ts-view-btn ${viewMode === 'grid' ? 'active' : ''}`,
                           onClick: () => setViewMode('grid'),
                         },
-                        '⊞ Grid'
+                        'Grid'
                       ),
                       el(
                         'button',
@@ -474,7 +563,7 @@
                           className: `ts-view-btn ${viewMode === 'list' ? 'active' : ''}`,
                           onClick: () => setViewMode('list'),
                         },
-                        '☰ List'
+                        'List'
                       )
                     ),
                     (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
@@ -491,7 +580,7 @@
                           setCurrentPage(1);
                         },
                       },
-                      '✕ Reset'
+                      'Reset'
                     )
                   ),
                   el(
@@ -505,7 +594,7 @@
                         disabled: isCreatingSandbox,
                         onClick: () => handleGenerateConfigSandbox(activeTab),
                       },
-                      isCreatingSandbox ? 'Opening...' : `⚡ Generate ${activeTab === 'gutenberg' ? 'Gutenberg' : 'Elementor'} Config`
+                      isCreatingSandbox ? 'Opening...' : `Generate ${activeTab === 'gutenberg' ? 'Gutenberg' : 'Elementor'} Config`
                     ),
                     el(
                       'button',
@@ -518,7 +607,7 @@
                           setIsXmlModalOpen(true);
                         },
                       },
-                      el('span', { style: { fontSize: '13px' } }, '✏️'),
+                      el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.pencil(13)),
                       `Edit ${activeTab === 'gutenberg' ? 'Gutenberg' : 'Elementor'} Config`
                     )
                   )
@@ -673,7 +762,7 @@
             rel: 'noopener noreferrer',
             className: 'ts-header-action-btn',
           },
-          el('span', { className: 'ts-action-icon' }, '📖'),
+
           el('span', { className: 'ts-header-btn-text' }, 'Documentation'),
           el('span', { className: 'ts-external-arrow' }, '↗')
         ),
@@ -685,7 +774,7 @@
             rel: 'noopener noreferrer',
             className: 'ts-header-action-btn',
           },
-          el('span', { className: 'ts-action-icon' }, '🎧'),
+
           el('span', { className: 'ts-header-btn-text' }, 'Support'),
           el('span', { className: 'ts-external-arrow' }, '↗')
         )
@@ -717,7 +806,7 @@
         el(
           'h3',
           { className: 'ts-sidebar-title' },
-          el('span', { className: 'ts-title-icon' }, '📊'),
+          el('span', { className: 'ts-title-icon' }, Icons.chart(15)),
           'Translation Overview'
         ),
         el(
@@ -726,7 +815,7 @@
           el(
             'div',
             { className: 'ts-overview-metric' },
-            el('div', { className: 'ts-metric-icon-box' }, '📄'),
+            el('div', { className: 'ts-metric-icon-box' }, Icons.document(15)),
             el(
               'div',
               { className: 'ts-metric-details' },
@@ -759,7 +848,7 @@
           el(
             'div',
             { className: 'ts-overview-metric' },
-            el('div', { className: 'ts-metric-icon-box' }, '🕒'),
+            el('div', { className: 'ts-metric-icon-box' }, Icons.clock(15)),
             el(
               'div',
               { className: 'ts-metric-details' },
@@ -775,13 +864,13 @@
           el(
             'div',
             { className: 'ts-subgrid-col' },
-            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, '🗄️'), el('span', null, cachedCount)),
+            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, Icons.layers(14)), el('span', null, cachedCount)),
             el('div', { className: 'ts-subgrid-lbl' }, 'Translation Cache')
           ),
           el(
             'div',
             { className: 'ts-subgrid-col' },
-            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, '📦'), el('span', null, packagesCount)),
+            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, Icons.package(14)), el('span', null, packagesCount)),
             el('div', { className: 'ts-subgrid-lbl' }, 'Active Packages')
           )
         )
@@ -794,7 +883,7 @@
         el(
           'h3',
           { className: 'ts-sidebar-title' },
-          el('span', { className: 'ts-title-icon' }, '⚡'),
+          el('span', { className: 'ts-title-icon' }, Icons.bolt(14)),
           'Translation Providers'
         ),
         el(
@@ -828,7 +917,7 @@
         el(
           'h3',
           { className: 'ts-sidebar-title' },
-          el('span', { className: 'ts-title-icon' }, '🌟'),
+          el('span', { className: 'ts-title-icon' }, Icons.spark(14)),
           'More by Dragwyb'
         ),
         el(
@@ -837,12 +926,12 @@
           el(
             'a',
             {
-              href: 'https://dragwyb.com/plugins/forms/',
+              href: getPluginUrl('smart-form-builder-by-dragwyb'),
               target: '_blank',
               rel: 'noopener noreferrer',
-              className: 'ts-dragwyb-item',
+              className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
             },
-            el('div', { className: 'ts-dragwyb-icon red' }, '📋'),
+            el('div', { className: 'ts-dragwyb-icon red' }, Icons.document(15)),
             el(
               'div',
               { className: 'ts-dragwyb-info' },
@@ -854,12 +943,12 @@
           el(
             'a',
             {
-              href: 'https://dragwyb.com/plugins/click-to-chat/',
+              href: getPluginUrl('dragwyb-click-to-chat'),
               target: '_blank',
               rel: 'noopener noreferrer',
-              className: 'ts-dragwyb-item',
+              className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
             },
-            el('div', { className: 'ts-dragwyb-icon green' }, '💬'),
+            el('div', { className: 'ts-dragwyb-icon green' }, Icons.chat(15)),
             el(
               'div',
               { className: 'ts-dragwyb-info' },
@@ -871,12 +960,12 @@
           el(
             'a',
             {
-              href: 'https://dragwyb.com/plugins/ai-agent-workflows/',
+              href: getPluginUrl('dragwyb-ai-agent-workflows'),
               target: '_blank',
               rel: 'noopener noreferrer',
-              className: 'ts-dragwyb-item',
+              className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
             },
-            el('div', { className: 'ts-dragwyb-icon purple' }, '⚡'),
+            el('div', { className: 'ts-dragwyb-icon purple' }, Icons.workflow(15)),
             el(
               'div',
               { className: 'ts-dragwyb-info' },
@@ -913,7 +1002,7 @@
         el(
           'div',
           { className: 'ts-save-status' },
-          '💡 Tip: Press ',
+          'Tip: Press ',
           el('kbd', { className: 'ts-kbd-shortcut' }, 'Ctrl + S')
         ),
         el(
@@ -924,7 +1013,7 @@
             onClick: onSaveSettings,
             className: 'ts-btn ts-btn-primary button-primary',
           },
-          isSaving ? 'Saving...' : '💾 Save Settings'
+          isSaving ? 'Saving...' : 'Save Settings'
         )
       )
     );
@@ -1034,7 +1123,7 @@
         el(
           'span',
           { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
-          el('span', { className: 'ts-badge-icon' }, '🌐'),
+
           `${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
         )
       ),
@@ -1043,10 +1132,10 @@
         'td',
         null,
         widget.status === 'supported'
-          ? el('span', { className: 'ts-table-status supported' }, '✓ Supported')
+          ? el('span', { className: 'ts-table-status supported' }, 'Supported')
           : widget.status === 'custom'
-            ? el('span', { className: 'ts-table-status custom' }, '✓ Supported')
-            : el('span', { className: 'ts-table-status unsupported' }, '✕ Unsupported')
+            ? el('span', { className: 'ts-table-status custom' }, 'Supported')
+            : el('span', { className: 'ts-table-status unsupported' }, 'Unsupported')
       ),
       // Column 5: ACTIONS
       el(
@@ -1061,7 +1150,7 @@
               onClick: () => onEdit(widget),
               title: 'Edit XML rule directly',
             },
-            el('span', { style: { fontSize: '11px' } }, '✏️'),
+            el('span', { style: { display: 'inline-flex', marginRight: '5px' } }, Icons.pencil(12)),
             'Edit Config'
           )
           : el(
@@ -1098,7 +1187,7 @@
         el(
           'span',
           { className: `ts-table-status ${widget.status}` },
-          widget.status === 'supported' ? '✓ Supported' : widget.status === 'custom' ? '★ Custom' : '✕ Unsupported'
+          widget.status === 'supported' ? 'Supported' : widget.status === 'custom' ? 'Custom' : 'Unsupported'
         )
       ),
       el(
@@ -1108,7 +1197,7 @@
         el(
           'span',
           { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
-          `🌐 ${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
+          `${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
         )
       ),
       el(
@@ -1123,7 +1212,7 @@
               style: { width: '100%' },
               onClick: () => onEdit(widget),
             },
-            '✏️ Edit Config'
+            el('span', { style: { display: 'inline-flex', marginRight: '5px' } }, Icons.pencil(12)), 'Edit Config'
           )
           : el(
             'button',
@@ -1244,7 +1333,7 @@
               ? `Configure XML: ${widget.name} (${builder.toUpperCase()})`
               : `Edit ${builder.toUpperCase()} Custom XML Configuration`
           ),
-          el('button', { className: 'ts-modal-close', onClick: onClose }, '✕')
+          el('button', { className: 'ts-modal-close', onClick: onClose, 'aria-label': 'Close' }, Icons.close(16))
         ),
         el(
           'div',
@@ -1274,7 +1363,7 @@
               className: 'ts-btn ts-btn-primary button-primary',
               onClick: () => onSave(editorCode),
             },
-            '💾 Save Config'
+            'Save Config'
           )
         )
       )
@@ -1440,24 +1529,24 @@
       if (openAiStatus.connectors && openAiStatus.isProviderInstall) {
         if (!openAiStatus.isProviderActive) {
           openAiTagClass = 'setup-connector';
-          openAiTagText = '⚠️ Activate Provider';
+          openAiTagText = 'Activate Provider';
           openAiConnectorDesc = 'WordPress AI Connector plugin for OpenAI is installed but inactive. Please activate it in WordPress Connectors.';
-          openAiConnectorBtnText = '↗ Activate in WP Connectors';
+          openAiConnectorBtnText = 'Activate in WP Connectors ↗';
         } else if (!openAiStatus.isConnected) {
           openAiTagClass = 'key-needed';
-          openAiTagText = '⚠️ API Key Needed';
+          openAiTagText = 'API Key Needed';
           openAiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your OpenAI credentials directly in WordPress Connectors.';
-          openAiConnectorBtnText = '↗ Connect in WP Connectors';
+          openAiConnectorBtnText = 'Connect in WP Connectors ↗';
         } else {
           openAiTagClass = 'wp-connector';
-          openAiTagText = '⚡ WP Connector Active';
+          openAiTagText = 'WP Connector Active';
           openAiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client. Global credentials and connections are handled securely by core.';
-          openAiConnectorBtnText = '↗ Manage in WP Connectors';
+          openAiConnectorBtnText = 'Manage in WP Connectors ↗';
         }
       } else {
         const hasOpenAiKey = Boolean(typeof settings.openai_api_key === 'string' ? settings.openai_api_key.trim() : settings.openai_api_key);
         openAiTagClass = hasOpenAiKey ? 'ready' : 'key-needed';
-        openAiTagText = hasOpenAiKey ? '✓ Configured' : '⚠️ API Key Needed';
+        openAiTagText = hasOpenAiKey ? 'Configured' : 'API Key Needed';
       }
     }
 
@@ -1471,24 +1560,24 @@
       if (geminiStatus.connectors && geminiStatus.isProviderInstall) {
         if (!geminiStatus.isProviderActive) {
           geminiTagClass = 'setup-connector';
-          geminiTagText = '⚠️ Activate Provider';
+          geminiTagText = 'Activate Provider';
           geminiConnectorDesc = 'WordPress AI Connector plugin for Google Gemini is installed but inactive. Please activate it in WordPress Connectors.';
-          geminiConnectorBtnText = '↗ Activate in WP Connectors';
+          geminiConnectorBtnText = 'Activate in WP Connectors ↗';
         } else if (!geminiStatus.isConnected) {
           geminiTagClass = 'key-needed';
-          geminiTagText = '⚠️ API Key Needed';
+          geminiTagText = 'API Key Needed';
           geminiConnectorDesc = 'WordPress AI Connector plugin is active. API key is needed. Configure your Google Gemini credentials directly in WordPress Connectors.';
-          geminiConnectorBtnText = '↗ Connect in WP Connectors';
+          geminiConnectorBtnText = 'Connect in WP Connectors ↗';
         } else {
           geminiTagClass = 'wp-connector';
-          geminiTagText = '⚡ WP Connector Active';
+          geminiTagText = 'WP Connector Active';
           geminiConnectorDesc = 'Managed natively via WordPress 7.0+ AI Client (Google). Global credentials and connections are handled securely by core.';
-          geminiConnectorBtnText = '↗ Manage in WP Connectors';
+          geminiConnectorBtnText = 'Manage in WP Connectors ↗';
         }
       } else {
         const hasGeminiKey = Boolean(typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key.trim() : settings.gemini_api_key);
         geminiTagClass = hasGeminiKey ? 'ready' : 'key-needed';
-        geminiTagText = hasGeminiKey ? '✓ Configured' : '⚠️ API Key Needed';
+        geminiTagText = hasGeminiKey ? 'Configured' : 'API Key Needed';
       }
     }
 
@@ -1514,7 +1603,7 @@
           el(
             'div',
             { className: 'ts-settings-title-wrap' },
-            el('div', { className: 'ts-settings-globe-icon' }, '🌐'),
+            el('div', { className: 'ts-settings-globe-icon' }, Icons.globe(22)),
             el(
               'div',
               { className: 'ts-settings-card-title-group' },
@@ -1578,7 +1667,7 @@
                     className: 'ts-provider-logo-img',
                     onError: (e) => {
                       e.target.style.display = 'none';
-                      if (e.target.parentNode) e.target.parentNode.textContent = '🧠';
+                      if (e.target.parentNode) e.target.parentNode.textContent = 'AI';
                     },
                   })
                 ),
@@ -1617,7 +1706,7 @@
                   el(
                     'div',
                     { className: 'ts-connector-header' },
-                    el('span', { className: 'ts-connector-icon' }, '⚡'),
+                    el('span', { className: 'ts-connector-icon' }, Icons.bolt(12)),
                     el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
                   ),
                   el('p', { className: 'ts-connector-desc' }, openAiConnectorDesc),
@@ -1670,7 +1759,7 @@
                         title: showOpenAiKey ? 'Hide key' : 'Show key',
                         onClick: () => setShowOpenAiKey(!showOpenAiKey),
                       },
-                      showOpenAiKey ? '🙈' : '👁️'
+                      showOpenAiKey ? Icons.eyeOff(15) : Icons.eye(15)
                     )
                   )
                 ),
@@ -1717,7 +1806,7 @@
                     className: 'ts-provider-logo-img',
                     onError: (e) => {
                       e.target.style.display = 'none';
-                      if (e.target.parentNode) e.target.parentNode.textContent = '✨';
+                      if (e.target.parentNode) e.target.parentNode.textContent = 'AI';
                     },
                   })
                 ),
@@ -1756,7 +1845,7 @@
                   el(
                     'div',
                     { className: 'ts-connector-header' },
-                    el('span', { className: 'ts-connector-icon' }, '⚡'),
+                    el('span', { className: 'ts-connector-icon' }, Icons.bolt(12)),
                     el('span', { className: 'ts-connector-title' }, 'WordPress AI Connector')
                   ),
                   el('p', { className: 'ts-connector-desc' }, geminiConnectorDesc),
@@ -1809,7 +1898,7 @@
                         title: showGeminiKey ? 'Hide key' : 'Show key',
                         onClick: () => setShowGeminiKey(!showGeminiKey),
                       },
-                      showGeminiKey ? '🙈' : '👁️'
+                      showGeminiKey ? Icons.eyeOff(15) : Icons.eye(15)
                     )
                   )
                 ),
@@ -1856,7 +1945,7 @@
                     className: 'ts-provider-logo-img',
                     onError: (e) => {
                       e.target.style.display = 'none';
-                      if (e.target.parentNode) e.target.parentNode.textContent = '🤖';
+                      if (e.target.parentNode) e.target.parentNode.textContent = 'AI';
                     },
                   })
                 ),
@@ -1867,7 +1956,7 @@
                   el(
                     'span',
                     { className: 'ts-provider-tag local' },
-                    '⚡ Local & Free'
+                    'Local & Free'
                   )
                 )
               ),
@@ -1892,7 +1981,7 @@
                 el(
                   'div',
                   { className: 'ts-feature-item' },
-                  el('div', { className: 'ts-feature-icon-circle blue' }, '🛡️'),
+                  el('div', { className: 'ts-feature-icon-circle blue' }, Icons.shield(14)),
                   el(
                     'div',
                     { className: 'ts-feature-text' },
@@ -1903,7 +1992,7 @@
                 el(
                   'div',
                   { className: 'ts-feature-item' },
-                  el('div', { className: 'ts-feature-icon-circle green' }, '🔒'),
+                  el('div', { className: 'ts-feature-icon-circle green' }, Icons.lock(14)),
                   el(
                     'div',
                     { className: 'ts-feature-text' },
@@ -1914,7 +2003,7 @@
                 el(
                   'div',
                   { className: 'ts-feature-item' },
-                  el('div', { className: 'ts-feature-icon-circle amber' }, '⚡'),
+                  el('div', { className: 'ts-feature-icon-circle amber' }, Icons.bolt(14)),
                   el(
                     'div',
                     { className: 'ts-feature-text' },
@@ -1938,7 +2027,7 @@
           el(
             'div',
             { className: 'ts-settings-card-title-group' },
-            el('h3', null, '⚡ AI Performance & Execution Controls'),
+            el('h3', null, 'AI Performance & Execution Controls'),
             el('p', null, 'Tune batching concurrency, token allocation, timeouts, and translation creativity.')
           )
         ),
@@ -1953,7 +2042,7 @@
             el(
               'div',
               { className: 'ts-param-header' },
-              el('span', { className: 'ts-param-title' }, '📦 Batch Size'),
+              el('span', { className: 'ts-param-title' }, 'Batch Size'),
               el('span', { className: 'ts-param-badge' }, `${settings.batch_size || 25} items`)
             ),
             el('p', { className: 'ts-param-desc' }, 'Translatable strings packaged per single AI request.'),
@@ -1975,7 +2064,7 @@
             el(
               'div',
               { className: 'ts-param-header' },
-              el('span', { className: 'ts-param-title' }, '⏱️ Timeout Wait'),
+              el('span', { className: 'ts-param-title' }, 'Timeout Wait'),
               el('span', { className: 'ts-param-badge' }, `${settings.response_timeout || 30}s`)
             ),
             el('p', { className: 'ts-param-desc' }, 'Maximum wait limit before retrying API translation.'),
@@ -1997,7 +2086,7 @@
             el(
               'div',
               { className: 'ts-param-header' },
-              el('span', { className: 'ts-param-title' }, '🪙 Max Tokens'),
+              el('span', { className: 'ts-param-title' }, 'Max Tokens'),
               el('span', { className: 'ts-param-badge' }, `${(settings.max_tokens || 4096).toLocaleString()}`)
             ),
             el('p', { className: 'ts-param-desc' }, 'Max output tokens allocated for JSON translated responses.'),
@@ -2019,7 +2108,7 @@
             el(
               'div',
               { className: 'ts-param-header' },
-              el('span', { className: 'ts-param-title' }, '🎯 Temperature'),
+              el('span', { className: 'ts-param-title' }, 'Temperature'),
               el('span', { className: 'ts-param-badge' }, (settings.temperature !== undefined ? parseFloat(settings.temperature) : 0.2).toFixed(2))
             ),
             el('p', { className: 'ts-param-desc' }, getTemperatureLabel(settings.temperature !== undefined ? settings.temperature : 0.2)),
@@ -2046,7 +2135,7 @@
           el(
             'div',
             { className: 'ts-settings-card-title-group' },
-            el('h3', null, '📄 Create Post Settings'),
+            el('h3', null, 'Create Post Settings'),
             el('p', null, 'Configure default post status and URL slug handling applied during bulk translation.')
           )
         ),
@@ -2064,7 +2153,7 @@
               el(
                 'div',
                 { className: 'ts-param-header' },
-                el('span', { className: 'ts-param-title' }, '📌 Post Status'),
+                el('span', { className: 'ts-param-title' }, 'Post Status'),
                 el('span', { className: 'ts-param-badge' }, curStatus.toUpperCase())
               ),
               el('p', { className: 'ts-param-desc' }, 'Status for created posts in bulk translation (Draft or Publish).'),
@@ -2096,7 +2185,7 @@
               el(
                 'div',
                 { className: 'ts-param-header' },
-                el('span', { className: 'ts-param-title' }, '🔗 Slug Translation'),
+                el('span', { className: 'ts-param-title' }, 'Slug Translation'),
                 el(
                   'span',
                   { className: 'ts-param-badge' },
@@ -2139,7 +2228,7 @@
           el(
             'div',
             { className: 'ts-settings-card-title-group' },
-            el('h3', null, '📝 AI Prompt Engineering Studio'),
+            el('h3', null, 'AI Prompt Engineering Studio'),
             el('p', null, 'Customize system instructions, tone, and HTML formatting constraints delivered to OpenAI and Gemini.')
           )
         ),
@@ -2194,7 +2283,7 @@
                   className: 'ts-btn ts-btn-secondary ts-btn-sm',
                   onClick: copyPromptToClipboard,
                 },
-                '📋 Copy Prompt'
+                'Copy Prompt'
               ),
               el(
                 'button',
@@ -2203,7 +2292,7 @@
                   className: 'ts-btn ts-btn-secondary ts-btn-sm',
                   onClick: () => setSettings({ ...settings, custom_prompt: '' }),
                 },
-                '↺ Reset to Default'
+                'Reset to Default'
               )
             )
           )
@@ -2221,7 +2310,7 @@
           el(
             'div',
             { className: 'ts-settings-card-title-group' },
-            el('h3', null, '🌍 Multilingual Setup (Polylang)'),
+            el('h3', null, 'Multilingual Setup (Polylang)'),
             el('p', null, 'Active languages detected from Polylang integration for full-site automatic and editor translations.')
           ),
           el(
@@ -2243,7 +2332,7 @@
                 key: l.slug || l.code,
                 className: `ts-lang-tag ${l.is_default ? 'default' : ''}`,
               },
-              el('img', { src: l.flag ? l.flag : '🌐' }),
+              l.flag ? el('img', { src: l.flag }) : el('span', { className: 'ts-lang-fallback' }, l.code ? l.code.toUpperCase() : ''),
               el('span', null, l.name || l.slug),
               el('span', { style: { opacity: 0.6, fontSize: '11px', fontFamily: 'monospace' } }, `(${l.slug || l.code})`),
               l.is_default && el('span', { className: 'ts-lang-badge-default' }, 'DEFAULT')

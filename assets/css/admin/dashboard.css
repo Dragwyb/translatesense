@@ -185,11 +185,15 @@
 .ts-notice-close {
   background: none;
   border: none;
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   color: inherit;
   opacity: 0.6;
-  padding: 0 4px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
 }
 
 .ts-notice-close:hover {
@@ -1992,10 +1996,14 @@
 .ts-modal-close {
   background: none;
   border: none;
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--ts-gray-400);
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .ts-modal-close:hover {

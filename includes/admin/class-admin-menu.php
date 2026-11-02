@@ -109,6 +109,7 @@ class Admin_Menu {
 
 		$bridge           = Ai_Connector_Bridge::get_instance();
 		$active_providers = $bridge->get_active_providers();
+		$admin_url        = admin_url();
 		$provider_models  = array();
 		foreach ( $active_providers as $p_id => $p_opts ) {
 			$provider_models[ $p_id ] = $bridge->get_models( (string) $p_id, (array) $p_opts );
@@ -130,6 +131,7 @@ class Admin_Menu {
 				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
 				'docsUrl'         => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'version'         => TRANSLATESENSE_VERSION,
+				'adminUrl'        => $admin_url,
 			)
 		);
 	}
