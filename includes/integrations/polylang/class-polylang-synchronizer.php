@@ -186,10 +186,8 @@ class Polylang_Synchronizer {
 
 		// Match Polylang's translation-copy semantics: generic taxonomy and
 		// metadata duplication is performed for a newly created translation.
-		// Re-translation must not overwrite target-language-only metadata,
 		// manually edited taxonomy assignments or builder-specific settings.
 		if ( ! $is_new ) {
-			// selective re-translation path. The target content has been updated,
 			// but no generic Polylang copy/sync operation was performed here.
 			$result['skipped'] = true;
 			return $result;
