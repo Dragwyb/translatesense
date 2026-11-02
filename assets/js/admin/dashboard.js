@@ -1566,6 +1566,424 @@
 
 
   // ----------------------------------------------------
+  // Interactive "How to Translate" Single-Row & Timeline Component
+  // ----------------------------------------------------
+  const __ = (window.wp && window.wp.i18n && window.wp.i18n.__) ? window.wp.i18n.__ : (text) => text;
+
+  const RadioCheckIcon = (size = 18) =>
+    el('svg', {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      className: 'ts-radio-icon checked',
+      'aria-hidden': 'true',
+    },
+      el('circle', { cx: 12, cy: 12, r: 10, stroke: '#2563eb', strokeWidth: 2, fill: 'rgba(37, 99, 235, 0.08)' }),
+      el('path', { d: 'M8 12.5l2.5 2.5 5.5-5.5', stroke: '#2563eb', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' })
+    );
+
+  const RadioUncheckedIcon = (size = 18) =>
+    el('svg', {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      className: 'ts-radio-icon unchecked',
+      'aria-hidden': 'true',
+    },
+      el('circle', { cx: 12, cy: 12, r: 7.5, fill: '#cbd5e1' })
+    );
+
+  const GUIDES_DATA = {
+    gutenberg: {
+      id: 'gutenberg',
+      title: __('Gutenberg Block Editor Translation', 'translatesense'),
+      description: __('Follow these simple steps to translate your Gutenberg posts and pages while preserving all blocks and formatting.', 'translatesense'),
+      importantNote: __('The generated translation is not applied to the page until you click Apply To Page.', 'translatesense'),
+      steps: [
+        {
+          number: 1,
+          title: __('Open Language Creation', 'translatesense'),
+          description: __('Navigate to Pages → All Pages and click the + (Add Language) icon in the page row.', 'translatesense'),
+          screenshot: __('Pages list showing the + (Add Language) icon in Polylang columns', 'translatesense'),
+        },
+        {
+          number: 2,
+          title: __('Automatic Translation Popup', 'translatesense'),
+          description: __('Continue using the Automatic Translation – Translate Page Content popup by clicking Continue to Translate.', 'translatesense'),
+          screenshot: __('Automatic Translation dialog with Continue to Translate button', 'translatesense'),
+        },
+        {
+          number: 3,
+          title: __('Open Page in Gutenberg', 'translatesense'),
+          description: __('If the popup does not appear or was closed, open the translated page in Gutenberg.', 'translatesense'),
+        },
+        {
+          number: 4,
+          title: __('Locate TranslateSense Metabox', 'translatesense'),
+          description: __('Locate the TranslateSense metabox in the right sidebar, above the Polylang language metabox.', 'translatesense'),
+          screenshot: __('Right editor sidebar with TranslateSense metabox above Polylang', 'translatesense'),
+        },
+        {
+          number: 5,
+          title: __('Click Auto Translate', 'translatesense'),
+          description: __('Click Auto Translate to initialize content block extraction.', 'translatesense'),
+        },
+        {
+          number: 6,
+          title: __('Select AI Provider & Start', 'translatesense'),
+          description: __('Select an AI provider and click Start Translation.', 'translatesense'),
+        },
+        {
+          number: 7,
+          title: __('Wait for Translation', 'translatesense'),
+          description: __('Wait for translation to finish. Translatable content is mapped and cached strings are reused.', 'translatesense'),
+        },
+        {
+          number: 8,
+          title: __('Apply Generated Translation', 'translatesense'),
+          description: __('Click Apply To Page to apply the generated translation.', 'translatesense'),
+          note: __('The generated translation is not applied to the page until you click Apply To Page.', 'translatesense'),
+        },
+      ],
+    },
+    classic: {
+      id: 'classic',
+      title: __('Classic Editor (WYSIWYG) Translation', 'translatesense'),
+      description: __('Translate traditional WordPress content, WooCommerce descriptions, and custom post types using the Classic Editor.', 'translatesense'),
+      importantNote: __('Classic Editor support includes WooCommerce content and supported custom post types.', 'translatesense'),
+      steps: [
+        {
+          number: 1,
+          title: __('Open Content Listing', 'translatesense'),
+          description: __('Open the relevant content listing and click + (Add Language).', 'translatesense'),
+        },
+        {
+          number: 2,
+          title: __('Continue via Popup', 'translatesense'),
+          description: __('Continue using the initial automatic translation popup.', 'translatesense'),
+        },
+        {
+          number: 3,
+          title: __('Open in Classic Editor', 'translatesense'),
+          description: __('If the popup does not appear or was closed, open the translated content in the Classic Editor.', 'translatesense'),
+        },
+        {
+          number: 4,
+          title: __('Locate Auto Translate Button', 'translatesense'),
+          description: __('Locate Auto Translate above the Add Media button in the WYSIWYG editor.', 'translatesense'),
+          screenshot: __('Classic Editor toolbar showing Auto Translate above Add Media', 'translatesense'),
+        },
+        {
+          number: 5,
+          title: __('Click Auto Translate', 'translatesense'),
+          description: __('Click Auto Translate.', 'translatesense'),
+        },
+        {
+          number: 6,
+          title: __('Select AI Provider & Start', 'translatesense'),
+          description: __('Select an AI provider and click Start Translation.', 'translatesense'),
+        },
+        {
+          number: 7,
+          title: __('Wait for Translation', 'translatesense'),
+          description: __('Wait for translation to finish.', 'translatesense'),
+        },
+        {
+          number: 8,
+          title: __('Apply Translation', 'translatesense'),
+          description: __('Click Apply To Page.', 'translatesense'),
+          note: __('Classic Editor support includes WooCommerce content and supported custom post types.', 'translatesense'),
+        },
+      ],
+    },
+    elementor: {
+      id: 'elementor',
+      title: __('Elementor Page Builder Translation', 'translatesense'),
+      description: __('Translate visual Elementor layouts, custom widgets, and styled sections seamlessly without losing design hierarchy.', 'translatesense'),
+      importantNote: __('The generated translation is not applied to the page until you click Apply To Page.', 'translatesense'),
+      steps: [
+        {
+          number: 1,
+          title: __('Navigate to Pages', 'translatesense'),
+          description: __('Navigate to Pages → All Pages and click + (Add Language).', 'translatesense'),
+        },
+        {
+          number: 2,
+          title: __('Continue via Popup', 'translatesense'),
+          description: __('Continue using the initial automatic translation popup.', 'translatesense'),
+        },
+        {
+          number: 3,
+          title: __('Open Page in Elementor', 'translatesense'),
+          description: __('If the popup does not appear or was closed, open the translated page using Elementor.', 'translatesense'),
+        },
+        {
+          number: 4,
+          title: __('Locate Header Button', 'translatesense'),
+          description: __('Locate Auto Translate in the Elementor editor header.', 'translatesense'),
+          screenshot: __('Elementor header panel with TranslateSense Auto Translate button', 'translatesense'),
+        },
+        {
+          number: 5,
+          title: __('Click Auto Translate', 'translatesense'),
+          description: __('Click Auto Translate.', 'translatesense'),
+        },
+        {
+          number: 6,
+          title: __('Select AI Provider & Start', 'translatesense'),
+          description: __('Select an AI provider and click Start Translation.', 'translatesense'),
+        },
+        {
+          number: 7,
+          title: __('Wait for Translation', 'translatesense'),
+          description: __('Wait for translation to finish.', 'translatesense'),
+        },
+        {
+          number: 8,
+          title: __('Apply Generated Translation', 'translatesense'),
+          description: __('Click Apply To Page.', 'translatesense'),
+          note: __('The generated translation is not applied to the page until you click Apply To Page.', 'translatesense'),
+        },
+      ],
+    },
+    bulk: {
+      id: 'bulk',
+      title: __('Bulk Translation (Batch Queue)', 'translatesense'),
+      description: __('Translate multiple posts and pages in a single batch with real-time background progress monitoring.', 'translatesense'),
+      importantNote: __('Translations are queued and processed safely in the background. You can monitor live progress and cancel or skip at any time.', 'translatesense'),
+      steps: [
+        {
+          number: 1,
+          title: __('Navigate to Content Listing', 'translatesense'),
+          description: __('Navigate to Pages → All Pages or Posts → All Posts.', 'translatesense'),
+        },
+        {
+          number: 2,
+          title: __('Select Multiple Items', 'translatesense'),
+          description: __('Select multiple pages or posts using the table checkboxes.', 'translatesense'),
+        },
+        {
+          number: 3,
+          title: __('Click Bulk Translation Button', 'translatesense'),
+          description: __('Click Bulk Translation, available above and below the list table after the page filter options.', 'translatesense'),
+          screenshot: __('List table navigation showing the Translate button', 'translatesense'),
+        },
+        {
+          number: 4,
+          title: __('Select Target Languages', 'translatesense'),
+          description: __('Select one or more target languages.', 'translatesense'),
+        },
+        {
+          number: 5,
+          title: __('Choose Provider Step', 'translatesense'),
+          description: __('Click Next: Choose Provider.', 'translatesense'),
+        },
+        {
+          number: 6,
+          title: __('Select AI Provider', 'translatesense'),
+          description: __('Select an AI provider in the provider modal.', 'translatesense'),
+        },
+        {
+          number: 7,
+          title: __('Start Bulk Translation', 'translatesense'),
+          description: __('Click Start Bulk Translation.', 'translatesense'),
+        },
+        {
+          number: 8,
+          title: __('Progress Modal Appears', 'translatesense'),
+          description: __('The bulk translation progress modal appears.', 'translatesense'),
+        },
+        {
+          number: 9,
+          title: __('Monitor Live Progress', 'translatesense'),
+          description: __('Monitor live translation progress in the modal.', 'translatesense'),
+        },
+        {
+          number: 10,
+          title: __('Review Summary Breakdown', 'translatesense'),
+          description: __('Review successful, failed and incomplete translations after completion.', 'translatesense'),
+          note: __('Translations are linked in Polylang automatically. Taxonomies, categories, and post meta are synchronized.', 'translatesense'),
+        },
+      ],
+    },
+  };
+
+  const METHODS_CONFIG = [
+    { id: 'gutenberg', label: __('Gutenberg', 'translatesense') },
+    { id: 'classic', label: __('Classic', 'translatesense') },
+    { id: 'elementor', label: __('Elementor', 'translatesense') },
+    { id: 'bulk', label: __('Bulk Translation', 'translatesense') },
+  ];
+
+  function GuideMethodSelector({ activeTab, onChange }) {
+    const handleKeyDown = (e, index) => {
+      let nextIndex = null;
+      if (e.key === 'ArrowRight') {
+        nextIndex = (index + 1) % METHODS_CONFIG.length;
+      } else if (e.key === 'ArrowLeft') {
+        nextIndex = (index - 1 + METHODS_CONFIG.length) % METHODS_CONFIG.length;
+      } else if (e.key === 'Home') {
+        nextIndex = 0;
+      } else if (e.key === 'End') {
+        nextIndex = METHODS_CONFIG.length - 1;
+      }
+
+      if (nextIndex !== null) {
+        e.preventDefault();
+        const nextTab = METHODS_CONFIG[nextIndex];
+        onChange(nextTab.id);
+        const nextBtn = document.getElementById(`ts-method-card-${nextTab.id}`);
+        if (nextBtn) {
+          nextBtn.focus();
+        }
+      }
+    };
+
+    return el(
+      'div',
+      {
+        className: 'ts-guide-options-row',
+        role: 'radiogroup',
+        'aria-label': __('Choose a translation method', 'translatesense'),
+      },
+      METHODS_CONFIG.map((method, idx) => {
+        const isActive = activeTab === method.id;
+        return el(
+          'button',
+          {
+            key: method.id,
+            type: 'button',
+            id: `ts-method-card-${method.id}`,
+            role: 'radio',
+            'aria-checked': isActive ? 'true' : 'false',
+            'aria-controls': `ts-guide-panel-${method.id}`,
+            tabIndex: isActive ? 0 : -1,
+            className: `ts-method-card ${isActive ? 'active' : ''}`,
+            onClick: () => onChange(method.id),
+            onKeyDown: (e) => handleKeyDown(e, idx),
+          },
+          isActive ? RadioCheckIcon(18) : RadioUncheckedIcon(18),
+          el('span', { className: 'ts-method-card-label' }, method.label)
+        );
+      })
+    );
+  }
+
+  function GuideStep({ number, title, description, screenshot, note }) {
+    return el(
+      'div',
+      { className: 'ts-timeline-step' },
+      el(
+        'div',
+        { className: 'ts-timeline-axis', 'aria-hidden': 'true' },
+        el('div', { className: 'ts-timeline-circle' }, number),
+        el('div', { className: 'ts-timeline-track' })
+      ),
+      el(
+        'div',
+        { className: 'ts-timeline-body' },
+        el('h4', { className: 'ts-timeline-title' }, title),
+        el('p', { className: 'ts-timeline-desc' }, description),
+        screenshot &&
+          el(
+            'div',
+            { className: 'ts-screenshot-placeholder' },
+            el(
+              'div',
+              { className: 'ts-screenshot-icon-box' },
+              Icons.eye(14)
+            ),
+            el(
+              'div',
+              { className: 'ts-screenshot-info' },
+              el('span', { className: 'ts-screenshot-label' }, __('Screenshot Reference', 'translatesense')),
+              el('span', { className: 'ts-screenshot-caption' }, screenshot)
+            )
+          ),
+        note &&
+          el(
+            'div',
+            { className: 'ts-timeline-note' },
+            el('span', { className: 'ts-timeline-note-icon' }, Icons.alert(14)),
+            el('span', { className: 'ts-timeline-note-text' }, note)
+          )
+      )
+    );
+  }
+
+  function GuideContent({ activeTab }) {
+    const guide = GUIDES_DATA[activeTab] || GUIDES_DATA.gutenberg;
+
+    return el(
+      'div',
+      {
+        id: `ts-guide-panel-${guide.id}`,
+        role: 'tabpanel',
+        'aria-labelledby': `ts-method-card-${guide.id}`,
+        tabIndex: 0,
+        className: 'ts-guide-panel',
+      },
+      el(
+        'div',
+        { className: 'ts-guide-panel-header' },
+        el('h3', { className: 'ts-guide-panel-title' }, guide.title),
+        el('p', { className: 'ts-guide-panel-desc' }, guide.description)
+      ),
+      el(
+        'div',
+        { className: 'ts-timeline-container' },
+        guide.steps.map((step) =>
+          el(GuideStep, {
+            key: step.number,
+            number: step.number,
+            title: step.title,
+            description: step.description,
+            screenshot: step.screenshot,
+            note: step.note,
+          })
+        )
+      ),
+      guide.importantNote &&
+        el(
+          'div',
+          { className: 'ts-guide-footer-note' },
+          el('strong', { className: 'ts-footer-note-badge' }, __('Important Note:', 'translatesense')),
+          el('span', { className: 'ts-footer-note-text' }, guide.importantNote)
+        )
+    );
+  }
+
+  function TranslationGuide() {
+    const [activeTab, setActiveTab] = useState('gutenberg');
+
+    return el(
+      'section',
+      { className: 'translatesense-guide' },
+      el(
+        'div',
+        { className: 'ts-guide-section-header' },
+        el('h2', { className: 'ts-guide-main-heading' }, __('How to Translate', 'translatesense')),
+        el(
+          'p',
+          { className: 'ts-guide-main-desc' },
+          __('Choose a translation method to view its step-by-step guide.', 'translatesense')
+        )
+      ),
+      el(GuideMethodSelector, {
+        activeTab: activeTab,
+        onChange: setActiveTab,
+      }),
+      el(GuideContent, {
+        activeTab: activeTab,
+      })
+    );
+  }
+
+  window.TranslateSenseTranslationGuide = TranslationGuide;
+
+  // ----------------------------------------------------
   // Home / TranslateSense Guide Panel Component
   // ----------------------------------------------------
   function HomeGuidePanel({ onNavigateTab, activeBuilders = {}, activeProviders = {}, languages = [], cacheCounts = {} }) {
@@ -1626,10 +2044,8 @@
         )
       ),
 
-      // Interactive How to Translate Section (from standalone component)
-      window.TranslateSenseTranslationGuide
-        ? el(window.TranslateSenseTranslationGuide)
-        : null,
+      // Interactive How to Translate Section (Single-Row Selector & Vertical Timeline)
+      el(TranslationGuide),
 
       // Highlights / Pro Tips Callout Card
       el(

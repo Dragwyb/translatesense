@@ -85,19 +85,11 @@ class Admin_Menu {
 			return;
 		}
 
-		// Enqueue Translation Guide Style
-		wp_enqueue_style(
-			'translatesense-translation-guide-css',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/translation-guide' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array(),
-			TRANSLATESENSE_VERSION
-		);
-
-		// Enqueue Dashboard CSS
+		// Enqueue CSS
 		wp_enqueue_style(
 			'translatesense-admin-css',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array( 'translatesense-translation-guide-css' ),
+			array(),
 			TRANSLATESENSE_VERSION
 		);
 
@@ -107,20 +99,11 @@ class Admin_Menu {
 		wp_enqueue_script( 'wp-api-fetch' );
 		wp_enqueue_script( 'wp-i18n' );
 
-		// Enqueue Translation Guide Script
-		wp_enqueue_script(
-			'translatesense-translation-guide-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/translation-guide' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'wp-element', 'wp-i18n' ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-
-		// Enqueue Dashboard Main App Script
+		// Enqueue App Script
 		wp_enqueue_script(
 			'translatesense-admin-js',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n', 'translatesense-translation-guide-js' ),
+			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
