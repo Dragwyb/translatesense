@@ -252,30 +252,6 @@
      * Classic Editor: Ensure button is placed right after Add Media button.
      */
     initClassicEditorMediaButton() {
-      const insertMediaBtn = () => {
-        const mediaBtn = document.getElementById('insert-media-button');
-        const mediaWrap = document.getElementById('wp-content-media-buttons') || document.querySelector('.wp-media-buttons');
-
-        if (mediaBtn && !document.getElementById('ts-media-translate-btn')) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.id = 'ts-media-translate-btn';
-          btn.className = 'button ts-open-translate-btn';
-          btn.style.cssText = 'margin-left: 5px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;';
-          btn.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1.2;"></span> Translate Page';
-          mediaBtn.insertAdjacentElement('afterend', btn);
-        } else if (mediaWrap && !document.getElementById('ts-media-translate-btn')) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.id = 'ts-media-translate-btn';
-          btn.className = 'button ts-open-translate-btn';
-          btn.style.cssText = 'margin-left: 5px; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border-color: #3730a3; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;';
-          btn.innerHTML = '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1.2;"></span> Translate Page';
-          mediaWrap.appendChild(btn);
-        }
-      };
-
-      insertMediaBtn();
       this.initPageLoadPrompt();
     }
 

@@ -1599,7 +1599,7 @@
           el(
             'p',
             { className: 'ts-guide-hero-desc' },
-            'TranslateSense is a high-performance automated translation suite built for WordPress & Polylang. It preserves your exact layout and styling across Gutenberg & Elementor while utilizing a 4-tier database cache to eliminate duplicate AI token costs.'
+            'TranslateSense is a high-performance automated translation suite built for WordPress & Polylang. It preserves your exact layout and styling across Gutenberg, Classic Editor & Elementor while utilizing a 4-tier database cache to eliminate duplicate AI token costs.'
           ),
           el(
             'div',
@@ -1626,207 +1626,10 @@
         )
       ),
 
-      // Two Column Workflow Cards
-      el(
-        'div',
-        { className: 'ts-guide-grid' },
-
-        // Card 1: Page Editor Workflow
-        el(
-          'div',
-          { className: 'ts-guide-card' },
-          el(
-            'div',
-            { className: 'ts-guide-card-header' },
-            el('div', { className: 'ts-guide-card-icon blue' }, Icons.pencil(18)),
-            el(
-              'div',
-              null,
-              el('h3', { className: 'ts-guide-card-title' }, 'How it Works in Page Editor'),
-              el('p', { className: 'ts-guide-card-subtitle' }, 'Gutenberg Blocks & Elementor Page Builder')
-            )
-          ),
-          el(
-            'div',
-            { className: 'ts-guide-card-body' },
-            el(
-              'ol',
-              { className: 'ts-guide-steps' },
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '1'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Open Any Post or Page'),
-                  el('p', { className: 'ts-step-desc' }, 'Edit your article or landing page inside the standard WordPress Gutenberg Block Editor or Elementor.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '2'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Access TranslateSense Panel'),
-                  el('p', { className: 'ts-step-desc' }, 'Click the TranslateSense icon in the top editor bar or open the TranslateSense document sidebar panel.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '3'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Select Target Language'),
-                  el('p', { className: 'ts-step-desc' }, 'Choose your desired target language from your configured Polylang languages list.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '4'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Click "Translate" with Token Caching'),
-                  el('p', { className: 'ts-step-desc' }, 'TranslateSense extracts translatable fields, reuses repeated strings from your database cache (0 tokens consumed!), and translates new text with AI.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '5'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Review & Publish'),
-                  el('p', { className: 'ts-step-desc' }, 'All layouts, block attributes, shortcodes, and styling classes remain intact. Review your localized post and hit Publish!')
-                )
-              )
-            )
-          ),
-          el(
-            'div',
-            { className: 'ts-guide-card-footer' },
-            activeBuilders.gutenberg &&
-            el(
-              'button',
-              {
-                type: 'button',
-                className: 'ts-btn ts-btn-secondary ts-btn-sm',
-                onClick: () => onNavigateTab('gutenberg'),
-              },
-              'View Gutenberg Blocks →'
-            ),
-            activeBuilders.elementor &&
-            el(
-              'button',
-              {
-                type: 'button',
-                className: 'ts-btn ts-btn-secondary ts-btn-sm',
-                onClick: () => onNavigateTab('elementor'),
-              },
-              'View Elementor Widgets →'
-            )
-          )
-        ),
-
-        // Card 2: Bulk Translation Workflow
-        el(
-          'div',
-          { className: 'ts-guide-card' },
-          el(
-            'div',
-            { className: 'ts-guide-card-header' },
-            el('div', { className: 'ts-guide-card-icon purple' }, Icons.workflow(18)),
-            el(
-              'div',
-              null,
-              el('h3', { className: 'ts-guide-card-title' }, 'How Bulk Translation Works'),
-              el('p', { className: 'ts-guide-card-subtitle' }, 'Batch Translate Multiple Pages in One Click')
-            )
-          ),
-          el(
-            'div',
-            { className: 'ts-guide-card-body' },
-            el(
-              'ol',
-              { className: 'ts-guide-steps' },
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '1'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Navigate to Posts or Pages Table'),
-                  el('p', { className: 'ts-step-desc' }, 'In your WordPress Admin sidebar, go to Posts -> All Posts or Pages -> All Pages.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '2'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Select Items to Translate'),
-                  el('p', { className: 'ts-step-desc' }, 'Check the checkboxes next to the posts you wish to translate, or click the "Translate" button in the table header.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '3'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Select Target Languages & Engine'),
-                  el('p', { className: 'ts-step-desc' }, 'In the TranslateSense bulk dialog, choose one or multiple target languages at once and pick your AI provider.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '4'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Start Translation & Track Progress'),
-                  el('p', { className: 'ts-step-desc' }, 'Click "Start Translation". Batches process smoothly in the background with live progress bars, string counts, and error tracking.')
-                )
-              ),
-              el(
-                'li',
-                { className: 'ts-step-item' },
-                el('span', { className: 'ts-step-num' }, '5'),
-                el(
-                  'div',
-                  { className: 'ts-step-content' },
-                  el('h4', { className: 'ts-step-title' }, 'Linked & Synchronized Automatically'),
-                  el('p', { className: 'ts-step-desc' }, 'New translated posts are created in Polylang, linked to the source post, and taxonomies (categories & tags) are synchronized.')
-                )
-              )
-            )
-          ),
-          el(
-            'div',
-            { className: 'ts-guide-card-footer' },
-            el(
-              'a',
-              {
-                href: bulkTranslateUrl,
-                className: 'ts-btn ts-btn-secondary ts-btn-sm',
-              },
-              'Go to All Posts Table ↗'
-            )
-          )
-        )
-      ),
+      // Interactive How to Translate Section (from standalone component)
+      window.TranslateSenseTranslationGuide
+        ? el(window.TranslateSenseTranslationGuide)
+        : null,
 
       // Highlights / Pro Tips Callout Card
       el(
@@ -1875,6 +1678,26 @@
           },
           'Configure AI Settings'
         ),
+        activeBuilders.gutenberg &&
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-btn ts-btn-secondary',
+            onClick: () => onNavigateTab('gutenberg'),
+          },
+          'View Gutenberg Blocks'
+        ),
+        activeBuilders.elementor &&
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-btn ts-btn-secondary',
+            onClick: () => onNavigateTab('elementor'),
+          },
+          'View Elementor Widgets'
+        ),
         el(
           'button',
           {
@@ -1884,6 +1707,14 @@
           },
           el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.database(14)),
           'Manage Cache & Memory'
+        ),
+        el(
+          'a',
+          {
+            href: bulkTranslateUrl,
+            className: 'ts-btn ts-btn-secondary',
+          },
+          'Go to Posts (Bulk Translate) ↗'
         )
       )
     );
