@@ -540,31 +540,37 @@
   color: var(--ts-gray-700);
 }
 
-.ts-mapped-badge {
+.ts-badge.ts-badge-translate,
+.ts-badge.ts-badge-xpath {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 600;
+  gap: 3px;
 }
 
-.ts-mapped-badge.active {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
-}
-
-.ts-mapped-badge.empty {
-  background: var(--ts-gray-50);
+.ts-badge.ts-badge-translate.empty {
+  background: var(--ts-gray-100);
   color: var(--ts-gray-500);
-  border: 1px solid var(--ts-gray-200);
-  font-weight: 500;
+  border: 1px solid #e2e8f0;
 }
 
-.ts-badge-icon {
-  font-size: 12px;
+.ts-badge.ts-badge-no-translate {
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fee2e2;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .ts-table-status {
@@ -1030,17 +1036,8 @@
   font-size: 14px;
 }
 
-.ts-footer-logo-d {
-  width: 20px;
-  height: 20px;
-  background: linear-gradient(135deg, #6366f1, #a855f7);
-  border-radius: 5px;
-  color: var(--ts-white);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 900;
+.ts-footer-logo-img {
+  width: 50px;
 }
 
 .ts-footer-link {

@@ -139,7 +139,7 @@
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
-    const [sortBy, setSortBy] = useState('name_asc');
+    const [sortBy, setSortBy] = useState('status');
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10; // Exactly 7 items per page as shown in screenshot
 
@@ -157,7 +157,7 @@
         setSearchQuery('');
         setSelectedCategory('all');
         setSelectedStatus('all');
-        setSortBy('name_asc');
+        setSortBy('status');
         setCurrentPage(1);
       }
       const url = new URL(window.location.href);
@@ -361,7 +361,7 @@
           const rank = { custom: 1, supported: 2, unsupported: 3 };
           return (rank[a.status] || 4) - (rank[b.status] || 4) || nameA.localeCompare(nameB);
         }
-        return nameA.localeCompare(nameB); // Default name_asc
+        return nameA.localeCompare(nameB); // Default status
       });
 
       return items;
@@ -566,7 +566,7 @@
                         'List'
                       )
                     ),
-                    (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
+                    (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'status') &&
                     el(
                       'button',
                       {
@@ -576,7 +576,7 @@
                           setSearchQuery('');
                           setSelectedCategory('all');
                           setSelectedStatus('all');
-                          setSortBy('name_asc');
+                          setSortBy('status');
                           setCurrentPage(1);
                         },
                       },
@@ -873,19 +873,8 @@
             el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, Icons.package(14)), el('span', null, packagesCount)),
             el('div', { className: 'ts-subgrid-lbl' }, 'Active Packages')
           )
-        )
-      ),
-
-      // Card 2: Translation Providers
-      el(
-        'div',
-        { className: 'ts-sidebar-card' },
-        el(
-          'h3',
-          { className: 'ts-sidebar-title' },
-          el('span', { className: 'ts-title-icon' }, Icons.bolt(14)),
-          'Translation Providers'
         ),
+        el('div', { className: 'ts-sidebar-divider' }),
         el(
           'div',
           { className: 'ts-provider-pills' },
@@ -930,12 +919,13 @@
               target: '_blank',
               rel: 'noopener noreferrer',
               className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
+              title: 'Advanced contact forms and lead generation.'
             },
             el('div', { className: 'ts-dragwyb-icon red' }, Icons.document(15)),
             el(
               'div',
               { className: 'ts-dragwyb-info' },
-              el('div', { className: 'ts-dragwyb-title' }, 'Dragwyb Forms'),
+              el('div', { className: 'ts-dragwyb-title' }, 'Smart Form Builder'),
               el('div', { className: 'ts-dragwyb-desc' }, 'Advanced contact forms and lead generation.')
             ),
             el('span', { className: 'ts-dragwyb-arrow' }, '›')
@@ -947,12 +937,13 @@
               target: '_blank',
               rel: 'noopener noreferrer',
               className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
+              title: 'AI chatbot and customer support.'
             },
             el('div', { className: 'ts-dragwyb-icon green' }, Icons.chat(15)),
             el(
               'div',
               { className: 'ts-dragwyb-info' },
-              el('div', { className: 'ts-dragwyb-title' }, 'Dragwyb Click to Chat'),
+              el('div', { className: 'ts-dragwyb-title' }, 'Click to Chat'),
               el('div', { className: 'ts-dragwyb-desc' }, 'AI chatbot and customer support.')
             ),
             el('span', { className: 'ts-dragwyb-arrow' }, '›')
@@ -964,6 +955,7 @@
               target: '_blank',
               rel: 'noopener noreferrer',
               className: 'ts-dragwyb-item thickbox open-plugin-details-modal',
+              title: 'Automate WordPress workflows with AI agents.'
             },
             el('div', { className: 'ts-dragwyb-icon purple' }, Icons.workflow(15)),
             el(
@@ -981,6 +973,7 @@
 
   // Footer Bar Component
   function FooterBar({ activeTab, onSaveSettings, isSaving }) {
+    const pluginUrl = (window.TranslateSenseData && window.TranslateSenseData.pluginUrl) ? window.TranslateSenseData.pluginUrl : '';
     return el(
       'footer',
       { className: 'ts-footer-bar' },
@@ -990,7 +983,7 @@
         el(
           'span',
           { className: 'ts-footer-logo' },
-          el('span', { className: 'ts-footer-logo-d' }, 'D'),
+          el('img', { className: 'ts-footer-logo-img', src: pluginUrl + 'assets/img/dragwyb.png', alt: 'Dragwyb Logo' }),
           'Dragwyb'
         ),
         el('span', null, 'Built with ❤️ by Dragwyb')
@@ -1121,10 +1114,30 @@
         'td',
         null,
         el(
-          'span',
-          { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
-
-          `${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
+          el(
+            'span',
+            { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
+            `${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'field' : 'fields'}`
+          ),
+          widget.no_translate_count > 0 &&
+          el(
+            'span',
+            { className: 'ts-badge ts-badge-no-translate' },
+            `${widget.no_translate_count} No Translate`
+          ),
+          ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
+          el(
+            'span',
+            {
+              className: 'ts-badge ts-badge-xpath',
+              title: widget.xpaths && widget.xpaths.length > 0
+                ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
+                : `XPath: ${widget.xpath}`,
+            },
+            widget.xpaths && widget.xpaths.length > 0 && `${widget.xpaths.length} XPaths`
+          )
         )
       ),
       // Column 4: STATUS
@@ -1193,11 +1206,29 @@
       el(
         'div',
         { className: 'ts-card-meta' },
-        el('span', { style: { fontWeight: 600, color: '#334155' } }, widget.category || 'standard'),
+        el('span', null, `Category: ${widget.category || 'Standard'}`),
+        el('span', null, '•'),
         el(
           'span',
-          { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
-          `${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
+          { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
+          `${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'Field' : 'Fields'}`
+        ),
+        widget.no_translate_count > 0 &&
+        el(
+          'span',
+          { className: 'ts-badge ts-badge-no-translate' },
+          `${widget.no_translate_count} No Translate`
+        ),
+        ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
+        el(
+          'span',
+          {
+            className: 'ts-badge ts-badge-xpath',
+            title: widget.xpaths && widget.xpaths.length > 0
+              ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
+              : `XPath: ${widget.xpath}`
+          },
+          widget.xpaths && widget.xpaths.length > 0 && `${widget.xpaths.length} XPaths`
         )
       ),
       el(
