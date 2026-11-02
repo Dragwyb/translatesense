@@ -94,17 +94,43 @@
       el('line', { x1: 18, y1: 6, x2: 6, y2: 18 }),
       el('line', { x1: 6, y1: 6, x2: 18, y2: 18 })
     ),
+    home: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }),
+      el('polyline', { points: '9 22 9 12 15 12 15 22' })
+    ),
+    trash: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('polyline', { points: '3 6 5 6 21 6' }),
+      el('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' }),
+      el('line', { x1: 10, y1: 11, x2: 10, y2: 17 }),
+      el('line', { x1: 14, y1: 11, x2: 14, y2: 17 })
+    ),
+    database: (size = 15) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('ellipse', { cx: 12, cy: 5, rx: 9, ry: 3 }),
+      el('path', { d: 'M21 12c0 1.66-4 3-9 3s-9-1.34-9-3' }),
+      el('path', { d: 'M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5' })
+    ),
+    refresh: (size = 14) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('polyline', { points: '23 4 23 10 17 10' }),
+      el('polyline', { points: '1 20 1 14 7 14' }),
+      el('path', { d: 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15' })
+    ),
+    warning: (size = 20) => el('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      el('path', { d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
+      el('line', { x1: 12, y1: 9, x2: 12, y2: 13 }),
+      el('line', { x1: 12, y1: 17, x2: 12.01, y2: 17 })
+    ),
   };
 
   function TranslateSenseApp() {
     const getInitialTab = () => {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get('tab');
-      const validTabs = ['gutenberg', 'elementor', 'settings'];
+      if (urlTab === 'translatesense') return 'home';
+      const validTabs = ['home', 'settings', 'gutenberg', 'elementor', 'cache'];
       if (urlTab && validTabs.includes(urlTab)) {
         return urlTab;
       }
-      return 'gutenberg';
+      return 'home';
     };
 
     const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false });
@@ -149,6 +175,90 @@
     const [notice, setNotice] = useState(null);
     const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [cacheCounts, setCacheCounts] = useState({
+      strings: 0,
+      translations: 0,
+      logs: 0,
+      packages: 0,
+    });
+    const [cacheModal, setCacheModal] = useState({
+      isOpen: false,
+      type: '',
+      title: '',
+      warning: '',
+      count: 0,
+    });
+    const [isClearingCache, setIsClearingCache] = useState(false);
+    const [isRefreshingCache, setIsRefreshingCache] = useState(false);
+
+    const handleOpenCacheModal = (type) => {
+      const titles = {
+        translations: 'Clear Translations Cache',
+        strings: 'Clear Strings Memory Cache',
+        packages: 'Clear Packages Cache',
+        logs: 'Clear Translation Logs & Queue',
+        all: 'Clear All Caches & Logs',
+      };
+
+      const warnings = {
+        translations: 'Warning: Translation cache saves your tokens for next repeated text and is useful in retranslation page, but when you remove this then repeated text will again be sent to AI, consuming additional API tokens and quota.',
+        strings: 'Warning: Clearing the central strings cache will remove all stored source text references. When editing or translating pages in the future, TranslateSense will re-parse and re-index strings.',
+        packages: 'Warning: Removing package cache will clear saved block and widget field mapping associations. Future page loads in the editor will re-extract and re-package the blocks.',
+        logs: 'Warning: This will permanently delete all translation batch history, execution logs, and background queue records. Any currently active background jobs may be interrupted.',
+        all: 'Warning: This will completely wipe all stored strings, translation memory, packages, and queue history. Repeated text will be re-sent to AI, and all mappings will be re-generated.',
+      };
+
+      const count = type === 'all'
+        ? (cacheCounts.strings || 0) + (cacheCounts.translations || 0) + (cacheCounts.packages || 0) + (cacheCounts.logs || 0)
+        : (cacheCounts[type] || 0);
+
+      setCacheModal({
+        isOpen: true,
+        type,
+        title: titles[type] || 'Clear Cache',
+        warning: warnings[type] || 'Are you sure you want to clear this cache?',
+        count,
+      });
+    };
+
+    const handleConfirmClearCache = async () => {
+      if (!cacheModal.type) return;
+      setIsClearingCache(true);
+      try {
+        const res = await window.wp.apiFetch({
+          path: '/translatesense/v1/clear-cache',
+          method: 'POST',
+          data: { type: cacheModal.type },
+        });
+        if (res.counts) {
+          setCacheCounts(res.counts);
+        }
+        showNotice(res.message || 'Cache cleared successfully!');
+        setCacheModal({ isOpen: false, type: '', title: '', warning: '', count: 0 });
+      } catch (err) {
+        showNotice('Failed to clear cache: ' + (err.message || 'Unknown error'), 'error');
+      } finally {
+        setIsClearingCache(false);
+      }
+    };
+
+    const handleRefreshCache = async () => {
+      setIsRefreshingCache(true);
+      try {
+        const res = await window.wp.apiFetch({
+          path: '/translatesense/v1/cache-stats',
+          method: 'GET',
+        });
+        if (res.counts) {
+          setCacheCounts(res.counts);
+        }
+        showNotice('Cache statistics refreshed successfully!');
+      } catch (err) {
+        showNotice('Failed to refresh cache stats: ' + (err.message || 'Unknown error'), 'error');
+      } finally {
+        setIsRefreshingCache(false);
+      }
+    };
 
     // Tab Change handler that updates URL query param
     const handleTabChange = (newTab) => {
@@ -170,9 +280,10 @@
       const onPopState = () => {
         const params = new URLSearchParams(window.location.search);
         const tabFromUrl = params.get('tab');
-        const validTabs = ['gutenberg', 'elementor', 'settings'];
-        if (tabFromUrl && validTabs.includes(tabFromUrl)) {
-          setActiveTab(tabFromUrl);
+        const effectiveTab = tabFromUrl === 'translatesense' ? 'home' : tabFromUrl;
+        const validTabs = ['home', 'settings', 'gutenberg', 'elementor', 'cache'];
+        if (effectiveTab && validTabs.includes(effectiveTab)) {
+          setActiveTab(effectiveTab);
         }
       };
       window.addEventListener('popstate', onPopState);
@@ -214,6 +325,9 @@
         if (settingsRes.stats) {
           setStats((prev) => ({ ...prev, ...settingsRes.stats }));
         }
+        if (settingsRes.cache_counts) {
+          setCacheCounts(settingsRes.cache_counts);
+        }
         if (settingsRes.active_providers) {
           setActiveProviders(settingsRes.active_providers);
         }
@@ -225,7 +339,7 @@
         }
         if (settingsRes.active_builders) {
           setActiveBuilders(settingsRes.active_builders);
-          if (!settingsRes.active_builders[activeTab] && activeTab !== 'settings') {
+          if (!settingsRes.active_builders[activeTab] && !['settings', 'home', 'cache'].includes(activeTab)) {
             const firstActive = Object.keys(settingsRes.active_builders).find((k) => settingsRes.active_builders[k]);
             if (firstActive) handleTabChange(firstActive);
           }
@@ -416,7 +530,16 @@
           el(
             'nav',
             { className: 'ts-tabs-card' },
-            activeBuilders.gutenberg &&
+            el(
+              'button',
+              {
+                type: 'button',
+                className: `ts-tab-btn ${activeTab === 'home' ? 'active' : ''}`,
+                onClick: () => handleTabChange('home'),
+              },
+              el('span', { className: 'ts-tab-icon', style: { display: 'inline-flex', marginRight: '6px' } }, Icons.home(14)),
+              'Home'
+            ),
             el(
               'button',
               {
@@ -426,6 +549,7 @@
               },
               'General Settings'
             ),
+            activeBuilders.gutenberg &&
             el(
               'button',
               {
@@ -447,10 +571,33 @@
               'Elementor Widgets',
               el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
             ),
+            el(
+              'button',
+              {
+                type: 'button',
+                className: `ts-tab-btn ${activeTab === 'cache' ? 'active' : ''}`,
+                onClick: () => handleTabChange('cache'),
+              },
+              el('span', { className: 'ts-tab-icon', style: { display: 'inline-flex', marginRight: '6px' } }, Icons.database(14)),
+              'Cache',
+              el(
+                'span',
+                { className: 'ts-tab-count' },
+                ((cacheCounts.strings || 0) + (cacheCounts.translations || 0) + (cacheCounts.packages || 0) + (cacheCounts.logs || 0)).toLocaleString()
+              )
+            )
           ),
 
           // Content of Tab
-          activeTab === 'settings'
+          activeTab === 'home'
+            ? el(HomeGuidePanel, {
+              onNavigateTab: handleTabChange,
+              activeBuilders,
+              activeProviders,
+              languages,
+              cacheCounts,
+            })
+            : activeTab === 'settings'
             ? el(SettingsPanel, {
               settings,
               setSettings,
@@ -460,6 +607,13 @@
               activeProviders,
               connectorsUrl,
               providerModels,
+            })
+            : activeTab === 'cache'
+            ? el(CachePanel, {
+              cacheCounts,
+              onOpenModal: handleOpenCacheModal,
+              onRefresh: handleRefreshCache,
+              isRefreshing: isRefreshingCache,
             })
             : el(
               'div',
@@ -728,6 +882,15 @@
         xmlCode: selectedWidget ? (selectedWidget.xml_snippet || '') : (xmlConfigs[modalTargetBuilder] || ''),
         onClose: () => setIsXmlModalOpen(false),
         onSave: (code) => handleSaveXml(code, modalTargetBuilder, selectedWidget ? selectedWidget.id : ''),
+      }),
+
+      // 6. Cache Confirmation Warning Modal
+      cacheModal.isOpen &&
+      el(CacheConfirmModal, {
+        modal: cacheModal,
+        isClearing: isClearingCache,
+        onClose: () => setCacheModal({ isOpen: false, type: '', title: '', warning: '', count: 0 }),
+        onConfirm: handleConfirmClearCache,
       })
     );
   }
@@ -1395,6 +1558,740 @@
               onClick: () => onSave(editorCode),
             },
             'Save Config'
+          )
+        )
+      )
+    );
+  }
+
+
+  // ----------------------------------------------------
+  // Home / TranslateSense Guide Panel Component
+  // ----------------------------------------------------
+  function HomeGuidePanel({ onNavigateTab, activeBuilders = {}, activeProviders = {}, languages = [], cacheCounts = {} }) {
+    const totalCache = (cacheCounts.strings || 0) + (cacheCounts.translations || 0) + (cacheCounts.packages || 0) + (cacheCounts.logs || 0);
+    const polylangActive = (window.TranslateSenseData && window.TranslateSenseData.polylangActive) || languages.length > 0;
+    const adminUrl = (window.TranslateSenseData && window.TranslateSenseData.adminUrl) || '';
+    const bulkTranslateUrl = adminUrl ? `${adminUrl}edit.php` : 'edit.php';
+
+    return el(
+      'div',
+      { className: 'ts-guide-container' },
+
+      // Hero Card
+      el(
+        'div',
+        { className: 'ts-guide-hero' },
+        el(
+          'div',
+          { className: 'ts-guide-hero-content' },
+          el(
+            'div',
+            { className: 'ts-guide-hero-badge-wrap' },
+            el('span', { className: 'ts-guide-pill primary' }, 'Documentation & Workflow Guide'),
+            el(
+              'span',
+              { className: `ts-guide-pill ${polylangActive ? 'success' : 'warning'}` },
+              polylangActive ? `Polylang Connected (${languages.length} Languages)` : 'Polylang Inactive'
+            )
+          ),
+          el('h2', { className: 'ts-guide-hero-title' }, 'Welcome to TranslateSense 👋'),
+          el(
+            'p',
+            { className: 'ts-guide-hero-desc' },
+            'TranslateSense is a high-performance automated translation suite built for WordPress & Polylang. It preserves your exact layout and styling across Gutenberg & Elementor while utilizing a 4-tier database cache to eliminate duplicate AI token costs.'
+          ),
+          el(
+            'div',
+            { className: 'ts-guide-hero-stats' },
+            el(
+              'div',
+              { className: 'ts-hero-stat-item' },
+              el('span', { className: 'ts-hero-stat-num' }, languages.length),
+              el('span', { className: 'ts-hero-stat-lbl' }, 'Active Languages')
+            ),
+            el(
+              'div',
+              { className: 'ts-hero-stat-item' },
+              el('span', { className: 'ts-hero-stat-num' }, totalCache.toLocaleString()),
+              el('span', { className: 'ts-hero-stat-lbl' }, 'Cached Memory Records')
+            ),
+            el(
+              'div',
+              { className: 'ts-hero-stat-item' },
+              el('span', { className: 'ts-hero-stat-num' }, Object.keys(activeProviders).length || 3),
+              el('span', { className: 'ts-hero-stat-lbl' }, 'AI Providers')
+            )
+          )
+        )
+      ),
+
+      // Two Column Workflow Cards
+      el(
+        'div',
+        { className: 'ts-guide-grid' },
+
+        // Card 1: Page Editor Workflow
+        el(
+          'div',
+          { className: 'ts-guide-card' },
+          el(
+            'div',
+            { className: 'ts-guide-card-header' },
+            el('div', { className: 'ts-guide-card-icon blue' }, Icons.pencil(18)),
+            el(
+              'div',
+              null,
+              el('h3', { className: 'ts-guide-card-title' }, 'How it Works in Page Editor'),
+              el('p', { className: 'ts-guide-card-subtitle' }, 'Gutenberg Blocks & Elementor Page Builder')
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-guide-card-body' },
+            el(
+              'ol',
+              { className: 'ts-guide-steps' },
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '1'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Open Any Post or Page'),
+                  el('p', { className: 'ts-step-desc' }, 'Edit your article or landing page inside the standard WordPress Gutenberg Block Editor or Elementor.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '2'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Access TranslateSense Panel'),
+                  el('p', { className: 'ts-step-desc' }, 'Click the TranslateSense icon in the top editor bar or open the TranslateSense document sidebar panel.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '3'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Select Target Language'),
+                  el('p', { className: 'ts-step-desc' }, 'Choose your desired target language from your configured Polylang languages list.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '4'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Click "Translate" with Token Caching'),
+                  el('p', { className: 'ts-step-desc' }, 'TranslateSense extracts translatable fields, reuses repeated strings from your database cache (0 tokens consumed!), and translates new text with AI.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '5'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Review & Publish'),
+                  el('p', { className: 'ts-step-desc' }, 'All layouts, block attributes, shortcodes, and styling classes remain intact. Review your localized post and hit Publish!')
+                )
+              )
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-guide-card-footer' },
+            activeBuilders.gutenberg &&
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn ts-btn-secondary ts-btn-sm',
+                onClick: () => onNavigateTab('gutenberg'),
+              },
+              'View Gutenberg Blocks →'
+            ),
+            activeBuilders.elementor &&
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn ts-btn-secondary ts-btn-sm',
+                onClick: () => onNavigateTab('elementor'),
+              },
+              'View Elementor Widgets →'
+            )
+          )
+        ),
+
+        // Card 2: Bulk Translation Workflow
+        el(
+          'div',
+          { className: 'ts-guide-card' },
+          el(
+            'div',
+            { className: 'ts-guide-card-header' },
+            el('div', { className: 'ts-guide-card-icon purple' }, Icons.workflow(18)),
+            el(
+              'div',
+              null,
+              el('h3', { className: 'ts-guide-card-title' }, 'How Bulk Translation Works'),
+              el('p', { className: 'ts-guide-card-subtitle' }, 'Batch Translate Multiple Pages in One Click')
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-guide-card-body' },
+            el(
+              'ol',
+              { className: 'ts-guide-steps' },
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '1'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Navigate to Posts or Pages Table'),
+                  el('p', { className: 'ts-step-desc' }, 'In your WordPress Admin sidebar, go to Posts -> All Posts or Pages -> All Pages.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '2'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Select Items to Translate'),
+                  el('p', { className: 'ts-step-desc' }, 'Check the checkboxes next to the posts you wish to translate, or click the "Translate" button in the table header.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '3'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Select Target Languages & Engine'),
+                  el('p', { className: 'ts-step-desc' }, 'In the TranslateSense bulk dialog, choose one or multiple target languages at once and pick your AI provider.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '4'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Start Translation & Track Progress'),
+                  el('p', { className: 'ts-step-desc' }, 'Click "Start Translation". Batches process smoothly in the background with live progress bars, string counts, and error tracking.')
+                )
+              ),
+              el(
+                'li',
+                { className: 'ts-step-item' },
+                el('span', { className: 'ts-step-num' }, '5'),
+                el(
+                  'div',
+                  { className: 'ts-step-content' },
+                  el('h4', { className: 'ts-step-title' }, 'Linked & Synchronized Automatically'),
+                  el('p', { className: 'ts-step-desc' }, 'New translated posts are created in Polylang, linked to the source post, and taxonomies (categories & tags) are synchronized.')
+                )
+              )
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-guide-card-footer' },
+            el(
+              'a',
+              {
+                href: bulkTranslateUrl,
+                className: 'ts-btn ts-btn-secondary ts-btn-sm',
+              },
+              'Go to All Posts Table ↗'
+            )
+          )
+        )
+      ),
+
+      // Highlights / Pro Tips Callout Card
+      el(
+        'div',
+        { className: 'ts-guide-tips-card' },
+        el(
+          'div',
+          { className: 'ts-guide-tips-header' },
+          el('span', { className: 'ts-tips-icon' }, Icons.bolt(16)),
+          el('h3', { className: 'ts-tips-title' }, 'TranslateSense Architecture & Token Savings')
+        ),
+        el(
+          'div',
+          { className: 'ts-guide-tips-grid' },
+          el(
+            'div',
+            { className: 'ts-tip-box' },
+            el('h4', null, '⚡ Database Translation Memory'),
+            el('p', null, 'Every unique sentence is hashed (MD5) and cached in your MySQL database. If the same paragraph appears across 50 posts, AI is called only once, saving thousands of tokens.')
+          ),
+          el(
+            'div',
+            { className: 'ts-tip-box' },
+            el('h4', null, '🛡️ Structural Tag Protection'),
+            el('p', null, 'HTML tags, block comments, and shortcodes are shielded before translation, preventing AI from breaking your styling, links, or Elementor widgets.')
+          ),
+          el(
+            'div',
+            { className: 'ts-tip-box' },
+            el('h4', null, '🔄 Cache & Memory Management'),
+            el('p', null, 'Use the Cache tab to inspect and clean your translation memory. Note that removing translation cache means repeated text will be sent to AI again.')
+          )
+        )
+      ),
+
+      // Quick Action Buttons
+      el(
+        'div',
+        { className: 'ts-guide-quick-actions' },
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-btn ts-btn-primary',
+            onClick: () => onNavigateTab('settings'),
+          },
+          'Configure AI Settings'
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-btn ts-btn-secondary',
+            onClick: () => onNavigateTab('cache'),
+          },
+          el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.database(14)),
+          'Manage Cache & Memory'
+        )
+      )
+    );
+  }
+
+  // ----------------------------------------------------
+  // Cache Management Component
+  // ----------------------------------------------------
+  function CachePanel({ cacheCounts = {}, onOpenModal, onRefresh, isRefreshing }) {
+    const totalCache = (cacheCounts.strings || 0) + (cacheCounts.translations || 0) + (cacheCounts.packages || 0) + (cacheCounts.logs || 0);
+
+    return el(
+      'div',
+      { className: 'ts-cache-container' },
+
+      // Header Bar
+      el(
+        'div',
+        { className: 'ts-cache-header' },
+        el(
+          'div',
+          { className: 'ts-cache-title-group' },
+          el(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+            el('div', { className: 'ts-cache-header-icon' }, Icons.database(22)),
+            el('h2', { className: 'ts-cache-title' }, 'Cache & Translation Memory Manager')
+          ),
+          el(
+            'p',
+            { className: 'ts-cache-desc' },
+            'TranslateSense stores translation hashes, raw source strings, execution logs, and widget mappings locally. Managing your cache helps you balance token economy and database storage.'
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-cache-header-actions' },
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-btn ts-btn-secondary ts-btn-sm',
+              disabled: isRefreshing,
+              onClick: onRefresh,
+              title: 'Refresh cache counts from database',
+            },
+            el('span', { className: `ts-refresh-icon ${isRefreshing ? 'spinning' : ''}`, style: { display: 'inline-flex', marginRight: '5px' } }, Icons.refresh(14)),
+            isRefreshing ? 'Refreshing...' : 'Refresh Counts'
+          ),
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-btn ts-btn-danger-outline ts-btn-sm',
+              onClick: () => onOpenModal('all'),
+              title: 'Clear all stored strings, translations, packages, and logs',
+            },
+            el('span', { style: { display: 'inline-flex', marginRight: '5px' } }, Icons.trash(13)),
+            'Clear All Caches'
+          )
+        )
+      ),
+
+      // Summary Card
+      el(
+        'div',
+        { className: 'ts-cache-summary-card' },
+        el(
+          'div',
+          { className: 'ts-cache-summary-main' },
+          el('div', { className: 'ts-cache-summary-label' }, 'TOTAL CACHED DATABASE RECORDS'),
+          el('div', { className: 'ts-cache-summary-number' }, totalCache.toLocaleString()),
+          el('div', { className: 'ts-cache-summary-sub' }, 'Across Translation Memory, Source Strings, Bulk Logs & Widget Packages')
+        ),
+        el(
+          'div',
+          { className: 'ts-cache-summary-breakdown' },
+          el(
+            'div',
+            { className: 'ts-summary-pill' },
+            el('span', { className: 'ts-pill-dot green' }),
+            el('span', { className: 'ts-pill-lbl' }, 'Translations:'),
+            el('strong', null, (cacheCounts.translations || 0).toLocaleString())
+          ),
+          el(
+            'div',
+            { className: 'ts-summary-pill' },
+            el('span', { className: 'ts-pill-dot blue' }),
+            el('span', { className: 'ts-pill-lbl' }, 'Strings:'),
+            el('strong', null, (cacheCounts.strings || 0).toLocaleString())
+          ),
+          el(
+            'div',
+            { className: 'ts-summary-pill' },
+            el('span', { className: 'ts-pill-dot purple' }),
+            el('span', { className: 'ts-pill-lbl' }, 'Packages:'),
+            el('strong', null, (cacheCounts.packages || 0).toLocaleString())
+          ),
+          el(
+            'div',
+            { className: 'ts-summary-pill' },
+            el('span', { className: 'ts-pill-dot orange' }),
+            el('span', { className: 'ts-pill-lbl' }, 'Logs:'),
+            el('strong', null, (cacheCounts.logs || 0).toLocaleString())
+          )
+        )
+      ),
+
+      // 4 Options Grid
+      el(
+        'div',
+        { className: 'ts-cache-grid' },
+
+        // Option 1: Translations Cache (AI Translation Memory)
+        el(
+          'div',
+          { className: 'ts-cache-card highlight-token' },
+          el(
+            'div',
+            { className: 'ts-cache-card-top' },
+            el(
+              'div',
+              { className: 'ts-cache-card-info' },
+              el('div', { className: 'ts-cache-card-icon green' }, Icons.globe(20)),
+              el(
+                'div',
+                null,
+                el('h3', { className: 'ts-cache-card-title' }, 'Translations Cache'),
+                el('span', { className: 'ts-cache-card-sub' }, 'AI Translation Memory')
+              )
+            ),
+            el('span', { className: `ts-cache-status-badge ${cacheCounts.translations > 0 ? 'active' : 'empty'}` },
+              cacheCounts.translations > 0 ? 'Active & Caching' : 'Empty'
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-stat' },
+            el('span', { className: 'ts-cache-big-num' }, (cacheCounts.translations || 0).toLocaleString()),
+            el('span', { className: 'ts-cache-unit' }, 'translated string pairs')
+          ),
+          el(
+            'p',
+            { className: 'ts-cache-card-desc' },
+            'Stores previously translated sentences mapped to target languages and MD5 hashes. Eliminates duplicate AI queries when retranslating pages or encountering repeated texts.'
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-token-warning-preview' },
+            el('span', { className: 'ts-token-pill' }, '⚡ Saves AI Tokens'),
+            el('span', { className: 'ts-token-note' }, 'Clearing this requires re-sending repeated text to AI.')
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-actions' },
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn-cache-danger',
+                disabled: !cacheCounts.translations,
+                onClick: () => onOpenModal('translations'),
+              },
+              el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.trash(13)),
+              'Clear Translations Cache'
+            )
+          )
+        ),
+
+        // Option 2: Strings Cache (Central Source Memory)
+        el(
+          'div',
+          { className: 'ts-cache-card' },
+          el(
+            'div',
+            { className: 'ts-cache-card-top' },
+            el(
+              'div',
+              { className: 'ts-cache-card-info' },
+              el('div', { className: 'ts-cache-card-icon blue' }, Icons.document(20)),
+              el(
+                'div',
+                null,
+                el('h3', { className: 'ts-cache-card-title' }, 'Strings Cache'),
+                el('span', { className: 'ts-cache-card-sub' }, 'Central Translation Memory')
+              )
+            ),
+            el('span', { className: `ts-cache-status-badge ${cacheCounts.strings > 0 ? 'active' : 'empty'}` },
+              cacheCounts.strings > 0 ? 'Active & Indexed' : 'Empty'
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-stat' },
+            el('span', { className: 'ts-cache-big-num' }, (cacheCounts.strings || 0).toLocaleString()),
+            el('span', { className: 'ts-cache-unit' }, 'unique source strings')
+          ),
+          el(
+            'p',
+            { className: 'ts-cache-card-desc' },
+            'Stores normalized source strings extracted from your blocks and widgets with their respective MD5 hashes as central Translation Memory index references.'
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-actions' },
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn-cache-danger',
+                disabled: !cacheCounts.strings,
+                onClick: () => onOpenModal('strings'),
+              },
+              el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.trash(13)),
+              'Clear Strings Cache'
+            )
+          )
+        ),
+
+        // Option 3: Translation Logs & Queue
+        el(
+          'div',
+          { className: 'ts-cache-card' },
+          el(
+            'div',
+            { className: 'ts-cache-card-top' },
+            el(
+              'div',
+              { className: 'ts-cache-card-info' },
+              el('div', { className: 'ts-cache-card-icon orange' }, Icons.clock(20)),
+              el(
+                'div',
+                null,
+                el('h3', { className: 'ts-cache-card-title' }, 'Translation Logs & Queue'),
+                el('span', { className: 'ts-cache-card-sub' }, 'Bulk History & Batches')
+              )
+            ),
+            el('span', { className: `ts-cache-status-badge ${cacheCounts.logs > 0 ? 'active' : 'empty'}` },
+              cacheCounts.logs > 0 ? 'Logged' : 'No Logs'
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-stat' },
+            el('span', { className: 'ts-cache-big-num' }, (cacheCounts.logs || 0).toLocaleString()),
+            el('span', { className: 'ts-cache-unit' }, 'queue & history records')
+          ),
+          el(
+            'p',
+            { className: 'ts-cache-card-desc' },
+            'Stores bulk translation batch entries, execution time statistics, completed/failed statuses, and background queue records for historical auditing.'
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-actions' },
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn-cache-danger',
+                disabled: !cacheCounts.logs,
+                onClick: () => onOpenModal('logs'),
+              },
+              el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.trash(13)),
+              'Clear Translation Logs'
+            )
+          )
+        ),
+
+        // Option 4: Packages Cache (Widget & Block Mappings)
+        el(
+          'div',
+          { className: 'ts-cache-card' },
+          el(
+            'div',
+            { className: 'ts-cache-card-top' },
+            el(
+              'div',
+              { className: 'ts-cache-card-info' },
+              el('div', { className: 'ts-cache-card-icon purple' }, Icons.package(20)),
+              el(
+                'div',
+                null,
+                el('h3', { className: 'ts-cache-card-title' }, 'Packages Cache'),
+                el('span', { className: 'ts-cache-card-sub' }, 'Block & Widget Mapping Context')
+              )
+            ),
+            el('span', { className: `ts-cache-status-badge ${cacheCounts.packages > 0 ? 'active' : 'empty'}` },
+              cacheCounts.packages > 0 ? 'Active & Linked' : 'Empty'
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-stat' },
+            el('span', { className: 'ts-cache-big-num' }, (cacheCounts.packages || 0).toLocaleString()),
+            el('span', { className: 'ts-cache-unit' }, 'mapped field packages')
+          ),
+          el(
+            'p',
+            { className: 'ts-cache-card-desc' },
+            'Maintains associations between specific post IDs, editor types, widget keys, and string hashes. Allows instant reconstruction of translated layouts without reparsing.'
+          ),
+          el(
+            'div',
+            { className: 'ts-cache-card-actions' },
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'ts-btn-cache-danger',
+                disabled: !cacheCounts.packages,
+                onClick: () => onOpenModal('packages'),
+              },
+              el('span', { style: { display: 'inline-flex', marginRight: '6px' } }, Icons.trash(13)),
+              'Clear Packages Cache'
+            )
+          )
+        )
+      )
+    );
+  }
+
+  // ----------------------------------------------------
+  // Required Warning Popup Modal for Cache Clearing
+  // ----------------------------------------------------
+  function CacheConfirmModal({ modal, isClearing, onClose, onConfirm }) {
+    if (!modal || !modal.isOpen) return null;
+
+    const isTranslations = modal.type === 'translations';
+
+    return el(
+      'div',
+      { className: 'ts-modal-overlay', onClick: onClose },
+      el(
+        'div',
+        {
+          className: 'ts-modal-container ts-cache-confirm-modal',
+          onClick: (e) => e.stopPropagation(),
+        },
+        el(
+          'div',
+          { className: 'ts-modal-header' },
+          el(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            el('span', { className: 'ts-modal-header-icon danger' }, Icons.trash(16)),
+            el('h3', null, modal.title || 'Clear Cache')
+          ),
+          el('button', { className: 'ts-modal-close', onClick: onClose, 'aria-label': 'Close' }, Icons.close(16))
+        ),
+        el(
+          'div',
+          { className: 'ts-modal-body' },
+
+          // Required Warning Alert Box
+          el(
+            'div',
+            { className: 'ts-cache-alert-box' },
+            el('div', { className: 'ts-cache-alert-icon' }, Icons.warning(22)),
+            el(
+              'div',
+              { className: 'ts-cache-alert-content' },
+              el('h4', { className: 'ts-cache-alert-title' }, 'Required Warning'),
+              el('p', { className: 'ts-cache-alert-text' }, modal.warning)
+            )
+          ),
+
+          // Count & Details
+          el(
+            'div',
+            { className: 'ts-cache-impact-box' },
+            el(
+              'p',
+              { style: { margin: 0, fontSize: '13px', color: '#475569' } },
+              'You are about to permanently remove ',
+              el('strong', { style: { color: '#0f172a' } }, `${(modal.count || 0).toLocaleString()} cached records`),
+              ' from your database. This action is irreversible.'
+            ),
+            isTranslations &&
+            el(
+              'p',
+              { style: { margin: '8px 0 0 0', fontSize: '12px', color: '#b45309', fontWeight: 500 } },
+              '💡 Tip: Keeping your translation cache preserves your API tokens for repeated texts and makes retranslating pages much faster.'
+            )
+          )
+        ),
+        el(
+          'div',
+          { className: 'ts-modal-footer' },
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-btn ts-btn-secondary',
+              disabled: isClearing,
+              onClick: onClose,
+            },
+            'Cancel'
+          ),
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-btn ts-btn-danger',
+              disabled: isClearing,
+              onClick: onConfirm,
+            },
+            isClearing ? 'Clearing Cache...' : 'Yes, Confirm & Clear Cache'
           )
         )
       )

@@ -581,6 +581,43 @@ class Rest_Api {
 				),
 			)
 		);
+
+		/*
+		 * 14. Get translation and memory cache statistics.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/cache-stats',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'get_cache_stats' ),
+				'permission_callback' => array( __CLASS__, 'permission_cache_manage' ),
+			)
+		);
+
+		/*
+		 * 15. Clear specific or all translation and memory caches.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/clear-cache',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'clear_cache' ),
+				'permission_callback' => array( __CLASS__, 'permission_cache_manage' ),
+				'args'                => array(
+					'type' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'enum'              => array( 'strings', 'translations', 'logs', 'packages', 'all' ),
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return in_array( sanitize_key( (string) $value ), array( 'strings', 'translations', 'logs', 'packages', 'all' ), true );
+						},
+					),
+				),
+			)
+		);
 	}
 
 
@@ -2412,6 +2449,7 @@ class Rest_Api {
 				'connectors_url'   => esc_url_raw(
 					admin_url( 'options-connectors.php' )
 				),
+				'cache_counts'     => Hashing_Db::get_cache_counts(),
 				'stats'            => array_merge(
 					array(
 						'total_packages' => $packages_count,
@@ -3445,6 +3483,71 @@ class Rest_Api {
 				'success' => true,
 				'post_id' => $post_id,
 				'stats'   => $stats,
+			)
+		);
+	}
+
+	/**
+	 * Get cache statistics.
+	 *
+	 * @return \WP_REST_Response
+	 */
+	public static function get_cache_stats() {
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'counts'  => Hashing_Db::get_cache_counts(),
+			)
+		);
+	}
+
+	/**
+	 * Clear cache endpoint callback.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public static function clear_cache( WP_REST_Request $request ) {
+		$type = sanitize_key( (string) $request->get_param( 'type' ) );
+
+		if ( ! in_array( $type, array( 'strings', 'translations', 'logs', 'packages', 'all' ), true ) ) {
+			return new WP_Error(
+				'invalid_cache_type',
+				__( 'Invalid cache type specified.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$result = Hashing_Db::clear_cache( $type );
+
+		if ( ! $result ) {
+			return new WP_Error(
+				'cache_clear_failed',
+				__( 'Failed to clear cache.', 'translatesense' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		$labels = array(
+			'strings'      => __( 'Strings cache', 'translatesense' ),
+			'translations' => __( 'Translations cache', 'translatesense' ),
+			'logs'         => __( 'Translation logs & queue', 'translatesense' ),
+			'packages'     => __( 'Packages cache', 'translatesense' ),
+			'all'          => __( 'All caches', 'translatesense' ),
+		);
+
+		$label = $labels[ $type ] ?? __( 'Cache', 'translatesense' );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'message' => sprintf(
+					/* translators: %s: Cache type label */
+					__( '%s cleared successfully.', 'translatesense' ),
+					$label
+				),
+				'type'    => $type,
+				'counts'  => Hashing_Db::get_cache_counts(),
 			)
 		);
 	}

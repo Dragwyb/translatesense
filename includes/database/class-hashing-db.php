@@ -596,4 +596,91 @@ class Hashing_Db {
 
 		return $deleted_count;
 	}
+
+	/**
+	 * Get cache counts for strings, translations, logs, and packages.
+	 *
+	 * @return array{strings: int, translations: int, logs: int, packages: int}
+	 */
+	public static function get_cache_counts(): array {
+		global $wpdb;
+
+		$table_strings      = self::get_strings_table();
+		$table_translations = self::get_translations_table();
+		$table_packages     = self::get_packages_table();
+		$table_queue        = esc_sql( $wpdb->prefix . 'translatesense_queue' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$strings_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_strings}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$translations_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_translations}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$packages_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_packages}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$logs_count = (int) $wpdb->get_var( "SELECT COUNT(id) FROM {$table_queue}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		return array(
+			'strings'      => $strings_count,
+			'translations' => $translations_count,
+			'logs'         => $logs_count,
+			'packages'     => $packages_count,
+		);
+	}
+
+	/**
+	 * Clear specified cache type.
+	 *
+	 * @param string $type Cache type ('strings', 'translations', 'logs', 'packages', 'all').
+	 * @return bool
+	 */
+	public static function clear_cache( string $type ): bool {
+		global $wpdb;
+
+		$table_strings      = self::get_strings_table();
+		$table_translations = self::get_translations_table();
+		$table_packages     = self::get_packages_table();
+		$table_queue        = esc_sql( $wpdb->prefix . 'translatesense_queue' );
+
+		switch ( $type ) {
+			case 'strings':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_strings}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				break;
+
+			case 'translations':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_translations}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				break;
+
+			case 'packages':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_packages}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				break;
+
+			case 'logs':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_queue}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				break;
+
+			case 'all':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_strings}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_translations}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_packages}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$wpdb->query( "DELETE FROM {$table_queue}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				break;
+
+			default:
+				return false;
+		}
+
+		return true;
+	}
 }
+
