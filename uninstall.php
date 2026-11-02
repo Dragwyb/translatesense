@@ -18,7 +18,7 @@ delete_option( 'translatesense_gutenberg_xml' );
 delete_option( 'translatesense_elementor_xml' );
 delete_option( 'translatesense_classic_xml' );
 delete_option( 'translatesense_db_version' );
-delete_option( 'translatesense_translation_statistics' );
+delete_option( 'translatesense_statics' );
 
 // Clear transients
 delete_transient( 'translatesense_polylang_missing_notice' );

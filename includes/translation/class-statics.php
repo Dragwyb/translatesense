@@ -23,7 +23,7 @@ class Statics {
 	 *
 	 * @var string
 	 */
-	const OPTION_TRANSLATION_STATISTICS = 'translatesense_translation_statistics';
+	const OPTION_TRANSLATION_STATISTICS = 'translatesense_statics';
 
 	/**
 	 * Get default translation statistics structure.
