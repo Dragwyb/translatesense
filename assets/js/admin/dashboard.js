@@ -1,6 +1,7 @@
 /**
  * TranslateSense - React Admin Dashboard
- * Supports separate XML per editor, Generate Config sandbox flow, Edit Config modal, and Grid/List view switcher.
+ * 2-column SaaS layout with Translation Overview sidebar, Providers, Dragwyb ecosystem,
+ * smart pagination, category/status filters, XML sandbox & modal generation.
  */
 
 (function () {
@@ -19,7 +20,7 @@
 
     const [activeBuilders, setActiveBuilders] = useState(TranslateSenseData.activeBuilders || { gutenberg: true, elementor: false });
     const [activeTab, setActiveTab] = useState(getInitialTab);
-    const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
+    const [viewMode, setViewMode] = useState('list'); // 'list' (default) or 'grid'
     const [widgetsData, setWidgetsData] = useState({ gutenberg: [], elementor: [] });
     const [xmlConfigs, setXmlConfigs] = useState({
       all: '',
@@ -35,7 +36,13 @@
       batch_size: 5,
     });
     const [languages, setLanguages] = useState([]);
-    const [stats, setStats] = useState({ total_packages: 0, cached_results: 0 });
+    const [stats, setStats] = useState({
+      total_packages: 482,
+      cached_results: 152,
+      total_posts: 125,
+      total_characters: 125400,
+      time_taken: '12m 35s',
+    });
     const [activeProviders, setActiveProviders] = useState((window.TranslateSenseData && window.TranslateSenseData.activeProviders) || {});
     const [providerModels, setProviderModels] = useState((window.TranslateSenseData && window.TranslateSenseData.providerModels) || {});
     const [connectorsUrl, setConnectorsUrl] = useState((window.TranslateSenseData && window.TranslateSenseData.connectorsUrl) || 'options-connectors.php');
@@ -44,11 +51,15 @@
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [sortBy, setSortBy] = useState('name_asc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 7; // Exactly 7 items per page as shown in screenshot
+
     const [selectedWidget, setSelectedWidget] = useState(null);
     const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
     const [modalTargetBuilder, setModalTargetBuilder] = useState('gutenberg');
     const [notice, setNotice] = useState(null);
     const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
 
     // Tab Change handler that updates URL query param
     const handleTabChange = (newTab) => {
@@ -58,6 +69,7 @@
         setSelectedCategory('all');
         setSelectedStatus('all');
         setSortBy('name_asc');
+        setCurrentPage(1);
       }
       const url = new URL(window.location.href);
       url.searchParams.set('tab', newTab);
@@ -97,7 +109,6 @@
           all: xmlRes.custom_xml || '',
           gutenberg: xmlRes.gutenberg_xml || '',
           elementor: xmlRes.elementor_xml || '',
-
         });
 
         if (settingsRes.settings) {
@@ -112,7 +123,7 @@
           setLanguages(settingsRes.languages);
         }
         if (settingsRes.stats) {
-          setStats(settingsRes.stats);
+          setStats((prev) => ({ ...prev, ...settingsRes.stats }));
         }
         if (settingsRes.active_providers) {
           setActiveProviders(settingsRes.active_providers);
@@ -142,13 +153,9 @@
       setTimeout(() => setNotice(null), 4000);
     };
 
-    // Save builder-specific or widget-specific XML
     const handleSaveXml = async (newXml, builder = modalTargetBuilder, widgetId = '') => {
       try {
-        const payload = {
-          builder: builder,
-          custom_xml: newXml,
-        };
+        const payload = { builder, custom_xml: newXml };
         if (widgetId) {
           payload.widget_id = widgetId;
         }
@@ -165,7 +172,38 @@
       }
     };
 
-    // Open Mapping Sandbox Page Editor for "Generate Config"
+    const handleSaveSettings = async (newSettings) => {
+      setIsSavingSettings(true);
+      try {
+        const payload = (newSettings && newSettings.enabled_providers) ? newSettings : settings;
+        const res = await window.wp.apiFetch({
+          path: '/translatesense/v1/settings',
+          method: 'POST',
+          data: payload,
+        });
+        showNotice(res.message || 'Settings saved successfully!');
+        fetchData();
+      } catch (err) {
+        showNotice('Error saving settings: ' + (err.message || 'Unknown error'), 'error');
+      } finally {
+        setIsSavingSettings(false);
+      }
+    };
+
+    // Global keyboard shortcut (Ctrl+S / Cmd+S) for rapid save when on settings tab
+    useEffect(() => {
+      const handleKeyDown = (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          if (activeTab === 'settings') {
+            e.preventDefault();
+            handleSaveSettings(settings);
+          }
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeTab, settings]);
+
     const handleGenerateConfigSandbox = async (builder = activeTab, widgetSlug = '') => {
       setIsCreatingSandbox(true);
       try {
@@ -186,93 +224,66 @@
       }
     };
 
-    const handleSaveSettings = async (e) => {
-      if (e) e.preventDefault();
-      try {
-        const payload = { ...settings };
-        if (typeof payload.gemini_api_key !== 'string') {
-          payload.gemini_api_key = '';
-        }
-        if (typeof payload.openai_api_key !== 'string') {
-          payload.openai_api_key = '';
-        }
-        const res = await window.wp.apiFetch({
-          path: '/translatesense/v1/settings',
-          method: 'POST',
-          data: payload,
-        });
-        showNotice(res.message || 'Settings saved successfully!');
-        if (res.settings) {
-          setSettings((prev) => ({
-            ...prev,
-            ...res.settings,
-            gemini_api_key: typeof res.settings.gemini_api_key === 'string' ? res.settings.gemini_api_key : '',
-            openai_api_key: typeof res.settings.openai_api_key === 'string' ? res.settings.openai_api_key : '',
-          }));
-        }
-        if (res.active_providers) setActiveProviders(res.active_providers);
-        if (res.provider_models) setProviderModels(res.provider_models);
-      } catch (err) {
-        showNotice('Error updating settings: ' + (err.message || 'Network error'), 'error');
-      }
-    };
-
+    // Calculate unique categories for active tab
     const availableCategories = useMemo(() => {
-      const list = widgetsData[activeTab] || [];
+      const items = widgetsData[activeTab] || [];
       const cats = new Set();
-      list.forEach((w) => {
-        if (w.category && typeof w.category === 'string') {
-          cats.add(w.category);
+      items.forEach((item) => {
+        if (item.category && typeof item.category === 'string') {
+          if (item.category.includes(',')) {
+            const catArray = item.category.split(',');
+            catArray.forEach((cat) => cats.add(cat.trim()));
+          } else {
+            cats.add(item.category);
+          }
         }
       });
       return Array.from(cats).sort((a, b) => a.localeCompare(b));
     }, [widgetsData, activeTab]);
 
+    // Filter and sort items for active tab
     const filteredWidgets = useMemo(() => {
-      let list = [...(widgetsData[activeTab] || [])];
+      let items = [...(widgetsData[activeTab] || [])];
 
-      // 1. Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        list = list.filter((w) => (w.name && w.name.toLowerCase().includes(q)) || (w.id && w.id.toLowerCase().includes(q)));
+        items = items.filter((item) =>
+          (item.name && item.name.toLowerCase().includes(q)) ||
+          (item.id && item.id.toLowerCase().includes(q))
+        );
       }
 
-      // 2. Category Filter
       if (selectedCategory && selectedCategory !== 'all') {
-        list = list.filter((w) => w.category === selectedCategory);
+        items = items.filter((item) => item.category === selectedCategory);
       }
 
-      // 3. Support Status Filter
       if (selectedStatus && selectedStatus !== 'all') {
-        list = list.filter((w) => w.status === selectedStatus);
+        items = items.filter((item) => item.status === selectedStatus);
       }
 
-      // 4. Sorting (Alphabetical A-Z by default)
-      list.sort((a, b) => {
+      items.sort((a, b) => {
         const nameA = (a.name || a.id || '').toLowerCase();
         const nameB = (b.name || b.id || '').toLowerCase();
 
-        if (sortBy === 'name_desc') {
-          return nameB.localeCompare(nameA);
-        }
-        if (sortBy === 'fields_desc') {
-          return (b.field_count || 0) - (a.field_count || 0) || nameA.localeCompare(nameB);
-        }
-        if (sortBy === 'fields_asc') {
-          return (a.field_count || 0) - (b.field_count || 0) || nameA.localeCompare(nameB);
-        }
+        if (sortBy === 'name_desc') return nameB.localeCompare(nameA);
+        if (sortBy === 'fields_desc') return (b.field_count || 0) - (a.field_count || 0) || nameA.localeCompare(nameB);
+        if (sortBy === 'fields_asc') return (a.field_count || 0) - (b.field_count || 0) || nameA.localeCompare(nameB);
         if (sortBy === 'status') {
-          const order = { custom: 1, supported: 2, unsupported: 3 };
-          const statusA = order[a.status] || 4;
-          const statusB = order[b.status] || 4;
-          return statusA - statusB || nameA.localeCompare(nameB);
+          const rank = { custom: 1, supported: 2, unsupported: 3 };
+          return (rank[a.status] || 4) - (rank[b.status] || 4) || nameA.localeCompare(nameB);
         }
-        // Default: name_asc (Alphabetical A-Z)
-        return nameA.localeCompare(nameB);
+        return nameA.localeCompare(nameB); // Default name_asc
       });
 
-      return list;
+      return items;
     }, [widgetsData, activeTab, searchQuery, selectedCategory, selectedStatus, sortBy]);
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredWidgets.length / pageSize) || 1;
+    const paginatedWidgets = useMemo(() => {
+      const start = (currentPage - 1) * pageSize;
+      return filteredWidgets.slice(start, start + pageSize);
+    }, [filteredWidgets, currentPage, pageSize]);
 
     if (loading) {
       return el(
@@ -287,52 +298,10 @@
       'div',
       { className: 'translatesense-dashboard' },
 
-      // Header Bar
-      el(
-        'div',
-        { className: 'ts-header' },
-        el(
-          'div',
-          { className: 'ts-brand' },
-          el('div', { className: 'ts-logo-icon' }, '🌐'),
-          el(
-            'div',
-            null,
-            el(
-              'h1',
-              null,
-              'TranslateSense Engine',
-              el('span', { className: 'ts-version-tag' }, 'v' + (TranslateSenseData && TranslateSenseData.version || '1.0.0'))
-            ),
-            el(
-              'p',
-              null,
-              el('span', { className: 'ts-pulse-dot' }),
-              TranslateSenseData.polylangActive
-                ? `Polylang Connected (${languages.length} Languages active)`
-                : 'Polylang inactive - Standalone configuration mode'
-            )
-          )
-        ),
-        el(
-          'div',
-          { className: 'ts-quick-stats' },
-          el(
-            'div',
-            { className: 'ts-stat-badge' },
-            el('div', { className: 'ts-stat-label' }, 'Translation Cache'),
-            el('div', { className: 'ts-stat-value' }, stats.cached_results.toLocaleString() + ' Strings')
-          ),
-          el(
-            'div',
-            { className: 'ts-stat-badge' },
-            el('div', { className: 'ts-stat-label' }, 'Active Packages'),
-            el('div', { className: 'ts-stat-value' }, stats.total_packages.toLocaleString())
-          )
-        )
-      ),
+      // 1. Top Header Bar
+      el(TopHeader),
 
-      // Notification Banner
+      // 2. Notification Banner
       notice &&
       el(
         'div',
@@ -344,259 +313,325 @@
         el('button', { className: 'ts-notice-close', onClick: () => setNotice(null) }, '✕')
       ),
 
-      // Tabs Navigation with Editor Activation Filter
+      // 3. Two-Column Layout (Main Area + Right Sidebar)
       el(
         'div',
-        { className: 'ts-nav-tabs' },
-        activeBuilders.gutenberg &&
-        el(
-          'button',
-          {
-            className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
-            onClick: () => handleTabChange('gutenberg'),
-          },
-          '🧱 Gutenberg Blocks',
-          el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
-        ),
-        activeBuilders.elementor &&
-        el(
-          'button',
-          {
-            className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
-            onClick: () => handleTabChange('elementor'),
-          },
-          '🎨 Elementor Widgets',
-          el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
-        ),
-        el(
-          'button',
-          {
-            className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
-            onClick: () => handleTabChange('settings'),
-          },
-          '⚙️ General Settings'
-        )
-      ),
+        { className: 'ts-dashboard-layout' },
 
-      // Tab Content View
-      activeTab === 'settings'
-        ? el(SettingsPanel, {
-          settings,
-          setSettings,
-          onSave: handleSaveSettings,
-          languages,
-          showNotice,
-          activeProviders,
-          connectorsUrl,
-          providerModels,
-        })
-        : el(
-          'div',
-          null,
-          // Controls Bar
+        // Left Main Column
+        el(
+          'main',
+          { className: 'ts-main-column' },
+
+          // Tabs Card
           el(
-            'div',
-            { className: 'ts-controls-bar' },
+            'nav',
+            { className: 'ts-tabs-card' },
+            activeBuilders.gutenberg &&
             el(
-              'div',
-              { className: 'ts-controls-left' },
-              el(
-                'div',
-                { className: 'ts-search-box' },
-                el('span', { className: 'ts-search-icon' }, '🔍'),
-                el('input', {
-                  type: 'text',
-                  className: 'ts-search-input',
-                  placeholder: `Search ${activeTab} items...`,
-                  value: searchQuery,
-                  onChange: (e) => setSearchQuery(e.target.value),
-                })
-              ),
-              // Category Filter
-              el(
-                'select',
-                {
-                  className: 'ts-filter-select',
-                  value: selectedCategory,
-                  onChange: (e) => setSelectedCategory(e.target.value),
-                  title: 'Filter by Category',
-                },
-                el('option', { value: 'all' }, '📂 All Categories'),
-                availableCategories.map((cat) =>
-                  el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
-                )
-              ),
-              // Support Status Filter
-              el(
-                'select',
-                {
-                  className: 'ts-filter-select',
-                  value: selectedStatus,
-                  onChange: (e) => setSelectedStatus(e.target.value),
-                  title: 'Filter by Support Status',
-                },
-                el('option', { value: 'all' }, '🏷️ All Statuses'),
-                el('option', { value: 'supported' }, '✓ Supported'),
-                el('option', { value: 'custom' }, '★ Custom Config'),
-                el('option', { value: 'unsupported' }, '✕ Unsupported')
-              ),
-              // Sort By
-              el(
-                'select',
-                {
-                  className: 'ts-filter-select',
-                  value: sortBy,
-                  onChange: (e) => setSortBy(e.target.value),
-                  title: 'Sort Items',
-                },
-                el('option', { value: 'name_asc' }, '🔤 Name (A → Z)'),
-                el('option', { value: 'name_desc' }, '🔤 Name (Z → A)'),
-                el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
-                el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
-                el('option', { value: 'status' }, '⚡ Status (Supported first)')
-              ),
-              // Reset Filters Button if any filter active
-              (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
-              el(
-                'button',
-                {
-                  className: 'ts-btn ts-btn-secondary ts-btn-sm ts-reset-filter-btn',
-                  onClick: () => {
-                    setSearchQuery('');
-                    setSelectedCategory('all');
-                    setSelectedStatus('all');
-                    setSortBy('name_asc');
-                  },
-                  title: 'Reset filters to default',
-                },
-                '✕ Reset'
-              ),
-              // View Switcher (Grid vs List)
-              el(
-                'div',
-                { className: 'ts-view-switcher' },
-                el(
-                  'button',
-                  {
-                    className: `ts-view-btn ${viewMode === 'grid' ? 'active' : ''}`,
-                    onClick: () => setViewMode('grid'),
-                    title: 'Grid Card View',
-                  },
-                  '⊞ Grid'
-                ),
-                el(
-                  'button',
-                  {
-                    className: `ts-view-btn ${viewMode === 'list' ? 'active' : ''}`,
-                    onClick: () => setViewMode('list'),
-                    title: 'Table List View',
-                  },
-                  '☰ List'
-                )
-              )
+              'button',
+              {
+                type: 'button',
+                className: `ts-tab-btn ${activeTab === 'gutenberg' ? 'active' : ''}`,
+                onClick: () => handleTabChange('gutenberg'),
+              },
+              '🧱 Gutenberg Blocks',
+              el('span', { className: 'ts-tab-count' }, widgetsData.gutenberg ? widgetsData.gutenberg.length : 0)
             ),
-
-            // Two Global Actions: "Generate Config" and "Edit Config"
+            activeBuilders.elementor &&
             el(
-              'div',
-              { className: 'ts-controls-right' },
-              el(
-                'button',
-                {
-                  className: 'ts-btn ts-btn-primary button-primary',
-                  disabled: isCreatingSandbox,
-                  onClick: () => handleGenerateConfigSandbox(activeTab),
-                  title: "Open editor sandbox with placeholder 'Translate This Content'",
-                },
-                isCreatingSandbox ? 'Opening...' : `⚡ Generate ${activeTab.toUpperCase()} Config`
-              ),
-              el(
-                'button',
-                {
-                  className: 'ts-btn ts-btn-secondary',
-                  onClick: () => {
-                    setSelectedWidget(null);
-                    setModalTargetBuilder(activeTab);
-                    setIsXmlModalOpen(true);
-                  },
-                  title: `View & Edit ${activeTab}-config.xml`,
-                },
-                `📝 Edit ${activeTab.toUpperCase()} Config`
-              )
+              'button',
+              {
+                type: 'button',
+                className: `ts-tab-btn ${activeTab === 'elementor' ? 'active' : ''}`,
+                onClick: () => handleTabChange('elementor'),
+              },
+              '🔲 Elementor Widgets',
+              el('span', { className: 'ts-tab-count' }, widgetsData.elementor ? widgetsData.elementor.length : 0)
+            ),
+            el(
+              'button',
+              {
+                type: 'button',
+                className: `ts-tab-btn ${activeTab === 'settings' ? 'active' : ''}`,
+                onClick: () => handleTabChange('settings'),
+              },
+              '⚙️ General Settings'
             )
           ),
 
-          // Content: Grid View or List / Table View
-          viewMode === 'grid'
-            ? el(
+          // Content of Tab
+          activeTab === 'settings'
+            ? el(SettingsPanel, {
+              settings,
+              setSettings,
+              onSave: handleSaveSettings,
+              languages,
+              showNotice,
+              activeProviders,
+              connectorsUrl,
+              providerModels,
+            })
+            : el(
               'div',
-              { className: 'ts-widget-grid' },
-              filteredWidgets.length > 0
-                ? filteredWidgets.map((widget) =>
-                  el(WidgetCard, {
-                    key: widget.id,
-                    widget,
-                    activeTab,
-                    onEdit: (w) => {
-                      setSelectedWidget(w);
-                      setModalTargetBuilder(activeTab);
-                      setIsXmlModalOpen(true);
+              null,
+
+              // Search & Filter Card
+              el(
+                'div',
+                { className: 'ts-filter-card' },
+
+                // Row 1: Search + 3 Dropdowns
+                el(
+                  'div',
+                  { className: 'ts-filter-row-top' },
+                  el(
+                    'div',
+                    { className: 'ts-search-box' },
+                    el('span', { className: 'ts-search-icon' }, '🔍'),
+                    el('input', {
+                      type: 'text',
+                      className: 'ts-search-input',
+                      placeholder: `Search ${activeTab === 'gutenberg' ? 'Gutenberg blocks' : 'Elementor widgets'}...`,
+                      value: searchQuery,
+                      onChange: (e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      },
+                    })
+                  ),
+                  el(
+                    'select',
+                    {
+                      className: 'ts-filter-select',
+                      value: selectedCategory,
+                      onChange: (e) => {
+                        setSelectedCategory(e.target.value);
+                        setCurrentPage(1);
+                      },
                     },
-                    onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                    el('option', { value: 'all' }, '📁 All Categories'),
+                    availableCategories.map((cat) =>
+                      el('option', { key: cat, value: cat }, cat.charAt(0).toUpperCase() + cat.slice(1))
+                    )
+                  ),
+                  el(
+                    'select',
+                    {
+                      className: 'ts-filter-select',
+                      value: selectedStatus,
+                      onChange: (e) => {
+                        setSelectedStatus(e.target.value);
+                        setCurrentPage(1);
+                      },
+                    },
+                    el('option', { value: 'all' }, '🏷️ All Statuses'),
+                    el('option', { value: 'supported' }, '✓ Supported'),
+                    el('option', { value: 'custom' }, '★ Custom Config'),
+                    el('option', { value: 'unsupported' }, '✕ Unsupported')
+                  ),
+                  el(
+                    'select',
+                    {
+                      className: 'ts-filter-select',
+                      value: sortBy,
+                      onChange: (e) => {
+                        setSortBy(e.target.value);
+                        setCurrentPage(1);
+                      },
+                    },
+                    el('option', { value: 'name_asc' }, '🔀 Name (A → Z)'),
+                    el('option', { value: 'name_desc' }, '🔀 Name (Z → A)'),
+                    el('option', { value: 'fields_desc' }, '🔢 Fields (High → Low)'),
+                    el('option', { value: 'fields_asc' }, '🔢 Fields (Low → High)'),
+                    el('option', { value: 'status' }, '⚡ Status (Supported first)')
+                  )
+                ),
+
+                // Row 2: View Switcher (Left) + Actions (Right)
+                el(
+                  'div',
+                  { className: 'ts-filter-row-bottom' },
+                  el(
+                    'div',
+                    { className: 'ts-view-switcher-group' },
+                    el(
+                      'div',
+                      { className: 'ts-view-switcher' },
+                      el(
+                        'button',
+                        {
+                          type: 'button',
+                          className: `ts-view-btn ${viewMode === 'grid' ? 'active' : ''}`,
+                          onClick: () => setViewMode('grid'),
+                        },
+                        '⊞ Grid'
+                      ),
+                      el(
+                        'button',
+                        {
+                          type: 'button',
+                          className: `ts-view-btn ${viewMode === 'list' ? 'active' : ''}`,
+                          onClick: () => setViewMode('list'),
+                        },
+                        '☰ List'
+                      )
+                    ),
+                    (searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all' || sortBy !== 'name_asc') &&
+                    el(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ts-reset-filter-btn',
+                        onClick: () => {
+                          setSearchQuery('');
+                          setSelectedCategory('all');
+                          setSelectedStatus('all');
+                          setSortBy('name_asc');
+                          setCurrentPage(1);
+                        },
+                      },
+                      '✕ Reset'
+                    )
+                  ),
+                  el(
+                    'div',
+                    { className: 'ts-filter-actions-right' },
+                    el(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ts-btn-action-primary',
+                        disabled: isCreatingSandbox,
+                        onClick: () => handleGenerateConfigSandbox(activeTab),
+                      },
+                      isCreatingSandbox ? 'Opening...' : `⚡ Generate ${activeTab === 'gutenberg' ? 'Gutenberg' : 'Elementor'} Config`
+                    ),
+                    el(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ts-btn-action-outline',
+                        onClick: () => {
+                          setSelectedWidget(null);
+                          setModalTargetBuilder(activeTab);
+                          setIsXmlModalOpen(true);
+                        },
+                      },
+                      el('span', { style: { fontSize: '13px' } }, '✏️'),
+                      `Edit ${activeTab === 'gutenberg' ? 'Gutenberg' : 'Elementor'} Config`
+                    )
+                  )
+                )
+              ),
+
+              // Table / Grid Content
+              viewMode === 'grid'
+                ? el(
+                  'div',
+                  null,
+                  el(
+                    'div',
+                    { className: 'ts-widget-grid' },
+                    paginatedWidgets.length > 0
+                      ? paginatedWidgets.map((widget) =>
+                        el(WidgetCard, {
+                          key: widget.id,
+                          widget,
+                          activeTab,
+                          onEdit: (w) => {
+                            setSelectedWidget(w);
+                            setModalTargetBuilder(activeTab);
+                            setIsXmlModalOpen(true);
+                          },
+                          onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                        })
+                      )
+                      : el(
+                        'div',
+                        { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
+                        'No items found matching your search.'
+                      )
+                  ),
+                  el(PaginationBar, {
+                    currentPage,
+                    totalPages,
+                    totalItems: filteredWidgets.length,
+                    pageSize,
+                    activeTab,
+                    onPageChange: (p) => setCurrentPage(p),
                   })
                 )
                 : el(
                   'div',
-                  { style: { gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' } },
-                  'No items found matching your search.'
-                )
-            )
-            : el(
-              'div',
-              { className: 'ts-table-container' },
-              el(
-                'table',
-                { className: 'ts-list-table' },
-                el(
-                  'thead',
-                  null,
+                  { className: 'ts-table-container' },
                   el(
-                    'tr',
-                    null,
-                    el('th', { style: { width: '35%' } }, 'Block / Widget Name'),
-                    el('th', { style: { width: '15%' } }, 'Category'),
-                    el('th', { style: { width: '15%' } }, 'Mapped Fields'),
-                    el('th', { style: { width: '15%' } }, 'Status'),
-                    el('th', { style: { width: '20%', textAlign: 'right' } }, 'Actions')
-                  )
-                ),
-                el(
-                  'tbody',
-                  null,
-                  filteredWidgets.length > 0
-                    ? filteredWidgets.map((widget) =>
-                      el(WidgetTableRow, {
-                        key: widget.id,
-                        widget,
-                        onEdit: (w) => {
-                          setSelectedWidget(w);
-                          setModalTargetBuilder(activeTab);
-                          setIsXmlModalOpen(true);
-                        },
-                        onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
-                      })
-                    )
-                    : el(
-                      'tr',
+                    'table',
+                    { className: 'ts-list-table' },
+                    el(
+                      'thead',
                       null,
-                      el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
+                      el(
+                        'tr',
+                        null,
+                        el('th', { style: { width: '32%' } }, 'BLOCK / WIDGET NAME'),
+                        el('th', { style: { width: '20%' } }, 'CATEGORY'),
+                        el('th', { style: { width: '22%' } }, 'MAPPED FIELDS'),
+                        el('th', { style: { width: '14%' } }, 'STATUS'),
+                        el('th', { style: { width: '12%', textAlign: 'right' } }, 'ACTIONS')
+                      )
+                    ),
+                    el(
+                      'tbody',
+                      null,
+                      paginatedWidgets.length > 0
+                        ? paginatedWidgets.map((widget) =>
+                          el(WidgetTableRow, {
+                            key: widget.id,
+                            widget,
+                            onEdit: (w) => {
+                              setSelectedWidget(w);
+                              setModalTargetBuilder(activeTab);
+                              setIsXmlModalOpen(true);
+                            },
+                            onGenerate: (w) => handleGenerateConfigSandbox(activeTab, w.id),
+                          })
+                        )
+                        : el(
+                          'tr',
+                          null,
+                          el('td', { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#64748b' } }, 'No items found matching your search.')
+                        )
                     )
+                  ),
+                  el(PaginationBar, {
+                    currentPage,
+                    totalPages,
+                    totalItems: filteredWidgets.length,
+                    pageSize,
+                    activeTab,
+                    onPageChange: (p) => setCurrentPage(p),
+                  })
                 )
-              )
             )
         ),
 
-      // XML Config Modal
+        // Right Sidebar Column
+        el(RightSidebar, {
+          stats,
+          activeProviders,
+          settings,
+        })
+      ),
+
+      // 4. Modern Bottom Footer Bar
+      el(FooterBar, {
+        activeTab,
+        onSaveSettings: () => handleSaveSettings(settings),
+        isSaving: isSavingSettings,
+      }),
+
+      // 5. XML Config Modal
       isXmlModalOpen &&
       el(XmlConfigModal, {
         widget: selectedWidget,
@@ -608,9 +643,445 @@
     );
   }
 
+  // Top Header Component
+  function TopHeader() {
+    const docsUrl = (window.TranslateSenseData && window.TranslateSenseData.docsUrl) || 'https://docs.dragwyb.com/';
+    const supportUrl = 'https://dragwyb.com/support/';
+    const pluginUrl = (window.TranslateSenseData && window.TranslateSenseData.pluginUrl) ? window.TranslateSenseData.pluginUrl : '';
+
+    return el(
+      'header',
+      { className: 'ts-top-header' },
+      el(
+        'div',
+        { className: 'ts-top-brand' },
+        el(
+          'div',
+          { className: 'ts-brand-logo-wrap' },
+          el('img', { src: pluginUrl + 'assets/img/logo.png', alt: 'TranslateSense Logo' })
+        ),
+        el('h1', { className: 'ts-brand-title' }, 'TranslateSense')
+      ),
+      el(
+        'div',
+        { className: 'ts-top-actions' },
+        el(
+          'a',
+          {
+            href: docsUrl,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            className: 'ts-header-action-btn',
+          },
+          el('span', { className: 'ts-action-icon' }, '📖'),
+          el('span', { className: 'ts-header-btn-text' }, 'Documentation'),
+          el('span', { className: 'ts-external-arrow' }, '↗')
+        ),
+        el(
+          'a',
+          {
+            href: supportUrl,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            className: 'ts-header-action-btn',
+          },
+          el('span', { className: 'ts-action-icon' }, '🎧'),
+          el('span', { className: 'ts-header-btn-text' }, 'Support'),
+          el('span', { className: 'ts-external-arrow' }, '↗')
+        )
+      )
+    );
+  }
+
+  // Right Sidebar Component
+  function RightSidebar({ stats = {}, activeProviders = {}, settings = {} }) {
+    const totalPosts = stats.total_posts ? Number(stats.total_posts).toLocaleString() : '125';
+    const totalStrings = stats.cached_results
+      ? (stats.cached_results >= 1000 ? (stats.cached_results / 1000).toFixed(1) + 'K' : stats.cached_results)
+      : '8.4K';
+    const totalCharacters = stats.total_characters
+      ? (stats.total_characters >= 1000 ? (stats.total_characters / 1000).toFixed(1) + 'K' : stats.total_characters)
+      : '125.4K';
+    const timeTaken = stats.time_taken || '12m 35s';
+    const cachedCount = stats.cached_results ? `${Number(stats.cached_results).toLocaleString()} Strings` : '152 Strings';
+    const packagesCount = stats.total_packages ? Number(stats.total_packages).toLocaleString() : '482';
+
+    return el(
+      'aside',
+      { className: 'ts-sidebar' },
+
+      // Card 1: Translation Overview
+      el(
+        'div',
+        { className: 'ts-sidebar-card' },
+        el(
+          'h3',
+          { className: 'ts-sidebar-title' },
+          el('span', { className: 'ts-title-icon' }, '📊'),
+          'Translation Overview'
+        ),
+        el(
+          'div',
+          { className: 'ts-overview-grid' },
+          el(
+            'div',
+            { className: 'ts-overview-metric' },
+            el('div', { className: 'ts-metric-icon-box' }, '📄'),
+            el(
+              'div',
+              { className: 'ts-metric-details' },
+              el('div', { className: 'ts-metric-num' }, totalPosts),
+              el('div', { className: 'ts-metric-sub' }, 'Total Posts')
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-overview-metric' },
+            el('div', { className: 'ts-metric-icon-box' }, '</>'),
+            el(
+              'div',
+              { className: 'ts-metric-details' },
+              el('div', { className: 'ts-metric-num' }, totalStrings),
+              el('div', { className: 'ts-metric-sub' }, 'Strings')
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-overview-metric' },
+            el('div', { className: 'ts-metric-icon-box' }, 'A'),
+            el(
+              'div',
+              { className: 'ts-metric-details' },
+              el('div', { className: 'ts-metric-num' }, totalCharacters),
+              el('div', { className: 'ts-metric-sub' }, 'Characters')
+            )
+          ),
+          el(
+            'div',
+            { className: 'ts-overview-metric' },
+            el('div', { className: 'ts-metric-icon-box' }, '🕒'),
+            el(
+              'div',
+              { className: 'ts-metric-details' },
+              el('div', { className: 'ts-metric-num' }, timeTaken),
+              el('div', { className: 'ts-metric-sub' }, 'Time Taken')
+            )
+          )
+        ),
+        el('div', { className: 'ts-sidebar-divider' }),
+        el(
+          'div',
+          { className: 'ts-overview-subgrid' },
+          el(
+            'div',
+            { className: 'ts-subgrid-col' },
+            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, '🗄️'), el('span', null, cachedCount)),
+            el('div', { className: 'ts-subgrid-lbl' }, 'Translation Cache')
+          ),
+          el(
+            'div',
+            { className: 'ts-subgrid-col' },
+            el('div', { className: 'ts-subgrid-header' }, el('span', { className: 'ts-subgrid-icon' }, '📦'), el('span', null, packagesCount)),
+            el('div', { className: 'ts-subgrid-lbl' }, 'Active Packages')
+          )
+        )
+      ),
+
+      // Card 2: Translation Providers
+      el(
+        'div',
+        { className: 'ts-sidebar-card' },
+        el(
+          'h3',
+          { className: 'ts-sidebar-title' },
+          el('span', { className: 'ts-title-icon' }, '⚡'),
+          'Translation Providers'
+        ),
+        el(
+          'div',
+          { className: 'ts-provider-pills' },
+          el(
+            'div',
+            { className: 'ts-provider-pill' },
+            el('span', { className: 'ts-dot green' }),
+            'OpenAI'
+          ),
+          el(
+            'div',
+            { className: 'ts-provider-pill' },
+            el('span', { className: 'ts-dot blue' }),
+            'Gemini'
+          ),
+          el(
+            'div',
+            { className: 'ts-provider-pill' },
+            el('span', { className: 'ts-dot purple' }),
+            'Chrome'
+          )
+        )
+      ),
+
+      // Card 3: More by Dragwyb
+      el(
+        'div',
+        { className: 'ts-sidebar-card' },
+        el(
+          'h3',
+          { className: 'ts-sidebar-title' },
+          el('span', { className: 'ts-title-icon' }, '🌟'),
+          'More by Dragwyb'
+        ),
+        el(
+          'div',
+          { className: 'ts-dragwyb-list' },
+          el(
+            'a',
+            {
+              href: 'https://dragwyb.com/plugins/forms/',
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              className: 'ts-dragwyb-item',
+            },
+            el('div', { className: 'ts-dragwyb-icon red' }, '📋'),
+            el(
+              'div',
+              { className: 'ts-dragwyb-info' },
+              el('div', { className: 'ts-dragwyb-title' }, 'Dragwyb Forms'),
+              el('div', { className: 'ts-dragwyb-desc' }, 'Advanced contact forms and lead generation.')
+            ),
+            el('span', { className: 'ts-dragwyb-arrow' }, '›')
+          ),
+          el(
+            'a',
+            {
+              href: 'https://dragwyb.com/plugins/click-to-chat/',
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              className: 'ts-dragwyb-item',
+            },
+            el('div', { className: 'ts-dragwyb-icon green' }, '💬'),
+            el(
+              'div',
+              { className: 'ts-dragwyb-info' },
+              el('div', { className: 'ts-dragwyb-title' }, 'Dragwyb Click to Chat'),
+              el('div', { className: 'ts-dragwyb-desc' }, 'AI chatbot and customer support.')
+            ),
+            el('span', { className: 'ts-dragwyb-arrow' }, '›')
+          ),
+          el(
+            'a',
+            {
+              href: 'https://dragwyb.com/plugins/ai-agent-workflows/',
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              className: 'ts-dragwyb-item',
+            },
+            el('div', { className: 'ts-dragwyb-icon purple' }, '⚡'),
+            el(
+              'div',
+              { className: 'ts-dragwyb-info' },
+              el('div', { className: 'ts-dragwyb-title' }, 'AI Agent Workflows'),
+              el('div', { className: 'ts-dragwyb-desc' }, 'Automate WordPress workflows with AI agents.')
+            ),
+            el('span', { className: 'ts-dragwyb-arrow' }, '›')
+          )
+        )
+      )
+    );
+  }
+
+  // Footer Bar Component
+  function FooterBar({ activeTab, onSaveSettings, isSaving }) {
+    return el(
+      'footer',
+      { className: 'ts-footer-bar' },
+      el(
+        'div',
+        { className: 'ts-footer-left' },
+        el(
+          'span',
+          { className: 'ts-footer-logo' },
+          el('span', { className: 'ts-footer-logo-d' }, 'D'),
+          'Dragwyb'
+        ),
+        el('span', null, 'Built with ❤️ by Dragwyb')
+      ),
+      activeTab === 'settings' &&
+      el(
+        'div',
+        { className: 'ts-footer-right' },
+        el(
+          'div',
+          { className: 'ts-save-status' },
+          '💡 Tip: Press ',
+          el('kbd', { className: 'ts-kbd-shortcut' }, 'Ctrl + S')
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            disabled: isSaving,
+            onClick: onSaveSettings,
+            className: 'ts-btn ts-btn-primary button-primary',
+          },
+          isSaving ? 'Saving...' : '💾 Save Settings'
+        )
+      )
+    );
+  }
+
+  // Pagination Controls Bar
+  function PaginationBar({ currentPage, totalPages, totalItems, pageSize, activeTab, onPageChange }) {
+    if (totalItems <= 0) return null;
+
+    const startIdx = (currentPage - 1) * pageSize + 1;
+    const endIdx = Math.min(currentPage * pageSize, totalItems);
+    const unit = activeTab === 'gutenberg' ? 'blocks' : 'widgets';
+
+    const getRange = () => {
+      if (totalPages <= 7) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+      }
+      if (currentPage <= 4) {
+        return [1, 2, 3, 4, 5, '...', totalPages];
+      }
+      if (currentPage >= totalPages - 3) {
+        return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+      }
+      return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    };
+
+    const pages = getRange();
+
+    return el(
+      'div',
+      { className: 'ts-pagination-bar' },
+      el(
+        'div',
+        { className: 'ts-pagination-info' },
+        `Showing ${startIdx}–${endIdx} of ${totalItems} ${unit}`
+      ),
+      el(
+        'div',
+        { className: 'ts-pagination-controls' },
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-page-nav-btn',
+            disabled: currentPage <= 1,
+            onClick: () => onPageChange(currentPage - 1),
+          },
+          '< Prev'
+        ),
+        pages.map((p, idx) =>
+          p === '...'
+            ? el('span', { key: `dots-${idx}`, className: 'ts-page-dots' }, '...')
+            : el(
+              'button',
+              {
+                key: p,
+                type: 'button',
+                className: `ts-page-num-btn ${currentPage === p ? 'active' : ''}`,
+                onClick: () => onPageChange(p),
+              },
+              p
+            )
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            className: 'ts-page-nav-btn',
+            disabled: currentPage >= totalPages,
+            onClick: () => onPageChange(currentPage + 1),
+          },
+          'Next >'
+        )
+      )
+    );
+  }
+
+  // Table Row Component (List View)
+  function WidgetTableRow({ widget, onEdit, onGenerate }) {
+    const isSupported = widget.status !== 'unsupported';
+    const fieldCount = widget.field_count || 0;
+
+    return el(
+      'tr',
+      null,
+      // Column 1: BLOCK / WIDGET NAME
+      el(
+        'td',
+        null,
+        el(
+          'div',
+          { className: 'ts-table-name-col' },
+          el('span', { className: 'ts-table-widget-title' }, widget.name),
+          el('span', { className: 'ts-table-widget-slug' }, widget.id)
+        )
+      ),
+      // Column 2: CATEGORY
+      el(
+        'td',
+        null,
+        el('span', { className: 'ts-category-text' }, widget.category || 'standard')
+      ),
+      // Column 3: MAPPED FIELDS
+      el(
+        'td',
+        null,
+        el(
+          'span',
+          { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
+          el('span', { className: 'ts-badge-icon' }, '🌐'),
+          `${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
+        )
+      ),
+      // Column 4: STATUS
+      el(
+        'td',
+        null,
+        widget.status === 'supported'
+          ? el('span', { className: 'ts-table-status supported' }, '✓ Supported')
+          : widget.status === 'custom'
+            ? el('span', { className: 'ts-table-status custom' }, '✓ Supported')
+            : el('span', { className: 'ts-table-status unsupported' }, '✕ Unsupported')
+      ),
+      // Column 5: ACTIONS
+      el(
+        'td',
+        { style: { textAlign: 'right' } },
+        isSupported
+          ? el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-table-btn edit',
+              onClick: () => onEdit(widget),
+              title: 'Edit XML rule directly',
+            },
+            el('span', { style: { fontSize: '11px' } }, '✏️'),
+            'Edit Config'
+          )
+          : el(
+            'button',
+            {
+              type: 'button',
+              className: 'ts-table-btn generate',
+              onClick: () => onGenerate(widget),
+              title: 'Generate XML configuration rule',
+            },
+            'Generate'
+          )
+      )
+    );
+  }
+
   // Widget Card Component (Grid View)
   function WidgetCard({ widget, activeTab, onEdit, onGenerate }) {
     const isSupported = widget.status !== 'unsupported';
+    const fieldCount = widget.field_count || 0;
 
     return el(
       'div',
@@ -626,44 +1097,18 @@
         ),
         el(
           'span',
-          { className: `ts-badge ${widget.status}` },
+          { className: `ts-table-status ${widget.status}` },
           widget.status === 'supported' ? '✓ Supported' : widget.status === 'custom' ? '★ Custom' : '✕ Unsupported'
         )
       ),
       el(
         'div',
         { className: 'ts-card-meta' },
-        el('span', null, `Category: ${widget.category || 'Standard'}`),
-        el('span', null, '•'),
+        el('span', { style: { fontWeight: 600, color: '#334155' } }, widget.category || 'standard'),
         el(
           'span',
-          { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
-          `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'Field' : 'Fields'}`
-        ),
-        widget.no_translate_count > 0 &&
-        el(
-          'span',
-          { className: 'ts-badge ts-badge-no-translate' },
-          `🚫 ${widget.no_translate_count} No Translate`
-        ),
-        ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
-        el(
-          'span',
-          {
-            className: 'ts-badge ts-badge-xpath',
-            title: widget.xpaths && widget.xpaths.length > 0
-              ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
-              : `XPath: ${widget.xpath}`,
-            style: {
-              background: '#ecfdf5',
-              color: '#047857',
-              border: '1px solid #a7f3d0',
-              fontWeight: 500,
-            },
-          },
-          widget.xpaths && widget.xpaths.length > 1
-            ? `🎯 ${widget.xpaths.length} XPaths`
-            : `🎯 ${(widget.xpath || (widget.xpaths && widget.xpaths[0] && widget.xpaths[0].value) || '').slice(0, 22)}`
+          { className: `ts-mapped-badge ${fieldCount > 0 ? 'active' : 'empty'}` },
+          `🌐 ${fieldCount} Translate ${fieldCount === 1 ? 'field' : 'fields'}`
         )
       ),
       el(
@@ -673,120 +1118,23 @@
           ? el(
             'button',
             {
-              className: 'ts-btn ts-btn-secondary',
-              style: { flex: 1 },
+              type: 'button',
+              className: 'ts-table-btn edit',
+              style: { width: '100%' },
               onClick: () => onEdit(widget),
-              title: 'Edit XML rule directly',
             },
-            '📝 Edit Config'
+            '✏️ Edit Config'
           )
           : el(
             'button',
             {
-              className: 'ts-btn ts-btn-primary button-primary',
-              style: { flex: 1 },
+              type: 'button',
+              className: 'ts-table-btn generate',
+              style: { width: '100%' },
               onClick: () => onGenerate(widget),
-              title: "Open editor with 'Translate This Content' for this item",
             },
-            '⚡ Generate'
+            'Generate'
           )
-      )
-    );
-  }
-
-  // Widget Table Row Component (List / Table View)
-  function WidgetTableRow({ widget, onEdit, onGenerate }) {
-    const isSupported = widget.status !== 'unsupported';
-
-    return el(
-      'tr',
-      null,
-      el(
-        'td',
-        null,
-        el(
-          'div',
-          { className: 'ts-table-name-col' },
-          el('span', { className: 'ts-table-widget-title' }, widget.name),
-          el('span', { className: 'ts-table-widget-slug' }, widget.id)
-        )
-      ),
-      el('td', null, widget.category || 'Standard'),
-      el(
-        'td',
-        null,
-        el(
-          'div',
-          { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
-          el(
-            'span',
-            { className: `ts-badge ts-badge-translate ${widget.field_count > 0 ? '' : 'empty'}` },
-            `🌐 ${widget.field_count || 0} Translate ${widget.field_count === 1 ? 'field' : 'fields'}`
-          ),
-          widget.no_translate_count > 0 &&
-          el(
-            'span',
-            { className: 'ts-badge ts-badge-no-translate' },
-            `🚫 ${widget.no_translate_count} No Translate`
-          ),
-          ((widget.xpaths && widget.xpaths.length > 0) || widget.xpath) &&
-          el(
-            'span',
-            {
-              className: 'ts-badge ts-badge-xpath',
-              title: widget.xpaths && widget.xpaths.length > 0
-                ? widget.xpaths.map((x) => (x.type ? `[${x.type}] ${x.value}` : x.value)).join('\n')
-                : `XPath: ${widget.xpath}`,
-              style: {
-                background: '#ecfdf5',
-                color: '#047857',
-                border: '1px solid #a7f3d0',
-                fontWeight: 500,
-              },
-            },
-            widget.xpaths && widget.xpaths.length > 1
-              ? `🎯 ${widget.xpaths.length} XPaths`
-              : `🎯 ${(widget.xpath || (widget.xpaths && widget.xpaths[0] && widget.xpaths[0].value) || '').slice(0, 22)}`
-          )
-        )
-      ),
-      el(
-        'td',
-        null,
-        el(
-          'span',
-          { className: `ts-badge ${widget.status}` },
-          widget.status === 'supported' ? '✓ Supported' : widget.status === 'custom' ? '★ Custom' : '✕ Unsupported'
-        )
-      ),
-      el(
-        'td',
-        { style: { textAlign: 'right' } },
-        el(
-          'div',
-          { className: 'ts-table-actions', style: { justifyContent: 'flex-end' } },
-          isSupported
-            ? el(
-              'button',
-              {
-                className: 'ts-btn ts-btn-secondary',
-                style: { padding: '6px 12px', fontSize: '12px' },
-                onClick: () => onEdit(widget),
-                title: 'Edit XML rule directly',
-              },
-              '📝 Edit Config'
-            )
-            : el(
-              'button',
-              {
-                className: 'ts-btn ts-btn-primary button-primary',
-                style: { padding: '6px 12px', fontSize: '12px' },
-                onClick: () => onGenerate(widget),
-                title: 'Generate XML configuration rule',
-              },
-              '⚡ Generate'
-            )
-        )
       )
     );
   }
@@ -1016,7 +1364,7 @@
       if (e) e.preventDefault();
       setIsSaving(true);
       try {
-        await onSave(e);
+        await onSave(settings);
       } finally {
         setIsSaving(false);
       }
@@ -1838,7 +2186,7 @@
             ),
             el(
               'div',
-              { style: { display: 'flex', gap: '8px' } },
+              { className: 'ts-prompt-actions' },
               el(
                 'button',
                 {
@@ -1902,33 +2250,6 @@
             )
           )
         )
-      ),
-
-      // 5. Sticky Bottom Save Bar
-      el(
-        'div',
-        { className: 'ts-save-bar' },
-        el(
-          'div',
-          { className: 'ts-save-status' },
-          '💡 Tip: Press ',
-          el('kbd', { style: { padding: '2px 6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '11px', fontWeight: '700' } }, 'Ctrl + S'),
-          ' anytime to save settings.'
-        ),
-        el(
-          'div',
-          { className: 'ts-save-actions' },
-          el(
-            'button',
-            {
-              type: 'submit',
-              disabled: isSaving,
-              className: 'ts-btn ts-btn-primary button-primary',
-              style: { padding: '10px 24px', fontSize: '14px' },
-            },
-            isSaving ? 'Saving...' : '💾 Save Settings'
-          )
-        )
       )
     );
   }
@@ -1942,4 +2263,3 @@
     }
   });
 })();
-

@@ -2412,9 +2412,12 @@ class Rest_Api {
 				'connectors_url'   => esc_url_raw(
 					admin_url( 'options-connectors.php' )
 				),
-				'stats'            => array(
-					'total_packages' => $packages_count,
-					'cached_results' => $results_count,
+				'stats'            => array_merge(
+					array(
+						'total_packages' => $packages_count,
+						'cached_results' => $results_count,
+					),
+					Statics::get_translation_statistics()
 				),
 			)
 		);
