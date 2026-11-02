@@ -1,862 +1,537 @@
-/**
- * TranslateSense - Gutenberg Block Processor System (block-processor.js)
- * 
- * Production-ready, conservative, reliable Gutenberg block detection,
- * conservative default attribute processor, and editor integration.
- */
-
-(function (window, wp) {
-  'use strict';
-
-  if (!wp || !wp.blocks || !wp.data) {
-    return;
-  }
-
-  const config = window.TranslateSenseProcessorData || {};
-  const postId = parseInt(config.postId, 10) || 0;
-  const restUrl = config.restUrl || '/wp-json/translatesense/v1/';
-  const nonce = config.nonce || '';
-
-
-  if (!postId || !config.isPending) {
-    return;
-  }
-
-  // Session State
-  let initialScanPerformed = false;
-
-  /* ==========================================================================
-     HTML Normalization Helper
-     ========================================================================== */
-  function normalizeHtml(html) {
-    if (!html || typeof html !== 'string') return '';
-
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-
-    return (doc.body.textContent || '')
-      .replace(/\s+/g, ' ')
+!(function (e, t) {
+  "use strict";
+  if (!t || !t.blocks || !t.data) return;
+  const n = e.TranslateSenseProcessorData || {},
+    o = parseInt(n.postId, 10) || 0,
+    r = n.restUrl || "/wp-json/translatesense/v1/",
+    i = n.nonce || "";
+  if (!o || !n.isPending) return;
+  let a = !1;
+  function s(e) {
+    if (!e || "string" != typeof e) return "";
+    return (
+      new DOMParser().parseFromString(e, "text/html").body.textContent || ""
+    )
+      .replace(/\s+/g, " ")
       .trim();
   }
-
-  function getHtmlInnerText(html) {
-    if (typeof html !== 'string' || !html) return '';
-    if (typeof DOMParser !== 'undefined') {
+  function c(e) {
+    if ("string" != typeof e || !e) return "";
+    if ("undefined" != typeof DOMParser)
       try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const text = doc.body.textContent || doc.body.innerText || '';
-        return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-      } catch (e) {
-        // Fallback to regex
-      }
-    }
-    return html
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
+        const t = new DOMParser().parseFromString(e, "text/html");
+        return (t.body.textContent || t.body.innerText || "")
+          .replace(/\u00a0/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      } catch (e) { }
+    return e
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
       .replace(/&#039;/gi, "'")
-      .replace(/\s+/g, ' ')
+      .replace(/\s+/g, " ")
       .trim();
   }
-
-  /**
-   * Normalize a string for source-to-translation matching. Original attribute
-   * values are preserved unless an unambiguous mapping is found.
-   */
-  function normalizeContentMap(value) {
-    return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+  function l(e) {
+    return "string" == typeof e ? e.replace(/\s+/g, " ").trim() : "";
   }
-
-  /**
-   * Store an unambiguous source => translated string mapping. If the same
-   * source string maps to different translations, mark it ambiguous and never
-   * use it for automatic replacement.
-   */
-  function addAttributeMapping(mapping, source, translated) {
-    const key = normalizeContentMap(source);
-    const value = normalizeContentMap(translated);
-
-    if (!key || !value || key === value || mapping.ambiguous.has(key)) {
-      return;
-    }
-
-    if (mapping.values.has(key) && mapping.values.get(key) !== value) {
-      mapping.values.delete(key);
-      mapping.ambiguous.add(key);
-      return;
-    }
-
-    mapping.values.set(key, value);
+  function u(e, t, n) {
+    const o = l(t),
+      r = l(n);
+    if (o && r && o !== r && !e.ambiguous.has(o))
+      return e.values.has(o) && e.values.get(o) !== r
+        ? (e.values.delete(o), void e.ambiguous.add(o))
+        : void e.values.set(o, r);
   }
-
-  /**
-   * Compare generated default/source markup with the affected saved markup.
-   * Only corresponding DOM nodes and a conservative list of human-readable
-   * attributes are used to infer mappings. CSS classes, IDs and URLs are not
-   * treated as translatable strings.
-   */
-  function buildContentMapMap(sourceHTML, translatedHTML) {
-    const mapping = { values: new Map(), ambiguous: new Set() };
-
-    if (typeof sourceHTML !== 'string' || typeof translatedHTML !== 'string' || !sourceHTML || !translatedHTML) {
-      return mapping;
-    }
-
-    if (typeof DOMParser === 'undefined') {
-      return mapping;
-    }
-
-    try {
-      const parser = new DOMParser();
-      const sourceDoc = parser.parseFromString(sourceHTML, 'text/html');
-      const translatedDoc = parser.parseFromString(translatedHTML, 'text/html');
-      const translatableAttributes = [
-        'alt', 'title', 'aria-label', 'aria-description', 'placeholder',
-        'value', 'summary', 'caption'
-      ];
-
-      function compareNodes(sourceNode, translatedNode, depth) {
-        if (!sourceNode || !translatedNode || depth > 100) return;
-        if (sourceNode.nodeType !== translatedNode.nodeType) return;
-
-        if (sourceNode.nodeType === Node.TEXT_NODE) {
-          addAttributeMapping(mapping, sourceNode.nodeValue, translatedNode.nodeValue);
-          return;
-        }
-
-        if (sourceNode.nodeType !== Node.ELEMENT_NODE) return;
-        if (sourceNode.tagName !== translatedNode.tagName) return;
-
-        translatableAttributes.forEach((attrName) => {
-          if (sourceNode.hasAttribute(attrName) && translatedNode.hasAttribute(attrName)) {
-            addAttributeMapping(
-              mapping,
-              sourceNode.getAttribute(attrName),
-              translatedNode.getAttribute(attrName)
-            );
-          }
-        });
-
-        const sourceChildren = sourceNode.childNodes;
-        const translatedChildren = translatedNode.childNodes;
-        if (sourceChildren.length !== translatedChildren.length) return;
-
-        for (let i = 0; i < sourceChildren.length; i++) {
-          compareNodes(sourceChildren[i], translatedChildren[i], depth + 1);
-        }
-      }
-
-      compareNodes(sourceDoc.body, translatedDoc.body, 0);
-    } catch (error) {
-      // A failed DOM comparison must not produce speculative mappings.
-    }
-
-    return mapping;
-  }
-
-  /**
-   * Recursively translate exact string values using only unambiguous mappings.
-   * Objects/arrays are cloned; non-string values remain unchanged.
-   */
-  function translateResolveValue(value, mapping, depth = 0) {
-    if (depth > 100) return value;
-
-    if (/^\d+$/.test(value)) {
-      return value;
-    }
-
-    if (typeof value === 'string') {
-      let key = normalizeContentMap(value);
-
-      if (!key) {
-        return value;
-      }
-
-      if (mapping.ambiguous.has(key)) {
-        return value;
-      }
-
-      if (!mapping.values.has(key)) {
-        if (!/^\s*<[a-z][^>]*>/i.test(key)) {
-          return value;
-        }
-
-        const innerTexts = key
-          .replace(/<!--[\s\S]*?-->/g, '')
-          .replace(/<[^>]*>/g, '\n')
-          .split('\n')
-          .map((text) =>
-            text
-              .replace(/&nbsp;/gi, ' ')
-              .replace(/&amp;/gi, '&')
-              .replace(/&lt;/gi, '<')
-              .replace(/&gt;/gi, '>')
+  function f(e, t, n = 0) {
+    if (n > 100) return e;
+    if (/^\d+$/.test(e)) return e;
+    if ("string" == typeof e) {
+      let n = l(e);
+      if (!n) return e;
+      if (t.ambiguous.has(n)) return e;
+      if (!t.values.has(n)) {
+        if (!/^\s*<[a-z][^>]*>/i.test(n)) return e;
+        const o = n
+          .replace(/<!--[\s\S]*?-->/g, "")
+          .replace(/<[^>]*>/g, "\n")
+          .split("\n")
+          .map((e) =>
+            e
+              .replace(/&nbsp;/gi, " ")
+              .replace(/&amp;/gi, "&")
+              .replace(/&lt;/gi, "<")
+              .replace(/&gt;/gi, ">")
               .replace(/&quot;/gi, '"')
               .replace(/&#0*39;|&#x0*27;|&apos;/gi, "'")
-              .replace(/\s+/g, ' ')
-              .trim()
+              .replace(/\s+/g, " ")
+              .trim(),
           )
           .filter(Boolean);
-
-        let allKeyExist = innerTexts.every((text) => mapping.values.has(text));
-
-        if (!allKeyExist) {
-          return value;
-        }
-
-        innerTexts.forEach((text) => {
-          const translated = mapping.values.get(text);
-          if (!translated) {
-            allKeyExist = false;
-          }
-
-          key = key.replace(text, translated);
-        })
-
-        if (!allKeyExist) {
-          return value;
-        }
-
-        return key;
+        let r = o.every((e) => t.values.has(e));
+        return r
+          ? (o.forEach((e) => {
+            const o = t.values.get(e);
+            (o || (r = !1), (n = n.replace(e, o)));
+          }),
+            r ? n : e)
+          : e;
       }
-
-      const translated = mapping.values.get(key);
-      const leading = (value.match(/^\s*/) || [''])[0];
-      const trailing = (value.match(/\s*$/) || [''])[0];
-      return leading + translated + trailing;
+      const o = t.values.get(n);
+      return (e.match(/^\s*/) || [""])[0] + o + (e.match(/\s*$/) || [""])[0];
     }
-
-    if (Array.isArray(value)) {
-      return value.map((item) => translateResolveValue(item, mapping, depth + 1));
+    if (Array.isArray(e)) return e.map((e) => f(e, t, n + 1));
+    if (e && "object" == typeof e) {
+      const o = Object.getPrototypeOf(e);
+      if (o !== Object.prototype && null !== o) return e;
+      const r = {};
+      return (
+        Object.keys(e).forEach((o) => {
+          r[o] = f(e[o], t, n + 1);
+        }),
+        r
+      );
     }
-
-    if (value && typeof value === 'object') {
-      const prototype = Object.getPrototypeOf(value);
-      if (prototype !== Object.prototype && prototype !== null) return value;
-
-      const result = {};
-      Object.keys(value).forEach((key) => {
-        result[key] = translateResolveValue(value[key], mapping, depth + 1);
-      });
-
-      return result;
-    }
-
-    return value;
+    return e;
   }
-
-  function cloneResolveValue(value) {
-    if (value === undefined || value === null || typeof value !== 'object') return value;
+  function d(e) {
+    if (null == e || "object" != typeof e) return e;
     try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (error) {
-      return value;
+      return JSON.parse(JSON.stringify(e));
+    } catch (t) {
+      return e;
     }
   }
-
-  function cloneBlockTree(block) {
-    if (!block || typeof block !== 'object') return block;
-    return {
-      ...block,
-      attributes: cloneResolveValue(block.attributes || {}),
-      innerBlocks: Array.isArray(block.innerBlocks)
-        ? block.innerBlocks.map(cloneBlockTree)
-        : []
-    };
+  function g(e) {
+    return e && "object" == typeof e
+      ? {
+        ...e,
+        attributes: d(e.attributes || {}),
+        innerBlocks: Array.isArray(e.innerBlocks) ? e.innerBlocks.map(g) : [],
+      }
+      : e;
   }
-
-  /* ==========================================================================
-     Block Scanning & Analysis
-     ========================================================================== */
-
-  /**
-   * Scan the block tree sequentially. Await each analysis and nested scan so
-   * result ordering is deterministic and editor work is not run concurrently.
-   *
-   * @param {Array} blocks Blocks to scan.
-   * @param {number} depth Recursion safety guard.
-   * @return {Promise<Array>} Invalid or suspicious blocks.
-   */
-  async function scanInvalidBlocks(blocks, depth = 0) {
-    if (!Array.isArray(blocks) || depth > 50) return [];
-
-    const invalid = [];
-
-    for (const block of blocks) {
-      if (!block || typeof block !== 'object') continue;
-
-      let isInvalid = block.isValid === false || block.name === 'core/missing';
-
+  async function p(e, t = 0) {
+    if (!Array.isArray(e) || t > 50) return [];
+    const n = [];
+    for (const o of e) {
+      if (!o || "object" != typeof o) continue;
+      let e = !1 === o.isValid || "core/missing" === o.name;
       if (
-        !isInvalid &&
-        block.name &&
-        block.name !== 'core/freeform' &&
-        typeof block.originalContent === 'string'
-      ) {
+        !e &&
+        o.name &&
+        "core/freeform" !== o.name &&
+        "string" == typeof o.originalContent
+      )
         try {
-          const analysis = await analyzeBlockDataManager(block);
-          isInvalid = analysis.canResolve === true;
-        } catch (error) {
-          console.warn('[TranslateSense Processor] Block analysis failed:', error);
-        }
-      }
-
-      if (isInvalid) invalid.push(block);
-
-      if (Array.isArray(block.innerBlocks) && block.innerBlocks.length) {
-        const nestedInvalid = await scanInvalidBlocks(block.innerBlocks, depth + 1);
-        invalid.push(...nestedInvalid);
+          e = !0 === (await k(o)).canResolve;
+        } catch (e) { }
+      if (
+        (e && n.push(o), Array.isArray(o.innerBlocks) && o.innerBlocks.length)
+      ) {
+        const e = await p(o.innerBlocks, t + 1);
+        n.push(...e);
       }
     }
-
-    return invalid;
+    return n;
   }
-
-  /**
-   * Analyze a block without inserting or mutating anything in the editor.
-   * A process is offered only when candidate serialization matches saved markup.
-   *
-   * @param {Object} block Gutenberg block.
-   * @return {Promise<Object>} Process analysis.
-   */
-  async function analyzeBlockDataManager(block) {
-    const blockName = block && block.name ? block.name : '';
-    const blockType = blockName ? wp.blocks.getBlockType(blockName) : null;
-    const base = {
-      block,
-      canResolve: false,
-      candidateBlock: null,
-      restoredKeys: [],
-      stringMappings: 0,
-      ambiguousStrings: []
-    };
-
-    if (!blockType) {
-      return { ...base, reason: 'Block type is not registered in this editor session.' };
-    }
-
-    if (typeof block.originalContent !== 'string' || !block.originalContent) {
-      return { ...base, reason: 'Saved block HTML is unavailable on this block object.' };
-    }
-
-    if (typeof wp.blocks.createBlock !== 'function' || typeof wp.blocks.getBlockContent !== 'function') {
-      return { ...base, reason: 'Required Gutenberg block APIs are unavailable.' };
-    }
-
-    if (!block.validationIssues || block.validationIssues.length === 0) {
-      return { ...base, reason: 'Block is valid and does not need process.' };
-    }
-
-    const restoredAttrs = cloneResolveValue(block.attributes || {}) || {};
-    const restoredKeys = [];
-    let sourceHTML = ''
-
-    let mapping = { values: new Map(), ambiguous: new Set() };
-
+  async function k(e) {
+    const n = e && e.name ? e.name : "",
+      o = {
+        block: e,
+        canResolve: !1,
+        candidateBlock: null,
+        restoredKeys: [],
+        stringMappings: 0,
+        ambiguousStrings: [],
+      };
+    if (!(n ? t.blocks.getBlockType(n) : null))
+      return {
+        ...o,
+        reason: "Block type is not registered in this editor session.",
+      };
+    if ("string" != typeof e.originalContent || !e.originalContent)
+      return {
+        ...o,
+        reason: "Saved block HTML is unavailable on this block object.",
+      };
+    if (
+      "function" != typeof t.blocks.createBlock ||
+      "function" != typeof t.blocks.getBlockContent
+    )
+      return { ...o, reason: "Required Gutenberg block APIs are unavailable." };
+    if (!e.validationIssues || 0 === e.validationIssues.length)
+      return { ...o, reason: "Block is valid and does not need process." };
+    const r = d(e.attributes || {}) || {},
+      i = [];
+    let a = "",
+      l = { values: new Map(), ambiguous: new Set() };
     try {
-      // Diagnostic blocks must never be inserted into the live editor.
-      const sourceBlock = wp.blocks.createBlock(blockName, restoredAttrs);
-      sourceHTML = wp.blocks.getBlockContent(sourceBlock);
-
-      if (typeof sourceHTML === 'string' && sourceHTML) {
-        mapping = buildContentMapMap(sourceHTML, block.originalContent);
-
-        if (mapping.values.size) {
-          const mappedAttrs = translateResolveValue(restoredAttrs, mapping);
-
-          for (const key of Object.keys(mappedAttrs || {})) {
-            if (
-              mappedAttrs[key] !== restoredAttrs[key] &&
-              !restoredKeys.some((item) => item.key === key)
-            ) {
-              restoredKeys.push({ key, source: 'markup-mapping' });
+      const o = t.blocks.createBlock(n, r);
+      if (
+        ((a = t.blocks.getBlockContent(o)),
+          "string" == typeof a &&
+          a &&
+          ((l = (function (e, t) {
+            const n = { values: new Map(), ambiguous: new Set() };
+            if ("string" != typeof e || "string" != typeof t || !e || !t)
+              return n;
+            if ("undefined" == typeof DOMParser) return n;
+            try {
+              const o = new DOMParser(),
+                r = o.parseFromString(e, "text/html"),
+                i = o.parseFromString(t, "text/html"),
+                a = [
+                  "alt",
+                  "title",
+                  "aria-label",
+                  "aria-description",
+                  "placeholder",
+                  "value",
+                  "summary",
+                  "caption",
+                ];
+              function s(e, t, o) {
+                if (!e || !t || o > 100) return;
+                if (e.nodeType !== t.nodeType) return;
+                if (e.nodeType === Node.TEXT_NODE)
+                  return void u(n, e.nodeValue, t.nodeValue);
+                if (e.nodeType !== Node.ELEMENT_NODE) return;
+                if (e.tagName !== t.tagName) return;
+                a.forEach((o) => {
+                  e.hasAttribute(o) &&
+                    t.hasAttribute(o) &&
+                    u(n, e.getAttribute(o), t.getAttribute(o));
+                });
+                const r = e.childNodes,
+                  i = t.childNodes;
+                if (r.length === i.length)
+                  for (let e = 0; e < r.length; e++) s(r[e], i[e], o + 1);
+              }
+              s(r.body, i.body, 0);
+            } catch (c) { }
+            return n;
+          })(a, e.originalContent)),
+            l.values.size))
+      ) {
+        const e = f(r, l);
+        for (const t of Object.keys(e || {}))
+          e[t] === r[t] ||
+            i.some((e) => e.key === t) ||
+            i.push({ key: t, source: "markup-mapping" });
+        Object.assign(r, e);
+      }
+    } catch (e) {
+      return {
+        ...o,
+        restoredKeys: i,
+        reason: "Could not generate or compare a safe process candidate.",
+        diagnostic: e && e.message ? e.message : "",
+      };
+    }
+    if (!i.length) {
+      const i = c(a),
+        u = c(e.originalContent);
+      if (
+        (i && u && i === u) ||
+        ("" === i && "" === u && s(a) === s(e.originalContent))
+      )
+        try {
+          const i = t.blocks.createBlock(
+            n,
+            r,
+            Array.isArray(e.innerBlocks) ? e.innerBlocks : [],
+          );
+          return {
+            ...o,
+            canResolve: !0,
+            candidateBlock: i,
+            restoredKeys: [{ key: "originalContent", source: "markup-sync" }],
+            stringMappings: l.values.size,
+            ambiguousStrings: Array.from(l.ambiguous),
+            reason:
+              "Markup synchronized: Text content matches existing attributes.",
+          };
+        } catch (e) {
+          return (
+            console.log(e),
+            {
+              ...o,
+              reason:
+                "Candidate block could not be created with existing attributes.",
+              diagnostic: e && e.message ? e.message : "",
             }
-          }
-
-          Object.assign(restoredAttrs, mappedAttrs);
-        }
-      }
-    } catch (error) {
-      return {
-        ...base,
-        restoredKeys,
-        reason: 'Could not generate or compare a safe process candidate.',
-        diagnostic: error && error.message ? error.message : ''
-      };
-    }
-
-    if (!restoredKeys.length) {
-      // When any validationIssues block attribute not found restoredKeys or empty restoredKeys,
-      // check if sourceHTML and block.originalContent html innerTexts are same.
-      const sourceInnerText = getHtmlInnerText(sourceHTML);
-      const originalInnerText = getHtmlInnerText(block.originalContent);
-
-      if (
-        (sourceInnerText && originalInnerText && sourceInnerText === originalInnerText) ||
-        (sourceInnerText === '' && originalInnerText === '' && normalizeHtml(sourceHTML) === normalizeHtml(block.originalContent))
-      ) {
-        // In this case we don't need to update attribute, only update originalContent with existing attributes
-        try {
-          const candidateBlock = wp.blocks.createBlock(
-            blockName,
-            restoredAttrs,
-            Array.isArray(block.innerBlocks) ? block.innerBlocks : []
           );
-
-          return {
-            ...base,
-            canResolve: true,
-            candidateBlock,
-            restoredKeys: [{ key: 'originalContent', source: 'markup-sync' }],
-            stringMappings: mapping.values.size,
-            ambiguousStrings: Array.from(mapping.ambiguous),
-            reason: 'Markup synchronized: Text content matches existing attributes.'
-          };
-        } catch (candidateErr) {
-          console.log(candidateErr)
-          return {
-            ...base,
-            reason: 'Candidate block could not be created with existing attributes.',
-            diagnostic: candidateErr && candidateErr.message ? candidateErr.message : ''
-          };
         }
-      }
-
       return {
-        ...base,
-        reason: 'No missing defaults or unambiguous string mappings were found.',
-        stringMappings: mapping.values.size,
-        ambiguousStrings: Array.from(mapping.ambiguous)
+        ...o,
+        reason:
+          "No missing defaults or unambiguous string mappings were found.",
+        stringMappings: l.values.size,
+        ambiguousStrings: Array.from(l.ambiguous),
       };
     }
-
-    const candidateBlock = wp.blocks.createBlock(
-      blockName,
-      restoredAttrs,
-      Array.isArray(block.innerBlocks) ? block.innerBlocks : []
+    const g = t.blocks.createBlock(
+      n,
+      r,
+      Array.isArray(e.innerBlocks) ? e.innerBlocks : [],
     );
-
     return {
-      ...base,
-      canResolve: true,
-      candidateBlock,
-      restoredKeys,
-      stringMappings: mapping.values.size,
-      ambiguousStrings: Array.from(mapping.ambiguous),
-      reason: 'Candidate markup matches the saved block HTML.'
+      ...o,
+      canResolve: !0,
+      candidateBlock: g,
+      restoredKeys: i,
+      stringMappings: l.values.size,
+      ambiguousStrings: Array.from(l.ambiguous),
+      reason: "Candidate markup matches the saved block HTML.",
     };
   }
-
-  /**
-   * Group findings in document order and await each analysis.
-   *
-   * @param {Array} invalidBlocks Invalid blocks.
-   * @return {Promise<Array>} Grouped findings.
-   */
-  async function groupFindings(invalidBlocks) {
-    const groups = Object.create(null);
-
-    for (const block of invalidBlocks) {
-      const name = block && block.name ? block.name : 'unknown';
-      const blockType = wp.blocks.getBlockType(name);
-      const title = blockType && blockType.title ? blockType.title : name;
-
-      if (!groups[name]) {
-        groups[name] = {
-          name,
-          title,
-          totalCount: 0,
-          resolvableCount: 0,
-          unresolvedCount: 0,
-          items: []
-        };
-      }
-
-      const analysis = await analyzeBlockDataManager(block);
-      groups[name].totalCount++;
-
-      if (analysis.canResolve) {
-        groups[name].resolvableCount++;
-      } else {
-        groups[name].unresolvedCount++;
-      }
-
-      groups[name].items.push(analysis);
-    }
-
-    return Object.values(groups);
-  }
-
-  /* ==========================================================================
-     Server-Side Metadata Clearance
-     ========================================================================== */
-
-  async function clearProcessorMetadataOnServer() {
+  async function m() {
     try {
-      const response = await fetch(restUrl + 'clear-block-state', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WP-Nonce': nonce
-        },
-        body: JSON.stringify({ post_id: postId })
+      const e = await fetch(r + "clear-block-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-WP-Nonce": i },
+        body: JSON.stringify({ post_id: o }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          isProcessorPending = false;
-          return true;
-        }
+      if (e.ok) {
+        if ((await e.json()).success) return ((isProcessorPending = !1), !0);
       }
-    } catch (err) {
-      console.warn('[TranslateSense] Error clearing processor metadata:', err);
-    }
-    return false;
+    } catch (e) { }
+    return !1;
   }
-
-  /* ==========================================================================
-     Editor Readiness Waiter (Safe against premature empty blocks)
-     ========================================================================== */
-
-  /**
-   * Wait for Gutenberg's initial block tree. Resolves with [] for a valid empty
-   * post only after repeated checks, and rejects on timeout.
-   *
-   * @param {number} timeoutMs Maximum wait.
-   * @return {Promise<Array>}
-   */
-  function waitForEditorReady(timeoutMs = 15000) {
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      let unsubscribe = null;
-      let pollTimer = null;
-      let timeoutTimer = null;
-      let emptyChecks = 0;
-
-      const cleanup = () => {
-        if (unsubscribe) {
-          try { unsubscribe(); } catch (error) { }
-          unsubscribe = null;
-        }
-        if (pollTimer) clearInterval(pollTimer);
-        if (timeoutTimer) clearTimeout(timeoutTimer);
-      };
-
-      const finish = (callback, value) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        callback(value);
-      };
-
-      const check = () => {
-        if (settled) return;
-
-        const editorSelect = wp.data.select('core/editor');
-        const blockSelect = wp.data.select('core/block-editor');
-        const ready = editorSelect &&
-          (typeof editorSelect.__unstableIsEditorReady !== 'function' ||
-            editorSelect.__unstableIsEditorReady());
-        const blocks = blockSelect && typeof blockSelect.getBlocks === 'function'
-          ? blockSelect.getBlocks()
-          : null;
-
-        if (!ready || !Array.isArray(blocks)) return;
-
-        if (blocks.length > 0) {
-          finish(resolve, blocks);
-          return;
-        }
-
-        emptyChecks++;
-        if (emptyChecks >= 30) finish(resolve, blocks);
-      };
-
-      unsubscribe = wp.data.subscribe(check);
-      pollTimer = setInterval(check, 250);
-      timeoutTimer = setTimeout(() => {
-        finish(reject, new Error('Timed out waiting for the Gutenberg editor.'));
-      }, timeoutMs);
-
-      check();
+  (function (e = 15e3) {
+    return new Promise((n, o) => {
+      let r = !1,
+        i = null,
+        a = null,
+        s = null,
+        c = 0;
+      const l = (e, t) => {
+        r ||
+          ((r = !0),
+            (() => {
+              if (i) {
+                try {
+                  i();
+                } catch (e) { }
+                i = null;
+              }
+              (a && clearInterval(a), s && clearTimeout(s));
+            })(),
+            e(t));
+      },
+        u = () => {
+          if (r) return;
+          const e = t.data.select("core/editor"),
+            o = t.data.select("core/block-editor"),
+            i =
+              e &&
+              ("function" != typeof e.__unstableIsEditorReady ||
+                e.__unstableIsEditorReady()),
+            a = o && "function" == typeof o.getBlocks ? o.getBlocks() : null;
+          i &&
+            Array.isArray(a) &&
+            (a.length > 0 ? l(n, a) : (c++, c >= 30 && l(n, a)));
+        };
+      ((i = t.data.subscribe(u)),
+        (a = setInterval(u, 250)),
+        (s = setTimeout(() => {
+          l(o, new Error("Timed out waiting for the Gutenberg editor."));
+        }, e)),
+        u());
     });
-  }
-
-  /* ==========================================================================
-     Direct Block Process Workflow (No Modal)
-     ========================================================================== */
-
-  async function processItems(findings) {
-    const blockEditorDispatch = wp.data.dispatch('core/block-editor');
-    const blockEditorSelect = wp.data.select('core/block-editor');
-    let processedCount = 0;
-    let failedCount = 0;
-    const unresolvedItems = [];
-
-    // 1. Create a replaceBlockCache array
-    const replaceBlockCache = [];
-    const directReplacements = [];
-    const pendingItems = [];
-
-    for (const group of findings) {
-      for (const item of group.items) {
-        if (!item.canResolve || !item.candidateBlock || !blockEditorDispatch) {
-          failedCount++;
-          unresolvedItems.push({
-            title: group.title || 'Block',
-            name: group.name || (item.block && item.block.name) || '',
-            reason: item.reason || 'Unresolved block schema',
-            clientId: (item.block && item.block.clientId) || ''
-          });
-          continue;
-        }
-
-        // 3. Create array temp for each block to store parent block IDs in top upper to lower order
-        let temp = [];
-        if (blockEditorSelect && typeof blockEditorSelect.getBlockParents === 'function') {
-          const rawParents = blockEditorSelect.getBlockParents(item.block.clientId, false);
-          if (Array.isArray(rawParents)) {
-            temp = rawParents;
-          }
-        }
-        if ((!Array.isArray(temp) || temp.length === 0) && blockEditorSelect && typeof blockEditorSelect.getBlockRootClientId === 'function') {
-          let curr = item.block.clientId;
-          temp = [];
-          while (true) {
-            const pId = blockEditorSelect.getBlockRootClientId(curr);
-            if (!pId) break;
-            temp.unshift(pId);
-            curr = pId;
-          }
-        }
-        if (!Array.isArray(temp)) {
-          temp = [];
-        }
-
-        // Direct replacement case: block does not have a parent block
-        if (temp.length === 0) {
-          directReplacements.push({
-            item,
-            groupTitle: group.title,
-            groupName: group.name
-          });
-          continue;
-        }
-
-        // Nested block case: block is inside innerBlock(s)
-        // Top upper order parent block is at temp[0]
-        const rootParentId = temp[0];
-        let rootRef;
-
-        // If parent block saved in replaceBlockCache object, get reference from cache object
-        if (replaceBlockCache[rootParentId]) {
-          rootRef = replaceBlockCache[rootParentId];
-        } else {
-          // If not exist, then first save this parent object in this reference replaceBlockCache object and get reference from this object
-          const editorRootBlock = blockEditorSelect ? blockEditorSelect.getBlock(rootParentId) : null;
-          if (!editorRootBlock) {
-            failedCount++;
-            unresolvedItems.push({
-              title: group.title || 'Block',
-              name: group.name || (item.block && item.block.name) || '',
-              reason: 'Root parent block (' + rootParentId + ') not found in editor',
-              clientId: item.block.clientId
+  })()
+    .then(async (e) => {
+      if (a) return;
+      if (((a = !0), !Array.isArray(e) || 0 === e.length)) return;
+      const n = await p(e);
+      if (0 === n.length) return void (await m());
+      const o = await (async function (e) {
+        const n = Object.create(null);
+        for (const o of e) {
+          const e = o && o.name ? o.name : "unknown",
+            r = t.blocks.getBlockType(e),
+            i = r && r.title ? r.title : e;
+          n[e] ||
+            (n[e] = {
+              name: e,
+              title: i,
+              totalCount: 0,
+              resolvableCount: 0,
+              unresolvedCount: 0,
+              items: [],
             });
-            continue;
-          }
-          replaceBlockCache[rootParentId] = cloneBlockTree(editorRootBlock);
-          rootRef = replaceBlockCache[rootParentId];
+          const a = await k(o);
+          (n[e].totalCount++,
+            a.canResolve ? n[e].resolvableCount++ : n[e].unresolvedCount++,
+            n[e].items.push(a));
         }
-
-        // Run loop for this parent id to find parent blocks in this reference block innerBlock by finding block index
-        let currentParentRef = rootRef;
-        let traversalSuccess = true;
-
-        for (let pIdx = 1; pIdx < temp.length; pIdx++) {
-          const currentParentId = temp[pIdx];
-          if (!currentParentRef || !Array.isArray(currentParentRef.innerBlocks)) {
-            traversalSuccess = false;
-            break;
-          }
-          const foundChildIndex = currentParentRef.innerBlocks.findIndex(
-            child => child && child.clientId === currentParentId
-          );
-          if (foundChildIndex === -1) {
-            traversalSuccess = false;
-            break;
-          }
-          currentParentRef = currentParentRef.innerBlocks[foundChildIndex];
-        }
-
-        if (!traversalSuccess || !currentParentRef || !Array.isArray(currentParentRef.innerBlocks)) {
-          failedCount++;
-          unresolvedItems.push({
-            title: group.title || 'Block',
-            name: group.name || (item.block && item.block.name) || '',
-            reason: 'Parent block container could not be traversed in block hierarchy',
-            clientId: item.block.clientId
-          });
-          continue;
-        }
-
-        // Find target block index in currentParentRef.innerBlocks
-        const targetBlockIndex = currentParentRef.innerBlocks.findIndex(
-          child => child && child.clientId === item.block.clientId
-        );
-
-        if (targetBlockIndex === -1) {
-          failedCount++;
-          unresolvedItems.push({
-            title: group.title || 'Block',
-            name: group.name || (item.block && item.block.name) || '',
-            reason: 'Target block index not found in parent innerBlocks',
-            clientId: item.block.clientId
-          });
-          continue;
-        }
-
-        // Save this process block in this innerBlock at right index where we need to replace
-        currentParentRef.innerBlocks[targetBlockIndex] = item.candidateBlock;
-        pendingItems.push({
-          item,
-          groupTitle: group.title,
-          groupName: group.name
-        });
-      }
-    }
-
-    // In attempt processor case when block is in innerBlock, update top first root parent block instead of current block
-    const cachedRootIds = Object.keys(replaceBlockCache);
-    for (const rootId of cachedRootIds) {
-      const updatedRoot = replaceBlockCache[rootId];
-      try {
-        let replacement = null;
-        if (typeof wp.blocks.createBlock === 'function') {
-          try {
-            replacement = wp.blocks.createBlock(
-              updatedRoot.name,
-              updatedRoot.attributes,
-              updatedRoot.innerBlocks
+        return Object.values(n);
+      })(n);
+      await (async function (e) {
+        const n = t.data.dispatch("core/block-editor"),
+          o = t.data.select("core/block-editor");
+        let r = 0;
+        const i = [],
+          a = [],
+          s = [],
+          c = [];
+        for (const t of e)
+          for (const e of t.items) {
+            if (!e.canResolve || !e.candidateBlock || !n) {
+              i.push({
+                title: t.title || "Block",
+                name: t.name || (e.block && e.block.name) || "",
+                reason: e.reason || "Unresolved block schema",
+                clientId: (e.block && e.block.clientId) || "",
+              });
+              continue;
+            }
+            let r = [];
+            if (o && "function" == typeof o.getBlockParents) {
+              const t = o.getBlockParents(e.block.clientId, !1);
+              Array.isArray(t) && (r = t);
+            }
+            if (
+              (!Array.isArray(r) || 0 === r.length) &&
+              o &&
+              "function" == typeof o.getBlockRootClientId
+            ) {
+              let t = e.block.clientId;
+              for (r = []; ;) {
+                const e = o.getBlockRootClientId(t);
+                if (!e) break;
+                (r.unshift(e), (t = e));
+              }
+            }
+            if ((Array.isArray(r) || (r = []), 0 === r.length)) {
+              s.push({ item: e, groupTitle: t.title, groupName: t.name });
+              continue;
+            }
+            const l = r[0];
+            let u;
+            if (a[l]) u = a[l];
+            else {
+              const n = o ? o.getBlock(l) : null;
+              if (!n) {
+                i.push({
+                  title: t.title || "Block",
+                  name: t.name || (e.block && e.block.name) || "",
+                  reason: "Root parent block (" + l + ") not found in editor",
+                  clientId: e.block.clientId,
+                });
+                continue;
+              }
+              ((a[l] = g(n)), (u = a[l]));
+            }
+            let f = u,
+              d = !0;
+            for (let e = 1; e < r.length; e++) {
+              const t = r[e];
+              if (!f || !Array.isArray(f.innerBlocks)) {
+                d = !1;
+                break;
+              }
+              const n = f.innerBlocks.findIndex((e) => e && e.clientId === t);
+              if (-1 === n) {
+                d = !1;
+                break;
+              }
+              f = f.innerBlocks[n];
+            }
+            if (!d || !f || !Array.isArray(f.innerBlocks)) {
+              i.push({
+                title: t.title || "Block",
+                name: t.name || (e.block && e.block.name) || "",
+                reason:
+                  "Parent block container could not be traversed in block hierarchy",
+                clientId: e.block.clientId,
+              });
+              continue;
+            }
+            const p = f.innerBlocks.findIndex(
+              (t) => t && t.clientId === e.block.clientId,
             );
-          } catch (createErr) {
-            replacement = updatedRoot;
+            -1 !== p
+              ? ((f.innerBlocks[p] = e.candidateBlock),
+                c.push({ item: e, groupTitle: t.title, groupName: t.name }))
+              : i.push({
+                title: t.title || "Block",
+                name: t.name || (e.block && e.block.name) || "",
+                reason: "Target block index not found in parent innerBlocks",
+                clientId: e.block.clientId,
+              });
           }
-        } else {
-          replacement = updatedRoot;
+        const l = Object.keys(a);
+        for (const e of l) {
+          const o = a[e];
+          try {
+            let r = null;
+            if ("function" == typeof t.blocks.createBlock)
+              try {
+                r = t.blocks.createBlock(o.name, o.attributes, o.innerBlocks);
+              } catch (e) {
+                r = o;
+              }
+            else r = o;
+            n.replaceBlock(e, r || o);
+          } catch (e) {
+            console.error(
+              "[TranslateSense Processor] Error replacing root parent block:",
+              e,
+            );
+          }
         }
-        blockEditorDispatch.replaceBlock(rootId, replacement || updatedRoot);
-      } catch (err) {
-        console.error('[TranslateSense Processor] Error replacing root parent block:', err);
-      }
-    }
-
-    // Current replace only works when block does not have a parent block
-    for (const direct of directReplacements) {
-      try {
-        blockEditorDispatch.replaceBlock(direct.item.block.clientId, direct.item.candidateBlock);
-        pendingItems.push(direct);
-      } catch (err) {
-        failedCount++;
-        unresolvedItems.push({
-          title: direct.groupTitle || 'Block',
-          name: direct.groupName || (direct.item.block && direct.item.block.name) || '',
-          reason: err.message || 'Direct block replacement failed',
-          clientId: direct.item.block.clientId
-        });
-      }
-    }
-
-    // Verify processed blocks in editor state
-    for (const staged of pendingItems) {
-      const candidateClientId = staged.item.candidateBlock ? staged.item.candidateBlock.clientId : null;
-      const updatedBlock = candidateClientId && blockEditorSelect
-        ? blockEditorSelect.getBlock(candidateClientId)
-        : null;
-
-      if (updatedBlock && updatedBlock.isValid !== false) {
-        processedCount++;
-      } else if (!updatedBlock && blockEditorSelect) {
-        const originalBlock = blockEditorSelect.getBlock(staged.item.block.clientId);
-        if (!originalBlock || originalBlock.isValid !== false) {
-          processedCount++;
-        } else {
-          failedCount++;
-          unresolvedItems.push({
-            title: staged.groupTitle || 'Block',
-            name: staged.groupName || (staged.item.block && staged.item.block.name) || '',
-            reason: 'Block remains invalid after replacement',
-            clientId: staged.item.block.clientId
-          });
+        for (const e of s)
+          try {
+            (n.replaceBlock(e.item.block.clientId, e.item.candidateBlock),
+              c.push(e));
+          } catch (t) {
+            i.push({
+              title: e.groupTitle || "Block",
+              name: e.groupName || (e.item.block && e.item.block.name) || "",
+              reason: t.message || "Direct block replacement failed",
+              clientId: e.item.block.clientId,
+            });
+          }
+        for (const e of c) {
+          const t = e.item.candidateBlock
+            ? e.item.candidateBlock.clientId
+            : null,
+            n = t && o ? o.getBlock(t) : null;
+          if (n && !1 !== n.isValid) r++;
+          else if (!n && o) {
+            const t = o.getBlock(e.item.block.clientId);
+            t && !1 === t.isValid
+              ? i.push({
+                title: e.groupTitle || "Block",
+                name:
+                  e.groupName || (e.item.block && e.item.block.name) || "",
+                reason: "Block remains invalid after replacement",
+                clientId: e.item.block.clientId,
+              })
+              : r++;
+          } else
+            i.push({
+              title: e.groupTitle || "Block",
+              name: e.groupName || (e.item.block && e.item.block.name) || "",
+              reason: "Editor state verification failed after replacement",
+              clientId: e.item.block.clientId,
+            });
         }
-      } else {
-        failedCount++;
-        unresolvedItems.push({
-          title: staged.groupTitle || 'Block',
-          name: staged.groupName || (staged.item.block && staged.item.block.name) || '',
-          reason: 'Editor state verification failed after replacement',
-          clientId: staged.item.block.clientId
-        });
-      }
-    }
-
-
-    if (processedCount > 0) {
-      await clearProcessorMetadataOnServer();
-
-      // Save post to persist recovered block markup to the database
-      const editorDispatch = wp.data.dispatch('core/editor');
-      if (editorDispatch && typeof editorDispatch.savePost === 'function') {
-        try {
-          await editorDispatch.savePost();
-        } catch (saveErr) {
-          console.warn('[TranslateSense Processor] Auto-save post notice:', saveErr);
+        if (r > 0) {
+          await m();
+          const e = t.data.dispatch("core/editor");
+          if (e && "function" == typeof e.savePost)
+            try {
+              await e.savePost();
+            } catch (e) { }
         }
-      }
-
-      // Temparory hide it.
-      // if (wp.data.dispatch('core/notices')) {
-      //   wp.data.dispatch('core/notices').createSuccessNotice(
-      //     '✨ TranslateSense: All affected blocks recovered, verified, and saved successfully!',
-      //     { type: 'snackbar', isDismissible: true }
-      //   );
-      // }
-    }
-
-    if (failedCount > 0) {
-      console.warn('[TranslateSense Processor] Some blocks could not be processed:', unresolvedItems);
-    }
-  }
-
-  /* ==========================================================================
-     Initial Scan Execution on Load
-     ========================================================================== */
-
-  waitForEditorReady()
-    .then(async (blocks) => {
-      if (initialScanPerformed) return;
-      initialScanPerformed = true;
-
-      if (!Array.isArray(blocks) || blocks.length === 0) {
-        // Do not clear processor metadata for an empty post.
-        return;
-      }
-
-      const invalid = await scanInvalidBlocks(blocks);
-
-      if (invalid.length === 0) {
-        await clearProcessorMetadataOnServer();
-        return;
-      }
-
-      const grouped = await groupFindings(invalid);
-      await processItems(grouped);
+      })(o);
     })
-    .catch((error) => {
-      console.warn('[TranslateSense Processor] Editor readiness check failed:', error);
-    });
-
+    .catch((e) => { });
 })(window, window.wp);
