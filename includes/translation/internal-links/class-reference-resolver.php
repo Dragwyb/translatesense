@@ -43,8 +43,8 @@ class Reference_Resolver {
 	/**
 	 * Resolve collected references and build verified replacement maps.
 	 *
-	 * @param array           $references Collected references from Reference_Collector.
-	 * @param string          $target_language
+	 * @param array                $references Collected references from Reference_Collector.
+	 * @param string               $target_language
 	 * @param Reference_Cache|null $cache
 	 * @return array {
 	 *     @type array<string, string> $url_map       Map of original internal URLs to translated URLs.
@@ -187,12 +187,15 @@ class Reference_Resolver {
 		foreach ( $chunks as $chunk ) {
 			$placeholders = implode( ',', array_fill( 0, count( $chunk ), '%d' ) );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders dynamically constructed with %d.
-			$query = $wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE ID IN ($placeholders) AND post_type = %s",
-				array_merge( $chunk, array( 'attachment' ) )
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$valid_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT ID FROM {$wpdb->posts} WHERE ID IN ($placeholders) AND post_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					array_merge( $chunk, array( 'attachment' ) )
+				)
 			);
 
-			$valid_ids = $wpdb->get_col( $query );
 			$valid_map = array_flip( array_map( 'intval', (array) $valid_ids ) );
 
 			// Mark invalid IDs in cache so no further queries are performed

@@ -207,7 +207,6 @@ class Bulk_Process {
 
 				// If the selected source itself is already in the requested
 				// language, there is nothing to translate. A different existing
-				// translation is queued for re-translation/update in place.
 				$is_source_in_target_language = $existing_trans_id && ! empty( $existing_trans_id ) && $existing_trans_id > 0;
 				$has_existing_target          = $existing_trans_id > 0;
 

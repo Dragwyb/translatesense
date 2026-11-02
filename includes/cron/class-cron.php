@@ -39,7 +39,7 @@ class Cron {
 	 */
 	public static function add_cron_schedules( array $schedules ): array {
 		if ( ! isset( $schedules[ self::CLEANUP_SCHEDULE ] ) ) {
-			$day_in_seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
+			$day_in_seconds                      = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
 			$schedules[ self::CLEANUP_SCHEDULE ] = array(
 				'interval' => 3 * $day_in_seconds,
 				'display'  => esc_html__( 'Every 3 Days', 'translatesense' ),

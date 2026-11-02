@@ -252,7 +252,7 @@ class Hashing_Db {
 			);
 			if ( ! empty( $row['translated_string'] ) ) {
 				if ( ! empty( $row['id'] ) ) {
-					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 					$wpdb->query(
 						$wpdb->prepare(
 							"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -278,7 +278,7 @@ class Hashing_Db {
 
 		if ( ! empty( $row['translated_string'] ) ) {
 			if ( ! empty( $row['id'] ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 				$wpdb->query(
 					$wpdb->prepare(
 						"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -302,7 +302,7 @@ class Hashing_Db {
 
 		if ( ! empty( $row['translated_string'] ) ) {
 			if ( ! empty( $row['translation_id'] ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 				$wpdb->query(
 					$wpdb->prepare(
 						"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -311,7 +311,7 @@ class Hashing_Db {
 				);
 			}
 			if ( ! empty( $row['package_id'] ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 				$wpdb->query(
 					$wpdb->prepare(
 						"UPDATE {$table_packages} SET last_used_at = NOW() WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -427,10 +427,10 @@ class Hashing_Db {
 		if ( ! empty( $translation_ids_to_touch ) ) {
 			$translation_ids_to_touch = array_values( array_unique( $translation_ids_to_touch ) );
 			$ids_placeholders         = implode( ',', array_fill( 0, count( $translation_ids_to_touch ), '%d' ) );
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id IN ($ids_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"UPDATE {$table_translations} SET last_used_at = NOW() WHERE id IN ($ids_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 					$translation_ids_to_touch
 				)
 			);
@@ -440,10 +440,10 @@ class Hashing_Db {
 		if ( ! empty( $package_ids_to_touch ) ) {
 			$package_ids_to_touch = array_values( array_unique( $package_ids_to_touch ) );
 			$pkg_placeholders     = implode( ',', array_fill( 0, count( $package_ids_to_touch ), '%d' ) );
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$table_packages} SET last_used_at = NOW() WHERE id IN ($pkg_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"UPDATE {$table_packages} SET last_used_at = NOW() WHERE id IN ($pkg_placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 					$package_ids_to_touch
 				)
 			);
@@ -480,7 +480,7 @@ class Hashing_Db {
 
 		if ( ! empty( $results ) ) {
 			// Update last_used_at for all matching retrieved packages efficiently
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$wpdb->query(
 				$wpdb->prepare(
 					"UPDATE {$packages_table} SET last_used_at = NOW() WHERE post_id = %d AND language = %s AND editor_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

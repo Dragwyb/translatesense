@@ -509,7 +509,7 @@ class Content_Parser {
 		$strings_table  = Hashing_Db::get_strings_table();
 
 		// Fetch currently saved post_title and post_name packages for this post
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$saved_rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT p.widget_name, s.source_string
@@ -520,6 +520,7 @@ class Content_Parser {
 			),
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( empty( $saved_rows ) ) {
 			return false;

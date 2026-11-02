@@ -590,7 +590,10 @@ class Editor_Integration {
 			<?php esc_html_e( 'Auto Translate', 'translatesense' ); ?>
 			</button>
 			<p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0; font-weight: 500; font-size: 14px">
-				<?php printf( __( 'Language: %1$s (%2$s) to %3$s (%4$s)' ), $source_lang_flag, esc_html( strtoupper( $source_lang ) ), $current_lang_flag, esc_html( strtoupper( $current_lang ) ) ); ?>
+				<?php
+				// translators: %1$s source language flag, %2$s source language name, %3$s target langauge flag, %4$s target langauge name.
+				echo wp_kses_post( __( 'Language: %1$s (%2$s) to %3$s (%4$s)', 'translatesense' ), wp_kses_post( $source_lang_flag ), esc_html( strtoupper( $source_lang ) ), wp_kses_post( $current_lang_flag ), esc_html( strtoupper( $current_lang ) ) );
+				?>
 			</p>
 		</div>
 		<?php

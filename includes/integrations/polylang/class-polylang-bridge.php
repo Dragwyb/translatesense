@@ -185,8 +185,8 @@ class Polylang_Bridge {
 			array(
 				'post_type'              => get_post_type( $source_post_id ),
 				'post_status'            => $searchable_statuses,
-				'meta_key'               => '_translatesense_source_id',
-				'meta_value'             => $source_post_id,
+				'meta_key'               => '_translatesense_source_id', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+				'meta_value'             => $source_post_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 				'fields'                 => 'ids',
 				'posts_per_page'         => 20,
 				'orderby'                => 'ID',
@@ -278,7 +278,6 @@ class Polylang_Bridge {
 			: $source_post->post_excerpt;
 
 		if ( $is_existing ) {
-			// Re-translation updates only translated editorial fields. Preserve
 			// target-specific slug, status, author, dates and settings.
 			$post_data = array(
 				'ID'           => $target_post_id,
@@ -358,7 +357,7 @@ class Polylang_Bridge {
 		 * @param int    $source_post_id Source post ID.
 		 * @param int    $target_post_id Existing target ID, or 0 for a new post.
 		 * @param string $target_lang    Target language slug.
-		 * @param bool   $is_existing    Whether this is a re-translation.
+		 * @param bool   $is_existing    Whether post is existing.
 		 * @param array  $post_data      Prepared wp_insert_post/wp_update_post data.
 		 */
 		do_action( 'translatesense_before_save_translation', $source_post_id, $target_post_id, $target_lang, $is_existing, $post_data );
@@ -400,15 +399,12 @@ class Polylang_Bridge {
 		self::update_child_translations_parent( $source_post_id, $target_post_id, $target_lang );
 
 		// Generic taxonomy/meta duplication runs only on first creation.
-		// Existing translations are content re-translations, not source copies.
 		$sync_result = Polylang_Synchronizer::synchronize(
 			$source_post_id,
 			$target_post_id,
 			$target_lang,
 			! $is_existing
 		);
-
-		Polylang_Synchronizer::attach_translated_media_to_post( $target_post_id );
 
 		update_post_meta(
 			$target_post_id,

@@ -559,7 +559,7 @@ class Classic_Builder extends Base_Builder {
 		// Strip shortcodes to avoid extracting pure shortcode blocks
 		$clean = preg_replace( '/\[\/?[\w-]+(?:\s+[^\]]*)?\]/s', '', $text );
 		// Strip HTML tags
-		$clean = strip_tags( (string) $clean );
+		$clean = wp_strip_all_tags( (string) $clean );
 		// Decode entities
 		$clean = html_entity_decode( $clean, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 		// Strip non-breaking spaces and invisible characters
