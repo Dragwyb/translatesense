@@ -79,7 +79,7 @@ class Activator {
         ) {$charset_collate};";
 
 		// 4. Custom bulk translations workflow queue table
-		$table_bulk = $wpdb->prefix . 'translatesense_translation_queue';
+		$table_bulk = $wpdb->prefix . 'translatesense_queue';
 		$sql_bulk   = "CREATE TABLE {$table_bulk} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             batch_id varchar(64) NOT NULL,
