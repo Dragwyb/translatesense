@@ -48,7 +48,7 @@ class Bulk_Process {
 	 */
 	private static function get_table_name_internal(): string {
 		global $wpdb;
-		return esc_sql( $wpdb->prefix . 'translatesense_bulk_translations' );
+		return esc_sql( $wpdb->prefix . 'translatesense_translation_queue' );
 	}
 
 	/**
