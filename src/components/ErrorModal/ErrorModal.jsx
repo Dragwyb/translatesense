@@ -21,46 +21,88 @@ export function ErrorModal({
   if (!isOpen) return null;
 
   const addToolTip = (toolTip) => {
+    if (!toolTip) return;
 
-  }
+    if (toolTip.parentElement) {
+      toolTip.parentElement.style.position = 'relative';
+    }
+
+    toolTip.innerHTML = `
+      <span class="ts-tooltip-arrow" aria-hidden="true"></span>
+      <span class="ts-copy-spinner" aria-hidden="true"></span>
+      <span class="ts-copy-text">Copied!</span>
+    `;
+
+    // Trigger smooth translation effect on entrance
+    requestAnimationFrame(() => {
+      toolTip.classList.add('ts-tooltip-visible');
+    });
+  };
 
   const hideToolTip = (toolTip) => {
+    if (!toolTip) return;
 
-  }
+    // Trigger smooth translation effect on exit
+    toolTip.classList.remove('ts-tooltip-visible');
+    toolTip.classList.add('ts-tooltip-hiding');
 
+    setTimeout(() => {
+      if (toolTip.parentNode) {
+        toolTip.remove();
+      }
+    }, 220);
+  };
 
   useEffect(() => {
     const copyBtns = Array.from(document.querySelectorAll('.ts-copy-clipboard'));
 
-    if (copyBtns.length > 0) {
-      copyBtns.forEach(ele => ele.addEventListener('click', (e) => {
-        e.preventDefault();
+    const handleCopyClick = (e) => {
+      e.preventDefault();
+      if (!e.target) return;
 
-        if (!e.target) return;
+      const targetEle = e.target.classList.contains('ts-copy-clipboard')
+        ? e.target
+        : e.target.closest('.ts-copy-clipboard');
 
-        const targetEle = e.target.classList.contains('ts-copy-clipboard') ? e.target : e.target.closest('.ts-copy-clipboard');
+      if (targetEle) {
+        const copyText = targetEle.dataset.copyText;
 
-        if (targetEle) {
-          const copyText = targetEle.dataset.copyText;
-
-          if (copyText && '' !== copyText) {
-
-            const toolTIp = document.createElement('div');
-            toolTIp.className = 'ts-copy-tooltip';
-            targetEle.append(toolTIp);
-            copyToClipboard({ value: copyText, onClose: () => { addToolTip(toolTIp) }, onSuccess: () => { hideToolTip(toolTIp) } });
+        if (copyText && copyText !== '') {
+          const existingToolTip = targetEle.querySelector('.ts-copy-tooltip');
+          if (existingToolTip) {
+            existingToolTip.remove();
           }
-        }
 
-      }));
+          const toolTIp = document.createElement('div');
+          toolTIp.className = 'ts-copy-tooltip';
+          targetEle.append(toolTIp);
+
+          copyToClipboard({
+            value: copyText,
+            onClose: () => {
+              addToolTip(toolTIp);
+            },
+            onCopy: () => {
+              addToolTip(toolTIp);
+            },
+            onSuccess: () => {
+              hideToolTip(toolTIp);
+            },
+          });
+        }
+      }
+    };
+
+    if (copyBtns.length > 0) {
+      copyBtns.forEach((ele) => ele.addEventListener('click', handleCopyClick));
     }
 
     return () => {
       if (copyBtns.length > 0) {
-        copyBtns.forEach(ele => ele.removeEventListener('click'));
+        copyBtns.forEach((ele) => ele.removeEventListener('click', handleCopyClick));
       }
-    }
-  }, [])
+    };
+  }, [reasonHTML, message]);
 
   return (
     <Modal
@@ -108,4 +150,3 @@ export function ErrorModal({
     </Modal>
   );
 }
-

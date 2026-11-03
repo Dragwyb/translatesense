@@ -1,8 +1,9 @@
-
 const copyToClipboard = async ({
     value = '',
     onCopy = () => { },
+    onClose = () => { },
     onSuccess = () => { },
+    onError = () => { },
     resetDelay = 1000,
 } = {}) => {
     if (value == null || value === '') return false;
@@ -30,7 +31,8 @@ const copyToClipboard = async ({
             }
         }
 
-        onCopy();
+        if (typeof onCopy === 'function') onCopy();
+        if (typeof onClose === 'function') onClose();
 
         if (resetDelay > 0) {
             setTimeout(onSuccess, resetDelay);
@@ -40,7 +42,9 @@ const copyToClipboard = async ({
 
         return true;
     } catch (error) {
-        onError(error);
+        if (typeof onError === 'function') {
+            onError(error);
+        }
         return false;
     }
 };

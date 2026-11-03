@@ -31,7 +31,7 @@ export function deepClone(obj) {
  */
 export function generateUTMUrl(baseUrl, campaign = 'plugin_dashboard', medium = 'wp_admin') {
   if (!baseUrl) return '';
-  const url = new URL(baseUrl, 'https://translatesense.com');
+  const url = new URL(baseUrl);
   url.searchParams.set('utm_source', 'translatesense_plugin');
   url.searchParams.set('utm_medium', medium);
   url.searchParams.set('utm_campaign', campaign);
