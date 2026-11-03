@@ -206,6 +206,20 @@ class Editor_Integration {
 			return;
 		}
 
+		$settings         = get_option( 'translatesense_settings', array() );
+		$enable_providers = $settings['enabled_providers'];
+		$active_providers = array();
+
+		if ( class_exists( Ai_Connector_Bridge::class ) ) {
+			$active_providers = Ai_Connector_Bridge::get_instance()->get_active_providers();
+
+			foreach ( $active_providers as $key => $value ) {
+				if ( ! in_array( $key, $enable_providers, true ) ) {
+					unset( $active_providers[ $key ] );
+				}
+			}
+		}
+
 		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.asset.php';
 		$asset      = file_exists( $asset_file )
 			? require $asset_file
@@ -323,7 +337,6 @@ class Editor_Integration {
 			true
 		);
 
-		$settings                  = get_option( 'translatesense_settings', array() );
 		$show_initial_prompt_modal = get_post_meta( $post_id, '_show_initial_prompt_modal', true );
 
 		$source_language    = $source_post_id ? Polylang_Bridge::get_post_language( $source_post_id ) : '';
@@ -343,7 +356,7 @@ class Editor_Integration {
 				'targetLanguage'         => Polylang_Bridge::get_post_language( $post_id ),
 				'languages'              => Polylang_Bridge::get_languages(),
 				'defaultProvider'        => $settings['provider'] ?? '',
-				'enabledProviders'       => class_exists( 'Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
+				'enabledProviders'       => $active_providers,
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
 				'docsUrl'                => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,

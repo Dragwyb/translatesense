@@ -76,6 +76,20 @@ class Bulk_Translate {
 			return;
 		}
 
+		$settings         = get_option( 'translatesense_settings', array() );
+		$enable_providers = $settings['enabled_providers'];
+		$active_providers = array();
+
+		if ( class_exists( Ai_Connector_Bridge::class ) ) {
+			$active_providers = Ai_Connector_Bridge::get_instance()->get_active_providers();
+
+			foreach ( $active_providers as $key => $value ) {
+				if ( ! in_array( $key, $enable_providers, true ) ) {
+					unset( $active_providers[ $key ] );
+				}
+			}
+		}
+
 		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/bulk/index.asset.php';
 		$asset      = file_exists( $asset_file )
 			? require $asset_file
@@ -158,7 +172,7 @@ class Bulk_Translate {
 				'defaultLanguage'         => Polylang_Bridge::get_default_language(),
 				'languages'               => Polylang_Bridge::get_languages(),
 				'defaultProvider'         => $settings['provider'] ?? '',
-				'enabledProviders'        => class_exists( 'Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
+				'enabledProviders'        => $active_providers,
 				'pluginUrl'               => TRANSLATESENSE_PLUGIN_URL,
 				'docsUrl'                 => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'settingsUrl'             => Admin_Menu::get_dashboard_url( 'settings' ),

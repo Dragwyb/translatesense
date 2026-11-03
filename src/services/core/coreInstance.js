@@ -15,14 +15,12 @@ class TranslateSenseCore {
     }
 
     registerProviders() {
-        // 2. Register all providers onto this private core instance
         if (window.TranslateSenseProviders && typeof window.TranslateSenseProviders.register === 'function') {
             window.TranslateSenseProviders.register(this);
         }
     }
 
     registerEditors() {
-        // 2. Register all providers onto this private core instance
         if (window.TranslateSensePageEditors && typeof window.TranslateSensePageEditors.register === 'function') {
             window.TranslateSensePageEditors.register(this);
         }
@@ -200,8 +198,8 @@ class TranslateSenseCore {
      */
     syncEnabledProviders() {
         const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
-        if (Array.isArray(config.enabledProviders) && config.enabledProviders.length > 0) {
-            this.enabledProviders = config.enabledProviders;
+        if (config.enabledProviders && Object.keys(config.enabledProviders).length > 0) {
+            this.enabledProviders = Object.keys(config.enabledProviders);
         }
         if (config.defaultProvider) {
             this.defaultProvider = config.defaultProvider;
