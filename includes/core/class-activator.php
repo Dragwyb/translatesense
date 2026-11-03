@@ -20,6 +20,7 @@ class Activator {
 		self::set_default_options();
 		self::save_config_to_db();
 		self::schedule_cleanup_cron();
+		set_transient( 'translatesense_activation_redirect', true, 600 );
 	}
 
 	/**

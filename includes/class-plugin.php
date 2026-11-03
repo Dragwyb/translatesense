@@ -49,6 +49,8 @@ class Plugin {
 	 */
 	public function __construct() {
 		$this->init_hooks();
+		// Plugin activate redirect
+		add_action( 'admin_init', array( $this, 'handle_activation_redirect' ) );
 	}
 
 	/**
@@ -68,6 +70,17 @@ class Plugin {
 
 		if ( is_admin() ) {
 			Feedback_Form::get_instance();
+		}
+	}
+
+	public function handle_activation_redirect() {
+		if ( get_transient( 'translatesense_activation_redirect' ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( ! isset( $_GET['activate-multi'] ) && current_user_can( 'manage_options' ) ) {
+				delete_transient( 'translatesense_activation_redirect' );
+				wp_safe_redirect( admin_url( 'admin.php?page=translatesense' ) );
+				exit;
+			}
 		}
 	}
 }
