@@ -2,8 +2,10 @@
  * Reusable ErrorModal Component
  */
 
-import { Modal, ModalHeader, ModalBody, ModalFooter } from '../Modal';
+import { useEffect } from '@wordpress/element';
+import { Modal, ModalHeader, ModalFooter } from '../Modal';
 import { Button } from '../Button';
+import copyToClipboard from '../CopyToClipbord';
 
 export function ErrorModal({
   isOpen,
@@ -17,6 +19,48 @@ export function ErrorModal({
   retryLabel = 'Retry',
 }) {
   if (!isOpen) return null;
+
+  const addToolTip = (toolTip) => {
+
+  }
+
+  const hideToolTip = (toolTip) => {
+
+  }
+
+
+  useEffect(() => {
+    const copyBtns = Array.from(document.querySelectorAll('.ts-copy-clipboard'));
+
+    if (copyBtns.length > 0) {
+      copyBtns.forEach(ele => ele.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        if (!e.target) return;
+
+        const targetEle = e.target.classList.contains('ts-copy-clipboard') ? e.target : e.target.closest('.ts-copy-clipboard');
+
+        if (targetEle) {
+          const copyText = targetEle.dataset.copyText;
+
+          if (copyText && '' !== copyText) {
+
+            const toolTIp = document.createElement('div');
+            toolTIp.className = 'ts-copy-tooltip';
+            targetEle.append(toolTIp);
+            copyToClipboard({ value: copyText, onClose: () => { addToolTip(toolTIp) }, onSuccess: () => { hideToolTip(toolTIp) } });
+          }
+        }
+
+      }));
+    }
+
+    return () => {
+      if (copyBtns.length > 0) {
+        copyBtns.forEach(ele => ele.removeEventListener('click'));
+      }
+    }
+  }, [])
 
   return (
     <Modal

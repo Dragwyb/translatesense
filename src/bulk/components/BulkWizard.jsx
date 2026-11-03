@@ -90,6 +90,7 @@ export function BulkWizard({
           title={errorModal.title}
           message={errorModal.message}
           reasonHTML={errorModal.reasonHTML}
+          icon={errorModal.icon}
           onClose={() =>
             setErrorModal({
               isOpen: false,
@@ -130,6 +131,7 @@ export function BulkWizard({
               title: `${p.title} Notice`,
               message: p.desc,
               reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
+              icon: p.logo,
             })
           }
         />

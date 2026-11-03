@@ -141,6 +141,7 @@ export function PageApp() {
               title={translation.errorModal.title}
               message={translation.errorModal.message}
               reasonHTML={translation.errorModal.reasonHTML}
+              icon={translation.errorModal.icon}
               onClose={() =>
                 translation.setErrorModal({
                   isOpen: false,
@@ -192,6 +193,7 @@ export function PageApp() {
                   title: `${p.title} Notice`,
                   message: p.desc,
                   reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
+                  icon: p.logo,
                 })
               }
             />

@@ -258,7 +258,6 @@
           };
         } catch (e) {
           return (
-            console.log(e),
             {
               ...o,
               reason:

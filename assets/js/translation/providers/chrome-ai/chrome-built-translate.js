@@ -271,8 +271,7 @@
     const currentOrigin = escapeHtml(context.currentOrigin || (window.location && window.location.origin ? window.location.origin : 'http://your-site.local'));
     const rawError = escapeHtml(context.error || context.reason || '');
 
-    const copyOnClick = "if(navigator.clipboard){navigator.clipboard.writeText(this.textContent.trim());const orig=this.style.outline;this.style.outline='2px solid #4f46e5';setTimeout(()=>{this.style.outline=orig;},1200);}";
-    const makeCode = (url) => `<code class="ts-code-pill" onclick="${copyOnClick}" title="Click to copy url to clipboard">${escapeHtml(url)}</code>`;
+    const makeCode = (url) => `<code class="ts-code-pill ts-copy-clipboard" data-copy-text="${escapeHtml(url)}" title="Click to copy url to clipboard">${escapeHtml(url)}</code>`;
     const makeDocLink = (url, label) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="ts-doc-link">${escapeHtml(label)} &#x2197;</a>`;
 
     const refDocUrl = browserType === 'Edge'
