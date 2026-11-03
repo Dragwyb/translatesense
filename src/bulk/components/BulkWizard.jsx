@@ -76,8 +76,8 @@ export function BulkWizard({
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        size={currentStep === 3 ? 'xl' : 'lg'}
-        className={`ts-bulk-wizard-modal ${currentStep === 3 ? 'ts-is-progress-step' : ''}`}
+        size={currentStep === 3 ? 'lg' : ''}
+        className={`ts-bulk-wizard-modal ${currentStep === 3 ? 'ts-is-progress-step' : ''} ${(errorModal && errorModal.isOpen ? 'hide' : '')}`}
         dataStep={currentStep}
         header={
           <ModalHeader
@@ -157,7 +157,7 @@ export function BulkWizard({
           />
         )}
 
-        {currentStep === 2 && (
+        {currentStep === 2 && (!errorModal || !errorModal.isOpen) && (
           <ProviderSelection
             postIds={postIds}
             allLanguages={allLanguages}

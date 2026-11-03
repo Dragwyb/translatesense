@@ -93,9 +93,8 @@ export function PostResultItem({
           )}
 
           <span
-            className={`ts-post-chevron dashicons ${
-              expanded ? 'dashicons-arrow-up-alt2' : 'dashicons-arrow-down-alt2'
-            }`}
+            className={`ts-post-chevron dashicons ${expanded ? 'dashicons-arrow-up-alt2' : 'dashicons-arrow-down-alt2'
+              }`}
           />
         </div>
       </div>
@@ -131,7 +130,7 @@ export function PostResultItem({
               <div key={langSlug} className={`ts-translation-item ${trans.status}`}>
                 <div className="ts-trans-lang-col">
                   {flagInfo.hasFlag ? (
-                    <img src={flagInfo.flagUrl} alt="" className="ts-trans-lang-flag" />
+                    <img src={flagInfo.flagUrl} alt="" className="ts-lang-flag-img" />
                   ) : null}
                   <span className="ts-trans-lang-code">{flagInfo.code}</span>
                 </div>

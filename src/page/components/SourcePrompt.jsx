@@ -26,8 +26,7 @@ export function SourcePrompt({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="sm"
-      className="ts-source-guidance-modal"
+      size="md"
       header={
         <ModalHeader
           title="Translate Page Content"

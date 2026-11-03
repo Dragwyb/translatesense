@@ -96,22 +96,24 @@ export function PageApp() {
       />
 
       {/* 2. Provider Selection Modal */}
-      <ProviderModal
-        isOpen={translation.isProviderModalOpen}
-        onClose={() => translation.setIsProviderModalOpen(false)}
-        providers={translation.providers}
-        selectedProvider={translation.selectedProvider}
-        onSelectProvider={translation.setSelectedProvider}
-        onStartTranslation={handleStartTranslation}
-        onViewError={(p) =>
-          translation.setErrorModal({
-            isOpen: true,
-            title: `${p.title} Notice`,
-            message: p.desc,
-            reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
-          })
-        }
-      />
+      {!translation.errorModal || !translation.errorModal.isOpen &&
+        <ProviderModal
+          isOpen={translation.isProviderModalOpen}
+          onClose={() => translation.setIsProviderModalOpen(false)}
+          providers={translation.providers}
+          selectedProvider={translation.selectedProvider}
+          onSelectProvider={translation.setSelectedProvider}
+          onStartTranslation={handleStartTranslation}
+          onViewError={(p) =>
+            translation.setErrorModal({
+              isOpen: true,
+              title: `${p.title} Notice`,
+              message: p.desc,
+              reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
+            })
+          }
+        />
+      }
 
       {/* 3. String Review Modal */}
       <ReviewModal

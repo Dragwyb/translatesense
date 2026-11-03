@@ -352,13 +352,6 @@
 }
 
 /* ==========================================================================
-   Bulk Modal Sizing
-   ========================================================================== */
-.ts-bulk-modal {
-  max-width: 760px !important;
-}
-
-/* ==========================================================================
    Step 3: Keep Window Open Notice Banner
    ========================================================================== */
 .ts-modal-notice-banner {
@@ -779,14 +772,6 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.ts-trans-lang-flag {
-  font-size: 18px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .ts-trans-lang-code {

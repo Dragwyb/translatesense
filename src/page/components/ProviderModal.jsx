@@ -23,7 +23,6 @@ export function ProviderModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="md"
       className="ts-provider-modal-container"
       header={
         <ModalHeader

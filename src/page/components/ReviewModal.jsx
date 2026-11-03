@@ -47,8 +47,7 @@ export function ReviewModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="xl"
-      className="ts-page-review-modal"
+      className="ts-review-container"
       header={
         <ModalHeader
           title="Review Translations"

@@ -14,7 +14,11 @@ export function ProviderCard({
   const isDisabled = !isAvailable;
   const hasErrorModal = isSupported && isSupported.available === false && isSupported.reason;
 
-  const handleCardClick = () => {
+  const handleCardClick = (e) => {
+    if (id === 'chrome_ai' && (badgeType === 'error' || hasErrorModal)) {
+      handleErrorBtnClick(e);
+      return;
+    }
     if (isDisabled || !onSelect) return;
     onSelect(id);
   };
@@ -30,9 +34,27 @@ export function ProviderCard({
     }
   };
 
+  const hasError = badgeType === 'error' || hasErrorModal;
+
+  if ('' !== className) {
+    className = ' ' + className;
+  }
+
+  if (hasError) {
+    className += ' ts-provider-error-btn';
+  }
+
+  if (isSelected && !isDisabled) {
+    className += ' selected';
+  }
+
+  if (isDisabled) {
+    className += ' disabled';
+  }
+
   return (
     <div
-      className={`ts-provider-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''} ${className}`}
+      className={`ts-provider-row${className}`}
       data-provider={id}
       data-disabled={isDisabled ? 'true' : undefined}
       onClick={handleCardClick}
@@ -44,7 +66,7 @@ export function ProviderCard({
         <div className="ts-provider-header-content">
           <div className="ts-provider-name">{title}</div>
           <div className="ts-provider-badge-wrap">
-            {badgeType === 'error' || hasErrorModal ? (
+            {hasError ? (
               <button
                 type="button"
                 className="ts-provider-badge error-badge ts-provider-error-btn"

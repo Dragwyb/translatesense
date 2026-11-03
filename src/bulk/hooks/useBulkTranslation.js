@@ -54,7 +54,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       if (!mounted) return;
       setProviders(list);
 
-      const firstAvail = list.find((p) => p.isAvailable);
+      const firstAvail = list.find((p) => p.isAvailable && p.statusMeta.isConnected);
       if (firstAvail) {
         setSelectedProvider(firstAvail.id);
       }

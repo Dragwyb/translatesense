@@ -215,8 +215,6 @@ class TranslateSenseCore {
      * @param {string} options.icon Emoji or Dashicon icon identifier
      * @param {string} options.desc Brief description
      * @param {string} [options.category='ai'] Category: 'ai' | 'browser' | 'free'
-     * @param {boolean} [options.savesToDb=false] Whether translated strings are cached in DB
-     * @param {boolean} [options.requiresApiKey=false] Whether API key is required
      * @param {Function} [options.checkAvailability] Validation function returning { available: boolean, reason?: string, noticeType?: 'warning'|'error'|'info' }
      * @param {Function} [options.isLanguageSupported] Language support checker (sourceLang, targetLang) -> boolean
      * @param {Function} options.translate Translation function: translate({ items, sourceLang, targetLang, postId, signal }, onProgressCallback) -> Promise<Array>
@@ -240,8 +238,6 @@ class TranslateSenseCore {
             browserType: options.browserType || '',
             desc: options.desc || '',
             category: options.category || 'ai',
-            savesToDb: !!options.savesToDb,
-            requiresApiKey: !!options.requiresApiKey,
             checkAvailability: typeof options.checkAvailability === 'function' ? options.checkAvailability : () => ({ available: true }),
             isLanguageSupported: typeof options.isLanguageSupported === 'function' ? options.isLanguageSupported : () => true,
             translate: options.translate,

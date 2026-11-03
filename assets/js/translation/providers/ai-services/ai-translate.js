@@ -220,12 +220,9 @@
     // 1. Register OpenAI Provider
     core.registerProvider('openai', {
       title: 'OpenAI (GPT-4o)',
-      icon: '🧠',
       logo: getProviderLogo('openai'),
       desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
       category: 'ai',
-      savesToDb: true,
-      requiresApiKey: true,
 
       checkAvailability: function () {
         return { available: true };
@@ -240,12 +237,9 @@
     // 2. Register Gemini AI Provider
     core.registerProvider('gemini', {
       title: 'Gemini AI',
-      icon: '✨',
       logo: getProviderLogo('gemini'),
       desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
       category: 'ai',
-      savesToDb: true,
-      requiresApiKey: true,
 
       checkAvailability: function () {
         return { available: true };

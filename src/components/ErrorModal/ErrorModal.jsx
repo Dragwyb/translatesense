@@ -22,7 +22,6 @@ export function ErrorModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="md"
       className="ts-error-container"
       overlayClassName="ts-error-modal-overlay"
       header={

@@ -21,7 +21,6 @@ export function ConfirmDialog({
     <Modal
       isOpen={isOpen}
       onClose={loading ? undefined : onClose}
-      size="sm"
       className="ts-confirm-dialog"
       closeOnBackdrop={!loading}
       closeOnEscape={!loading}

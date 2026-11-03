@@ -48,7 +48,7 @@ export function BulkProgress({
         </span>
         <div className="ts-notice-text">
           <strong className="ts-notice-title">
-            {isChromeAi ? 'Keep Window Open' : 'Server-Side Translation Active'}
+            {isChromeAi ? 'Keep Window Open ' : 'Server-Side Translation Active '}
           </strong>
           <span className="ts-notice-desc">
             {isChromeAi

@@ -17,13 +17,12 @@ export function Modal({
   header,
   footer,
   buttons,
-  size = 'md', // 'sm' | 'md' | 'lg' | 'xl' | 'custom'
+  size = '', // 'sm' | 'md' | 'lg' | 'xl' | 'custom'
   maxWidth = null,
   closeOnBackdrop = true,
   closeOnEscape = true,
   className = '',
   overlayClassName = '',
-  containerClassName = '',
   dataStep = null,
 }) {
   const containerRef = useRef(null);
@@ -60,19 +59,19 @@ export function Modal({
   };
 
   const containerStyle = {
-    ...(maxWidth ? { maxWidth } : sizeStyles[size] || sizeStyles.md),
+    ...(maxWidth ? { maxWidth } : sizeStyles[size] || ''),
   };
 
   return (
     <div
-      className={`ts-modal-overlay ts-bulk-overlay ${overlayClassName}`}
+      className={`ts-modal-overlay ${overlayClassName}`}
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
     >
       <div
         ref={containerRef}
-        className={`ts-modal-container ts-bulk-modal ts-review-container ${containerClassName} ${className}`}
+        className={`ts-modal-container ${className}`}
         style={containerStyle}
         data-step={dataStep || undefined}
         onClick={(e) => e.stopPropagation()}
