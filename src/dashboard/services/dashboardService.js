@@ -50,7 +50,7 @@ export async function fetchSettings() {
 export async function saveSettings(settings) {
   return await apiRequest(ENDPOINTS.SETTINGS, {
     method: 'POST',
-    data: { settings },
+    data: settings,
   });
 }
 

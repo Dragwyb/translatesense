@@ -1232,12 +1232,6 @@
   opacity: 0.9;
 }
 
-.ts-provider-card.chrome_ai {
-  border: 1.5px solid #93c5fd;
-  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
-  box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.08);
-}
-
 .ts-provider-card-top {
   display: flex;
   align-items: flex-start;

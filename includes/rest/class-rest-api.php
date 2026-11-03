@@ -196,26 +196,6 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'update_settings' ),
 				'permission_callback' => array( __CLASS__, 'permission_update_settings' ),
-				'args'                => array(
-					'slug_translation' => array(
-						'required'          => false,
-						'type'              => 'string',
-						'enum'              => array( 'keep_orignal', 'title_based', 'slug_translate' ),
-						'sanitize_callback' => 'sanitize_key',
-						'validate_callback' => static function ( $value ) {
-							return in_array( sanitize_key( (string) $value ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true );
-						},
-					),
-					'post_status'      => array(
-						'required'          => false,
-						'type'              => 'string',
-						'enum'              => array( 'publish', 'draft' ),
-						'sanitize_callback' => 'sanitize_key',
-						'validate_callback' => static function ( $value ) {
-							return in_array( sanitize_key( (string) $value ), array( 'publish', 'draft' ), true );
-						},
-					),
-				),
 			)
 		);
 

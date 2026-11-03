@@ -63,7 +63,6 @@ export function useDashboardData() {
   }, []);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     try {
       const [widgetsRes, settingsRes, xmlGutenbergRes, xmlElementorRes, cacheRes] =
         await Promise.allSettled([
@@ -112,9 +111,10 @@ export function useDashboardData() {
         setCacheCounts(cacheRes.value.counts);
       }
     } catch (err) {
+      showNotice('Something went wrong while fetching the data.', 'error');
       console.warn('[TranslateSense] Dashboard data fetch error:', err);
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
     }
   }, []);
 
