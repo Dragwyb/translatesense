@@ -1,5 +1,6 @@
 /**
  * Reusable Modal Container Component
+ * Renders the modal container with accessibility attributes, header, body, and footer.
  */
 
 import { useEffect, useRef } from '@wordpress/element';
@@ -19,10 +20,8 @@ export function Modal({
   buttons,
   size = '', // 'sm' | 'md' | 'lg' | 'xl' | 'custom'
   maxWidth = null,
-  closeOnBackdrop = true,
   closeOnEscape = true,
   className = '',
-  overlayClassName = '',
   dataStep = null,
 }) {
   const containerRef = useRef(null);
@@ -45,12 +44,6 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const handleOverlayClick = (e) => {
-    if (closeOnBackdrop && e.target === e.currentTarget && onClose) {
-      onClose();
-    }
-  };
-
   const sizeStyles = {
     sm: { maxWidth: '420px' },
     md: { maxWidth: '580px' },
@@ -64,37 +57,32 @@ export function Modal({
 
   return (
     <div
-      className={`ts-modal-overlay ${overlayClassName}`}
-      onClick={handleOverlayClick}
+      ref={containerRef}
+      className={`ts-modal-container ${className}`}
+      style={containerStyle}
+      data-step={dataStep || undefined}
+      onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
     >
-      <div
-        ref={containerRef}
-        className={`ts-modal-container ${className}`}
-        style={containerStyle}
-        data-step={dataStep || undefined}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {header !== undefined ? (
-          header
-        ) : title ? (
-          <ModalHeader
-            title={title}
-            subtitle={subtitle}
-            icon={icon}
-            onClose={onClose}
-          />
-        ) : null}
+      {header !== undefined ? (
+        header
+      ) : title ? (
+        <ModalHeader
+          title={title}
+          subtitle={subtitle}
+          icon={icon}
+          onClose={onClose}
+        />
+      ) : null}
 
-        <ModalBody>{children}</ModalBody>
+      <ModalBody>{children}</ModalBody>
 
-        {footer !== undefined ? (
-          footer
-        ) : buttons && buttons.length > 0 ? (
-          <ModalFooter buttons={buttons} />
-        ) : null}
-      </div>
+      {footer !== undefined ? (
+        footer
+      ) : buttons && buttons.length > 0 ? (
+        <ModalFooter buttons={buttons} />
+      ) : null}
     </div>
   );
 }
@@ -102,4 +90,3 @@ export function Modal({
 Modal.Header = ModalHeader;
 Modal.Body = ModalBody;
 Modal.Footer = ModalFooter;
-

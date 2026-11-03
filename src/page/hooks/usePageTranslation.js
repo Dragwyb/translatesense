@@ -92,7 +92,7 @@ export function usePageTranslation(config = {}) {
 
       if (!sourcePostId) return;
 
-      setIsReviewModalOpen(true);
+      setIsReviewModalOpen(false);
       setProgress({
         isOpen: true,
         percent: 10,
@@ -175,6 +175,7 @@ export function usePageTranslation(config = {}) {
         lastCompletedProviderRef.current = prov;
         lastCompletedTargetLangRef.current = targetLang;
         setProgress({ isOpen: false, percent: 100, status: '', subText: '', isExtracting: false });
+        setIsReviewModalOpen(true);
         return;
       }
 
@@ -276,12 +277,14 @@ export function usePageTranslation(config = {}) {
         lastCompletedProviderRef.current = prov;
         lastCompletedTargetLangRef.current = targetLang;
 
-        // Graceful delay before closing overlay
+        // Graceful delay before closing progress modal and opening review modal
         setTimeout(() => {
           setProgress((p) => ({ ...p, isOpen: false }));
+          setIsReviewModalOpen(true);
         }, 1200);
       } catch (err) {
         setProgress((p) => ({ ...p, isOpen: false }));
+        setIsReviewModalOpen(false);
         alert('Translation Batch Error: ' + (err.message || 'Error'));
       }
     },
@@ -363,4 +366,3 @@ export function usePageTranslation(config = {}) {
     sourceLang,
   };
 }
-

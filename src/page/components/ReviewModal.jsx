@@ -1,24 +1,20 @@
 /**
  * ReviewModal Component
+ * Review and edit translations before applying to the page.
  */
 
 import { useState } from '@wordpress/element';
-import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/Modal';
+import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { SearchInput } from '../../components/SearchInput';
 import { TranslationStats } from './TranslationStats';
 import { ReviewTable } from './ReviewTable';
-import { TranslationProgress } from './TranslationProgress';
 
 export function ReviewModal({
   isOpen,
   onClose,
   strings = [],
   translationStats = {},
-  progress = {},
-  targetLang = 'es',
-  languages = [],
-  providerTitle = 'AI Provider',
   onUpdateTranslation,
   onResetTranslation,
   onReTranslate,
@@ -39,9 +35,6 @@ export function ReviewModal({
       setApplying(false);
     }
   };
-
-  const isExtracting = Boolean(progress && progress.isExtracting);
-  const isProgressOpen = Boolean(progress && progress.isOpen);
 
   return (
     <Modal
@@ -70,7 +63,7 @@ export function ReviewModal({
               <Button
                 variant="secondary"
                 onClick={onReTranslate}
-                disabled={isExtracting || isProgressOpen}
+                disabled={applying}
               >
                 Re-Translate All
               </Button>
@@ -82,7 +75,7 @@ export function ReviewModal({
               variant="primary"
               onClick={handleApplyClick}
               loading={applying}
-              disabled={isExtracting || isProgressOpen || strings.length === 0}
+              disabled={applying || strings.length === 0}
             >
               Apply to Page
             </Button>
@@ -90,14 +83,13 @@ export function ReviewModal({
         </ModalFooter>
       }
     >
-      <div className="ts-review-body-wrap" style={{ position: 'relative' }}>
+      <div className="ts-review-body-wrap">
         {/* Toolbar Row: Search + Metrics */}
         <div className="ts-review-toolbar">
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search source or translation..."
-            disabled={isExtracting}
           />
           <TranslationStats stats={translationStats} />
         </div>
@@ -106,24 +98,11 @@ export function ReviewModal({
         <ReviewTable
           strings={strings}
           filterQuery={search}
-          isExtracting={isExtracting}
+          isExtracting={false}
           onUpdateTranslation={onUpdateTranslation}
           onResetTranslation={onResetTranslation}
-        />
-
-        {/* Progress Overlay */}
-        <TranslationProgress
-          isOpen={isProgressOpen}
-          percent={progress.percent}
-          status={progress.status}
-          subText={progress.subText}
-          targetLang={targetLang}
-          languages={languages}
-          providerTitle={providerTitle}
-          isExtracting={isExtracting}
         />
       </div>
     </Modal>
   );
 }
-
