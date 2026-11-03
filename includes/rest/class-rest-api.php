@@ -591,7 +591,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_cache_stats' ),
-				'permission_callback' => array( __CLASS__, 'permission_cache_manage' ),
+				'permission_callback' => array( __CLASS__, 'permission_get_settings' ),
 			)
 		);
 
@@ -604,7 +604,7 @@ class Rest_Api {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'clear_cache' ),
-				'permission_callback' => array( __CLASS__, 'permission_cache_manage' ),
+				'permission_callback' => array( __CLASS__, 'permission_update_settings' ),
 				'args'                => array(
 					'type' => array(
 						'required'          => true,
