@@ -32,6 +32,8 @@ class Editor_Integration {
 
 		// Classic Editor Media Buttons (After Add Media)
 		add_action( 'media_buttons', array( __CLASS__, 'render_media_translate_button' ), 25 );
+		add_action( 'admin_footer', array( __CLASS__, 'render_editor_portal_container' ) );
+		add_action( 'elementor/editor/footer', array( __CLASS__, 'render_editor_portal_container' ) );
 
 		// Elementor Editor Hooks
 		add_action( 'elementor/editor/after_enqueue_scripts', array( __CLASS__, 'enqueue_elementor_editor_assets' ) );
@@ -204,6 +206,14 @@ class Editor_Integration {
 			return;
 		}
 
+		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.asset.php';
+		$asset      = file_exists( $asset_file )
+			? require $asset_file
+			: array(
+				'dependencies' => array( 'react', 'wp-element' ),
+				'version'      => TRANSLATESENSE_VERSION,
+			);
+
 		wp_enqueue_style(
 			'translatesense-common',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/common' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
@@ -211,12 +221,21 @@ class Editor_Integration {
 			TRANSLATESENSE_VERSION
 		);
 
-		wp_enqueue_style(
-			'translatesense-editor',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/editor' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array( 'translatesense-common' ),
-			TRANSLATESENSE_VERSION
-		);
+		if ( file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.css' ) ) {
+			wp_enqueue_style(
+				'translatesense-editor',
+				TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.css',
+				array( 'translatesense-common' ),
+				$asset['version']
+			);
+		} else {
+			wp_enqueue_style(
+				'translatesense-editor',
+				TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/editor' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
+				array( 'translatesense-common' ),
+				TRANSLATESENSE_VERSION
+			);
+		}
 
 		// 1. Spark MD5 (static library version. so no change).
 		wp_enqueue_script(
@@ -227,12 +246,21 @@ class Editor_Integration {
 			true
 		);
 
-		// 2. Core Translate Registry (Pure Vanilla JS)
-		wp_enqueue_script(
-			'translatesense-core',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/core-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
+		// 7. Universal Editor React App Bundle
+		$editor_deps = array_merge(
 			array( 'translatesense-sparkmd' ),
-			TRANSLATESENSE_VERSION,
+			$asset['dependencies']
+		);
+
+		$editor_script_url = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.js' )
+			? TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.js'
+			: TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/editor-panel' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js';
+
+		wp_enqueue_script(
+			'translatesense-editor',
+			$editor_script_url,
+			$editor_deps,
+			$asset['version'],
 			true
 		);
 
@@ -240,23 +268,24 @@ class Editor_Integration {
 		wp_enqueue_script(
 			'translatesense-chrome-languages',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/chrome-ai/chrome-languages' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core' ),
+			array( 'translatesense-editor' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
+
 		wp_enqueue_script(
-			'translatesense-chrome-built-translate',
+			'translatesense-chrome-ai',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/chrome-ai/chrome-built-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-chrome-languages' ),
+			array( 'translatesense-chrome-languages' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
 		// 4. AI Translate Provider (OpenAI & Gemini)
 		wp_enqueue_script(
-			'translatesense-ai-translate',
+			'translatesense-ai',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/ai-services/ai-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core' ),
+			array( 'translatesense-editor' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -265,7 +294,7 @@ class Editor_Integration {
 		wp_enqueue_script(
 			'translatesense-providers',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
+			array( 'translatesense-chrome-ai', 'translatesense-ai' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -285,19 +314,11 @@ class Editor_Integration {
 			TRANSLATESENSE_VERSION,
 			true
 		);
+
 		wp_enqueue_script(
 			'translatesense-page-editor',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-live-meta-fields', 'translatesense-live-' . esc_attr( $editor_type ) ),
-			TRANSLATESENSE_VERSION,
-			true
-		);
-
-		// 7. Universal Editor Panel (Pure Vanilla JS)
-		wp_enqueue_script(
-			'translatesense-editor-panel',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/editor-panel' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-providers', 'translatesense-page-editor' ),
+			array( 'translatesense-editor', 'translatesense-live-meta-fields', 'translatesense-live-' . esc_attr( $editor_type ) ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -319,7 +340,7 @@ class Editor_Integration {
 				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'                  => wp_create_nonce( 'wp_rest' ),
 				'polylangActive'         => Polylang_Bridge::is_polylang_active(),
-				'currentLanguage'        => Polylang_Bridge::get_post_language( $post_id ),
+				'targetLanguage'         => Polylang_Bridge::get_post_language( $post_id ),
 				'languages'              => Polylang_Bridge::get_languages(),
 				'defaultProvider'        => $settings['provider'] ?? '',
 				'enabledProviders'       => class_exists( 'Ai_Connector_Bridge' ) ? Ai_Connector_Bridge::get_instance()->get_active_providers() : ( $settings['enabled_providers'] ?? array( 'chrome_ai', 'openai', 'gemini' ) ),
@@ -335,7 +356,7 @@ class Editor_Integration {
 		);
 
 		wp_localize_script(
-			'translatesense-core',
+			'translatesense-editor',
 			'TranslateSenseEditorData',
 			$localize_data
 		);
@@ -597,6 +618,13 @@ class Editor_Integration {
 			</p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render universal editor portal root container.
+	 */
+	public static function render_editor_portal_container() {
+		echo '<div id="translatesense-editor-portal-root"></div>';
 	}
 
 	/**

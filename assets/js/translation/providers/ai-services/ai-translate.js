@@ -14,11 +14,6 @@
 (function (window) {
   'use strict';
 
-  if (!window.TranslateSenseCore) {
-    console.error('[TranslateSense] core-translate.js must be loaded before ai-translate.js');
-    return;
-  }
-
   class AIServiceRunner {
     constructor(providerName, options = {}) {
       this.providerName = providerName;

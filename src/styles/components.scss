@@ -1,0 +1,366 @@
+@use "sass:color";
+@import './variables.scss';
+
+// Common overlay & Modal structure
+.ts-modal-overlay,
+.ts-bulk-overlay,
+.ts-strings-review-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  animation: tsCommonFadeIn 0.2s ease-out;
+}
+
+@keyframes tsCommonFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.ts-modal-container,
+.ts-bulk-modal,
+.ts-review-container {
+  background: $ts-surface;
+  border-radius: $ts-radius-lg;
+  box-shadow: $ts-shadow-modal;
+  border: 1px solid $ts-border;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+// Modal Header
+.ts-modal-header,
+.ts-common-header {
+  padding: 18px 24px;
+  background: $ts-surface;
+  border-bottom: 1px solid $ts-border;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+
+  .ts-header-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .ts-header-icon-box {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: $ts-bg-subtle;
+      border: 1px solid $ts-border;
+      border-radius: $ts-radius-md;
+
+      .ts-header-icon-img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+      }
+    }
+
+    .ts-modal-title,
+    .ts-common-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: $ts-text-main;
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    .ts-modal-subtitle,
+    .ts-common-subtitle {
+      font-size: 13px;
+      color: $ts-text-muted;
+      margin: 3px 0 0;
+    }
+  }
+
+  .ts-modal-close-btn,
+  .ts-bulk-close {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: $ts-text-muted;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: $ts-radius-sm;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover {
+      color: $ts-text-main;
+      background: $ts-bg-subtle;
+    }
+  }
+}
+
+// Modal Body
+.ts-modal-body,
+.ts-common-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+// Modal Footer
+.ts-modal-footer,
+.ts-common-footer {
+  padding: 16px 24px;
+  background: $ts-bg-subtle;
+  border-top: 1px solid $ts-border;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+
+  .ts-footer-buttons-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+// Reusable Buttons
+.ts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: $ts-radius-md;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &.ts-btn-primary {
+    background: $ts-primary;
+    color: #ffffff;
+    border-color: color.adjust($ts-primary, $lightness: -5%);
+
+    &:hover:not(:disabled) {
+      background: $ts-primary-hover;
+      color: #ffffff;
+    }
+  }
+
+  &.ts-btn-secondary {
+    background: #ffffff;
+    color: $ts-text-main;
+    border-color: $ts-border-dark;
+
+    &:hover:not(:disabled) {
+      background: $ts-bg-subtle;
+      border-color: color.adjust($ts-border-dark, $lightness: -10%);
+    }
+  }
+
+  &.ts-btn-danger {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #b91c1c;
+
+    &:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+  }
+
+  &.ts-btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  &.ts-btn-lg {
+    padding: 10px 20px;
+    font-size: 15px;
+  }
+
+  &:disabled,
+  &.ts-btn-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// Spinner
+.ts-spinner-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-circle-spinner,
+.ts-spinner-circle {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: tsSpin 0.75s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes tsSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Badges
+.ts-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: $ts-radius-sm;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+
+  &.ts-badge-success,
+  &.ts-badge-completed {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &.ts-badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  &.ts-badge-danger,
+  &.ts-badge-failed {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &.ts-badge-neutral {
+    background: #f1f5f9;
+    color: #475569;
+  }
+}
+
+// Search Input
+.ts-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+
+  .ts-search-icon {
+    position: absolute;
+    left: 10px;
+    color: $ts-text-muted;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .ts-search-input-field {
+    width: 100%;
+    padding: 7px 32px 7px 34px;
+    border: 1px solid $ts-border;
+    border-radius: $ts-radius-md;
+    font-size: 13.5px;
+    color: $ts-text-main;
+    background: #ffffff;
+    box-sizing: border-box;
+
+    &:focus {
+      outline: none;
+      border-color: $ts-primary;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+  }
+
+  .ts-search-clear-btn {
+    position: absolute;
+    right: 8px;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    color: $ts-text-muted;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: $ts-radius-xs;
+
+    &:hover {
+      color: $ts-text-main;
+    }
+  }
+}
+
+// Confirmation Dialog Content
+.ts-confirm-dialog-content {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+
+  .ts-confirm-icon-wrap {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+
+    .dashicons {
+      font-size: 32px;
+      width: 32px;
+      height: 32px;
+    }
+
+    .text-warning {
+      color: $ts-warning;
+    }
+
+    .text-danger {
+      color: $ts-danger;
+    }
+  }
+
+  .ts-confirm-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: $ts-text-main;
+    margin: 0 0 6px 0;
+  }
+
+  .ts-confirm-message {
+    font-size: 13.5px;
+    color: $ts-text-muted;
+    line-height: 1.5;
+  }
+}
+
+.ts-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

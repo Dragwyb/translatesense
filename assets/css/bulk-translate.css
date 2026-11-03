@@ -331,22 +331,24 @@
   font-size: 13px;
   color: #334155;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-.ts-summary-job-row {
+.ts-summary-info{
   display: flex;
   align-items: center;
   gap: 9px;
   line-height: 1.4;
 }
 
-.ts-summary-job-icon {
-  font-size: 16px;
-  flex-shrink: 0;
+.ts-summary-langs-tags{
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.ts-summary-job-text {
-  flex: 1;
+.ts-summary-box img{
+  width: 15px;
 }
 
 /* ==========================================================================
@@ -864,7 +866,6 @@
 }
 
 button.ts-row-status {
-  font-family: inherit;
   font-size: 11.5px;
   font-weight: 600;
   display: inline-flex;

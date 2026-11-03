@@ -15,13 +15,6 @@
 (function (window) {
   'use strict';
 
-  if (!window.TranslateSenseCore) {
-    console.error(
-      '[TranslateSense] TranslateSenseCore must be loaded before chrome-built-translate.js.'
-    );
-    return;
-  }
-
   /**
    * TranslateSense language helper.
    */

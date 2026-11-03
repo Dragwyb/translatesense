@@ -76,6 +76,14 @@ class Bulk_Translate {
 			return;
 		}
 
+		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/bulk/index.asset.php';
+		$asset      = file_exists( $asset_file )
+			? require $asset_file
+			: array(
+				'dependencies' => array( 'react', 'wp-element' ),
+				'version'      => TRANSLATESENSE_VERSION,
+			);
+
 		wp_enqueue_style(
 			'translatesense-common',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/css/common' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
@@ -85,41 +93,32 @@ class Bulk_Translate {
 
 		wp_enqueue_style(
 			'translatesense-bulk',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/build/bulk/index.css',
 			array( 'translatesense-common' ),
-			TRANSLATESENSE_VERSION
-		);
-
-		// 1. Core Translate Registry
-		wp_enqueue_script(
-			'translatesense-core',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/core-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'jquery' ),
-			TRANSLATESENSE_VERSION,
-			true
+			$asset['version']
 		);
 
 		// 2. Chrome Built-in Translate Provider & Languages
 		wp_enqueue_script(
 			'translatesense-chrome-languages',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/chrome-ai/chrome-languages' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core' ),
+			array(),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 		wp_enqueue_script(
-			'translatesense-chrome-built-translate',
+			'translatesense-chrome-ai',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/chrome-ai/chrome-built-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-chrome-languages' ),
+			array( 'translatesense-chrome-languages' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
 		// 3. AI Translate Provider (OpenAI & Gemini)
 		wp_enqueue_script(
-			'translatesense-ai-translate',
+			'translatesense-ai',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/ai-services/ai-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core' ),
+			array(),
 			TRANSLATESENSE_VERSION,
 			true
 		);
@@ -128,24 +127,29 @@ class Bulk_Translate {
 		wp_enqueue_script(
 			'translatesense-providers',
 			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/providers/index' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'translatesense-core', 'translatesense-chrome-built-translate', 'translatesense-ai-translate' ),
+			array( 'translatesense-chrome-ai', 'translatesense-ai' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
-		// 5. Bulk Translation Script
+		// 5. Bulk Translation React App Bundle
+		$bulk_deps = array_merge(
+			array( 'jquery', 'translatesense-providers' ),
+			$asset['dependencies']
+		);
+
 		wp_enqueue_script(
 			'translatesense-bulk',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/bulk-translate' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'jquery', 'translatesense-core', 'translatesense-providers' ),
-			TRANSLATESENSE_VERSION,
+			esc_url( TRANSLATESENSE_PLUGIN_URL . 'assets/build/bulk/index.js' ),
+			$bulk_deps,
+			$asset['version'],
 			true
 		);
 
 		$settings = get_option( 'translatesense_settings', array() );
 
 		wp_localize_script(
-			'translatesense-core',
+			'translatesense-bulk',
 			'TranslateSenseBulkData',
 			array(
 				'restUrl'                 => esc_url_raw( rest_url( 'translatesense/v1/' ) ),

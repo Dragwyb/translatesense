@@ -1,0 +1,25 @@
+// TranslateSense SCSS Design Tokens
+
+$ts-primary: #2563eb;
+$ts-primary-hover: #1d4ed8;
+$ts-primary-active: #1e40af;
+$ts-surface: #ffffff;
+$ts-bg-subtle: #f8fafc;
+$ts-border: #e2e8f0;
+$ts-border-dark: #cbd5e1;
+$ts-text-main: #0f172a;
+$ts-text-muted: #64748b;
+$ts-success: #10b981;
+$ts-warning: #f59e0b;
+$ts-danger: #ef4444;
+
+$ts-radius-xs: 2px;
+$ts-radius-sm: 3px;
+$ts-radius-md: 4px;
+$ts-radius-lg: 6px;
+$ts-radius-xl: 8px;
+
+$ts-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+$ts-shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.08);
+$ts-shadow-modal: 0 20px 50px -10px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(226, 232, 240, 0.85);
+

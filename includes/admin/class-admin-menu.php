@@ -85,13 +85,31 @@ class Admin_Menu {
 			return;
 		}
 
+		// Asset file metadata handling with fallback
+		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/dashboard/index.asset.php';
+		$asset      = file_exists( $asset_file )
+			? require $asset_file
+			: array(
+				'dependencies' => array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
+				'version'      => TRANSLATESENSE_VERSION,
+			);
+
 		// Enqueue CSS
-		wp_enqueue_style(
-			'translatesense-admin-css',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-			array(),
-			TRANSLATESENSE_VERSION
-		);
+		if ( file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/dashboard/index.css' ) ) {
+			wp_enqueue_style(
+				'translatesense-admin-css',
+				TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.css',
+				array( 'wp-components' ),
+				$asset['version']
+			);
+		} else {
+			wp_enqueue_style(
+				'translatesense-admin-css',
+				TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
+				array(),
+				TRANSLATESENSE_VERSION
+			);
+		}
 
 		// Enqueue WordPress Script Dependencies
 		wp_enqueue_script( 'wp-element' );
@@ -99,12 +117,16 @@ class Admin_Menu {
 		wp_enqueue_script( 'wp-api-fetch' );
 		wp_enqueue_script( 'wp-i18n' );
 
-		// Enqueue App Script
+		// Enqueue App Script (Production React Bundle)
+		$script_url = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/dashboard/index.js' )
+			? TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.js'
+			: TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js';
+
 		wp_enqueue_script(
 			'translatesense-admin-js',
-			TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js',
-			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
-			TRANSLATESENSE_VERSION,
+			$script_url,
+			$asset['dependencies'],
+			$asset['version'],
 			true
 		);
 
@@ -121,18 +143,15 @@ class Admin_Menu {
 			'translatesense-admin-js',
 			'TranslateSenseData',
 			array(
-				'restUrl'         => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'           => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'  => Polylang_Bridge::is_polylang_active(),
-				'languages'       => Polylang_Bridge::get_languages(),
-				'activeBuilders'  => self::get_active_builders(),
-				'activeProviders' => $active_providers,
-				'providerModels'  => $provider_models,
-				'connectorsUrl'   => esc_url_raw( admin_url( 'options-connectors.php' ) ),
-				'pluginUrl'       => TRANSLATESENSE_PLUGIN_URL,
-				'docsUrl'         => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'version'         => TRANSLATESENSE_VERSION,
-				'adminUrl'        => $admin_url,
+				'restUrl'        => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'          => wp_create_nonce( 'wp_rest' ),
+				'polylangActive' => Polylang_Bridge::is_polylang_active(),
+				'connectorsUrl'  => esc_url_raw( admin_url( 'options-connectors.php' ) ),
+				'pluginUrl'      => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'        => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
+				'version'        => TRANSLATESENSE_VERSION,
+				'adminUrl'       => $admin_url,
+				'activeBuilders' => self::get_active_builders(),
 			)
 		);
 	}

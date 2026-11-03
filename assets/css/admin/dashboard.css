@@ -82,7 +82,7 @@
   box-shadow: var(--ts-shadow-xs);
   width: calc(100% + 40px);
   margin-left: -20px;
-  z-index: 1;
+  z-index: 9;
 }
 
 .ts-top-brand {
@@ -269,7 +269,6 @@
 
 .ts-tab-btn.active {
   color: var(--ts-primary);
-  font-weight: 700;
   border-bottom-color: var(--ts-primary);
 }
 
@@ -915,8 +914,8 @@
   background: #3b82f6;
 }
 
-.ts-dot.purple {
-  background: #8b5cf6;
+.ts-dot.red {
+  background: red;
 }
 
 /* More by Dragwyb Card */
@@ -1011,7 +1010,7 @@
   gap: 16px;
   position: sticky;
   bottom: 0;
-  z-index: 1;
+  z-index: 9;
 }
 
 .ts-footer-left {
@@ -1077,7 +1076,7 @@
 /* ==========================================================================
    10. Settings Panel Styles
    ========================================================================== */
-.ts-settings-container {
+.ts-settings-panel {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1921,13 +1920,13 @@
   transform: translateY(-1px);
 }
 
-.ts-btn-secondary {
+.ts-btn.ts-btn-secondary {
   background: var(--ts-gray-100);
   color: var(--ts-gray-700);
   border-color: var(--ts-gray-200);
 }
 
-.ts-btn-secondary:hover:not(:disabled) {
+.ts-btn.ts-btn-secondary:hover:not(:disabled) {
   background: var(--ts-gray-200);
   color: var(--ts-gray-900);
 }
@@ -2084,7 +2083,7 @@
   }
 
   .ts-sidebar {
-    width: 100%;
+    display: none;
   }
 
   /* Grid layout for sidebar overview cards when full width */
@@ -2739,20 +2738,11 @@
 }
 
 .ts-guide-hero-desc {
-  margin: 0 0 20px 0;
+  margin: 0;
   font-size: 13.5px;
   line-height: 1.6;
   color: #94a3b8;
   max-width: 760px;
-}
-
-.ts-guide-hero-stats {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  flex-wrap: wrap;
 }
 
 .ts-hero-stat-item {
@@ -3303,17 +3293,6 @@
   flex: 1;
 }
 
-.ts-cache-token-warning-preview {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
 .ts-token-pill {
   font-size: 11px;
   font-weight: 700;
@@ -3364,7 +3343,7 @@
   color: #94a3b8;
 }
 
-.ts-btn-danger-outline {
+.ts-btn.ts-btn-danger-outline {
   background: transparent;
   color: #dc2626;
   border: 1px solid #fca5a5;
@@ -3378,12 +3357,12 @@
   transition: all 0.15s ease;
 }
 
-.ts-btn-danger-outline:hover {
+.ts-btn.ts-btn-danger-outline:hover {
   background: #fef2f2;
   border-color: #ef4444;
 }
 
-.ts-btn-danger {
+.ts-btn.ts-btn-danger {
   background: #dc2626;
   color: #ffffff;
   border: 1px solid #b91c1c;
@@ -3397,11 +3376,11 @@
   transition: all 0.15s ease;
 }
 
-.ts-btn-danger:hover:not(:disabled) {
+.ts-btn.ts-btn-danger:hover:not(:disabled) {
   background: #b91c1c;
 }
 
-.ts-btn-danger:disabled {
+.ts-btn.ts-btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -3553,7 +3532,7 @@
 
 .ts-method-card.active,
 .ts-method-card[aria-checked="true"] {
-  border: 2px solid #2563eb;
+  border: 1px solid #2563eb;
   background: #eff6ff;
   color: #1d4ed8;
   box-shadow: 0 0 0 1px #2563eb;

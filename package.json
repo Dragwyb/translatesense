@@ -1,0 +1,27 @@
+{
+  "name": "translatesense",
+  "version": "1.0.0",
+  "description": "TranslateSense WordPress AI Multilingual Content Translation Plugin",
+  "main": "index.js",
+  "scripts": {
+    "start": "wp-scripts start",
+    "build": "wp-scripts build",
+    "lint:js": "wp-scripts lint-js",
+    "lint:css": "wp-scripts lint-style",
+    "test": "node --test src/**/__tests__/*.test.js"
+  },
+  "keywords": [
+    "wordpress",
+    "translation",
+    "ai",
+    "react",
+    "polylang"
+  ],
+  "author": "TranslateSense",
+  "license": "GPL-2.0-or-later",
+  "devDependencies": {
+    "@wordpress/scripts": "^27.9.0",
+    "sass": "^1.77.8"
+  }
+}
+
