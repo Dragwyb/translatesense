@@ -9,7 +9,6 @@ import { usePageTranslation } from './hooks/usePageTranslation';
 import { usePageEditor } from './hooks/usePageEditor';
 import { SourcePrompt } from './components/SourcePrompt';
 import { ProviderModal } from './components/ProviderModal';
-import { TranslationProgress } from './components/TranslationProgress';
 import { ReviewModal } from './components/ReviewModal';
 import { ErrorModal } from '../components/ErrorModal';
 
@@ -152,32 +151,31 @@ export function PageApp() {
                 })
               }
             />
-          ) : translation.progress?.isOpen ? (
-            /* 2. Translation Progress Modal (Coffee Cup Visual) */
-            <TranslationProgress
-              isOpen={true}
-              percent={translation.progress.percent}
-              status={translation.progress.status}
-              subText={translation.progress.subText}
-              targetLang={translation.targetLang}
-              languages={allLanguages}
-              providerTitle={providerTitle}
-              isExtracting={translation.progress.isExtracting}
-            />
           ) : translation.isReviewModalOpen ? (
             /* 3. String Review Modal */
-            <ReviewModal
-              isOpen={true}
-              onClose={() => translation.setIsReviewModalOpen(false)}
-              strings={translation.strings}
-              translationStats={translation.translationStats}
-              onUpdateTranslation={handleUpdateTranslation}
-              onResetTranslation={handleResetTranslation}
-              onReTranslate={() =>
-                translation.extractAndTranslate(translation.selectedProvider)
-              }
-              onApply={handleApplyToPage}
-            />
+            <>
+              <ReviewModal
+                isOpen={true}
+                onClose={() => translation.setIsReviewModalOpen(false)}
+                strings={translation.strings}
+                translationStats={translation.translationStats}
+                onUpdateTranslation={handleUpdateTranslation}
+                onResetTranslation={handleResetTranslation}
+                isExtracting={translation.progress.isExtracting}
+                progressIsOpen={translation.progress?.isOpen}
+                progressPercent={translation.progress.percent}
+                progressStatus={translation.progress.status}
+                progressSubText={translation.progress.subText}
+                progressTargetLang={translation.targetLang}
+                progressLanguages={allLanguages}
+                progressProviderTitle={providerTitle}
+                onReTranslate={() =>
+                  translation.extractAndTranslate(translation.selectedProvider)
+                }
+
+                onApply={handleApplyToPage}
+              />
+            </>
           ) : translation.isProviderModalOpen ? (
             /* 4. Provider Selection Modal */
             <ProviderModal

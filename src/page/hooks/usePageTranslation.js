@@ -84,18 +84,18 @@ export function usePageTranslation(config = {}) {
       const prov = chosenProvider || selectedProvider;
       const core = getCoreInstance();
 
+      setIsReviewModalOpen(true);
+
       // If translation already complete, directly open review modal
       if (isTranslationCompleted(prov)) {
-        setIsReviewModalOpen(true);
         return;
       }
 
       if (!sourcePostId) return;
 
-      setIsReviewModalOpen(false);
       setProgress({
-        isOpen: true,
-        percent: 10,
+        isOpen: false,
+        percent: 0,
         status: 'Extracting strings...',
         subText: 'Initializing translation...',
         isExtracting: true,
@@ -119,19 +119,6 @@ export function usePageTranslation(config = {}) {
           const res = await extractPostStrings(sourcePostId, editorType, targetLang);
           rawStrings = Array.isArray(res.strings) ? res.strings : [];
           rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
-
-          if (rawStrings.length === 0) {
-            setProgress({ isOpen: false, percent: 0, status: '', subText: '', isExtracting: false });
-            setIsReviewModalOpen(false);
-
-            const serverRes = await translatePostServer(sourcePostId, targetLang, prov);
-            if (serverRes.success && serverRes.edit_url) {
-              window.location.href = serverRes.edit_url;
-              return;
-            }
-            alert('No translatable strings found in current blocks matching XML rules.');
-            return;
-          }
 
           setExtractedStrings(rawStrings);
         } catch (err) {
@@ -236,7 +223,7 @@ export function usePageTranslation(config = {}) {
                 const completedCount = nextList.filter(
                   (s) => s.translated && s.translated.trim() !== ''
                 ).length;
-                const pct = Math.min(98, Math.max(15, Math.round((completedCount / total) * 100)));
+                const pct = Math.min(100, Math.max(15, Math.round((completedCount / total) * 100)));
 
                 setProgress({
                   isOpen: true,
@@ -281,7 +268,7 @@ export function usePageTranslation(config = {}) {
         setTimeout(() => {
           setProgress((p) => ({ ...p, isOpen: false }));
           setIsReviewModalOpen(true);
-        }, 1200);
+        }, 3500);
       } catch (err) {
         setProgress((p) => ({ ...p, isOpen: false }));
         setIsReviewModalOpen(false);

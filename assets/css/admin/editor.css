@@ -439,12 +439,12 @@
    Page Editor: Translation Progress Overlay (Coffee Cup Visual & Modal Blur)
    ========================================================================== */
 .ts-review-progress-overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 999999;

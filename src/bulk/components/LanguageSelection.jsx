@@ -26,7 +26,7 @@ export function LanguageSelection({
       dataStep={1}
       header={
         <ModalHeader
-          title="TranslateSense Bulk Translation"
+          title="Bulk Translation"
           subtitle="Fast & Accurate Multi-Language Content Localizer"
           onClose={onClose}
           closeClass="ts-bulk-close"

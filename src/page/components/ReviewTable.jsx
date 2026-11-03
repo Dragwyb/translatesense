@@ -32,7 +32,7 @@ export function ReviewTable({
                 </div>
               </td>
             </tr>
-            {[1, 2, 3, 4, 5].map((_, i) => (
+            {[1, 2, 3].map((_, i) => (
               <tr key={i} className="ts-skeleton-row">
                 <td style={{ padding: '16px 18px', verticalAlign: 'middle' }}>
                   <div

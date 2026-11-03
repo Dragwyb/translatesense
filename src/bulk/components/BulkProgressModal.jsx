@@ -47,7 +47,7 @@ export function BulkProgressModal({
       dataStep={3}
       header={
         <ModalHeader
-          title="TranslateSense Bulk Translation"
+          title="Bulk Translation"
           subtitle="Monitor translation progress"
           onClose={onClose}
           closeClass="ts-bulk-close"

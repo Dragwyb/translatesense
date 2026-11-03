@@ -9,6 +9,7 @@ import { Button } from '../../components/Button';
 import { SearchInput } from '../../components/SearchInput';
 import { TranslationStats } from './TranslationStats';
 import { ReviewTable } from './ReviewTable';
+import { TranslationProgress } from './TranslationProgress';
 
 export function ReviewModal({
   isOpen,
@@ -17,6 +18,14 @@ export function ReviewModal({
   translationStats = {},
   onUpdateTranslation,
   onResetTranslation,
+  isExtracting,
+  progressIsOpen,
+  progressPercent,
+  progressStatus,
+  progressSubText,
+  progressTargetLang,
+  progressLanguages,
+  progressProviderTitle,
   onReTranslate,
   onApply,
 }) {
@@ -98,11 +107,25 @@ export function ReviewModal({
         <ReviewTable
           strings={strings}
           filterQuery={search}
-          isExtracting={false}
+          isExtracting={isExtracting}
           onUpdateTranslation={onUpdateTranslation}
           onResetTranslation={onResetTranslation}
         />
       </div>
+      {progressIsOpen && (
+        /* 2. Translation Progress Modal (Coffee Cup Visual) */
+        <div className='ts-review-progress-overlay'>
+          <TranslationProgress
+            isOpen={true}
+            percent={progressPercent}
+            status={progressStatus}
+            subText={progressSubText}
+            targetLang={progressTargetLang}
+            languages={progressLanguages}
+            providerTitle={progressProviderTitle}
+          />
+        </div>
+      )}
     </Modal>
   );
 }

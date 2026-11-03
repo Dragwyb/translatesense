@@ -31,7 +31,7 @@ export function ProviderSelection({
       dataStep={2}
       header={
         <ModalHeader
-          title="TranslateSense Bulk Translation"
+          title="Bulk Translation"
           subtitle="Choose a translation provider"
           onClose={onClose}
           closeClass="ts-bulk-close"

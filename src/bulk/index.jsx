@@ -1,5 +1,5 @@
 /**
- * TranslateSense Bulk Translation Entry Point
+ * Bulk Translation Entry Point
  */
 
 import { createRoot } from '@wordpress/element';
