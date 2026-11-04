@@ -7,17 +7,19 @@ export function useElapsedTimer(isRunning = false) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
+  const elapsedRef = useRef(0);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    startTimeRef.current = Date.now() - elapsedSeconds * 1000;
+    startTimeRef.current = Date.now() - elapsedRef.current * 1000;
 
     timerRef.current = setInterval(() => {
       const now = Date.now();
       const secs = Math.floor((now - startTimeRef.current) / 1000);
+      elapsedRef.current = secs;
       setElapsedSeconds(secs);
     }, 1000);
-  }, [elapsedSeconds]);
+  }, []);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
@@ -28,6 +30,7 @@ export function useElapsedTimer(isRunning = false) {
 
   const resetTimer = useCallback(() => {
     stopTimer();
+    elapsedRef.current = 0;
     setElapsedSeconds(0);
     startTimeRef.current = null;
   }, [stopTimer]);
@@ -59,4 +62,3 @@ export function useElapsedTimer(isRunning = false) {
     resetTimer,
   };
 }
-

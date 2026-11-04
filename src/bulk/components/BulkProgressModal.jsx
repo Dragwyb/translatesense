@@ -71,7 +71,7 @@ export function BulkProgressModal({
           <div className="ts-footer-buttons-group">
             <Button
               variant="primary"
-              disabled={isTranslating}
+              disabled={isTranslating && isChromeAi}
               onClick={() => {
                 onClose();
                 if (isCompleted) {
@@ -79,7 +79,11 @@ export function BulkProgressModal({
                 }
               }}
             >
-              {isTranslating ? 'Translation In Progress...' : isCompleted ? 'Done (Reload)' : 'Close'}
+              {isTranslating && isChromeAi
+                ? 'Translation In Progress...'
+                : isCompleted
+                ? 'Done (Reload)'
+                : 'Close'}
             </Button>
           </div>
         </ModalFooter>

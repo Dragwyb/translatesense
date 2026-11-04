@@ -46,6 +46,8 @@ export function BulkWizard({
     setErrorModal,
     handleSkipPost,
     pollStatus,
+    switchBatch,
+    openBatchMonitor,
   } = translationState;
 
   if (!isOpen) return null;
@@ -61,8 +63,8 @@ export function BulkWizard({
       setErrorModal({ isOpen: false, title: '', message: '', errorObj: null, reasonHTML: '' });
       return;
     }
-    if (currentStep === 3 && isTranslating) {
-      return; // Do not close while translation is actively processing
+    if (currentStep === 3 && isTranslating && selectedProvider === 'chrome_ai') {
+      return; // Do not close while on-device translation is actively processing
     }
     if (onClose) {
       onClose();
@@ -111,6 +113,8 @@ export function BulkWizard({
           selectedLanguages={selectedLanguages}
           onLanguagesChange={setSelectedLanguages}
           onNext={() => setCurrentStep(2)}
+          activeBatches={activeBatches}
+          onShowRunning={() => openBatchMonitor && openBatchMonitor()}
         />
       ) : currentStep === 2 ? (
         /* 4. Step 2: Provider Selection Modal */
@@ -153,8 +157,12 @@ export function BulkWizard({
           activeBatches={activeBatches}
           currentBatchId={currentBatchId}
           onBatchChange={(id) => {
-            setCurrentBatchId(id);
-            pollStatus(id);
+            if (switchBatch) {
+              switchBatch(id);
+            } else {
+              setCurrentBatchId(id);
+              pollStatus(id);
+            }
           }}
           orderedPostIds={orderedPostIds}
           postResultsMap={postResultsMap}

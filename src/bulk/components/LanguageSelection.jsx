@@ -15,6 +15,8 @@ export function LanguageSelection({
   selectedLanguages = [],
   onLanguagesChange,
   onNext,
+  activeBatches = [],
+  onShowRunning,
 }) {
   const postsCount = postIds.length;
 
@@ -46,6 +48,31 @@ export function LanguageSelection({
     >
       <div className="ts-bulk-step-content" id="ts-view-step-1">
         <WizardSteps currentStep={1} selectedLanguagesCount={selectedLanguages.length} />
+
+        {activeBatches && activeBatches.length > 0 && (
+          <div className="ts-previous-active-notice" id="ts-previous-active-notice">
+            <div className="ts-notice-inner">
+              <span className="ts-notice-icon" aria-hidden="true">⚡</span>
+              <div className="ts-notice-text">
+                <strong className="ts-notice-title">Background translations are running</strong>
+                <span className="ts-notice-desc">
+                  {activeBatches.length === 1
+                    ? 'There is 1 active translation batch in progress.'
+                    : `There are ${activeBatches.length} active translation batches in progress.`}
+                </span>
+              </div>
+            </div>
+            {onShowRunning && (
+              <button
+                type="button"
+                className="button button-secondary ts-show-running-btn"
+                onClick={onShowRunning}
+              >
+                View Progress
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="ts-lang-info-banner">
           <span className="ts-info-icon" aria-hidden="true">ℹ️</span>

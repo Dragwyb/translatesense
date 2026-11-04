@@ -21,6 +21,11 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   const [activeBatches, setActiveBatches] = useState([]);
   const [currentBatchId, setCurrentBatchId] = useState(targetBatchId);
   const [currentBatch, setCurrentBatch] = useState(null);
+  const currentBatchIdRef = useRef(targetBatchId);
+
+  useEffect(() => {
+    currentBatchIdRef.current = currentBatchId;
+  }, [currentBatchId]);
 
   const [postResultsMap, setPostResultsMap] = useState({});
   const [orderedPostIds, setOrderedPostIds] = useState([]);
@@ -76,12 +81,21 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     };
   }, []);
 
+  // Stop background polling timer
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    isPollingRef.current = false;
+  }, []);
+
   // Populate map from batch
-  const populateMapFromBatch = useCallback((batchData) => {
+  const populateMapFromBatch = useCallback((batchData, replace = false) => {
     if (!batchData || !Array.isArray(batchData.items)) return;
 
     setPostResultsMap((prev) => {
-      const updated = { ...prev };
+      const updated = replace ? {} : { ...prev };
       batchData.items.forEach((item) => {
         const pId = String(item.post_id);
         const tLang = String(item.target_language);
@@ -133,13 +147,32 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   // Server background polling logic
   const pollStatus = useCallback(
     async (batchIdToPoll) => {
-      const bId = batchIdToPoll || currentBatchId;
-      if (!bId || isPollingRef.current) return;
+      const bId = batchIdToPoll || currentBatchIdRef.current;
+      if (!bId) return;
+
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+
+      if (isPollingRef.current) return;
       isPollingRef.current = true;
 
       try {
         const data = await getBatchStatus(bId);
+
+        // Discard result if user switched to another batch in the meantime
+        if (currentBatchIdRef.current && currentBatchIdRef.current !== bId) {
+          return;
+        }
+
         setCurrentBatch(data);
+        setCurrentBatchId(bId);
+        currentBatchIdRef.current = bId;
+
+        if (data.provider) {
+          setSelectedProvider(data.provider);
+        }
 
         const pct =
           Array.isArray(data.items) && data.items.length > 0
@@ -152,23 +185,34 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           (data.already_exists_jobs || 0) +
           (data.skipped_jobs || 0);
         setCompletedJobsCount(done);
-        setTotalJobsCount(data.total_jobs || 1);
+        setTotalJobsCount(data.total_jobs || (data.items ? data.items.length : 1));
         setStatusText(data.current_status || `Translating content in background... (${pct}%)`);
 
-        populateMapFromBatch(data);
+        populateMapFromBatch(data, false);
 
-        if (
+        const isFinished =
           data.overall_status === 'completed' ||
           data.overall_status === 'failed' ||
-          data.overall_status === 'skipped'
-        ) {
+          data.overall_status === 'skipped';
+
+        if (isFinished) {
           setIsTranslating(false);
           setIsCompleted(true);
           stopTimer();
 
           const stats = calculateBatchStats(data.items || []);
           setStatsSummary(stats);
+
+          // Refresh active batches
+          getActiveBatches()
+            .then((res) => {
+              setActiveBatches(res.batches || []);
+            })
+            .catch(() => {});
         } else {
+          setIsTranslating(true);
+          setIsCompleted(false);
+          startTimer();
           pollTimerRef.current = setTimeout(() => pollStatus(bId), 5000);
         }
       } catch (err) {
@@ -178,8 +222,109 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         isPollingRef.current = false;
       }
     },
-    [currentBatchId, populateMapFromBatch, stopTimer]
+    [populateMapFromBatch, startTimer, stopTimer]
   );
+
+  // Monitor mode activator: immediately enters Step 3 with populated batch data
+  const openBatchMonitor = useCallback(
+    async (targetBatchId = null, initialBatchData = null, allBatches = null) => {
+      stopPolling();
+      setCurrentStep(3);
+
+      let bId = targetBatchId || currentBatchIdRef.current;
+      let data = initialBatchData;
+
+      if (allBatches && Array.isArray(allBatches)) {
+        setActiveBatches(allBatches);
+      }
+
+      if (!bId || !data) {
+        try {
+          const res = await getActiveBatches();
+          const batches = res.batches || [];
+          setActiveBatches(batches);
+          if (batches.length > 0) {
+            bId = bId || batches[0].batch_id;
+            data = data || batches.find((b) => b.batch_id === bId) || batches[0];
+          }
+        } catch (e) {
+          console.warn('[TranslateSense] Failed to fetch active batches on openBatchMonitor:', e);
+        }
+      }
+
+      if (bId) {
+        setCurrentBatchId(bId);
+        currentBatchIdRef.current = bId;
+
+        if (data) {
+          setCurrentBatch(data);
+          if (data.provider) {
+            setSelectedProvider(data.provider);
+          }
+          // Immediately populate posts and items table
+          populateMapFromBatch(data, true);
+
+          const isFinished =
+            data.overall_status === 'completed' ||
+            data.overall_status === 'failed' ||
+            data.overall_status === 'skipped';
+
+          if (isFinished) {
+            setIsTranslating(false);
+            setIsCompleted(true);
+            stopTimer();
+            const stats = calculateBatchStats(data.items || []);
+            setStatsSummary(stats);
+          } else {
+            setIsTranslating(true);
+            setIsCompleted(false);
+            startTimer();
+          }
+
+          const pct =
+            Array.isArray(data.items) && data.items.length > 0
+              ? Math.round(getOverallProgress(data.items))
+              : Math.round(data.progress_percent || 0);
+
+          setProgressPercent(pct);
+          const done =
+            (data.completed_jobs || 0) +
+            (data.already_exists_jobs || 0) +
+            (data.skipped_jobs || 0);
+          setCompletedJobsCount(done);
+          setTotalJobsCount(data.total_jobs || (data.items ? data.items.length : 1));
+          setStatusText(
+            data.current_status || `Translating content in background... (${pct}%)`
+          );
+        } else {
+          setIsTranslating(true);
+          setIsCompleted(false);
+          startTimer();
+        }
+
+        // Start live polling cycle
+        pollStatus(bId);
+      }
+    },
+    [populateMapFromBatch, pollStatus, startTimer, stopTimer, stopPolling]
+  );
+
+  // Switch between multiple background batches
+  const switchBatch = useCallback(
+    (newBatchId) => {
+      if (!newBatchId) return;
+      const batchData = activeBatches.find((b) => b.batch_id === newBatchId) || null;
+      openBatchMonitor(newBatchId, batchData, activeBatches);
+    },
+    [activeBatches, openBatchMonitor]
+  );
+
+  // Auto-open monitor if options.isPreviouslyRunning is true
+  useEffect(() => {
+    if (isPreviouslyRunning) {
+      openBatchMonitor(targetBatchId);
+    }
+  }, [isPreviouslyRunning, targetBatchId, openBatchMonitor]);
 
   // Chrome Local AI Execution Workflow
   const runChromeAiTranslation = useCallback(
@@ -632,6 +777,10 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     setErrorModal,
     handleSkipPost,
     pollStatus,
+    openBatchMonitor,
+    switchBatch,
+    stopPolling,
+    populateMapFromBatch,
   };
 }
 

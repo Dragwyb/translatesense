@@ -77,11 +77,27 @@ export function BulkApp() {
 
       const ids = getCheckedPostIds();
       if (ids.length === 0) {
-        const active = hasActiveJobs || (await checkBackgroundJobs());
+        let active = hasActiveJobs;
+        let latestBatches = [];
+        try {
+          const res = await getActiveBatches();
+          latestBatches = res.batches || [];
+          active = latestBatches.length > 0;
+          setHasActiveJobs(active);
+          updatePulseDot(active);
+        } catch {
+          active = hasActiveJobs;
+        }
+
         if (active) {
           setIsPrevRunningMode(true);
           setSelectedPostIds([]);
-          translationState.setCurrentStep(3);
+          const activeBatch = latestBatches[0] || null;
+          translationState.openBatchMonitor(
+            activeBatch ? activeBatch.batch_id : null,
+            activeBatch,
+            latestBatches
+          );
           setIsOpen(true);
           return;
         }
@@ -98,13 +114,17 @@ export function BulkApp() {
 
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
-  }, [getCheckedPostIds, hasActiveJobs, checkBackgroundJobs, translationState]);
+  }, [getCheckedPostIds, hasActiveJobs, updatePulseDot, translationState]);
 
   return (
     <BulkWizard
       isOpen={isOpen}
       onClose={() => {
         setIsOpen(false);
+        setIsPrevRunningMode(false);
+        if (translationState.stopPolling) {
+          translationState.stopPolling();
+        }
         checkBackgroundJobs();
       }}
       translationState={translationState}
@@ -112,4 +132,3 @@ export function BulkApp() {
     />
   );
 }
-
