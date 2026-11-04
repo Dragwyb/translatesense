@@ -52,13 +52,12 @@ class Bulk_Translate {
 			return;
 		}
 
-		$btn_id     = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
-		$has_active = Bulk_Process::has_active_background_jobs();
+		$btn_id = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
 		?>
-		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn<?php echo esc_attr( $has_active ? ' ts-has-active-jobs' : '' ); ?>">
+		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn">
 			<span class="dashicons dashicons-translation"></span>
 			<?php esc_html_e( 'Bulk Translate', 'translatesense' ); ?>
-			<span class="ts-active-pulse-dot" style="<?php echo esc_attr( $has_active ? '' : 'display: none;' ); ?>" title="<?php esc_attr_e( 'Background translations running', 'translatesense' ); ?>"></span>
+			<span class="ts-active-pulse-dot" style="'display: none;'" title="<?php esc_attr_e( 'Background translations running', 'translatesense' ); ?>"></span>
 		</button>
 		<?php
 	}
@@ -166,22 +165,21 @@ class Bulk_Translate {
 			'translatesense-bulk',
 			'TranslateSenseBulkData',
 			array(
-				'restUrl'                 => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'                   => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'          => Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage'         => Polylang_Bridge::get_default_language(),
-				'languages'               => Polylang_Bridge::get_languages(),
-				'defaultProvider'         => $settings['provider'] ?? '',
-				'enabledProviders'        => $active_providers,
-				'pluginUrl'               => TRANSLATESENSE_PLUGIN_URL,
-				'docsUrl'                 => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'settingsUrl'             => Admin_Menu::get_dashboard_url( 'settings' ),
-				'connectorsUrl'           => admin_url( 'options-connectors.php' ),
-				'hasOpenAiKey'            => ! empty( $settings['openai_api_key'] ),
-				'hasGeminiKey'            => ! empty( $settings['gemini_api_key'] ),
-				'hasActiveBackgroundJobs' => Bulk_Process::has_active_background_jobs(),
-				'slugTranslation'         => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
-				'postStatus'              => ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft',
+				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'            => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
+				'defaultLanguage'  => Polylang_Bridge::get_default_language(),
+				'languages'        => Polylang_Bridge::get_languages(),
+				'defaultProvider'  => $settings['provider'] ?? '',
+				'enabledProviders' => $active_providers,
+				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'          => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
+				'settingsUrl'      => Admin_Menu::get_dashboard_url( 'settings' ),
+				'connectorsUrl'    => admin_url( 'options-connectors.php' ),
+				'hasOpenAiKey'     => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'     => ! empty( $settings['gemini_api_key'] ),
+				'slugTranslation'  => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
+				'postStatus'       => ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft',
 			)
 		);
 	}
