@@ -268,9 +268,41 @@ class Bulk_Process {
 	}
 
 	/**
+	 * Mark queue posts older than 1 day (24 hours) as failed so they are not translated.
+	 *
+	 * @return int Number of updated expired jobs.
+	 */
+	public static function cleanup_expired_jobs(): int {
+		global $wpdb;
+		$table = self::get_table_name_internal();
+
+		$cutoff_local = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+		$cutoff_gmt   = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} 
+				SET status = 'failed', 
+				    progress_status = %s, 
+				    error_message = %s, 
+				    updated_at = %s 
+				WHERE status IN ('pending', 'running', 'cancelling') 
+				  AND (created_at < %s OR created_at < %s OR created_at < DATE_SUB(NOW(), INTERVAL 1 DAY))", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				'Failed: Job expired (more than 1 day old)',
+				__( 'Translation job expired: queued for more than 1 day.', 'translatesense' ),
+				current_time( 'mysql' ),
+				$cutoff_local,
+				$cutoff_gmt
+			)
+		);
+	}
+
+	/**
 	 * Check if table has pending or running jobs that require backend processing.
 	 */
 	public static function has_pending_or_running_jobs(): bool {
+		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -285,6 +317,7 @@ class Bulk_Process {
 	 * Check if table has active backend background jobs for eligible AI providers (OpenAI, Gemini).
 	 */
 	public static function has_active_background_jobs(): bool {
+		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -301,6 +334,7 @@ class Bulk_Process {
 	 * @return array
 	 */
 	public static function get_active_background_batches(): array {
+		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 
@@ -363,6 +397,9 @@ class Bulk_Process {
 		global $wpdb;
 		$table = self::get_table_name_internal();
 
+		// Fail any queue post more than 1 day old so it is not translated
+		self::cleanup_expired_jobs();
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -392,6 +429,31 @@ class Bulk_Process {
 		$provider                = $job['provider'];
 		$existing_target_post_id = absint( $job['target_post_id'] );
 		$is_retranslation        = $existing_target_post_id > 0 && $existing_target_post_id !== $post_id;
+
+		// Double-check: if queue post is more than 1 day old, fail it immediately and do not translate
+		$created_ts = ! empty( $job['created_at'] ) ? strtotime( $job['created_at'] ) : 0;
+		if ( $created_ts > 0 && ( current_time( 'timestamp' ) - $created_ts ) >= DAY_IN_SECONDS ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->update(
+				$table,
+				array(
+					'status'          => 'failed',
+					'progress_status' => 'Failed: Job expired (more than 1 day old)',
+					'error_message'   => __( 'Translation job expired: queued for more than 1 day.', 'translatesense' ),
+					'updated_at'      => current_time( 'mysql' ),
+				),
+				array( 'id' => $job_id ),
+				array( '%s', '%s', '%s', '%s' ),
+				array( '%d' )
+			);
+
+			if ( self::has_pending_or_running_jobs() ) {
+				self::process_cron_tick();
+			} else {
+				self::unschedule_cron_if_idle();
+			}
+			return;
+		}
 
 		// Atomically claim and mark as running
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -770,6 +832,7 @@ class Bulk_Process {
 	 * @return array
 	 */
 	public static function get_batch_status( string $batch_id, int $post_id = 0 ): array {
+		self::cleanup_expired_jobs();
 		global $wpdb;
 
 		$table = self::get_table_name_internal();
