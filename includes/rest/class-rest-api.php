@@ -3874,7 +3874,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$allowed_strings = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT DISTINCT s.source_string
+				"SELECT DISTINCT s.filter_string
 				 FROM `{$packages_table}` p
 				 INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
 				 WHERE p.post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

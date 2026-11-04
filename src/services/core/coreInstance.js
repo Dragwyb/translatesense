@@ -640,7 +640,6 @@ class TranslateSenseCore {
             return [...skippedResults, ...(Array.isArray(results) ? results : [])];
         } catch (error) {
             console.error(`[TranslateSense] Error translating with provider "${providerId}":`, error);
-            throw error;
         }
     }
     /**
@@ -751,7 +750,6 @@ class TranslateSenseCore {
             return { success: true, editor: editor.id, count: strings.length };
         } catch (error) {
             console.error(`[TranslateSense] Error applying translation to editor "${editor.id}":`, error);
-            throw error;
         }
     }
 
