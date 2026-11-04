@@ -8,8 +8,6 @@ import { DashboardIcons } from './DashboardIcons';
 
 export function CacheTab({
   cacheCounts = {},
-  onRefreshCache,
-  isRefreshing = false,
   onClearCache,
 }) {
   const [modal, setModal] = useState({
@@ -38,7 +36,7 @@ export function CacheTab({
       count = cacheCounts.translations || 0;
     } else if (type === 'strings') {
       title = 'Clear Central Source Strings Cache';
-      warning = 'Removes extracted source strings from local memory index. Strings will be re-extracted when editing posts.';
+      warning = 'Removes extracted source strings from local memory index. Strings will be re-extracted when translating posts.';
       count = cacheCounts.strings || 0;
     } else if (type === 'logs') {
       title = 'Clear Translation Logs & Batches';
@@ -46,7 +44,7 @@ export function CacheTab({
       count = cacheCounts.logs || 0;
     } else if (type === 'packages') {
       title = 'Clear Block & Widget Packages';
-      warning = 'Removes post-level widget mapping packages. Layouts will be re-parsed when editor is opened.';
+      warning = 'Post-level widget/block mappings will be cleared and regenerated automatically during the next translation..';
       count = cacheCounts.packages || 0;
     } else if (type === 'all') {
       title = 'Clear Entire TranslateSense Cache';
@@ -81,47 +79,6 @@ export function CacheTab({
 
   return (
     <div className="ts-cache-container">
-      {/* Header Bar */}
-      <div className="ts-cache-header">
-        <div className="ts-cache-title-group">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="ts-cache-header-icon">{DashboardIcons.database({ size: 22 })}</div>
-            <h2 className="ts-cache-title">Cache &amp; Translation Memory Manager</h2>
-          </div>
-          <p className="ts-cache-desc">
-            TranslateSense stores translation hashes, raw source strings, execution logs, and widget mappings locally. Managing your cache helps you balance token economy and database storage.
-          </p>
-        </div>
-        <div className="ts-cache-header-actions">
-          <button
-            type="button"
-            className="ts-btn ts-btn-secondary ts-btn-sm"
-            disabled={isRefreshing}
-            onClick={onRefreshCache}
-            title="Refresh cache counts from database"
-          >
-            <span
-              className={`ts-refresh-icon ${isRefreshing ? 'spinning' : ''}`}
-              style={{ display: 'inline-flex', marginRight: '5px' }}
-            >
-              {DashboardIcons.refresh({ size: 14 })}
-            </span>
-            {isRefreshing ? 'Refreshing...' : 'Refresh Counts'}
-          </button>
-          <button
-            type="button"
-            className="ts-btn ts-btn-danger-outline ts-btn-sm"
-            onClick={() => handleOpenModal('all')}
-            title="Clear all stored strings, translations, packages, and logs"
-          >
-            <span style={{ display: 'inline-flex', marginRight: '5px' }}>
-              {DashboardIcons.trash({ size: 13 })}
-            </span>
-            Clear All Caches
-          </button>
-        </div>
-      </div>
-
       {/* Summary Card */}
       <div className="ts-cache-summary-card">
         <div className="ts-cache-summary-main">

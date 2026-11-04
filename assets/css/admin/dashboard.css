@@ -3011,47 +3011,6 @@
   gap: 20px;
 }
 
-.ts-cache-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.ts-cache-title-group {
-  flex: 1;
-  min-width: 280px;
-}
-
-.ts-cache-header-icon {
-  width: 36px;
-  height: 36px;
-  background: #eff6ff;
-  color: #2563eb;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ts-cache-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.2px;
-}
-
-.ts-cache-desc {
-  margin: 6px 0 0 0;
-  font-size: 13px;
-  color: #64748b;
-  line-height: 1.5;
-  max-width: 680px;
-}
-
 .ts-cache-header-actions {
   display: flex;
   align-items: center;
@@ -3341,10 +3300,6 @@
   background: transparent;
   color: #dc2626;
   border: 1px solid #fca5a5;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 12px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;

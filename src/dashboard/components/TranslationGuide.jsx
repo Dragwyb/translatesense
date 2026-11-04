@@ -128,7 +128,7 @@ export const GUIDES_DATA = {
       {
         number: 3,
         title: 'Open Page in Elementor',
-        description: 'If the popup does not appear or was closed, open the translated page using Elementor.',
+        description: 'If the popup does not appear or was closed, open page in Elementor Editor.',
       },
       {
         number: 4,

@@ -345,6 +345,10 @@ export function DashboardApp() {
         activeTab={activeTab}
         onSaveSettings={() => handleSaveSettings(settings)}
         isSaving={isSavingSettings}
+        cacheCounts={cacheCounts}
+        onRefreshCache={handleRefreshCache}
+        isRefreshing={isRefreshingCache}
+        onClearCache={handleClearCache}
         pluginUrl={localizedData.pluginUrl}
       />
 

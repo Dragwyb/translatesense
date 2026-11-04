@@ -3,18 +3,19 @@
  */
 
 import { DashboardIcons } from './DashboardIcons';
+import { formatMs } from '../../utils/formatting';
 
 export function RightSidebar({ stats = {} }) {
-  const totalPosts = stats.successful_translations ? Number(stats.successful_translations).toLocaleString() : '';
+  const totalPosts = stats.successful_translations ? Number(stats.successful_translations).toLocaleString() : 0;
   const totalStrings = stats.total_strings
     ? (stats.total_strings >= 1000 ? (stats.total_strings / 1000).toFixed(1) + 'K' : stats.total_strings)
-    : '';
+    : 0;
   const totalCharacters = stats.total_characters
     ? (stats.total_characters >= 1000 ? (stats.total_characters / 1000).toFixed(1) + 'K' : stats.total_characters)
-    : '';
-  const timeTaken = stats.time_take || '';
+    : 0;
+  const timeTaken = formatMs(stats.time_take) || '';
   const cachedCount = stats.cached_results ? `${Number(stats.cached_results).toLocaleString()} Strings` : 0;
-  const packagesCount = stats.total_packages ? Number(stats.total_packages).toLocaleString() : '';
+  const packagesCount = stats.total_packages ? Number(stats.total_packages).toLocaleString() : 0;
   const providers = stats.providers && Object.keys(stats.providers).length > 0 ? Object.keys(stats.providers) : [];
 
   const adminUrl =

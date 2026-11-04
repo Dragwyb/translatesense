@@ -713,14 +713,14 @@ export function SettingsTab({
             <div className="ts-prompt-actions">
               <button
                 type="button"
-                className="ts-btn ts-btn-secondary ts-btn-sm"
+                className="ts-btn ts-btn-secondary ts-btn-md"
                 onClick={copyPromptToClipboard}
               >
                 Copy Prompt
               </button>
               <button
                 type="button"
-                className="ts-btn ts-btn-secondary ts-btn-sm"
+                className="ts-btn ts-btn-primary ts-btn-sm"
                 onClick={() => setSettings({ ...settings, custom_prompt: '' })}
               >
                 Reset to Default
@@ -738,7 +738,7 @@ export function SettingsTab({
               <h3>Multilingual Setup (Polylang)</h3>
               <p>Active languages detected from Polylang integration for full-site automatic and editor translations.</p>
             </div>
-            <a href="admin.php?page=mlang" className="ts-btn ts-btn-secondary ts-btn-sm">
+            <a href="admin.php?page=mlang" className="ts-btn ts-btn-secondary ts-btn-md">
               Manage Languages ↗
             </a>
           </div>
