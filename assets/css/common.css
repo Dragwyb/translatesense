@@ -668,7 +668,7 @@
   color: #1e293b;
 }
 
-.ts-error-message *{
+.ts-error-container *{
   margin: 0;
   line-height: 1;
   font-size: 16px;
