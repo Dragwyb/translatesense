@@ -2,6 +2,7 @@
  * BulkWizard Component
  */
 
+import { useCallback } from '@wordpress/element';
 import { LanguageSelection } from './LanguageSelection';
 import { ProviderSelection } from './ProviderSelection';
 import { BulkProgressModal } from './BulkProgressModal';
@@ -48,7 +49,20 @@ export function BulkWizard({
     pollStatus,
     switchBatch,
     openBatchMonitor,
+    progressSessionType,
+    progressModalSource,
+    isQueueChromeAi,
   } = translationState;
+
+  const showBackButton =
+    progressSessionType === 'existing_queue' &&
+    progressModalSource === 'language_selection_view_progress';
+
+  const canSkip = progressSessionType === 'existing_queue';
+
+  const handleBackFromProgress = useCallback(() => {
+    setCurrentStep(1);
+  }, [setCurrentStep]);
 
   if (!isOpen) return null;
 
@@ -63,7 +77,7 @@ export function BulkWizard({
       setErrorModal({ isOpen: false, title: '', message: '', errorObj: null, reasonHTML: '' });
       return;
     }
-    if (currentStep === 3 && isTranslating && selectedProvider === 'chrome_ai') {
+    if (currentStep === 3 && isTranslating && isQueueChromeAi) {
       return; // Do not close while on-device translation is actively processing
     }
     if (onClose) {
@@ -114,7 +128,20 @@ export function BulkWizard({
           onLanguagesChange={setSelectedLanguages}
           onNext={() => setCurrentStep(2)}
           activeBatches={activeBatches}
-          onShowRunning={() => openBatchMonitor && openBatchMonitor()}
+          onShowRunning={() => {
+            const activeBatch = activeBatches && activeBatches[0] ? activeBatches[0] : null;
+            if (openBatchMonitor) {
+              openBatchMonitor(
+                activeBatch ? activeBatch.batch_id : null,
+                activeBatch,
+                activeBatches,
+                {
+                  sessionType: 'existing_queue',
+                  modalSource: 'language_selection_view_progress',
+                }
+              );
+            }
+          }}
         />
       ) : currentStep === 2 ? (
         /* 4. Step 2: Provider Selection Modal */
@@ -154,6 +181,7 @@ export function BulkWizard({
           humanReadableTimer={humanReadableTimer}
           statsSummary={statsSummary}
           selectedProvider={selectedProvider}
+          isChromeAi={isQueueChromeAi}
           activeBatches={activeBatches}
           currentBatchId={currentBatchId}
           onBatchChange={(id) => {
@@ -181,6 +209,9 @@ export function BulkWizard({
               reasonHTML: detail.errorObj?.reasonHTML,
             })
           }
+          showBackButton={showBackButton}
+          onBack={handleBackFromProgress}
+          canSkip={canSkip}
         />
       ) : null}
     </div>

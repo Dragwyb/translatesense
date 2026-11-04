@@ -10,6 +10,7 @@ export function TranslationResults({
   postResultsMap = {},
   allLanguages = [],
   isBackgroundMode = false,
+  canSkip = false,
   activeBatchId = null,
   filterOnlyFailed = false,
   onSkipPost,
@@ -44,6 +45,7 @@ export function TranslationResults({
               postData={postData}
               allLanguages={allLanguages}
               isBackgroundMode={isBackgroundMode}
+              canSkip={canSkip}
               activeBatchId={activeBatchId}
               onSkipPost={onSkipPost}
               onErrorDetail={onErrorDetail}
@@ -54,4 +56,3 @@ export function TranslationResults({
     </div>
   );
 }
-

@@ -22,6 +22,7 @@ export function BulkProgressModal({
   humanReadableTimer = '',
   statsSummary = null,
   selectedProvider = '',
+  isChromeAi: explicitIsChromeAi = null,
   activeBatches = [],
   currentBatchId = null,
   onBatchChange,
@@ -32,8 +33,11 @@ export function BulkProgressModal({
   onFilterChange,
   onSkipPost,
   onErrorDetail,
+  showBackButton = false,
+  onBack,
+  canSkip = false,
 }) {
-  const isChromeAi = selectedProvider === 'chrome_ai';
+  const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
   const hasFailedPosts = Object.values(postResultsMap).some((p) =>
     Object.values(p.translations || {}).some((t) => t.status === 'failed')
   );
@@ -56,6 +60,16 @@ export function BulkProgressModal({
       footer={
         <ModalFooter align="space-between">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {showBackButton && (
+              <Button
+                variant="secondary"
+                onClick={onBack}
+                id="ts-progress-back-btn"
+                className="ts-bulk-progress-back-btn"
+              >
+                &larr; Back
+              </Button>
+            )}
             {hasFailedPosts && (
               <label className="ts-footer-filter-label">
                 <input
@@ -120,6 +134,7 @@ export function BulkProgressModal({
           postResultsMap={postResultsMap}
           allLanguages={allLanguages}
           isBackgroundMode={!isChromeAi}
+          canSkip={canSkip}
           activeBatchId={currentBatchId}
           filterOnlyFailed={filterOnlyFailed}
           onSkipPost={onSkipPost}
@@ -129,4 +144,3 @@ export function BulkProgressModal({
     </Modal>
   );
 }
-

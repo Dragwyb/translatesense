@@ -12,6 +12,7 @@ export function PostResultItem({
   postData,
   allLanguages = [],
   isBackgroundMode = false,
+  canSkip = false,
   activeBatchId = null,
   onSkipPost,
   onErrorDetail,
@@ -43,9 +44,10 @@ export function PostResultItem({
   });
 
   // Skip button strictly visible in background monitor mode for OpenAI/Gemini with pending/running items
+  // AND only when progress session context allows skip (existing_queue sessions)
   const isEligibleProvider = provider === 'openai' || provider === 'gemini';
   const hasActiveJobs = runCount > 0 || pendCount > 0;
-  const showSkipBtn = isBackgroundMode && isEligibleProvider && hasActiveJobs;
+  const showSkipBtn = Boolean(canSkip) && isBackgroundMode && isEligibleProvider && hasActiveJobs;
 
   const handleSkipClick = (e) => {
     e.stopPropagation();
@@ -76,19 +78,19 @@ export function PostResultItem({
               onClick={handleSkipClick}
               title="Skip remaining translations for this post"
             >
-              <span className="dashicons dashicons-controls-skipforward" /> Skip
+              Skip Translations
             </button>
           )}
 
           {failCount > 0 && (
             <span className="ts-post-status-pill failed">
-              <span className="dashicons dashicons-dismiss" /> Failed ({failCount})
+              Failed ({failCount})
             </span>
           )}
 
           {skipCount > 0 && skipCount + compCount === transKeys.length && compCount === 0 && (
             <span className="ts-post-status-pill skipped">
-              <span className="dashicons dashicons-controls-skipforward" /> Skipped
+              Skipped
             </span>
           )}
 
@@ -152,7 +154,7 @@ export function PostResultItem({
                     </span>
                   ) : isSkipped ? (
                     <span className="ts-row-status skipped">
-                      <span className="dashicons dashicons-controls-skipforward" /> Skipped
+                      Skipped
                     </span>
                   ) : isCancelling ? (
                     <span className="ts-row-status cancelling">

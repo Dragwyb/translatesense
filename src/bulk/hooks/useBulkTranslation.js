@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from '@wordpress/element';
+import { useState, useEffect, useRef, useCallback, useMemo } from '@wordpress/element';
 import { getEvaluatedProviders } from '../../services/providers/providerService';
 import { startBulkTranslation, updateBulkJob, skipBulkPost } from '../services/bulkService';
 import { getActiveBatches, getBatchStatus } from '../services/batchService';
@@ -40,6 +40,10 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   const [statsSummary, setStatsSummary] = useState(null);
   const [filterOnlyFailed, setFilterOnlyFailed] = useState(false);
 
+  // Modal progress session context: separates new user queue from existing background queue
+  const [progressSessionType, setProgressSessionType] = useState('new_queue'); // 'new_queue' | 'existing_queue'
+  const [progressModalSource, setProgressModalSource] = useState('provider_selection'); // 'provider_selection' | 'bulk_button' | 'language_selection_view_progress'
+
   // Modals
   const [skipModal, setSkipModal] = useState({ isOpen: false, postId: null, batchId: null });
   const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '', errorObj: null });
@@ -50,6 +54,45 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   const pollTimerRef = useRef(null);
   const isPollingRef = useRef(false);
+
+  // Chrome AI detection: active queue data is source of truth for existing queue
+  const isQueueChromeAi = useMemo(() => {
+    if (progressSessionType === 'new_queue') {
+      return selectedProvider === 'chrome_ai';
+    }
+
+    const activeBatch = currentBatch || (activeBatches && activeBatches.find((b) => b.batch_id === currentBatchId));
+    if (activeBatch) {
+      if (activeBatch.provider === 'chrome_ai' || activeBatch.provider === 'chrome_local_ai') {
+        return true;
+      }
+      if (Array.isArray(activeBatch.items)) {
+        const hasActiveChrome = activeBatch.items.some((item) => {
+          const isChrome = item.provider === 'chrome_ai' || item.provider === 'chrome_local_ai';
+          const isActive = item.status === 'pending' || item.status === 'running' || item.status === 'processing';
+          return isChrome && isActive;
+        });
+        if (hasActiveChrome) return true;
+      }
+    }
+
+    for (const post of Object.values(postResultsMap || {})) {
+      if (post.provider === 'chrome_ai' || post.provider === 'chrome_local_ai') {
+        const hasActiveTrans = Object.values(post.translations || {}).some(
+          (t) => t.status === 'pending' || t.status === 'running' || t.status === 'processing'
+        );
+        if (hasActiveTrans) return true;
+      }
+      for (const t of Object.values(post.translations || {})) {
+        const isChrome = t.provider === 'chrome_ai' || t.provider === 'chrome_local_ai';
+        const isActive = t.status === 'pending' || t.status === 'running' || t.status === 'processing';
+        if (isChrome && isActive) return true;
+      }
+    }
+
+    return false;
+  }, [progressSessionType, selectedProvider, currentBatch, activeBatches, currentBatchId, postResultsMap]);
+
 
   // Load providers and active batches on mount
   useEffect(() => {
@@ -170,10 +213,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         setCurrentBatchId(bId);
         currentBatchIdRef.current = bId;
 
-        if (data.provider) {
-          setSelectedProvider(data.provider);
-        }
-
         const pct =
           Array.isArray(data.items) && data.items.length > 0
             ? Math.round(getOverallProgress(data.items))
@@ -193,7 +232,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         const isFinished =
           data.overall_status === 'completed' ||
           data.overall_status === 'failed' ||
-          data.overall_status === 'skipped';
+          data.overall_status === 'skipped' ||
+          data.overall_status === 'cancelled';
 
         if (isFinished) {
           setIsTranslating(false);
@@ -203,21 +243,41 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           const stats = calculateBatchStats(data.items || []);
           setStatsSummary(stats);
 
-          // Refresh active batches
-          getActiveBatches()
-            .then((res) => {
-              setActiveBatches(res.batches || []);
-            })
-            .catch(() => {});
+          // Continue polling only while active batches exist; stop immediately if all finished
+          try {
+            const res = await getActiveBatches();
+            const remaining = res.batches || [];
+            setActiveBatches(remaining);
+            if (remaining.length === 0) {
+              // No more active batches: stop polling immediately, do not schedule another request
+              return;
+            }
+          } catch {
+            return;
+          }
         } else {
           setIsTranslating(true);
           setIsCompleted(false);
           startTimer();
+          // Active batches exist: continue polling using 5000ms interval
           pollTimerRef.current = setTimeout(() => pollStatus(bId), 5000);
         }
       } catch (err) {
         console.warn('[TranslateSense] Bulk polling error:', err);
-        pollTimerRef.current = setTimeout(() => pollStatus(bId), 5000);
+        try {
+          const res = await getActiveBatches();
+          const remaining = res.batches || [];
+          setActiveBatches(remaining);
+          if (remaining.length > 0 && remaining.some((b) => b.batch_id === bId)) {
+            pollTimerRef.current = setTimeout(() => pollStatus(bId), 5000);
+          } else {
+            setIsTranslating(false);
+            stopTimer();
+          }
+        } catch {
+          setIsTranslating(false);
+          stopTimer();
+        }
       } finally {
         isPollingRef.current = false;
       }
@@ -227,8 +287,14 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   // Monitor mode activator: immediately enters Step 3 with populated batch data
   const openBatchMonitor = useCallback(
-    async (targetBatchId = null, initialBatchData = null, allBatches = null) => {
+    async (targetBatchId = null, initialBatchData = null, allBatches = null, contextOptions = {}) => {
       stopPolling();
+
+      const sessionType = contextOptions.sessionType || 'existing_queue';
+      const modalSource = contextOptions.modalSource || 'bulk_button';
+      setProgressSessionType(sessionType);
+      setProgressModalSource(modalSource);
+
       setCurrentStep(3);
 
       let bId = targetBatchId || currentBatchIdRef.current;
@@ -238,17 +304,29 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         setActiveBatches(allBatches);
       }
 
+      // If missing batch ID or data, trigger /bulk-active-batches immediately once
       if (!bId || !data) {
         try {
           const res = await getActiveBatches();
           const batches = res.batches || [];
           setActiveBatches(batches);
-          if (batches.length > 0) {
-            bId = bId || batches[0].batch_id;
-            data = data || batches.find((b) => b.batch_id === bId) || batches[0];
+
+          // If the response contains an empty batches array, stop polling immediately.
+          // Do not schedule another request when there are no active batches.
+          if (batches.length === 0) {
+            setIsTranslating(false);
+            stopTimer();
+            setStatusText('No active translation batches.');
+            return;
           }
+
+          bId = bId || batches[0].batch_id;
+          data = data || batches.find((b) => b.batch_id === bId) || batches[0];
         } catch (e) {
           console.warn('[TranslateSense] Failed to fetch active batches on openBatchMonitor:', e);
+          setIsTranslating(false);
+          stopTimer();
+          return;
         }
       }
 
@@ -258,16 +336,14 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
         if (data) {
           setCurrentBatch(data);
-          if (data.provider) {
-            setSelectedProvider(data.provider);
-          }
           // Immediately populate posts and items table
           populateMapFromBatch(data, true);
 
           const isFinished =
             data.overall_status === 'completed' ||
             data.overall_status === 'failed' ||
-            data.overall_status === 'skipped';
+            data.overall_status === 'skipped' ||
+            data.overall_status === 'cancelled';
 
           if (isFinished) {
             setIsTranslating(false);
@@ -275,6 +351,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             stopTimer();
             const stats = calculateBatchStats(data.items || []);
             setStatsSummary(stats);
+            // Completed batch: do not schedule polling
+            return;
           } else {
             setIsTranslating(true);
             setIsCompleted(false);
@@ -309,14 +387,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     [populateMapFromBatch, pollStatus, startTimer, stopTimer, stopPolling]
   );
 
-  // Switch between multiple background batches
+  // Switch between multiple background batches preserving session context
   const switchBatch = useCallback(
     (newBatchId) => {
       if (!newBatchId) return;
       const batchData = activeBatches.find((b) => b.batch_id === newBatchId) || null;
-      openBatchMonitor(newBatchId, batchData, activeBatches);
+      openBatchMonitor(newBatchId, batchData, activeBatches, {
+        sessionType: progressSessionType,
+        modalSource: progressModalSource,
+      });
     },
-    [activeBatches, openBatchMonitor]
+    [activeBatches, openBatchMonitor, progressSessionType, progressModalSource]
   );
 
   // Auto-open monitor if options.isPreviouslyRunning is true
@@ -411,6 +492,33 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         const postTitle = job.post_title || `Post #${postId}`;
 
         if (job.status === 'already_exists') {
+          continue;
+        }
+
+        // If queue post is more than 1 day old, mark status as failed and do not translate
+        const jobCreated = job.created_at ? new Date(job.created_at).getTime() : 0;
+        const isOneDayOld = jobCreated > 0 && (Date.now() - jobCreated) >= 86400000;
+        if (isOneDayOld) {
+          failedCount++;
+          runningJobs[i].status = 'failed';
+          await updateBulkJob(jobId, {
+            status: 'failed',
+            progress_status: 'Failed: Job expired (more than 1 day old)',
+            error_message: 'Translation job expired: queued for more than 1 day.',
+          });
+          setPostResultsMap((prev) => {
+            const updated = { ...prev };
+            if (updated[postId] && updated[postId].translations[targetLang]) {
+              const t = { ...updated[postId].translations[targetLang] };
+              t.status = 'failed';
+              t.error = 'Translation job expired: queued for more than 1 day.';
+              t.progressPercent = 100;
+              t.progressStatus = 'Failed: Job expired (more than 1 day old)';
+              t.targetTitle = 'Failed: Job expired (more than 1 day old)';
+              updated[postId].translations[targetLang] = t;
+            }
+            return updated;
+          });
           continue;
         }
 
@@ -650,6 +758,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   // Start translation trigger from Step 2
   const startTranslation = useCallback(async () => {
+    setProgressSessionType('new_queue');
+    setProgressModalSource('provider_selection');
     setCurrentStep(3);
     setIsTranslating(true);
     setIsCompleted(false);
@@ -781,6 +891,12 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     switchBatch,
     stopPolling,
     populateMapFromBatch,
+    setActiveBatches,
+    progressSessionType,
+    setProgressSessionType,
+    progressModalSource,
+    setProgressModalSource,
+    isQueueChromeAi,
   };
 }
 
