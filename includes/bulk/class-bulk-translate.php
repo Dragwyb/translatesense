@@ -55,10 +55,10 @@ class Bulk_Translate {
 		$btn_id     = ( 'bottom' === $which ) ? 'ts-quick-filter-translate-btn-bottom' : 'ts-quick-filter-translate-btn';
 		$has_active = Bulk_Process::has_active_background_jobs();
 		?>
-		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn<?php echo $has_active ? ' ts-has-active-jobs' : ''; ?>">
+		<button type="button" id="<?php echo esc_attr( $btn_id ); ?>" class="button button-primary ts-filter-action-btn<?php echo esc_attr( $has_active ? ' ts-has-active-jobs' : '' ); ?>">
 			<span class="dashicons dashicons-translation"></span>
 			<?php esc_html_e( 'Bulk Translate', 'translatesense' ); ?>
-			<span class="ts-active-pulse-dot" style="<?php echo $has_active ? '' : 'display: none;'; ?>" title="<?php esc_attr_e( 'Background translations running', 'translatesense' ); ?>"></span>
+			<span class="ts-active-pulse-dot" style="<?php echo esc_attr( $has_active ? '' : 'display: none;' ); ?>" title="<?php esc_attr_e( 'Background translations running', 'translatesense' ); ?>"></span>
 		</button>
 		<?php
 	}
@@ -77,7 +77,7 @@ class Bulk_Translate {
 		}
 
 		$settings         = get_option( 'translatesense_settings', array() );
-		$enable_providers = $settings['enabled_providers'];
+		$enable_providers = is_array( $settings ) && isset( $settings['enabled_providers'] ) && is_array( $settings['enabled_providers'] ) ? $settings['enabled_providers'] : array();
 		$active_providers = array();
 
 		if ( class_exists( Ai_Connector_Bridge::class ) ) {

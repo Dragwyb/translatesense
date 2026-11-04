@@ -95,7 +95,7 @@ class Editor_Integration {
 			}
 
 			if ( $is_valid_nonce ) {
-				$candidate_id = absint( $_GET['from_post'] );
+				$candidate_id = absint( wp_unslash( $_GET['from_post'] ) );
 				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
 					$from_post_id = $candidate_id;
 				}
@@ -360,8 +360,8 @@ class Editor_Integration {
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
 				'docsUrl'                => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
 				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
-				'settingsUrl'            => Admin_Menu::get_dashboard_url( 'settings' ),
-				'connectorsUrl'          => admin_url( 'options-connectors.php' ),
+				'settingsUrl'            => esc_url_raw( Admin_Menu::get_dashboard_url( 'settings' ) ),
+				'connectorsUrl'          => esc_url_raw( admin_url( 'options-connectors.php' ) ),
 				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),
 				'hasGeminiKey'           => ! empty( $settings['gemini_api_key'] ),
 			),
@@ -549,7 +549,7 @@ class Editor_Integration {
 		if ( isset( $_GET['from_post'] ) && ! empty( $_GET['from_post'] ) && isset( $_GET['_wpnonce'] ) ) {
 			$nonce = sanitize_key( wp_unslash( $_GET['_wpnonce'] ) );
 			if ( wp_verify_nonce( $nonce, 'new-post-translation' ) ) {
-				$candidate_id = absint( $_GET['from_post'] );
+				$candidate_id = absint( wp_unslash( $_GET['from_post'] ) );
 				if ( $candidate_id > 0 && get_post( $candidate_id ) && current_user_can( 'edit_post', $candidate_id ) ) {
 					return $candidate_id;
 				}
@@ -611,11 +611,11 @@ class Editor_Integration {
 		$source_lang_flag  = '';
 		$current_lang_flag = '';
 
-		if ( isset( $polylang_lang[ $current_lang ] ) && ! empty( isset( $polylang_lang[ $current_lang ] ) ) ) {
-			$current_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $current_lang ]['flag'] ), esc_attr( $polylang_lang[ $current_lang ]['name'] ) );
+		if ( ! empty( $polylang_lang[ $current_lang ]['flag'] ) ) {
+			$current_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $current_lang ]['flag'] ), esc_attr( $polylang_lang[ $current_lang ]['name'] ?? '' ) );
 		}
-		if ( isset( $polylang_lang[ $source_lang ] ) && ! empty( isset( $polylang_lang[ $source_lang ] ) ) ) {
-			$source_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $source_lang ]['flag'] ), esc_attr( $polylang_lang[ $source_lang ]['name'] ) );
+		if ( ! empty( $polylang_lang[ $source_lang ]['flag'] ) ) {
+			$source_lang_flag = sprintf( '<img src="%s" alt="%s" style="width:15px"/>', esc_url( $polylang_lang[ $source_lang ]['flag'] ), esc_attr( $polylang_lang[ $source_lang ]['name'] ?? '' ) );
 		}
 		?>
 		<div class="translatesense-metabox-content">

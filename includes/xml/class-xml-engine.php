@@ -316,7 +316,7 @@ class Xml_Engine {
 		$dom->formatOutput       = true;
 
 		// Initialize root skeleton
-		$dom->loadXML( self::get_default_builder_skeleton( 'all' ) );
+		$dom->loadXML( self::get_default_builder_skeleton( 'all' ), LIBXML_NONET );
 		$root = $dom->documentElement;
 
 		$gb_builder = self::get_builder( 'gutenberg' );
@@ -328,7 +328,10 @@ class Xml_Engine {
 
 		foreach ( $xml_strings as $xml_str ) {
 			libxml_use_internal_errors( true );
-			$sxml = simplexml_load_string( $xml_str );
+			if ( false !== stripos( $xml_str, '<!DOCTYPE' ) ) {
+				continue;
+			}
+			$sxml = simplexml_load_string( $xml_str, 'SimpleXMLElement', LIBXML_NONET );
 			if ( ! $sxml ) {
 				libxml_clear_errors();
 				continue;
@@ -467,7 +470,7 @@ class Xml_Engine {
 		$dom                     = new DOMDocument( '1.0' );
 		$dom->preserveWhiteSpace = false;
 		$dom->formatOutput       = true;
-		if ( @$dom->loadXML( $merged_xml ) ) {
+		if ( false === stripos( $merged_xml, '<!DOCTYPE' ) && @$dom->loadXML( $merged_xml, LIBXML_NONET ) ) {
 			$formatted_xml = $dom->saveXML();
 		} else {
 			$formatted_xml = $merged_xml;
@@ -589,7 +592,11 @@ class Xml_Engine {
 		}
 
 		libxml_use_internal_errors( true );
-		$xml    = simplexml_load_string( $xml_string );
+		if ( false !== stripos( $xml_string, '<!DOCTYPE' ) ) {
+			return new WP_Error( 'xml_doctype_not_allowed', __( 'XML DOCTYPE declarations are not allowed.', 'translatesense' ) );
+		}
+
+		$xml    = simplexml_load_string( $xml_string, 'SimpleXMLElement', LIBXML_NONET );
 		$errors = libxml_get_errors();
 		libxml_clear_errors();
 
@@ -627,7 +634,7 @@ class Xml_Engine {
 		$dom                     = new DOMDocument( '1.0' );
 		$dom->preserveWhiteSpace = false;
 		$dom->formatOutput       = true;
-		if ( @$dom->loadXML( $xml_string ) ) {
+		if ( false === stripos( $xml_string, '<!DOCTYPE' ) && @$dom->loadXML( $xml_string, LIBXML_NONET ) ) {
 			$formatted_xml = $dom->saveXML();
 		} else {
 			$formatted_xml = $xml_string;
@@ -702,7 +709,10 @@ class Xml_Engine {
 					continue;
 				}
 				libxml_use_internal_errors( true );
-				$xml = simplexml_load_string( $xml_str );
+				if ( false !== stripos( $xml_str, '<!DOCTYPE' ) ) {
+					continue;
+				}
+				$xml = simplexml_load_string( $xml_str, 'SimpleXMLElement', LIBXML_NONET );
 				if ( ! $xml ) {
 					libxml_clear_errors();
 					continue;
@@ -757,7 +767,7 @@ class Xml_Engine {
 		}
 
 		libxml_use_internal_errors( true );
-		$snippet_doc = simplexml_load_string( $snippet_xml );
+		$snippet_doc = simplexml_load_string( $snippet_xml, 'SimpleXMLElement', LIBXML_NONET );
 		if ( ! $snippet_doc ) {
 			libxml_clear_errors();
 			return new WP_Error( 'invalid_snippet', __( 'Invalid XML snippet.', 'translatesense' ) );
@@ -770,9 +780,9 @@ class Xml_Engine {
 		}
 
 		$raw_xml = self::get_builder_xml_raw( $target_builder );
-		$xml     = simplexml_load_string( $raw_xml );
+		$xml     = false !== stripos( $raw_xml, '<!DOCTYPE' ) ? false : simplexml_load_string( $raw_xml, 'SimpleXMLElement', LIBXML_NONET );
 		if ( ! $xml ) {
-			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ) );
+			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ), 'SimpleXMLElement', LIBXML_NONET );
 		}
 
 		$section_name = $builder_obj->get_section_name();
@@ -815,7 +825,7 @@ class Xml_Engine {
 		if ( ! $existing_child ) {
 			$base_snippet_raw = self::get_widget_xml_snippet( $target_builder, (string) $name );
 			if ( ! empty( $base_snippet_raw ) ) {
-				$base_doc = simplexml_load_string( $base_snippet_raw );
+				$base_doc = false !== stripos( $base_snippet_raw, '<!DOCTYPE' ) ? false : simplexml_load_string( $base_snippet_raw, 'SimpleXMLElement', LIBXML_NONET );
 				if ( $base_doc ) {
 					$base_node = null;
 					if ( 'gutenberg' === $target_builder && isset( $base_doc->{'gutenberg-blocks'}->{'gutenberg-block'} ) ) {
@@ -843,7 +853,7 @@ class Xml_Engine {
 		$dom                     = new DOMDocument( '1.0' );
 		$dom->preserveWhiteSpace = false;
 		$dom->formatOutput       = true;
-		$dom->loadXML( $xml->asXML() );
+		$dom->loadXML( $xml->asXML(), LIBXML_NONET );
 		$formatted_xml = $dom->saveXML();
 
 		return self::save_builder_xml( $target_builder, $formatted_xml );
@@ -921,7 +931,10 @@ class Xml_Engine {
 	 */
 	private static function merge_xml_into_rules( $xml_string, &$rules, $source = 'core' ) {
 		libxml_use_internal_errors( true );
-		$xml = simplexml_load_string( $xml_string );
+		if ( empty( trim( $xml_string ) ) || false !== stripos( $xml_string, '<!DOCTYPE' ) ) {
+			return;
+		}
+		$xml = simplexml_load_string( $xml_string, 'SimpleXMLElement', LIBXML_NONET );
 		if ( ! $xml ) {
 			libxml_clear_errors();
 			return;
@@ -971,9 +984,9 @@ class Xml_Engine {
 		$raw_xml = self::get_builder_xml_raw( $target_builder );
 
 		libxml_use_internal_errors( true );
-		$xml = simplexml_load_string( $raw_xml );
+		$xml = false !== stripos( $raw_xml, '<!DOCTYPE' ) ? false : simplexml_load_string( $raw_xml, 'SimpleXMLElement', LIBXML_NONET );
 		if ( ! $xml ) {
-			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ) );
+			$xml = simplexml_load_string( self::get_default_builder_skeleton( $target_builder ), 'SimpleXMLElement', LIBXML_NONET );
 		}
 
 		$builder_obj->append_rule( $xml, (string) $name, $field_details, $conditions );

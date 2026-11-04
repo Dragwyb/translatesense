@@ -64,6 +64,14 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'get_xml_config' ),
 				'permission_callback' => array( __CLASS__, 'permission_get_xml_config' ),
+				'args'                => array(
+					'builder' => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'all',
+						'sanitize_callback' => 'sanitize_key',
+					),
+				),
 			)
 		);
 
@@ -80,6 +88,28 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'save_xml_config' ),
 				'permission_callback' => array( __CLASS__, 'permission_save_xml_config' ),
+				'args'                => array(
+					'builder'    => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'all',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'custom_xml' => array(
+						'required' => false,
+						'type'     => 'string',
+					),
+					'xml'        => array(
+						'required' => false,
+						'type'     => 'string',
+					),
+					'widget_id'  => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+				),
 			)
 		);
 
@@ -96,6 +126,24 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'generate_config_from_content' ),
 				'permission_callback' => array( __CLASS__, 'permission_generate_config' ),
+				'args'                => array(
+					'builder'  => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'gutenberg',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'blocks'   => array(
+						'required' => false,
+						'type'     => 'array',
+						'default'  => array(),
+					),
+					'elements' => array(
+						'required' => false,
+						'type'     => 'array',
+						'default'  => array(),
+					),
+				),
 			)
 		);
 
@@ -109,6 +157,26 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'open_mapping_sandbox' ),
 				'permission_callback' => array( __CLASS__, 'permission_open_mapping_sandbox' ),
+				'args'                => array(
+					'builder'     => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => 'gutenberg',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'widget_id'   => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'widget_slug' => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+				),
 			)
 		);
 
@@ -196,6 +264,85 @@ class Rest_Api {
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'update_settings' ),
 				'permission_callback' => array( __CLASS__, 'permission_update_settings' ),
+				'args'                => array(
+					'provider'          => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'openai_api_key'    => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'gemini_api_key'    => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'openai_model'      => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'gemini_model'      => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'enabled_providers' => array(
+						'required'          => false,
+						'type'              => 'array',
+						'items'             => array(
+							'type' => 'string',
+						),
+						'sanitize_callback' => static function ( $value ) {
+							return is_array( $value ) ? array_map( 'sanitize_key', $value ) : array();
+						},
+					),
+					'batch_size'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+					),
+					'response_timeout'  => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+					),
+					'max_tokens'        => array(
+						'required'          => false,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+					),
+					'temperature'       => array(
+						'required'          => false,
+						'type'              => 'number',
+						'validate_callback' => static function ( $value ) {
+							return is_numeric( $value );
+						},
+					),
+					'custom_prompt'     => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_textarea_field',
+					),
+					'default_prompt'    => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_textarea_field',
+					),
+					'slug_translation'  => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'post_status'       => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+					),
+				),
 			)
 		);
 
@@ -335,21 +482,37 @@ class Rest_Api {
 					'post_ids'         => array(
 						'required'          => true,
 						'type'              => 'array',
+						'items'             => array(
+							'type' => 'integer',
+						),
 						'validate_callback' => static function ( $value ) {
 							return is_array( $value ) && ! empty( $value );
+						},
+						'sanitize_callback' => static function ( $value ) {
+							return is_array( $value ) ? array_map( 'absint', $value ) : array();
 						},
 					),
 					'target_languages' => array(
 						'required'          => true,
 						'type'              => 'array',
+						'items'             => array(
+							'type' => 'string',
+						),
 						'validate_callback' => static function ( $value ) {
 							return is_array( $value ) && ! empty( $value );
+						},
+						'sanitize_callback' => static function ( $value ) {
+							return is_array( $value ) ? array_map( 'sanitize_key', $value ) : array();
 						},
 					),
 					'provider'         => array(
 						'required'          => false,
 						'type'              => 'string',
 						'sanitize_callback' => 'sanitize_key',
+					),
+					'options'          => array(
+						'required' => false,
+						'type'     => 'object',
 					),
 				),
 			)
@@ -1371,7 +1534,7 @@ class Rest_Api {
 	 * @return true|WP_Error
 	 */
 	public static function permission_bulk_active_batches( WP_REST_Request $request ) {
-		if ( ! current_user_can( 'edit_posts' ) ) {
+		if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
 			return self::permission_error(
 				__( 'You are not allowed to view active translation batches.', 'translatesense' )
 			);
@@ -1946,7 +2109,7 @@ class Rest_Api {
 
 		$custom_xml = isset( $params['custom_xml'] )
 			? (string) $params['custom_xml']
-			: '';
+			: ( isset( $params['xml'] ) ? (string) $params['xml'] : '' );
 
 		$widget_id = isset( $params['widget_id'] )
 			? sanitize_text_field( $params['widget_id'] )
@@ -3375,11 +3538,33 @@ class Rest_Api {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public static function bulk_active_batches( WP_REST_Request $request ) {
-		$batches = Bulk_Process::get_active_background_batches();
+		$batches          = Bulk_Process::get_active_background_batches();
+		$filtered_batches = array();
+
+		foreach ( $batches as $batch ) {
+			if ( empty( $batch['items'] ) || ! is_array( $batch['items'] ) ) {
+				continue;
+			}
+
+			$filtered_items = array();
+			foreach ( $batch['items'] as $item ) {
+				$post_id = isset( $item['post_id'] ) ? absint( $item['post_id'] ) : 0;
+				if ( $post_id > 0 && current_user_can( 'edit_post', $post_id ) ) {
+					$filtered_items[] = $item;
+				}
+			}
+
+			if ( ! empty( $filtered_items ) ) {
+				$batch['items']      = $filtered_items;
+				$batch['total_jobs'] = count( $filtered_items );
+				$filtered_batches[]  = $batch;
+			}
+		}
+
 		return rest_ensure_response(
 			array(
 				'success' => true,
-				'batches' => $batches,
+				'batches' => $filtered_batches,
 			)
 		);
 	}
@@ -3686,21 +3871,16 @@ class Rest_Api {
 		$packages_table = esc_sql( Hashing_Db::get_packages_table() );
 		$strings_table  = esc_sql( Hashing_Db::get_strings_table() );
 
-		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$query = $wpdb->prepare(
-			"SELECT DISTINCT s.source_string
-			 FROM `{$packages_table}` p
-			 INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
-			 WHERE p.post_id = %d",
-			$source_post_id
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$allowed_strings = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT s.source_string
+				 FROM `{$packages_table}` p
+				 INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
+				 WHERE p.post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$source_post_id
+			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-		if ( ! is_string( $query ) || '' === $query ) {
-			return false;
-		}
-
-		$allowed_strings = $wpdb->get_col( $query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		if ( ! is_array( $allowed_strings ) || empty( $allowed_strings ) ) {
 			return false;

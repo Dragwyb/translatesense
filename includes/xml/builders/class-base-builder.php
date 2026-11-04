@@ -58,7 +58,10 @@ abstract class Base_Builder {
 		}
 
 		libxml_use_internal_errors( true );
-		$xml = simplexml_load_string( $xml_string );
+		if ( false !== stripos( $xml_string, '<!DOCTYPE' ) ) {
+			return '';
+		}
+		$xml = simplexml_load_string( $xml_string, 'SimpleXMLElement', LIBXML_NONET );
 		if ( ! $xml || ! isset( $xml->{$this->section_name} ) ) {
 			libxml_clear_errors();
 			return '';
@@ -149,7 +152,7 @@ abstract class Base_Builder {
 		$dom                     = new DOMDocument( '1.0' );
 		$dom->preserveWhiteSpace = false;
 		$dom->formatOutput       = true;
-		$dom->loadXML( $xml->asXML() );
+		$dom->loadXML( $xml->asXML(), LIBXML_NONET );
 		return $dom->saveXML();
 	}
 

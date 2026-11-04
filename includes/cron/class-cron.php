@@ -104,6 +104,10 @@ class Cron {
 	 * Manual purge of all cached strings.
 	 */
 	public static function purge_all_cache() {
+		if ( ( is_admin() || is_user_logged_in() ) && ! current_user_can( 'manage_options' ) ) {
+			return false;
+		}
+
 		global $wpdb;
 		$table_translations = Hashing_Db::get_translations_table();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
