@@ -404,6 +404,12 @@
   color: #1d4ed8;
 }
 
+.ts-bulk-progress-view{
+  display: inline-flex;
+  overflow: hidden;
+  flex-direction: column;
+}
+
 /* ==========================================================================
    Step 3: Progress Bar Card
    ========================================================================== */

@@ -96,6 +96,17 @@
       background: $ts-bg-subtle;
       border: 1px solid $ts-border;
       border-radius: $ts-radius-md;
+      position: relative;
+      margin-right: 6px;
+
+      &:before {
+        content: '';
+        position: absolute;
+        height: 100%;
+        width: 1px;
+        right: -10px;
+        background: rgb(226, 232, 240);
+      }
 
       .ts-header-icon-img {
         width: 32px;
@@ -145,6 +156,8 @@
   padding: 24px;
   overflow-y: auto;
   flex: 1 1 auto;
+  display: inline-flex;
+  flex-direction: column;
 }
 
 // Modal Footer
@@ -469,6 +482,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -562,6 +576,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
