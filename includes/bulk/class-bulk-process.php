@@ -20,7 +20,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Bulk_Process {
 
-	const CRON_HOOK = 'translatesense_bulk_process_cron';
+	const CRON_HOOK           = 'translatesense_bulk_process_cron';
+	const IMMEDIATE_CRON_HOOK = 'translatesense_bulk_process_now';
+	const CRON_INTERVAL       = 'translatesense_batch_interval';
 
 	/**
 	 * Initialize hooks.
@@ -28,14 +30,15 @@ class Bulk_Process {
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_intervals' ) );
 		add_action( self::CRON_HOOK, array( __CLASS__, 'process_cron_tick' ) );
+		add_action( self::IMMEDIATE_CRON_HOOK, array( __CLASS__, 'process_cron_tick' ) );
 	}
 
 	/**
 	 * Add custom batch intervals (every minute / 30 seconds).
 	 */
 	public static function add_cron_intervals( $schedules ) {
-		if ( ! isset( $schedules['translatesense_batch_interval'] ) ) {
-			$schedules['translatesense_batch_interval'] = array(
+		if ( ! isset( $schedules[ self::CRON_INTERVAL ] ) ) {
+			$schedules[ self::CRON_INTERVAL ] = array(
 				'interval' => 60,
 				'display'  => __( 'Every Minute (TranslateSense Bulk Queue)', 'translatesense' ),
 			);
@@ -48,7 +51,7 @@ class Bulk_Process {
 	 */
 	private static function get_table_name_internal(): string {
 		global $wpdb;
-		return esc_sql( $wpdb->prefix . 'translatesense_queue' );
+		return $wpdb->prefix . 'translatesense_queue';
 	}
 
 	/**
@@ -103,6 +106,8 @@ class Bulk_Process {
 
 		$processed_group_keys = array();
 		$filtered_post_ids    = array();
+		$selected_lookup      = array_fill_keys( $clean_post_ids, true );
+		$filtered_lookup      = array();
 
 		foreach ( $clean_post_ids as $post_id ) {
 			if ( $post_id <= 0 ) {
@@ -114,8 +119,9 @@ class Bulk_Process {
 
 			// If no linked translations found, keep the post as-is
 			if ( empty( $translations ) ) {
-				if ( ! in_array( $post_id, $filtered_post_ids, true ) ) {
-					$filtered_post_ids[] = $post_id;
+				if ( ! isset( $filtered_lookup[ $post_id ] ) ) {
+					$filtered_post_ids[]         = $post_id;
+					$filtered_lookup[ $post_id ] = true;
 				}
 				continue;
 			}
@@ -133,8 +139,8 @@ class Bulk_Process {
 
 			// Posts from this translation group that were passed in the user's post_ids
 			$selected_in_group = array();
-			foreach ( $clean_post_ids as $pid ) {
-				if ( in_array( $pid, $group_ids, true ) ) {
+			foreach ( $group_ids as $pid ) {
+				if ( isset( $selected_lookup[ $pid ] ) ) {
 					$selected_in_group[] = $pid;
 				}
 			}
@@ -171,8 +177,9 @@ class Bulk_Process {
 				$chosen_id = $selected_in_group[0];
 			}
 
-			if ( $chosen_id > 0 && ! in_array( $chosen_id, $filtered_post_ids, true ) ) {
-				$filtered_post_ids[] = $chosen_id;
+			if ( $chosen_id > 0 && ! isset( $filtered_lookup[ $chosen_id ] ) ) {
+				$filtered_post_ids[]           = $chosen_id;
+				$filtered_lookup[ $chosen_id ] = true;
 			}
 		}
 
@@ -182,13 +189,37 @@ class Bulk_Process {
 	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai' ): array {
 		global $wpdb;
 
-		$table        = self::get_table_name_internal();
-		$batch_id     = wp_generate_uuid4();
-		$provider     = sanitize_text_field( $provider );
+		$table    = self::get_table_name_internal();
+		$batch_id = wp_generate_uuid4();
+		$provider = sanitize_key( $provider );
+		if ( '' === $provider ) {
+			return array(
+				'batch_id'   => '',
+				'total_jobs' => 0,
+				'jobs'       => array(),
+				'post_ids'   => array(),
+				'is_backend' => false,
+				'provider'   => '',
+				'error'      => __( 'Please select a valid translation provider.', 'translatesense' ),
+			);
+		}
 		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
 
-		$post_ids     = self::filter_linked_posts( $post_ids );
-		$created_jobs = array();
+		$post_ids        = self::filter_linked_posts( $post_ids );
+		$created_jobs    = array();
+		$seen_pairs      = array();
+		$cutoff          = current_time( 'timestamp' ) - DAY_IN_SECONDS;
+		$cutoff_mysql    = date( 'Y-m-d H:i:s', $cutoff );
+		$clean_languages = array();
+		foreach ( $target_languages as $language ) {
+			if ( is_string( $language ) || is_numeric( $language ) ) {
+				$language = sanitize_key( (string) $language );
+				if ( '' !== $language ) {
+					$clean_languages[] = $language;
+				}
+			}
+		}
+		$target_languages = array_values( array_unique( $clean_languages ) );
 
 		foreach ( $post_ids as $p_id ) {
 			$post_id = (int) $p_id;
@@ -197,18 +228,38 @@ class Bulk_Process {
 			}
 
 			foreach ( $target_languages as $lang ) {
-				$target_lang = sanitize_text_field( $lang );
-				if ( empty( $target_lang ) ) {
+				$target_lang = sanitize_key( $lang );
+				if ( '' === $target_lang ) {
+					continue;
+				}
+
+				$pair_key = $post_id . ':' . $target_lang;
+				if ( isset( $seen_pairs[ $pair_key ] ) ) {
+					continue;
+				}
+				$seen_pairs[ $pair_key ] = true;
+
+				// A recent pending job already covers this post and language.
+				// Running jobs are deliberately not blocked by this rule.
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+				$pending_job_id = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s ORDER BY id DESC LIMIT 1 AND provider IN ('openai', 'gemini')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						$post_id,
+						$target_lang,
+						$cutoff_mysql
+					)
+				);
+				if ( $pending_job_id ) {
 					continue;
 				}
 
 				// Check if translation already exists for this post & target language
 				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
 
-				// If the selected source itself is already in the requested
-				// language, there is nothing to translate. A different existing
-				$is_source_in_target_language = $existing_trans_id && ! empty( $existing_trans_id ) && $existing_trans_id > 0;
-				$has_existing_target          = $existing_trans_id > 0;
+				$source_lang                  = Polylang_Bridge::get_post_language( $post_id );
+				$is_source_in_target_language = (string) $source_lang === (string) $target_lang;
+				$has_existing_target          = $existing_trans_id > 0 && $existing_trans_id !== $post_id;
 
 				$job_status      = $is_source_in_target_language ? 'already_exists' : 'pending';
 				$progress_status = $is_source_in_target_language
@@ -234,13 +285,14 @@ class Bulk_Process {
 				);
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-				$wpdb->insert(
-					$table,
-					$insert_data,
-					array( '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' )
-				);
+				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
+					continue;
+				}
 
-				$job_id                           = (int) $wpdb->insert_id;
+				$job_id = (int) $wpdb->insert_id;
+				if ( $job_id <= 0 ) {
+					continue;
+				}
 				$insert_data['id']                = $job_id;
 				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $post_id );
 				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
@@ -260,6 +312,7 @@ class Bulk_Process {
 		return array(
 			'batch_id'   => $batch_id,
 			'total_jobs' => count( $created_jobs ),
+			'notice'     => empty( $created_jobs ) ? __( 'No new translation jobs were added. Recent pending jobs may already exist, or the selected posts could not be queued.', 'translatesense' ) : '',
 			'jobs'       => $created_jobs,
 			'post_ids'   => $post_ids,
 			'is_backend' => ! $is_chrome_ai,
@@ -274,35 +327,32 @@ class Bulk_Process {
 	 */
 	public static function cleanup_expired_jobs(): int {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table      = self::get_table_name_internal();
+		$cutoff     = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+		$updated_at = current_time( 'mysql' );
+		$error      = __( 'Translation job expired: it remained pending for more than 1 day.', 'translatesense' );
+		$label      = __( 'Failed: Job expired (more than 1 day old)', 'translatesense' );
 
-		$cutoff_local = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
-		$cutoff_gmt   = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
-
+		// Only expire jobs that have not started. A running AI request can take longer
+		// than a day on some providers and must not be failed by a polling request.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-		return (int) $wpdb->query(
+		$result = $wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$table} 
-				SET status = 'failed', 
-				    progress_status = %s, 
-				    error_message = %s, 
-				    updated_at = %s 
-				WHERE status IN ('pending', 'running', 'cancelling') 
-				  AND (created_at < %s OR created_at < %s OR created_at < DATE_SUB(NOW(), INTERVAL 1 DAY))", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				'Failed: Job expired (more than 1 day old)',
-				__( 'Translation job expired: queued for more than 1 day.', 'translatesense' ),
-				current_time( 'mysql' ),
-				$cutoff_local,
-				$cutoff_gmt
+				"UPDATE {$table} SET status = 'failed', progress_status = %s, error_message = %s, updated_at = %s WHERE status = 'pending' AND created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$label,
+				$error,
+				$updated_at,
+				$cutoff
 			)
 		);
+
+		return false === $result ? 0 : (int) $result;
 	}
 
 	/**
 	 * Check if table has pending or running jobs that require backend processing.
 	 */
 	public static function has_pending_or_running_jobs(): bool {
-		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -317,7 +367,6 @@ class Bulk_Process {
 	 * Check if table has active backend background jobs for eligible AI providers (OpenAI, Gemini).
 	 */
 	public static function has_active_background_jobs(): bool {
-		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -334,7 +383,6 @@ class Bulk_Process {
 	 * @return array
 	 */
 	public static function get_active_background_batches(): array {
-		self::cleanup_expired_jobs();
 		global $wpdb;
 		$table = self::get_table_name_internal();
 
@@ -363,47 +411,165 @@ class Bulk_Process {
 	 */
 	public static function schedule_cron_if_needed(): void {
 		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
-			wp_schedule_event( time(), 'translatesense_batch_interval', self::CRON_HOOK );
+			wp_schedule_event( time() + MINUTE_IN_SECONDS, self::CRON_INTERVAL, self::CRON_HOOK );
 		}
 	}
 
 	/**
-	 * Unschedule / Remove cron if no pending or running jobs exist.
+	 * Remove queue cron events only when no backend jobs remain.
 	 */
 	public static function unschedule_cron_if_idle(): void {
-		if ( ! self::has_pending_or_running_jobs() ) {
-			$timestamp = wp_next_scheduled( self::CRON_HOOK );
-			if ( $timestamp ) {
-				wp_unschedule_event( $timestamp, self::CRON_HOOK );
-			}
-			wp_clear_scheduled_hook( self::CRON_HOOK );
+		if ( self::has_pending_or_running_jobs() ) {
+			return;
 		}
+
+		wp_clear_scheduled_hook( self::CRON_HOOK );
+		wp_clear_scheduled_hook( self::IMMEDIATE_CRON_HOOK );
 	}
 
 	/**
-	 * Trigger non-blocking async background tick.
+	 * Schedule an immediate single event and ask WP-Cron to spawn asynchronously.
+	 * This is called from the batch-creation request, not from the worker itself.
 	 */
 	public static function trigger_async_cron(): void {
+		if ( ! wp_next_scheduled( self::IMMEDIATE_CRON_HOOK ) ) {
+			wp_schedule_single_event( time(), self::IMMEDIATE_CRON_HOOK );
+		}
+
 		if ( function_exists( 'spawn_cron' ) ) {
 			spawn_cron();
 		}
 	}
 
 	/**
-	 * Main Cron Batch Execution Tick.
-	 * Executes pending backend translation jobs one by one.
+	 * Main background worker.
+	 *
+	 * Processes queued jobs within the configured job and time limits.
+	 * Pauses before starting another job when PHP memory is nearly exhausted.
+	 *
+	 * @return void
 	 */
 	public static function process_cron_tick(): void {
+		global $wpdb;
+
+		// MySQL advisory lock serializes workers across concurrent WP-Cron requests.
+		$lock_name = 'ts_bulk_' . substr( hash( 'sha256', (string) site_url() ), 0, 32 );
+		$lock      = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 0)', $lock_name ) );
+
+		if ( '1' !== (string) $lock ) {
+			return;
+		}
+
+		$started_at        = microtime( true );
+		$processed_jobs    = 0;
+		$max_jobs          = (int) apply_filters( 'translatesense_bulk_worker_max_jobs', 25 );
+		$time_budget       = (float) apply_filters( 'translatesense_bulk_worker_time_budget', 50 );
+		$paused_for_memory = false;
+		$has_more_jobs     = false;
+
+		$max_jobs    = max( 1, min( 100, $max_jobs ) );
+		$time_budget = max( 5, min( 55, $time_budget ) );
+
+		try {
+			self::cleanup_expired_jobs();
+
+			while ( $processed_jobs < $max_jobs ) {
+				// Do not start another job when PHP memory is nearly exhausted.
+				if ( self::should_pause_processing() ) {
+					$paused_for_memory = true;
+					break;
+				}
+
+				// Leave enough time for WordPress to finish the request cleanly.
+				if ( ( microtime( true ) - $started_at ) >= $time_budget ) {
+					break;
+				}
+
+				if ( ! self::has_pending_backend_jobs() ) {
+					break;
+				}
+
+				self::process_next_backend_job();
+				++$processed_jobs;
+			}
+
+			$has_more_jobs = self::has_pending_backend_jobs();
+		} finally {
+			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+		}
+
+		if ( $has_more_jobs || self::has_pending_or_running_jobs() ) {
+			// Keep the one-minute recurring event as a safety net. Under normal
+			// conditions the current worker drains the queue without waiting for it.
+			self::schedule_cron_if_needed();
+
+			// Continue shortly when the worker reaches its job limit.
+			// If memory is high, let the recurring event retry after approximately 60s.
+			if ( ! $paused_for_memory && $has_more_jobs && $processed_jobs >= $max_jobs ) {
+				self::schedule_worker_continuation();
+			}
+		} else {
+			self::unschedule_cron_if_idle();
+		}
+	}
+
+	/**
+	 * Check for pending backend jobs without running cleanup queries.
+	 *
+	 * @return bool
+	 */
+	private static function has_pending_backend_jobs(): bool {
+		global $wpdb;
+		$table = self::get_table_name_internal();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$job_id = $wpdb->get_var(
+			"SELECT id FROM {$table} WHERE status = 'pending' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		return ! empty( $job_id );
+	}
+
+	/**
+	 * Schedule a short continuation when a healthy worker reaches its job cap.
+	 * WP-Cron's own lock may defer spawning until the current cron request exits;
+	 * the recurring event remains the reliable fallback.
+	 *
+	 * @return void
+	 */
+	private static function schedule_worker_continuation(): void {
+		if ( ! wp_next_scheduled( self::IMMEDIATE_CRON_HOOK ) ) {
+			wp_schedule_single_event( time() + 5, self::IMMEDIATE_CRON_HOOK );
+		}
+	}
+
+	/**
+	 * Check whether PHP memory usage is approaching its limit.
+	 *
+	 * @return bool
+	 */
+	private static function should_pause_processing(): bool {
+		$memory_limit = wp_convert_hr_to_bytes( ini_get( 'memory_limit' ) );
+
+		if ( $memory_limit <= 0 ) {
+			return false;
+		}
+
+		return memory_get_usage() >= ( $memory_limit * 0.80 );
+	}
+
+	/**
+	 * Process exactly one backend job. The public worker owns the global lock
+	 * and decides whether to claim another job in the same execution.
+	 */
+	private static function process_next_backend_job(): void {
 		global $wpdb;
 		$table = self::get_table_name_internal();
 
 		// Fail any queue post more than 1 day old so it is not translated
 		self::cleanup_expired_jobs();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-		$wpdb->query(
-			"UPDATE {$table} SET status = 'pending', progress_status = 'Restarting after timeout' WHERE status = 'running' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		);
+		// Do not reset stale running jobs solely by age: an AI request may legitimately take longer than 10 minutes.
 
 		// Clean up any stale cancelling jobs older than 10 minutes
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -447,9 +613,7 @@ class Bulk_Process {
 				array( '%d' )
 			);
 
-			if ( self::has_pending_or_running_jobs() ) {
-				self::process_cron_tick();
-			} else {
+			if ( ! self::has_pending_or_running_jobs() ) {
 				self::unschedule_cron_if_idle();
 			}
 			return;
@@ -468,9 +632,7 @@ class Bulk_Process {
 
 		if ( ! $claimed ) {
 			// Job was claimed by another thread or already skipped
-			if ( self::has_pending_or_running_jobs() ) {
-				self::process_cron_tick();
-			} else {
+			if ( ! self::has_pending_or_running_jobs() ) {
 				self::unschedule_cron_if_idle();
 			}
 			return;
@@ -496,7 +658,16 @@ class Bulk_Process {
 				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
 			}
 
-			$packages = array_values( (array) $packages );
+			if ( ! is_array( $packages ) ) {
+				throw new \UnexpectedValueException( 'The translation package data is invalid.' );
+			}
+
+			$packages = array_values( $packages );
+			foreach ( $packages as $package ) {
+				if ( ! is_array( $package ) ) {
+					throw new \UnexpectedValueException( 'A translation package has an invalid format.' );
+				}
+			}
 
 			// Extract pure strings indexed by array index
 			$settings         = get_option( 'translatesense_settings', array() );
@@ -518,7 +689,7 @@ class Bulk_Process {
 			$total_str   = count( $strings_to_send );
 			$total_chars = 0;
 			foreach ( $strings_to_send as $str_to_count ) {
-				$total_chars += mb_strlen( (string) $str_to_count );
+				$total_chars += function_exists( 'mb_strlen' ) ? mb_strlen( (string) $str_to_count, 'UTF-8' ) : strlen( (string) $str_to_count );
 			}
 
 			// Check if cancellation was requested before calling AI
@@ -539,10 +710,7 @@ class Bulk_Process {
 					)
 				);
 
-				if ( self::has_pending_or_running_jobs() ) {
-					self::process_cron_tick();
-					self::trigger_async_cron();
-				} else {
+				if ( ! self::has_pending_or_running_jobs() ) {
 					self::unschedule_cron_if_idle();
 				}
 				return;
@@ -570,7 +738,10 @@ class Bulk_Process {
 			);
 
 			if ( is_wp_error( $ai_response ) ) {
-				throw new \Exception( 'Failed to translate strings: ' . $ai_response->get_error_message() );
+				throw new \RuntimeException( 'Failed to translate strings: ' . $ai_response->get_error_message() );
+			}
+			if ( ! is_array( $ai_response ) ) {
+				throw new \UnexpectedValueException( 'The translation provider returned an invalid response.' );
 			}
 
 			// Check if cancellation was requested while AI was processing
@@ -591,10 +762,7 @@ class Bulk_Process {
 					)
 				);
 
-				if ( self::has_pending_or_running_jobs() ) {
-					self::process_cron_tick();
-					self::trigger_async_cron();
-				} else {
+				if ( ! self::has_pending_or_running_jobs() ) {
 					self::unschedule_cron_if_idle();
 				}
 				return;
@@ -605,7 +773,11 @@ class Bulk_Process {
 
 			// 3. Match AI response by index in packages array and set translated value to hash
 			foreach ( $strings_to_send as $idx => $orig_str ) {
-				$translated_str = isset( $ai_response[ $idx ]['translated'] ) ? (string) $ai_response[ $idx ]['translated'] : (string) $orig_str;
+				if ( ! isset( $ai_response[ $idx ] ) || ! is_array( $ai_response[ $idx ] ) || ! array_key_exists( 'translated', $ai_response[ $idx ] ) || ! is_scalar( $ai_response[ $idx ]['translated'] ) ) {
+					throw new \UnexpectedValueException( sprintf( 'The translation provider did not return a valid translation for string index %s.', (string) $idx ) );
+				}
+
+				$translated_str = (string) $ai_response[ $idx ]['translated'];
 
 				// Save translated content in smart indexed format
 				$translated_content[ $idx ] = $translated_str;
@@ -651,10 +823,7 @@ class Bulk_Process {
 					)
 				);
 
-				if ( self::has_pending_or_running_jobs() ) {
-					self::process_cron_tick();
-					self::trigger_async_cron();
-				} else {
+				if ( ! self::has_pending_or_running_jobs() ) {
 					self::unschedule_cron_if_idle();
 				}
 				return;
@@ -664,7 +833,10 @@ class Bulk_Process {
 			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider, $in_memory_translations );
 
 			if ( is_wp_error( $result ) ) {
-				throw new \Exception( $result->get_error_message() );
+				throw new \RuntimeException( $result->get_error_message() );
+			}
+			if ( ! is_array( $result ) || empty( $result['target_post_id'] ) ) {
+				throw new \UnexpectedValueException( 'The translated post could not be created or updated.' );
 			}
 
 			$target_post_id  = isset( $result['target_post_id'] ) ? absint( $result['target_post_id'] ) : 0;
@@ -687,7 +859,7 @@ class Bulk_Process {
 
 			// 5. Mark as completed and save translated strings array (only if job was still running)
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-			$wpdb->query(
+			$completed = $wpdb->query(
 				$wpdb->prepare(
 					"UPDATE {$table} SET status = 'completed', progress_status = %s, completed_strings = %d, target_post_id = %d, receive_data = %s, error_message = NULL, updated_at = %s WHERE id = %d AND status = 'running'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$completed_label,
@@ -698,6 +870,10 @@ class Bulk_Process {
 					$job_id
 				)
 			);
+
+			if ( 1 !== (int) $completed ) {
+				throw new \RuntimeException( 'The job status changed before completion could be saved.' );
+			}
 
 			$elapsed_ms = (int) round( ( microtime( true ) - $start_time ) * 1000 );
 			Statics::update_translation_statistics(
@@ -752,15 +928,7 @@ class Bulk_Process {
 			}
 		}
 
-		// Check if more pending jobs exist
-		if ( self::has_pending_or_running_jobs() ) {
-			// Trigger next tick immediately
-			self::process_cron_tick();
-			self::trigger_async_cron();
-		} else {
-			// All jobs completed, skipped, or failed -> remove/clear cron
-			self::unschedule_cron_if_idle();
-		}
+		// The outer worker decides whether to process another job or pause.
 	}
 
 	/**
@@ -850,11 +1018,8 @@ class Bulk_Process {
 				ARRAY_A
 			);
 		} else {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-			$rows = $wpdb->get_results(
-				"SELECT * FROM {$table} ORDER BY id DESC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				ARRAY_A
-			);
+			// An unscoped status request must not expose recent queue records.
+			$rows = array();
 		}
 
 		$total_jobs          = count( $rows );
@@ -872,7 +1037,7 @@ class Bulk_Process {
 
 		foreach ( $rows as $row ) {
 			$post_id = (int) $row['post_id'];
-			if ( $post_id > 0 && is_user_logged_in() && ! current_user_can( 'edit_post', $post_id ) ) {
+			if ( $post_id <= 0 || ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
 				continue;
 			}
 
@@ -1061,6 +1226,14 @@ class Bulk_Process {
 				'jobs_not_found',
 				__( 'No translation jobs found for the specified batch and post.', 'translatesense' ),
 				array( 'status' => 404 )
+			);
+		}
+
+		if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+			return new WP_Error(
+				'rest_forbidden',
+				__( 'You are not allowed to manage translation jobs for this post.', 'translatesense' ),
+				array( 'status' => 403 )
 			);
 		}
 
