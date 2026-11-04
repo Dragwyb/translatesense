@@ -14,6 +14,7 @@ export function BulkProgress({
   activeBatches = [],
   currentBatchId = null,
   onBatchChange,
+  isTranslating
 }) {
   return (
     <div className="ts-bulk-progress-section">
@@ -42,21 +43,23 @@ export function BulkProgress({
       )}
 
       {/* Mode notice banner */}
-      <div className="ts-modal-notice-banner">
-        <span className="ts-notice-icon" aria-hidden="true">
-          {isChromeAi ? '⚠️' : '⚡'}
-        </span>
-        <div className="ts-notice-text">
-          <strong className="ts-notice-title">
-            {isChromeAi ? 'Keep Window Open ' : 'Server-Side Translation Active '}
-          </strong>
-          <span className="ts-notice-desc">
-            {isChromeAi
-              ? 'On-device AI is translating in your browser. Navigating away will cancel remaining jobs.'
-              : 'Your translations are processing in the background on the server. You can safely close this window or navigate away at any time.'}
+      {isTranslating &&
+        <div className="ts-modal-notice-banner">
+          <span className="ts-notice-icon" aria-hidden="true">
+            {isChromeAi ? '⚠️' : '⚡'}
           </span>
+          <div className="ts-notice-text">
+            <strong className="ts-notice-title">
+              {isChromeAi ? 'Keep Window Open ' : 'Server-Side Translation Active '}
+            </strong>
+            <span className="ts-notice-desc">
+              {isChromeAi
+                ? 'On-device AI is translating in your browser. Navigating away will cancel remaining jobs.'
+                : 'Your translations are processing in the background on the server. You can safely close this window or navigate away at any time.'}
+            </span>
+          </div>
         </div>
-      </div>
+      }
 
       {/* Progress card */}
       <div className="ts-progress-card">

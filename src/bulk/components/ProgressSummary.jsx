@@ -14,41 +14,47 @@ export function ProgressSummary({
 }) {
   return (
     <div className="ts-summary-stats-grid">
-      <div className="ts-stat-card green">
-        <div className="ts-stat-icon-box green">
-          <span className="dashicons dashicons-yes-alt" />
-        </div>
-        <div className="ts-stat-info">
-          <div className="ts-stat-label">Completed Posts</div>
-          <div className="ts-stat-val">
-            {completedCount} / {totalCount}
+      {completedCount > 0 &&
+        <div className="ts-stat-card green">
+          <div className="ts-stat-icon-box green">
+            <span className="dashicons dashicons-yes-alt" />
+          </div>
+          <div className="ts-stat-info">
+            <div className="ts-stat-label">Completed Posts</div>
+            <div className="ts-stat-val">
+              {completedCount} / {totalCount}
+            </div>
           </div>
         </div>
-      </div>
+      }
 
-      <div className="ts-stat-card red">
-        <div className="ts-stat-icon-box red">
-          <span className="dashicons dashicons-dismiss" />
-        </div>
-        <div className="ts-stat-info">
-          <div className="ts-stat-label">Failed Posts</div>
-          <div className="ts-stat-val">
-            {failedCount} / {totalCount}
+      {failedCount > 0 &&
+        <div className="ts-stat-card red">
+          <div className="ts-stat-icon-box red">
+            <span className="dashicons dashicons-dismiss" />
+          </div>
+          <div className="ts-stat-info">
+            <div className="ts-stat-label">Failed Posts</div>
+            <div className="ts-stat-val">
+              {failedCount} / {totalCount}
+            </div>
           </div>
         </div>
-      </div>
+      }
 
-      <div className="ts-stat-card blue">
-        <div className="ts-stat-icon-box blue">
-          <span className="dashicons dashicons-editor-textcolor" />
-        </div>
-        <div className="ts-stat-info">
-          <div className="ts-stat-label">Total Characters</div>
-          <div className="ts-stat-val" title={`${totalCharacters.toLocaleString()} characters`}>
-            {formatNumber(totalCharacters)}
+      {totalCharacters > 0 &&
+        <div className="ts-stat-card blue">
+          <div className="ts-stat-icon-box blue">
+            <span className="dashicons dashicons-editor-textcolor" />
+          </div>
+          <div className="ts-stat-info">
+            <div className="ts-stat-label">Total Characters</div>
+            <div className="ts-stat-val" title={`${totalCharacters.toLocaleString()} characters`}>
+              {formatNumber(totalCharacters)}
+            </div>
           </div>
         </div>
-      </div>
+      }
 
       <div className="ts-stat-card orange">
         <div className="ts-stat-icon-box orange">

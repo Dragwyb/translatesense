@@ -190,6 +190,74 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       let failedCount = 0;
       const extractedCache = {};
 
+      // Track live state of each job for accurate, continuous overall progress calculations matching pollStatus
+      const runningJobs = jobsList.map((job) => {
+        const isExists = job.status === 'already_exists';
+        if (isExists) {
+          completedCount++;
+        }
+        return {
+          id: job.id,
+          post_id: job.post_id,
+          target_language: job.target_language,
+          status: isExists ? 'already_exists' : (job.status || 'pending'),
+          total_strings: Number(job.total_strings) || 0,
+          completed_strings: Number(job.completed_strings) || 0,
+        };
+      });
+
+      // Synchronize initial batch jobs info into postResultsMap
+      setPostResultsMap((prev) => {
+        const updated = { ...prev };
+        jobsList.forEach((j) => {
+          const pId = String(j.post_id);
+          const tLang = String(j.target_language);
+          if (!updated[pId]) {
+            updated[pId] = {
+              postId: j.post_id,
+              postTitle: j.post_title || `Post #${pId}`,
+              provider: j.provider || 'chrome_ai',
+              translations: {},
+            };
+          } else if (j.post_title) {
+            updated[pId].postTitle = j.post_title;
+          }
+
+          const existingTrans = updated[pId].translations[tLang] || {};
+          updated[pId].translations[tLang] = {
+            ...existingTrans,
+            targetLang: j.target_language,
+            targetPostId: j.target_post_id || existingTrans.targetPostId || null,
+            targetTitle:
+              j.status === 'already_exists'
+                ? (j.target_post_title || j.post_title || existingTrans.targetTitle || '')
+                : (existingTrans.targetTitle || ''),
+            editorType: j.editor_type || existingTrans.editorType,
+            status: j.status || existingTrans.status || 'pending',
+            completedStrings: j.completed_strings || existingTrans.completedStrings || 0,
+            totalStrings: j.total_strings || existingTrans.totalStrings || 0,
+            progressPercent: getPostProgress(j),
+            progressStatus: j.progress_status || existingTrans.progressStatus || '',
+            editUrl: j.edit_url || existingTrans.editUrl || '',
+            viewUrl: j.view_url || existingTrans.viewUrl || '',
+            error: j.error_message || existingTrans.error || '',
+            provider: j.provider || 'chrome_ai',
+          };
+        });
+        return updated;
+      });
+
+      setCompletedJobsCount(completedCount);
+      setTotalJobsCount(totalJobs);
+
+      const initialPct = Math.round(getOverallProgress(runningJobs));
+      setProgressPercent(initialPct);
+      setStatusText(
+        initialPct > 0
+          ? `Starting on-device translation... (${initialPct}%)`
+          : 'Starting on-device translation...'
+      );
+
       for (let i = 0; i < jobsList.length; i++) {
         const job = jobsList[i];
         const postId = String(job.post_id);
@@ -198,22 +266,28 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         const postTitle = job.post_title || `Post #${postId}`;
 
         if (job.status === 'already_exists') {
-          completedCount++;
-          setCompletedJobsCount(completedCount);
-          setProgressPercent(Math.round(((i + 1) / totalJobs) * 100));
           continue;
         }
 
-        // Mark running in state
+        // Mark running in state and recalculate overall progress
+        runningJobs[i].status = 'running';
+        const startJobPct = Math.round(getOverallProgress(runningJobs));
+        setProgressPercent(startJobPct);
+
         setPostResultsMap((prev) => {
           const updated = { ...prev };
           if (updated[postId] && updated[postId].translations[targetLang]) {
-            updated[postId].translations[targetLang].status = 'running';
+            const t = { ...updated[postId].translations[targetLang] };
+            t.status = 'running';
+            t.progressStatus = `Extracting strings for ${postTitle}...`;
+            t.targetTitle = `Extracting strings for ${postTitle}...`;
+            t.progressPercent = getPostProgress(runningJobs[i]);
+            updated[postId].translations[targetLang] = t;
           }
           return updated;
         });
 
-        setStatusText(`Extracting strings for ${postTitle} (${targetLang.toUpperCase()})...`);
+        setStatusText(`Extracting strings for ${postTitle} (${targetLang.toUpperCase()})... (${startJobPct}%)`);
         const jobStartTime = performance.now();
         let rawStrings = [];
 
@@ -234,9 +308,33 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             throw new Error('No translatable text found in post.');
           }
 
+          const totalStrings = translatable.length;
+          let completedStrings = 0;
+
+          runningJobs[i].total_strings = totalStrings;
+          runningJobs[i].completed_strings = 0;
+          runningJobs[i].status = 'running';
+
+          const extractDonePct = Math.round(getOverallProgress(runningJobs));
+          setProgressPercent(extractDonePct);
           setStatusText(
-            `Translating ${translatable.length} strings on-device for ${postTitle} (${targetLang.toUpperCase()})...`
+            `Translating ${totalStrings} strings on-device for ${postTitle} (${targetLang.toUpperCase()})... (${extractDonePct}%)`
           );
+
+          setPostResultsMap((prev) => {
+            const updated = { ...prev };
+            if (updated[postId] && updated[postId].translations[targetLang]) {
+              const t = { ...updated[postId].translations[targetLang] };
+              t.status = 'running';
+              t.totalStrings = totalStrings;
+              t.completedStrings = 0;
+              t.progressPercent = getPostProgress(runningJobs[i]);
+              t.progressStatus = `0/${totalStrings} strings translated`;
+              t.targetTitle = `Translating 0/${totalStrings} strings...`;
+              updated[postId].translations[targetLang] = t;
+            }
+            return updated;
+          });
 
           const inMemoryTranslations = {};
           const itemsToTranslate = translatable.map((s) => ({
@@ -259,11 +357,50 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
                 if (resItem && resItem.translated && resItem.hash) {
                   inMemoryTranslations[resItem.hash] = resItem.translated;
                 }
+
+                completedStrings++;
+                runningJobs[i].completed_strings = completedStrings;
+                runningJobs[i].total_strings = totalStrings;
+                runningJobs[i].status = 'running';
+
+                const postPct = getPostProgress(runningJobs[i]);
+                const overallPct = Math.round(getOverallProgress(runningJobs));
+
+                setProgressPercent(overallPct);
+                setStatusText(
+                  `Translating on-device: ${postTitle} (${targetLang.toUpperCase()}) - string ${completedStrings} of ${totalStrings} (${overallPct}%)`
+                );
+
+                setPostResultsMap((prev) => {
+                  const updated = { ...prev };
+                  if (updated[postId] && updated[postId].translations[targetLang]) {
+                    const t = { ...updated[postId].translations[targetLang] };
+                    t.status = 'running';
+                    t.completedStrings = completedStrings;
+                    t.totalStrings = totalStrings;
+                    t.progressPercent = postPct;
+                    t.progressStatus = `Translating string ${completedStrings} of ${totalStrings} (${postPct}%)`;
+                    t.targetTitle = `Translating string ${completedStrings} of ${totalStrings} (${postPct}%)...`;
+                    updated[postId].translations[targetLang] = t;
+                  }
+                  return updated;
+                });
               }
             );
           }
 
           setStatusText(`Saving ${postTitle} (${targetLang.toUpperCase()}) to WordPress...`);
+
+          setPostResultsMap((prev) => {
+            const updated = { ...prev };
+            if (updated[postId] && updated[postId].translations[targetLang]) {
+              const t = { ...updated[postId].translations[targetLang] };
+              t.progressStatus = 'Saving translated post to WordPress...';
+              t.targetTitle = 'Saving translated post to WordPress...';
+              updated[postId].translations[targetLang] = t;
+            }
+            return updated;
+          });
 
           const postRes = await translatePost({
             post_id: postId,
@@ -281,19 +418,30 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             target_post_id: postRes.target_post_id,
           });
 
+          runningJobs[i].status = 'completed';
+          runningJobs[i].completed_strings = rawStrings.length;
+          runningJobs[i].total_strings = rawStrings.length;
+
           completedCount++;
           setCompletedJobsCount(completedCount);
+
+          const postFinishPct = Math.round(getOverallProgress(runningJobs));
+          setProgressPercent(postFinishPct);
 
           setPostResultsMap((prev) => {
             const updated = { ...prev };
             if (updated[postId] && updated[postId].translations[targetLang]) {
-              const t = updated[postId].translations[targetLang];
+              const t = { ...updated[postId].translations[targetLang] };
               t.status = 'completed';
               t.targetPostId = postRes.target_post_id;
               t.targetTitle = postRes.translated_title || postTitle;
               t.editUrl = postRes.edit_url;
               t.viewUrl = postRes.view_url;
               t.completedStrings = rawStrings.length;
+              t.totalStrings = rawStrings.length;
+              t.progressPercent = 100;
+              t.progressStatus = 'Completed successfully';
+              updated[postId].translations[targetLang] = t;
             }
             return updated;
           });
@@ -301,30 +449,41 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           failedCount++;
           console.error(`[TranslateSense] Chrome AI error for post #${postId}:`, err);
 
+          runningJobs[i].status = 'failed';
+          const postFailPct = Math.round(getOverallProgress(runningJobs));
+          setProgressPercent(postFailPct);
+
           await updateBulkJob(jobId, {
             status: 'failed',
             progress_status: `Failed: ${err.message}`,
             error_message: err.message,
-            total_strings: rawStrings.length,
+            total_strings: rawStrings.length || 0,
             time_take: Math.round(performance.now() - jobStartTime),
           });
 
           setPostResultsMap((prev) => {
             const updated = { ...prev };
             if (updated[postId] && updated[postId].translations[targetLang]) {
-              const t = updated[postId].translations[targetLang];
+              const t = { ...updated[postId].translations[targetLang] };
               t.status = 'failed';
               t.error = err.message;
+              t.progressPercent = 100;
+              t.progressStatus = `Failed: ${err.message}`;
+              t.targetTitle = `Failed: ${err.message}`;
+              updated[postId].translations[targetLang] = t;
             }
             return updated;
           });
         }
-
-        setProgressPercent(Math.round(((i + 1) / totalJobs) * 100));
       }
 
+      setProgressPercent(100);
+      setStatusText(
+        failedCount > 0
+          ? `Completed with ${failedCount} errors.`
+          : 'All translations completed successfully!'
+      );
       setIsTranslating(false);
-      setIsCompleted(true);
       stopTimer();
 
       // Calculate final stats
@@ -336,6 +495,10 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         setStatsSummary(calculateBatchStats(allItems));
         return finalMap;
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      setIsCompleted(true);
     },
     [stopTimer]
   );

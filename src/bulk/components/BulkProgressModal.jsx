@@ -97,6 +97,7 @@ export function BulkProgressModal({
             activeBatches={activeBatches}
             currentBatchId={currentBatchId}
             onBatchChange={onBatchChange}
+            isTranslating={isTranslating}
           />
         ) : (
           statsSummary && (
