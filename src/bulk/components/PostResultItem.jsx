@@ -124,8 +124,7 @@ export function PostResultItem({
 
             const isUnsupported =
               trans.error &&
-              (trans.error.toLowerCase().includes('not supported') ||
-                trans.error.toLowerCase().includes('unavailable'));
+              trans.error.toLowerCase().includes('not supported');
             const failText = isUnsupported ? 'Language not supported' : 'Failed';
 
             return (

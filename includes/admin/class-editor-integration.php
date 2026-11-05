@@ -469,12 +469,16 @@ class Editor_Integration {
 			return;
 		}
 
+		if ( ! self::is_translate_current_post() ) {
+			return;
+		}
+
 		$post_id = (int) $post->ID;
 
 		// Check and enqueue Gutenberg Block Processor System if pending
 		self::maybe_enqueue_block_processor_assets( $post_id );
 
-		if ( self::is_post_already_translated( $post_id ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+		if ( self::is_post_already_translated( $post_id ) ) {
 			return;
 		}
 
@@ -550,7 +554,8 @@ class Editor_Integration {
 			return;
 		}
 		global $post;
-		if ( ! $post || self::is_post_already_translated( (int) $post->ID ) || ! Polylang_Bridge::is_translated_post_type( $post->post_type ) ) {
+
+		if ( ! self::is_translate_current_post() ) {
 			return;
 		}
 
@@ -571,9 +576,7 @@ class Editor_Integration {
 			return;
 		}
 
-		$post_type = get_post_type( $post_id );
-
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+		if ( ! self::is_translate_current_post() ) {
 			return;
 		}
 
