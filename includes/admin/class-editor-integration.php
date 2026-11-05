@@ -185,7 +185,7 @@ class Editor_Integration {
 		}
 
 		$is_translated = get_post_meta( $post_id, '_translatesense_translated', true );
-		if ( ! empty( $is_translated ) && '0' !== (string) $is_translated ) {
+		if ( ! empty( $is_translated ) && $post_id === (int) $is_translated ) {
 			return true;
 		}
 
@@ -268,7 +268,7 @@ class Editor_Integration {
 	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
-	public static function enqueue_universal_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
+	public static function enqueue_page_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
 		if ( ! $post_id || self::is_post_already_translated( (int) $post_id ) ) {
 			return;
 		}
@@ -478,7 +478,7 @@ class Editor_Integration {
 			return;
 		}
 
-		self::enqueue_universal_editor_assets( $post_id, 'gutenberg' );
+		self::enqueue_page_editor_assets( $post_id, 'gutenberg' );
 	}
 
 	/**
@@ -558,7 +558,7 @@ class Editor_Integration {
 		$post_id        = (int) $post->ID;
 
 		if ( method_exists( $current_screen, 'is_block_editor' ) && ! $current_screen->is_block_editor() ) {
-			self::enqueue_universal_editor_assets( $post_id, 'classic' );
+			self::enqueue_page_editor_assets( $post_id, 'classic' );
 		}
 	}
 
@@ -577,7 +577,7 @@ class Editor_Integration {
 			return;
 		}
 
-		self::enqueue_universal_editor_assets( $post_id, 'elementor' );
+		self::enqueue_page_editor_assets( $post_id, 'elementor' );
 	}
 
 	/**
@@ -632,33 +632,62 @@ class Editor_Integration {
 		return 0;
 	}
 
+	private static function is_translate_current_post() {
+		global $post;
+
+		if ( ! $post instanceof \WP_Post && self::is_post_already_translated( (int) $post->ID ) ) {
+			return false;
+		}
+
+		$post_types = Polylang_Bridge::get_translated_post_types();
+
+		if ( ! is_array( $post_types ) || ! in_array( $post->post_type, $post_types ) ) {
+			return false;
+		}
+
+		$post_id = (int) $post->ID;
+
+		if ( self::is_post_already_translated( $post_id ) ) {
+			return false;
+		}
+
+		$current_lang = Polylang_Bridge::get_post_language( $post_id );
+		$default_lang = Polylang_Bridge::get_default_language( $post_id );
+
+		if ( ! $current_lang || empty( $current_lang ) || $current_lang === $default_lang ) {
+			return false;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Add TranslateSense Meta Box only for post types translated/supported by Polylang.
 	 */
 	public static function add_translatesense_meta_box() {
 		global $post;
-		if ( $post && self::is_post_already_translated( (int) $post->ID ) ) {
+		if ( ! $post instanceof \WP_Post ) {
 			return;
 		}
 
-		if ( function_exists( 'get_current_screen' ) ) {
+		if ( empty( $post->post_type ) || function_exists( 'get_current_screen' ) ) {
 			if ( property_exists( get_current_screen(), 'is_block_editor' ) && ! get_current_screen()->is_block_editor ) {
 				return;
 			}
 		}
 
-		$post_types = Polylang_Bridge::get_translated_post_types();
-
-		foreach ( $post_types as $post_type ) {
-			add_meta_box(
-				'translatesense-editor-metabox',
-				__( 'TransalteSense', 'translatesense' ),
-				array( __CLASS__, 'render_editor_meta_box' ),
-				$post_type,
-				'side',
-				'high'
-			);
+		if ( ! self::is_translate_current_post() ) {
+			return;
 		}
+
+		add_meta_box(
+			'translatesense-editor-metabox',
+			__( 'TransalteSense', 'translatesense' ),
+			array( __CLASS__, 'render_editor_meta_box' ),
+			$post->post_type,
+			'side',
+			'high'
+		);
 	}
 
 	/**
@@ -666,10 +695,6 @@ class Editor_Integration {
 	 */
 	public static function render_editor_meta_box( $post ) {
 		$post_id = (int) $post->ID;
-
-		if ( self::is_post_already_translated( $post_id ) ) {
-			return;
-		}
 
 		$source_post_id = self::get_source_post_id( $post_id );
 
@@ -721,21 +746,7 @@ class Editor_Integration {
 			return;
 		}
 
-		$post_id = (int) get_the_ID();
-
-		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
-			return;
-		}
-
-		$source_post_id = self::get_source_post_id( $post_id );
-
-		if ( ! $source_post_id ) {
-			return;
-		}
-
-		$post_type = get_post_type( $post_id );
-
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+		if ( ! self::is_translate_current_post() ) {
 			return;
 		}
 

@@ -3620,7 +3620,7 @@ class Rest_Api {
 		update_post_meta(
 			$post_id,
 			'_translatesense_translated',
-			$target_post_id
+			$post_id
 		);
 
 		// Extract and sanitize translation statistics parameters.
