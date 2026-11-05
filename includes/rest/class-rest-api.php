@@ -756,6 +756,29 @@ class Rest_Api {
 				),
 			)
 		);
+
+		/*
+		 * 16. Dismiss initial prompt modal (delete _show_initial_prompt_modal post meta).
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/dismiss-initial-prompt',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'dismiss_initial_prompt' ),
+				'permission_callback' => array( __CLASS__, 'permission_dismiss_initial_prompt' ),
+				'args'                => array(
+					'post_id' => array(
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static function ( $param ) {
+							return is_numeric( $param ) && absint( $param ) > 0;
+						},
+						'sanitize_callback' => 'absint',
+					),
+				),
+			)
+		);
 	}
 
 
@@ -1678,6 +1701,20 @@ class Rest_Api {
 		return self::require_edit_post(
 			self::get_request_post_id( $request ),
 			__( 'You are not allowed to clear block process status for this post.', 'translatesense' )
+		);
+	}
+
+	/**
+	 * Permission: POST /dismiss-initial-prompt.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_dismiss_initial_prompt( WP_REST_Request $request ) {
+
+		return self::require_edit_post(
+			self::get_request_post_id( $request ),
+			__( 'You are not allowed to update this post.', 'translatesense' )
 		);
 	}
 
@@ -3754,6 +3791,61 @@ class Rest_Api {
 			array(
 				'success' => true,
 				'post_id' => $post_id,
+			)
+		);
+	}
+
+	/**
+	 * Delete _show_initial_prompt_modal post meta key.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|WP_Error
+	 */
+	public static function dismiss_initial_prompt( WP_REST_Request $request ) {
+		$post_id = self::get_request_post_id( $request );
+
+		if ( ! $post_id ) {
+			return new WP_Error(
+				'invalid_post',
+				__( 'A valid Post ID is required.', 'translatesense' ),
+				array(
+					'status' => 400,
+				)
+			);
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error(
+				'post_not_found',
+				__( 'The requested post could not be found.', 'translatesense' ),
+				array(
+					'status' => 404,
+				)
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return new WP_Error(
+				'rest_forbidden',
+				__(
+					'You do not have permission to edit this post.',
+					'translatesense'
+				),
+				array(
+					'status' => rest_authorization_required_code(),
+				)
+			);
+		}
+
+		delete_post_meta( $post_id, '_show_initial_prompt_modal' );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'post_id' => $post_id,
+				'message' => __( 'Initial prompt modal dismissed.', 'translatesense' ),
 			)
 		);
 	}

@@ -252,8 +252,10 @@ class Editor_Integration {
 				'sourceLanguage'         => $source_language,
 				'targetLanguage'         => $target_language,
 				'languages'              => Polylang_Bridge::get_languages(),
-				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
+				'showInitialPromptModal' => ( '1' === (string) $show_initial_prompt_modal ),
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
+				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'                  => wp_create_nonce( 'wp_rest' ),
 			),
 			$localize_data
 		);
@@ -432,7 +434,7 @@ class Editor_Integration {
 				'enabledProviders'       => $active_providers,
 				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
 				'docsUrl'                => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
+				'showInitialPromptModal' => ( '1' === (string) $show_initial_prompt_modal ),
 				'settingsUrl'            => esc_url_raw( Admin_Menu::get_dashboard_url( 'settings' ) ),
 				'connectorsUrl'          => esc_url_raw( admin_url( 'options-connectors.php' ) ),
 				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),

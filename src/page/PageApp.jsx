@@ -11,6 +11,7 @@ import { SourcePrompt } from './components/SourcePrompt';
 import { ProviderModal } from './components/ProviderModal';
 import { ReviewModal } from './components/ReviewModal';
 import { ErrorModal } from '../components/ErrorModal';
+import { dismissInitialPrompt } from '../services/api/promptService';
 
 export function PageApp() {
   const config =
@@ -19,9 +20,17 @@ export function PageApp() {
   const translation = usePageTranslation(config);
 
   const handleOpenProvider = useCallback(() => {
+    const currentPostId =
+      config.postId ||
+      (typeof window !== 'undefined' &&
+        window.TranslateSenseEditorData &&
+        window.TranslateSenseEditorData.postId);
+    if (currentPostId) {
+      dismissInitialPrompt(currentPostId);
+    }
     translation.loadProviders();
     translation.setIsProviderModalOpen(true);
-  }, [translation]);
+  }, [translation, config.postId]);
 
   const handleShowInitialPrompt = useCallback(() => {
     if (
@@ -121,6 +130,14 @@ export function PageApp() {
       return;
     }
     if (translation.isSourcePromptOpen) {
+      const currentPostId =
+        config.postId ||
+        (typeof window !== 'undefined' &&
+          window.TranslateSenseEditorData &&
+          window.TranslateSenseEditorData.postId);
+      if (currentPostId) {
+        dismissInitialPrompt(currentPostId);
+      }
       translation.setIsSourcePromptOpen(false);
       return;
     }
@@ -200,8 +217,26 @@ export function PageApp() {
             /* 5. Initial Page Load Guidance Modal */
             <SourcePrompt
               isOpen={true}
-              onClose={() => translation.setIsSourcePromptOpen(false)}
+              onClose={() => {
+                const currentPostId =
+                  config.postId ||
+                  (typeof window !== 'undefined' &&
+                    window.TranslateSenseEditorData &&
+                    window.TranslateSenseEditorData.postId);
+                if (currentPostId) {
+                  dismissInitialPrompt(currentPostId);
+                }
+                translation.setIsSourcePromptOpen(false);
+              }}
               onConfirm={() => {
+                const currentPostId =
+                  config.postId ||
+                  (typeof window !== 'undefined' &&
+                    window.TranslateSenseEditorData &&
+                    window.TranslateSenseEditorData.postId);
+                if (currentPostId) {
+                  dismissInitialPrompt(currentPostId);
+                }
                 translation.setIsSourcePromptOpen(false);
                 handleOpenProvider();
               }}

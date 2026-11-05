@@ -153,6 +153,50 @@
   var sourceEditorName = sourceEditor.charAt(0).toUpperCase() + sourceEditor.slice(1);
 
   var modalOverlay = null;
+  var isDismissingPrompt = false;
+
+  function dismissInitialPrompt(targetPostId) {
+    var id = parseInt(targetPostId, 10) || postId;
+    if (!id || id <= 0) return;
+
+    if (isDismissingPrompt || data.showInitialPromptModal === false) {
+      return;
+    }
+    isDismissingPrompt = true;
+    data.showInitialPromptModal = false;
+    showInitialModal = false;
+
+    if (window.TranslateSenseDismissInitialPrompt && typeof window.TranslateSenseDismissInitialPrompt === 'function') {
+      window.TranslateSenseDismissInitialPrompt(id);
+      return;
+    }
+
+    var restUrl = data.restUrl || (window.TranslateSenseEditorData && window.TranslateSenseEditorData.restUrl) || '/wp-json/translatesense/v1/';
+    var nonce = data.nonce || (window.TranslateSenseEditorData && window.TranslateSenseEditorData.nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || '';
+
+    if (window.wp && window.wp.apiFetch) {
+      window.wp.apiFetch({
+        path: '/translatesense/v1/dismiss-initial-prompt',
+        method: 'POST',
+        data: { post_id: id },
+      }).catch(function (err) {
+        console.warn('[TranslateSense] Could not dismiss initial prompt:', err);
+      });
+      return;
+    }
+
+    var url = restUrl.replace(/\/+$/, '') + '/dismiss-initial-prompt';
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': nonce,
+      },
+      body: JSON.stringify({ post_id: id }),
+    }).catch(function (err) {
+      console.warn('[TranslateSense] Could not dismiss initial prompt:', err);
+    });
+  }
 
   var TranslateSenseEditorModal = {
     _translateSenseElementorBound: false,
@@ -407,6 +451,8 @@
 
     if (translateBtn) {
       translateBtn.addEventListener('click', function () {
+        dismissInitialPrompt(postId);
+
         // Set localStorage flag so Elementor editor directly opens the provider modal
         var effectiveSourceId = sourcePostId || postId;
         var effectiveTargetLang = data.targetLanguage || '';
@@ -471,6 +517,7 @@
   }
 
   function closeModal() {
+    dismissInitialPrompt(postId);
     if (modalOverlay) {
       modalOverlay.style.display = 'none';
       document.removeEventListener('keydown', handleKeyDown);

@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from '@wordpress/element';
 import { checkAndConsumeEditorOpenFlag } from '../../utils/editorStorage';
+import { dismissInitialPrompt } from '../../services/api/promptService';
 
 /**
  * Hook to manage page editor environment integrations (Gutenberg, Elementor, Classic)
@@ -37,6 +38,14 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
     if (isDirectlyOpeningProviderRef.current) {
       const timer = setTimeout(() => {
         if (onOpenProviderModal) {
+          const currentPostId =
+            config.postId ||
+            (typeof window !== 'undefined' &&
+              window.TranslateSenseEditorData &&
+              window.TranslateSenseEditorData.postId);
+          if (currentPostId) {
+            dismissInitialPrompt(currentPostId);
+          }
           onOpenProviderModal();
           translation.setIsSourcePromptOpen(false);
           isDirectlyOpeningProviderRef.current = false;
@@ -110,6 +119,15 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
       if (!trigger) return;
       e.preventDefault();
 
+      const currentPostId =
+        config.postId ||
+        (typeof window !== 'undefined' &&
+          window.TranslateSenseEditorData &&
+          window.TranslateSenseEditorData.postId);
+      if (currentPostId) {
+        dismissInitialPrompt(currentPostId);
+      }
+
       if (onOpenProviderModal) {
         onOpenProviderModal();
       }
@@ -117,7 +135,7 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
 
     document.addEventListener('click', handleTriggerClick);
     return () => document.removeEventListener('click', handleTriggerClick);
-  }, [onOpenProviderModal]);
+  }, [onOpenProviderModal, config.postId]);
 
   const markButtonsApplied = useCallback(() => {
     const metaBoxBtn = document.getElementById('ts-metabox-translate-btn');

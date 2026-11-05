@@ -18,5 +18,5 @@ export const ENDPOINTS = {
   BULK_SKIP_POST: 'bulk-skip-post',
   BULK_ACTIVE_BATCHES: 'bulk-active-batches',
   MARK_TRANSLATED: 'mark-translated',
+  DISMISS_INITIAL_PROMPT: 'dismiss-initial-prompt',
 };
-
