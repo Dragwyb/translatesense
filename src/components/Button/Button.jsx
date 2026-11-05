@@ -42,12 +42,12 @@ export function Button({
       {loading ? (
         <span className="ts-btn-spinner-wrap">
           <span className="ts-spinner-circle" aria-hidden="true" />
-          <span>{children}</span>
+          {children}
         </span>
       ) : (
         <>
           {icon && <span className="ts-btn-icon">{icon}</span>}
-          <span>{children}</span>
+          {children}
         </>
       )}
     </button>

@@ -1,6 +1,6 @@
 /**
  * TranslateSense - Editor Mismatch Guidance Modal & Elementor Integration
- * File: assets/js/editor/editorModal.js
+ * File: assets/js/editor/editor-modal.js
  *
  * Displayed in Gutenberg and Classic Editor when the source page was created in Elementor.
  * Skips loading heavy universal page editor translation assets and guides the user
@@ -116,7 +116,19 @@
         (l.code && l.code.toLowerCase() === String(code).toLowerCase());
     });
     if (found) {
-      return found.name || String(found.slug).toUpperCase();
+      return found.name || String(found.slug || found.code || code).toUpperCase();
+    }
+    return String(code).toUpperCase();
+  }
+
+  function getLangCode(code) {
+    if (!code) return '';
+    var found = languagesList.find(function (l) {
+      return (l.slug && l.slug.toLowerCase() === String(code).toLowerCase()) ||
+        (l.code && l.code.toLowerCase() === String(code).toLowerCase());
+    });
+    if (found && (found.code || found.slug)) {
+      return String(found.code || found.slug).toUpperCase();
     }
     return String(code).toUpperCase();
   }
@@ -132,8 +144,13 @@
 
   var sourceLangName = getLangDisplay(data.sourceLanguage);
   var targetLangName = getLangDisplay(data.targetLanguage);
+  var sourceLangCode = getLangCode(data.sourceLanguage);
+  var targetLangCode = getLangCode(data.targetLanguage);
   var sourceFlag = getLangFlag(data.sourceLanguage);
   var targetFlag = getLangFlag(data.targetLanguage);
+
+  var sourceEditor = data.sourceEditorType || 'elementor';
+  var sourceEditorName = sourceEditor.charAt(0).toUpperCase() + sourceEditor.slice(1);
 
   var modalOverlay = null;
 
@@ -321,7 +338,7 @@
       '</div>' +
       '<div class="ts-header-text-wrap">' +
       '<h2 class="ts-modal-title ts-common-title">Translate Page Content</h2>' +
-      '<p class="ts-modal-subtitle ts-common-subtitle">Elementor Page Translation</p>' +
+      '<p class="ts-modal-subtitle ts-common-subtitle">' + sourceEditorName + ' Page Translation</p>' +
       '</div>' +
       '</div>' +
       '<button type="button" class="ts-modal-close-btn ts-bulk-close" id="ts-editor-modal-x-btn" aria-label="Close modal" title="Close modal">&times;</button>' +
@@ -330,25 +347,40 @@
       '<!-- Body -->' +
       '<div class="ts-modal-body ts-common-body">' +
       '<div class="ts-source-guidance-content">' +
-      '<div class="ts-modal-notice-banner info" style="margin-bottom: 16px;">' +
-      '<span class="ts-notice-icon" aria-hidden="true">&#9889;</span>' +
-      '<div class="ts-notice-text">' +
-      '<strong class="ts-notice-title">Created in Elementor</strong>' +
-      '<span class="ts-notice-desc" style="display: block; font-size: 13.5px; line-height: 1.5; color: #1e40af; margin-top: 4px;">' +
-      'This page was created in Elementor. Click Translate to open this page in the Elementor editor to start translation, or click Close to skip.' +
-      '</span>' +
+      '<p class="ts-prompt-intro-text">' +
+      'This page was created in ' + sourceEditorName + '. Click Translate to open this page in the ' + sourceEditorName + ' editor to start translation, or click Close to skip.' +
+      '</p>' +
+
+      '<div class="ts-prompt-languages-row">' +
+      '<div class="ts-prompt-lang-pill source">' +
+      (sourceFlag ? '<img src="' + sourceFlag + '" alt="' + sourceLangName + '" class="ts-lang-flag-img" />' : '') +
+      '<span>' + sourceLangName + ' (' + sourceLangCode + ')</span>' +
+      '</div>' +
+      '<div class="ts-prompt-arrow-wrap" aria-hidden="true"><svg viewBox="0 0 576 512"><path d="M566.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L466.7 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l434.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128z"/></svg></div>' +
+      '<div class="ts-prompt-lang-pill target">' +
+      (targetFlag ? '<img src="' + targetFlag + '" alt="' + targetLangName + '" class="ts-lang-flag-img" />' : '') +
+      '<span>' + targetLangName + ' (' + targetLangCode + ')</span>' +
       '</div>' +
       '</div>' +
 
-      (data.sourceLanguage || data.targetLanguage
-        ? '<div class="ts-lang-info-banner" style="margin-bottom: 0;">' +
-        '<span class="ts-info-icon" aria-hidden="true">&#8505;</span>' +
-        '<span>' +
-        'Translating from <strong>' + (sourceFlag ? '<img src="' + sourceFlag + '" style="width: 15px; vertical-align: middle; margin-right: 3px;" /> ' : '') + sourceLangName + '</strong> (Elementor) &rarr; ' +
-        'Target: <strong>' + (targetFlag ? '<img src="' + targetFlag + '" style="width: 15px; vertical-align: middle; margin-right: 3px;" /> ' : '') + targetLangName + '</strong>' +
-        '</span>' +
-        '</div>'
-        : '') +
+      '<div class="ts-prompt-steps-banner">' +
+      '<div class="ts-prompt-steps-list">' +
+      '<span class="ts-prompt-step-item">' +
+      '<span class="ts-prompt-step-num">1</span>' +
+      '<span>Select Provider</span>' +
+      '</span>' +
+      '<span class="ts-prompt-step-separator">&gt;</span>' +
+      '<span class="ts-prompt-step-item">' +
+      '<span class="ts-prompt-step-num">2</span>' +
+      '<span>Start Translation</span>' +
+      '</span>' +
+      '<span class="ts-prompt-step-separator">&gt;</span>' +
+      '<span class="ts-prompt-step-item">' +
+      '<span class="ts-prompt-step-num">3</span>' +
+      '<span>Apply to Page</span>' +
+      '</span>' +
+      '</div>' +
+      '</div>' +
       '</div>' +
       '</div>' +
 
@@ -356,8 +388,8 @@
       '<div class="ts-modal-footer ts-common-footer" style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">' +
       '<button type="button" class="ts-btn ts-btn-secondary" id="ts-editor-modal-skip-btn">Close</button>' +
       '<button type="button" class="ts-btn ts-btn-primary" id="ts-editor-modal-translate-btn">' +
-      '<span class="dashicons dashicons-translation" style="font-size: 16px; width: 16px; height: 16px; line-height: 1; vertical-align: middle; margin-right: 4px;"></span>' +
-      '<span>Translate in Elementor &rarr;</span>' +
+      '<span class="dashicons dashicons-translation"></span>' +
+      '<span>Translate in ' + sourceEditorName + ' &rarr;</span>' +
       '</button>' +
       '</div>' +
       '</div>';
