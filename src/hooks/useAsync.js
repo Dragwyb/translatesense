@@ -19,7 +19,7 @@ export function useAsync(asyncFunction) {
         return result;
       } catch (err) {
         setError(err);
-        throw err;
+        console.error(err);
       } finally {
         setLoading(false);
       }

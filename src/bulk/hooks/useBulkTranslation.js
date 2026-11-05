@@ -570,7 +570,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           );
 
           if (translatable.length === 0) {
-            throw new Error('No translatable text found in post.');
+            console.error('No translatable text found in post.');
           }
 
           const totalStrings = translatable.length;
@@ -847,7 +847,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       });
 
       if (!batchRes.batch_id) {
-        throw new Error(batchRes.message || 'Failed to start batch');
+        console.error(batchRes.message || 'Failed to start batch');
       }
 
       setCurrentBatchId(batchRes.batch_id);

@@ -38,7 +38,7 @@ class TranslateSenseCore {
         if (typeof window !== 'undefined' && window.SparkMD5 && typeof window.SparkMD5.hash === 'function') {
             return window.SparkMD5.hash(payload);
         }
-        throw new Error("SparkMD5 is not loaded");
+        console.error("SparkMD5 is not loaded");
     }
 
     /**
@@ -606,7 +606,7 @@ class TranslateSenseCore {
     async translate(providerId, params, onProgressCallback) {
         const provider = this.getProvider(providerId);
         if (!provider) {
-            throw new Error(`Translation provider "${providerId}" is not registered.`);
+            console.error(`Translation provider "${providerId}" is not registered.`);
         }
 
         const safeCallback = typeof onProgressCallback === 'function' ? onProgressCallback : () => { };
@@ -751,7 +751,7 @@ class TranslateSenseCore {
         const id = postId || config.postId || 0;
 
         if (!id) {
-            throw new Error('Missing post ID for getPageContent');
+            console.error('Missing post ID for getPageContent');
         }
 
         this.pageContentCache = this.pageContentCache || new Map();

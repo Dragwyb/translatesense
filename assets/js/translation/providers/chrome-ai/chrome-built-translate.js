@@ -798,7 +798,7 @@
 
     const translatorApi = getTranslateSenseTranslatorApi();
     if (!translatorApi) {
-      throw new Error(
+      console.error(
         'The TranslateSense Built-in AI translation engine is not available in this browser.'
       );
     }
@@ -809,7 +809,7 @@
     });
 
     if (!translator || typeof translator.translate !== 'function') {
-      throw new Error(
+      console.error(
         'The Built-in AI translation engine could not create a valid translator.'
       );
     }
@@ -855,11 +855,9 @@
       activeTranslators.delete(`${sourceLanguage}->${targetLanguage}`);
 
       if (error && error.name === 'AbortError') {
-        throw error;
+        console.error(error);
       }
-
-      console.warn('[TranslateSense] Built-in AI translation error:', error);
-      throw new Error(
+      console.error(
         error && error.message ? error.message : 'The Built-in AI translation failed.'
       );
     }
@@ -953,7 +951,7 @@
             }
           } catch (error) {
             if (error && error.name === 'AbortError') {
-              throw error;
+              console.error(error);
             }
 
             const errorMessage =

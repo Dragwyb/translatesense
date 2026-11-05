@@ -27,7 +27,7 @@ const copyToClipboard = async ({
             textarea.remove();
 
             if (!copied) {
-                throw new Error('Unable to copy text.');
+                console.error('Unable to copy text.');
             }
         }
 

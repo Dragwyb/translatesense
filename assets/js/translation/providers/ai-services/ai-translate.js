@@ -97,7 +97,7 @@
         if (response.status === 429 || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
           message = `API Quota / Rate Limit reached for ${this.providerName.toUpperCase()}. Please check your API account plan.`;
         }
-        throw new Error(message);
+        console.error(message);
       }
 
       const data = await response.json();
@@ -145,7 +145,7 @@
       const worker = async () => {
         while (batchIndex < batches.length && !stopProcessing) {
           if (signal && signal.aborted) {
-            throw new Error('Translation cancelled');
+            console.error('Translation cancelled');
           }
 
           const currentIdx = batchIndex++;
@@ -157,7 +157,7 @@
           } catch (err) {
             if (err.name === 'AbortError' || (signal && signal.aborted)) {
               stopProcessing = true;
-              throw err;
+              console.error(err);
             }
 
             console.error(`[TranslateSense] Error in ${this.providerName} batch #${currentIdx}:`, err.message);
@@ -199,7 +199,7 @@
       await Promise.all(workers);
 
       if (lastError && allResults.every((r) => r.status === 'AI Failed')) {
-        throw lastError;
+        console.error(lastError);
       }
 
       return allResults;
