@@ -1,9 +1,10 @@
-import { useEffect, useCallback } from '@wordpress/element';
+import { useEffect, useCallback, useRef } from '@wordpress/element';
+import { checkAndConsumeEditorOpenFlag } from '../../utils/editorStorage';
 
 /**
  * Hook to manage page editor environment integrations (Gutenberg, Elementor, Classic)
  */
-export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt }) {
+export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, translation }) {
   const config =
     (typeof window !== 'undefined' && window.TranslateSenseEditorData) || {};
 
@@ -12,18 +13,55 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt }) {
   const fromPost = config.fromPost || 0;
   const showInitialPromptModal = Boolean(config.showInitialPromptModal);
 
-  // Initial prompt modal on page load
+  const hasCheckedEditorOpenRef = useRef(false);
+  const isDirectlyOpeningProviderRef = useRef(false);
+
+  // Initial prompt modal or direct provider modal on page load
   useEffect(() => {
-    if (!showInitialPromptModal) return;
-    if (sourcePostId > 0 || fromPost > 0) {
+    const effectiveSourceId = sourcePostId || fromPost;
+    if (effectiveSourceId <= 0) return;
+
+    // In Elementor editor: check if coming from editorModal.js translate button click
+    if (editorType === 'elementor' && !hasCheckedEditorOpenRef.current) {
+      hasCheckedEditorOpenRef.current = true;
+      const shouldDirectlyOpen = checkAndConsumeEditorOpenFlag(
+        effectiveSourceId,
+        config.targetLanguage
+      );
+      if (shouldDirectlyOpen) {
+        isDirectlyOpeningProviderRef.current = true;
+      }
+    }
+
+    // If flagged from editorModal.js, open Provider modal directly without showing SourcePrompt
+    if (isDirectlyOpeningProviderRef.current) {
       const timer = setTimeout(() => {
-        if (onShowInitialPrompt) {
-          onShowInitialPrompt();
+        if (onOpenProviderModal) {
+          onOpenProviderModal();
+          translation.setIsSourcePromptOpen(false);
+          isDirectlyOpeningProviderRef.current = false;
         }
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [showInitialPromptModal, sourcePostId, fromPost, onShowInitialPrompt]);
+
+    if (!showInitialPromptModal) return;
+
+    const timer = setTimeout(() => {
+      if (onShowInitialPrompt) {
+        onShowInitialPrompt();
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [
+    showInitialPromptModal,
+    sourcePostId,
+    fromPost,
+    editorType,
+    config.targetLanguage,
+    onOpenProviderModal,
+    onShowInitialPrompt,
+  ]);
 
   // Elementor integration: inject button into control footer panel
   useEffect(() => {
@@ -105,4 +143,3 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt }) {
     markButtonsApplied,
   };
 }
-

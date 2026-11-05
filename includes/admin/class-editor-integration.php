@@ -192,6 +192,79 @@ class Editor_Integration {
 		return false;
 	}
 
+
+	/**
+	 * Enqueue lightweight Editor Modal assets when source post was created in Elementor
+	 * but target translation is opened in Gutenberg or Classic Editor.
+	 *
+	 * Skips loading heavy universal page editor translation assets.
+	 *
+	 * @param int    $post_id
+	 * @param int    $source_post_id
+	 * @param string $editor_type
+	 * @param array  $localize_data
+	 */
+	public static function enqueue_editor_mismatch_modal_assets( int $post_id, int $source_post_id, string $editor_type = 'gutenberg', array $localize_data = array() ): void {
+		if ( ! $post_id || ! $source_post_id ) {
+			return;
+		}
+
+		// Enqueue minimal CSS for modal rendering
+		wp_enqueue_style(
+			'translatesense-common',
+			esc_url( TRANSLATESENSE_PLUGIN_URL . 'assets/css/common' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css' ),
+			array(),
+			TRANSLATESENSE_VERSION
+		);
+
+		$asset_file = TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.asset.php';
+		$version    = file_exists( $asset_file ) ? ( require $asset_file )['version'] : TRANSLATESENSE_VERSION;
+
+		wp_enqueue_style(
+			'translatesense-editor-style',
+			esc_url( TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.css' ),
+			array( 'translatesense-common' ),
+			$version
+		);
+
+		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
+		$script_url = TRANSLATESENSE_PLUGIN_URL . 'assets/js/editor/editor-modal' . $assets_ext . '.js';
+
+		wp_enqueue_script(
+			'translatesense-editor-modal',
+			esc_url( $script_url ),
+			array(),
+			TRANSLATESENSE_VERSION,
+			true
+		);
+
+		$show_initial_prompt_modal = get_post_meta( $post_id, '_show_initial_prompt_modal', true );
+		$source_language           = Polylang_Bridge::get_post_language( $source_post_id );
+		$target_language           = Polylang_Bridge::get_post_language( $post_id );
+
+		$modal_data = array_merge(
+			array(
+				'postId'                 => $post_id,
+				'sourcePostId'           => $source_post_id,
+				'sourceEditorType'       => 'elementor',
+				'editorType'             => $editor_type,
+				'currentEditorType'      => $editor_type,
+				'sourceLanguage'         => $source_language,
+				'targetLanguage'         => $target_language,
+				'languages'              => Polylang_Bridge::get_languages(),
+				'showInitialPromptModal' => (bool) $show_initial_prompt_modal,
+				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
+			),
+			$localize_data
+		);
+
+		wp_localize_script(
+			'translatesense-editor-modal',
+			'TranslateSenseEditorModalData',
+			$modal_data
+		);
+	}
+
 	/**
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
@@ -203,6 +276,15 @@ class Editor_Integration {
 		$source_post_id = self::get_source_post_id( $post_id );
 
 		if ( ! $source_post_id ) {
+			return;
+		}
+
+		$source_editor_type = $source_post_id ? self::get_post_editor_type( $source_post_id ) : '';
+
+		// If source page was created in Elementor but target translation is opened in Gutenberg or Classic editor:
+		// Do not load full page editor translation assets. Instead, load lightweight editorModal.js.
+		if ( 'elementor' === $source_editor_type && 'elementor' !== $editor_type ) {
+			self::enqueue_editor_mismatch_modal_assets( (int) $post_id, (int) $source_post_id, $editor_type, $localize_data );
 			return;
 		}
 

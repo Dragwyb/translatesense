@@ -15,7 +15,7 @@ export function ModalHeader({
   if (!icon || icon === '') {
     const config = window.TranslateSenseEditorData || window.TranslateSenseBulkData || {};
     if (config && config.pluginUrl) {
-      icon = config.pluginUrl + '/assets/img/logo.png';
+      icon = config.pluginUrl + 'assets/img/logo.png';
     }
   }
 

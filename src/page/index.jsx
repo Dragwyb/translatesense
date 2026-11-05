@@ -21,8 +21,14 @@ function initPageEditor() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPageEditor);
+if (window?.TranslateSenseEditorData && window?.TranslateSenseEditorData?.editorType === 'elementor') {
+  jQuery(window).on('elementor:init', function () {
+    elementor.on('document:loaded', initPageEditor);
+  });
 } else {
-  initPageEditor();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPageEditor);
+  } else {
+    initPageEditor();
+  }
 }

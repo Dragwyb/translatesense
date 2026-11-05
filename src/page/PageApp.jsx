@@ -39,6 +39,7 @@ export function PageApp() {
   const { markButtonsApplied } = usePageEditor({
     onOpenProviderModal: handleOpenProvider,
     onShowInitialPrompt: handleShowInitialPrompt,
+    translation
   });
 
   const handleStartTranslation = async () => {
