@@ -235,21 +235,12 @@ class Editor_Integration {
 			TRANSLATESENSE_VERSION
 		);
 
-		if ( file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.css' ) ) {
-			wp_enqueue_style(
-				'translatesense-editor',
-				TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.css',
-				array( 'translatesense-common' ),
-				$asset['version']
-			);
-		} else {
-			wp_enqueue_style(
-				'translatesense-editor',
-				TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/editor' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-				array( 'translatesense-common' ),
-				TRANSLATESENSE_VERSION
-			);
-		}
+		wp_enqueue_style(
+			'translatesense-editor',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.css',
+			array( 'translatesense-common' ),
+			$asset['version']
+		);
 
 		// 1. Spark MD5 (static library version. so no change).
 		wp_enqueue_script(

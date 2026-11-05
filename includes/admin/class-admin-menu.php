@@ -95,21 +95,12 @@ class Admin_Menu {
 			);
 
 		// Enqueue CSS
-		if ( file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/dashboard/index.css' ) ) {
-			wp_enqueue_style(
-				'translatesense-admin-css',
-				TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.css',
-				array( 'wp-components' ),
-				$asset['version']
-			);
-		} else {
-			wp_enqueue_style(
-				'translatesense-admin-css',
-				TRANSLATESENSE_PLUGIN_URL . 'assets/css/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.css',
-				array(),
-				TRANSLATESENSE_VERSION
-			);
-		}
+		wp_enqueue_style(
+			'translatesense-admin-css',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.css',
+			array( 'wp-components' ),
+			$asset['version']
+		);
 
 		// Enqueue WordPress Script Dependencies
 		wp_enqueue_script( 'wp-element' );
