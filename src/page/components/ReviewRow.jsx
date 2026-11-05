@@ -3,7 +3,7 @@
  * Single translatable string comparison & editing row
  */
 
-import { useRef } from '@wordpress/element';
+import { useRef, useLayoutEffect } from '@wordpress/element';
 import { cleanContentEditable } from '../../utils/html';
 
 export function ReviewRow({
@@ -18,9 +18,27 @@ export function ReviewRow({
   const providerVal = item.providerTranslated !== undefined ? item.providerTranslated : transVal;
   const hasChanged = Boolean(providerVal && transVal !== providerVal);
 
+  // Synchronize DOM text with transVal without disturbing caret if user is actively typing
+  useLayoutEffect(() => {
+    if (textRef.current) {
+      const currentDomVal = cleanContentEditable(textRef.current.innerText || '');
+      const isFocused = document.activeElement === textRef.current;
+      if (currentDomVal !== transVal && !isFocused) {
+        textRef.current.innerText = transVal;
+      }
+    }
+  }, [transVal]);
+
   const handleInput = (e) => {
     const val = cleanContentEditable(e.currentTarget.innerText || '');
     if (onUpdateTranslation) {
+      onUpdateTranslation(index, val);
+    }
+  };
+
+  const handleBlur = (e) => {
+    const val = cleanContentEditable(e.currentTarget.innerText || '');
+    if (val !== transVal && onUpdateTranslation) {
       onUpdateTranslation(index, val);
     }
   };
@@ -79,11 +97,10 @@ export function ReviewRow({
               contentEditable="plaintext-only"
               suppressContentEditableWarning={true}
               onInput={handleInput}
+              onBlur={handleBlur}
               onPaste={handlePaste}
               data-placeholder="Enter translation..."
-            >
-              {transVal}
-            </div>
+            />
             {hasChanged && (
               <button
                 type="button"

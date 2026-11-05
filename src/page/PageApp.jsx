@@ -170,7 +170,7 @@ export function PageApp() {
                 progressLanguages={allLanguages}
                 progressProviderTitle={providerTitle}
                 onReTranslate={() =>
-                  translation.extractAndTranslate(translation.selectedProvider)
+                  translation.extractAndTranslate(translation.selectedProvider, true)
                 }
 
                 onApply={handleApplyToPage}

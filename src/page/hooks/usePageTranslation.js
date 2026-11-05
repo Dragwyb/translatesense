@@ -80,25 +80,30 @@ export function usePageTranslation(config = {}) {
 
   // Extract strings and run translation
   const extractAndTranslate = useCallback(
-    async (chosenProvider) => {
+    async (chosenProvider, forceRetranslate = false) => {
       const prov = chosenProvider || selectedProvider;
       const core = getCoreInstance();
 
       setIsReviewModalOpen(true);
 
-      // If translation already complete, directly open review modal
-      if (isTranslationCompleted(prov)) {
+      // If translation already complete and not retranslating, directly open review modal
+      if (!forceRetranslate && isTranslationCompleted(prov)) {
         return;
+      }
+
+      if (forceRetranslate) {
+        lastCompletedProviderRef.current = null;
+        lastCompletedTargetLangRef.current = null;
       }
 
       if (!sourcePostId) return;
 
       setProgress({
-        isOpen: false,
+        isOpen: forceRetranslate,
         percent: 0,
-        status: 'Extracting strings...',
+        status: forceRetranslate ? 'Preparing strings for re-translation...' : 'Extracting strings...',
         subText: 'Initializing translation...',
-        isExtracting: true,
+        isExtracting: !forceRetranslate,
       });
 
       // 1. Fetch sourcePageData if not present
@@ -133,7 +138,7 @@ export function usePageTranslation(config = {}) {
       const currentStrings = rawStrings.map((s) => {
         let translated = '';
         let status = 'Pending';
-        if (core) {
+        if (core && !forceRetranslate) {
           const cached = core.getTranslatedString(s.name, s.value, prov, s.name);
           if (cached && typeof cached === 'object' && cached.translate) {
             translated = cached.translate;
@@ -145,16 +150,17 @@ export function usePageTranslation(config = {}) {
         }
         return {
           ...s,
-          providerTranslated: s.providerTranslated || translated || '',
-          translated,
+          providerTranslated: forceRetranslate ? '' : (s.providerTranslated || translated || ''),
+          translated: forceRetranslate ? '' : translated,
           status,
         };
       });
 
       setStrings(currentStrings);
 
-      // Check if all already translated
+      // Check if all already translated (skip check if forceRetranslate)
       const allDone =
+        !forceRetranslate &&
         currentStrings.length > 0 &&
         currentStrings.every((s) => s.translated && String(s.translated).trim() !== '');
 
