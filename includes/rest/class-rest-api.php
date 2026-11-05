@@ -459,11 +459,6 @@ class Rest_Api {
 							return '' !== sanitize_key( (string) $value );
 						},
 					),
-					'is_bulk'     => array(
-						'required'          => false,
-						'type'              => 'boolean',
-						'sanitize_callback' => 'rest_sanitize_boolean',
-					),
 				),
 			)
 		);
@@ -3100,18 +3095,11 @@ class Rest_Api {
 			);
 		}
 
-		$is_bulk = ! empty( $params['is_bulk'] ) && rest_sanitize_boolean( $params['is_bulk'] );
-		$options = array();
-		if ( $is_bulk ) {
-			$options['is_bulk'] = true;
-		}
-
 		$result = Translate::translate_post(
 			$post_id,
 			(string) $target_lang,
 			(string) $provider,
 			$normalized_translations,
-			$options
 		);
 
 		if ( is_wp_error( $result ) ) {

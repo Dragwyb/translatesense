@@ -153,22 +153,21 @@ abstract class Base_Builder {
 	 * @param array  $in_memory_translations
 	 * @return array|WP_Error
 	 */
-	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
+	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
 		$source_post = get_post( $post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ), array( 'status' => 404 ) );
 		}
 
-		$is_bulk          = ! empty( $options['is_bulk'] );
 		$existing_post_id = Polylang_Bridge::get_existing_translation_post_id( $post_id, $target_lang );
 		$is_existing      = $existing_post_id > 0 && $existing_post_id !== $post_id;
 		Polylang_Synchronizer::reset_media_tracking();
 
 		$settings      = get_option( 'translatesense_settings', array() );
-		$raw_slug_mode = ( $is_bulk && ! empty( $settings['slug_translation'] ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate';
+		$raw_slug_mode = ! empty( $settings['slug_translation'] ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate';
 		$slug_mode     = in_array( $raw_slug_mode, array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ? $raw_slug_mode : 'slug_translate';
 
-		$raw_post_status  = ( $is_bulk && ! empty( $settings['post_status'] ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft';
+		$raw_post_status  = ! empty( $settings['post_status'] ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft';
 		$bulk_post_status = in_array( $raw_post_status, array( 'publish', 'draft' ), true ) ? $raw_post_status : 'draft';
 
 		$source_lang = Polylang_Bridge::get_post_language( $post_id );
@@ -188,9 +187,8 @@ abstract class Base_Builder {
 		 * @param string $target_lang      Target language slug.
 		 * @param bool   $is_existing      Whether a target translation already exists.
 		 * @param int    $existing_post_id Existing target post ID, if any.
-		 * @param array  $options          Translation options.
 		 */
-		do_action( 'translatesense_before_translate_post', $post_id, $target_lang, $is_existing, $existing_post_id, $options );
+		do_action( 'translatesense_before_translate_post', $post_id, $target_lang, $is_existing, $existing_post_id );
 
 		// 1. Translate Title & Excerpt.
 		$translated_title   = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
@@ -199,7 +197,7 @@ abstract class Base_Builder {
 		// Never translate or change the slug of an existing target translation.
 		$translated_post_name = $is_existing
 			? $source_post->post_name
-			: ( ( $is_bulk && 'slug_translate' !== $slug_mode )
+			: ( 'slug_translate' !== $slug_mode
 				? $source_post->post_name
 				: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts ) );
 
@@ -230,7 +228,7 @@ abstract class Base_Builder {
 			'post_excerpt' => $translated_excerpt,
 		);
 
-		if ( $is_bulk && ! $is_existing ) {
+		if ( ! $is_existing ) {
 			$create_args['post_status'] = $bulk_post_status;
 
 			if ( 'keep_orignal' === $slug_mode ) {
@@ -244,7 +242,7 @@ abstract class Base_Builder {
 					$create_args['post_name'] = $slug_candidate;
 				}
 			}
-		} elseif ( ! $is_existing && ! $is_bulk && ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
+		} elseif ( ! empty( $translated_post_name ) && $translated_post_name !== $source_post->post_name ) {
 			$create_args['post_name'] = sanitize_title( $translated_post_name );
 		}
 
@@ -272,9 +270,8 @@ abstract class Base_Builder {
 		 * @param int    $target_post_id Target post ID.
 		 * @param string $target_lang    Target language slug.
 		 * @param bool   $is_existing    Whether an existing translation was updated.
-		 * @param array  $options        Translation options.
 		 */
-		do_action( 'translatesense_after_translate_post', $post_id, $created_post_id, $target_lang, $is_existing, $options );
+		do_action( 'translatesense_after_translate_post', $post_id, $created_post_id, $target_lang, $is_existing );
 
 		$editor_type = Editor_Integration::get_post_editor_type( $created_post_id );
 		$edit_url    = Editor_Integration::get_post_edit_link( $created_post_id );

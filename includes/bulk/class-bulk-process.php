@@ -244,7 +244,7 @@ class Bulk_Process {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 				$pending_job_id = $wpdb->get_var(
 					$wpdb->prepare(
-						"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s ORDER BY id DESC LIMIT 1 AND provider IN ('openai', 'gemini')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+						"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s AND provider IN ('openai', 'gemini') ORDER BY id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 						$post_id,
 						$target_lang,
 						$cutoff_mysql
@@ -941,7 +941,7 @@ class Bulk_Process {
 	 * @return array|WP_Error
 	 */
 	public static function execute_post_translation_sync( int $post_id, string $target_lang, string $provider, array $in_memory_translations = array() ) {
-		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations, array( 'is_bulk' => true ) );
+		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
 	}
 
 	/**
