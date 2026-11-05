@@ -76,7 +76,7 @@
         return r
           ? (o.forEach((e) => {
             const o = t.values.get(e);
-            (o || (r = !1), (n = n.replace(e, o)));
+            o || (r = !1), (n = n.replace(e, o));
           }),
             r ? n : e)
           : e;
@@ -257,14 +257,12 @@
               "Markup synchronized: Text content matches existing attributes.",
           };
         } catch (e) {
-          return (
-            {
-              ...o,
-              reason:
-                "Candidate block could not be created with existing attributes.",
-              diagnostic: e && e.message ? e.message : "",
-            }
-          );
+          return {
+            ...o,
+            reason:
+              "Candidate block could not be created with existing attributes.",
+            diagnostic: e && e.message ? e.message : "",
+          };
         }
       return {
         ...o,
@@ -297,7 +295,7 @@
         body: JSON.stringify({ post_id: o }),
       });
       if (e.ok) {
-        if ((await e.json()).success) return ((isProcessorPending = !1), !0);
+        if ((await e.json()).success) return (isProcessorPending = !1), !0;
       }
     } catch (e) { }
     return !1;
@@ -319,7 +317,7 @@
                 } catch (e) { }
                 i = null;
               }
-              (a && clearInterval(a), s && clearTimeout(s));
+              a && clearInterval(a), s && clearTimeout(s);
             })(),
             e(t));
       },
@@ -336,12 +334,12 @@
             Array.isArray(a) &&
             (a.length > 0 ? l(n, a) : (c++, c >= 30 && l(n, a)));
         };
-      ((i = t.data.subscribe(u)),
+      (i = t.data.subscribe(u)),
         (a = setInterval(u, 250)),
         (s = setTimeout(() => {
           l(o, new Error("Timed out waiting for the Gutenberg editor."));
         }, e)),
-        u());
+        u();
     });
   })()
     .then(async (e) => {
@@ -365,9 +363,9 @@
               items: [],
             });
           const a = await k(o);
-          (n[e].totalCount++,
+          n[e].totalCount++,
             a.canResolve ? n[e].resolvableCount++ : n[e].unresolvedCount++,
-            n[e].items.push(a));
+            n[e].items.push(a);
         }
         return Object.values(n);
       })(n);
@@ -404,7 +402,7 @@
               for (r = []; ;) {
                 const e = o.getBlockRootClientId(t);
                 if (!e) break;
-                (r.unshift(e), (t = e));
+                r.unshift(e), (t = e);
               }
             }
             if ((Array.isArray(r) || (r = []), 0 === r.length)) {
@@ -425,7 +423,7 @@
                 });
                 continue;
               }
-              ((a[l] = g(n)), (u = a[l]));
+              (a[l] = g(n)), (u = a[l]);
             }
             let f = u,
               d = !0;
@@ -479,16 +477,13 @@
             else r = o;
             n.replaceBlock(e, r || o);
           } catch (e) {
-            console.error(
-              "[TranslateSense Processor] Error replacing root parent block:",
-              e,
-            );
+            console.error("[TranslateSense]", e);
           }
         }
         for (const e of s)
           try {
-            (n.replaceBlock(e.item.block.clientId, e.item.candidateBlock),
-              c.push(e));
+            n.replaceBlock(e.item.block.clientId, e.item.candidateBlock),
+              c.push(e);
           } catch (t) {
             i.push({
               title: e.groupTitle || "Block",
