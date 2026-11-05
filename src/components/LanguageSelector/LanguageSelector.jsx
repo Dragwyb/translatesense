@@ -22,7 +22,19 @@ export function LanguageSelector({
 
   const handleSelectAll = () => {
     if (!onChange) return;
-    onChange(languages.map((l) => l.slug));
+    const defaultLang =
+      (typeof window !== 'undefined' &&
+        (window.TranslateSenseBulkData?.defaultLanguage ||
+          window.TranslateSenseEditorData?.defaultLanguage)) ||
+      '';
+    const nonDefaultLangs = languages.filter(
+      (l) => !l.is_default && l.slug !== defaultLang
+    );
+    onChange(
+      nonDefaultLangs.length > 0
+        ? nonDefaultLangs.map((l) => l.slug)
+        : languages.map((l) => l.slug)
+    );
   };
 
   const handleUnselectAll = () => {

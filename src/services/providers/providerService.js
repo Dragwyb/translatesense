@@ -105,8 +105,8 @@ export async function getEvaluatedProviders(sourceLang = 'en', targetLang = 'es'
         p.actionUrl = statusMeta.targetUrl;
       } else {
         p.isAvailable = true;
-        p.badgeType = 'connector';
-        p.badgeText = 'WP Connector';
+        p.badgeType = 'ready';
+        p.badgeText = 'Available';
       }
     } else {
       // Direct API

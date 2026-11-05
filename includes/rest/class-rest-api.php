@@ -3468,7 +3468,9 @@ class Rest_Api {
 			$c_strings    = isset( $clean_data['completed_strings'] )
 				? (int) $clean_data['completed_strings']
 				: ( isset( $clean_data['total_strings'] ) ? (int) $clean_data['total_strings'] : 0 );
-			$c_chars      = isset( $updates['total_characters'] ) ? absint( $updates['total_characters'] ) : 0;
+			$c_chars      = isset( $updates['total_characters'] )
+				? absint( $updates['total_characters'] )
+				: ( isset( $params['total_characters'] ) ? absint( $params['total_characters'] ) : 0 );
 
 			if ( 0 === $c_chars && ! empty( $clean_data['sent_data'] ) ) {
 				$sent_arr = json_decode( $clean_data['sent_data'], true );

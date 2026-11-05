@@ -133,19 +133,28 @@
 
   .ts-modal-close-btn,
   .ts-bulk-close {
-    background: transparent;
-    border: none;
-    font-size: 24px;
-    line-height: 1;
-    color: $ts-text-muted;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: $ts-radius-sm;
-    transition: color 0.15s, background 0.15s;
+    background: #f8fafc !important;
+    border: 1px solid var(--ts-border, #e2e8f0) !important;
+    color: #64748b !important;
+    font-size: 21px !important;
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    transition: all .2s cubic-bezier(.16, 1, .3, 1) !important;
+    flex-shrink: 0;
+    font-family: arial;
 
     &:hover {
-      color: $ts-text-main;
-      background: $ts-bg-subtle;
+      background: #f1f5f9 !important;
+      border-color: #cbd5e1 !important;
+      color: #0f172a !important;
+      transform: rotate(90deg);
     }
   }
 }

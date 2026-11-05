@@ -1,6 +1,5 @@
 /**
  * ModalHeader Component
- * Clean React JSX replacement for legacy TranslateSenseCore.createHeaderHTML()
  */
 
 export function ModalHeader({

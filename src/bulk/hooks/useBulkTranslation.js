@@ -14,7 +14,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   const [currentStep, setCurrentStep] = useState(isPreviouslyRunning ? 3 : 1);
   const [postIds, setPostIds] = useState(initialPostIds);
-  const [selectedLanguages, setSelectedLanguages] = useState([]);
+  const localizedData =
+    (typeof window !== 'undefined' && window.TranslateSenseBulkData) || {};
+  const defaultLanguage = localizedData.defaultLanguage || '';
+  const allConfiguredLanguages = Object.values(localizedData.languages || {});
+  const getDefaultTargetLanguages = () => {
+    return allConfiguredLanguages
+      .filter((l) => l && l.slug && l.slug !== defaultLanguage && !l.is_default)
+      .map((l) => l.slug);
+  };
+
+  const [selectedLanguages, setSelectedLanguages] = useState(() => getDefaultTargetLanguages());
   const [selectedProvider, setSelectedProvider] = useState('openai');
   const [providers, setProviders] = useState([]);
 
@@ -165,6 +175,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           status: item.status,
           completedStrings: item.completed_strings,
           totalStrings: item.total_strings,
+          completedCharacters: item.completed_characters || (item.completed_strings ? item.completed_strings * 45 : 0),
+          totalCharacters: item.total_characters || (item.total_strings ? item.total_strings * 45 : 0),
           progressPercent: getPostProgress(item),
           progressStatus: item.progress_status || '',
           editUrl:
@@ -562,10 +574,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           }
 
           const totalStrings = translatable.length;
+          const totalCharacters = translatable.reduce(
+            (acc, s) => acc + (s.value ? s.value.length : 0),
+            0
+          );
           let completedStrings = 0;
+          let completedCharacters = 0;
 
           runningJobs[i].total_strings = totalStrings;
           runningJobs[i].completed_strings = 0;
+          runningJobs[i].total_characters = totalCharacters;
+          runningJobs[i].completed_characters = 0;
           runningJobs[i].status = 'running';
 
           const extractDonePct = Math.round(getOverallProgress(runningJobs));
@@ -581,6 +600,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
               t.status = 'running';
               t.totalStrings = totalStrings;
               t.completedStrings = 0;
+              t.totalCharacters = totalCharacters;
+              t.completedCharacters = 0;
               t.progressPercent = getPostProgress(runningJobs[i]);
               t.progressStatus = `0/${totalStrings} strings translated`;
               t.targetTitle = `Translating 0/${totalStrings} strings...`;
@@ -612,8 +633,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
                 }
 
                 completedStrings++;
+                const orig = translatable.find((s) => s.hash === resItem?.hash);
+                if (orig && orig.value) {
+                  completedCharacters += orig.value.length;
+                } else if (resItem && resItem.source) {
+                  completedCharacters += resItem.source.length;
+                }
+
                 runningJobs[i].completed_strings = completedStrings;
                 runningJobs[i].total_strings = totalStrings;
+                runningJobs[i].completed_characters = completedCharacters;
+                runningJobs[i].total_characters = totalCharacters;
                 runningJobs[i].status = 'running';
 
                 const postPct = getPostProgress(runningJobs[i]);
@@ -631,6 +661,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
                     t.status = 'running';
                     t.completedStrings = completedStrings;
                     t.totalStrings = totalStrings;
+                    t.completedCharacters = completedCharacters;
+                    t.totalCharacters = totalCharacters;
                     t.progressPercent = postPct;
                     t.progressStatus = `Translating string ${completedStrings} of ${totalStrings} (${postPct}%)`;
                     t.targetTitle = `Translating string ${completedStrings} of ${totalStrings} (${postPct}%)...`;
@@ -662,11 +694,15 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             in_memory_translations: inMemoryTranslations,
           });
 
+          const sentStrings = translatable.map((s) => s.value);
           await updateBulkJob(jobId, {
             status: 'completed',
             progress_status: 'Completed successfully',
             total_strings: rawStrings.length,
             completed_strings: rawStrings.length,
+            total_characters: totalCharacters,
+            completed_characters: totalCharacters,
+            sent_data: sentStrings,
             time_take: Math.round(performance.now() - jobStartTime),
             target_post_id: postRes.target_post_id,
           });
@@ -674,6 +710,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           runningJobs[i].status = 'completed';
           runningJobs[i].completed_strings = rawStrings.length;
           runningJobs[i].total_strings = rawStrings.length;
+          runningJobs[i].completed_characters = totalCharacters;
+          runningJobs[i].total_characters = totalCharacters;
 
           completedCount++;
           setCompletedJobsCount(completedCount);
@@ -692,6 +730,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
               t.viewUrl = postRes.view_url;
               t.completedStrings = rawStrings.length;
               t.totalStrings = rawStrings.length;
+              t.completedCharacters = totalCharacters;
+              t.totalCharacters = totalCharacters;
               t.progressPercent = 100;
               t.progressStatus = 'Completed successfully';
               updated[postId].translations[targetLang] = t;

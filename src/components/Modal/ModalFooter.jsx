@@ -1,6 +1,5 @@
 /**
  * ModalFooter Component
- * Clean React JSX replacement for legacy TranslateSenseCore.createFooterHTML()
  */
 
 import { Button } from '../Button';

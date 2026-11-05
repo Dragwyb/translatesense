@@ -1083,27 +1083,45 @@ class Bulk_Process {
 				$item_progress = 0;
 			}
 
+			$t_chars = 0;
+			if ( ! empty( $row['sent_data'] ) ) {
+				$sent_arr = json_decode( $row['sent_data'], true );
+				if ( is_array( $sent_arr ) ) {
+					foreach ( $sent_arr as $item_text ) {
+						$t_chars += mb_strlen( (string) $item_text );
+					}
+				}
+			}
+			if ( 0 === $t_chars && $t_str > 0 ) {
+				$t_chars = $t_str * 45;
+			}
+			$c_chars = ( 'completed' === $status || 'already_exists' === $status )
+				? $t_chars
+				: ( $t_str > 0 ? (int) round( ( $c_str / $t_str ) * $t_chars ) : 0 );
+
 			$items[] = array(
-				'id'                => (int) $row['id'],
-				'batch_id'          => $row['batch_id'],
-				'post_id'           => (int) $row['post_id'],
-				'post_title'        => $post_title,
-				'target_language'   => $row['target_language'],
-				'provider'          => $row['provider'],
-				'editor_type'       => $editor_type,
-				'status'            => $status,
-				'progress_status'   => $row['progress_status'],
-				'progress_percent'  => $item_progress,
-				'total_strings'     => $t_str,
-				'completed_strings' => $c_str,
-				'pending_strings'   => max( 0, $t_str - $c_str ),
-				'target_post_id'    => $target_post_id,
-				'target_post_title' => $target_post_title,
-				'edit_url'          => $edit_url,
-				'view_url'          => $view_url,
-				'error_message'     => $row['error_message'],
-				'created_at'        => $row['created_at'],
-				'updated_at'        => $row['updated_at'],
+				'id'                   => (int) $row['id'],
+				'batch_id'             => $row['batch_id'],
+				'post_id'              => (int) $row['post_id'],
+				'post_title'           => $post_title,
+				'target_language'      => $row['target_language'],
+				'provider'             => $row['provider'],
+				'editor_type'          => $editor_type,
+				'status'               => $status,
+				'progress_status'      => $row['progress_status'],
+				'progress_percent'     => $item_progress,
+				'total_strings'        => $t_str,
+				'completed_strings'    => $c_str,
+				'pending_strings'      => max( 0, $t_str - $c_str ),
+				'total_characters'     => $t_chars,
+				'completed_characters' => $c_chars,
+				'target_post_id'       => $target_post_id,
+				'target_post_title'    => $target_post_title,
+				'edit_url'             => $edit_url,
+				'view_url'             => $view_url,
+				'error_message'        => $row['error_message'],
+				'created_at'           => $row['created_at'],
+				'updated_at'           => $row['updated_at'],
 			);
 		}
 
