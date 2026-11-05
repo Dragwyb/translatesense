@@ -1180,12 +1180,4 @@
             </fields>
         </widget>
     </elementor-widgets>
-
-    <!-- Classic Editor & Custom Fields -->
-    <custom-fields>
-        <custom-field action="translate">_yoast_wpseo_title</custom-field>
-        <custom-field action="translate">_yoast_wpseo_metadesc</custom-field>
-        <custom-field action="translate">rank_math_title</custom-field>
-        <custom-field action="translate">rank_math_description</custom-field>
-    </custom-fields>
 </wpml-config>
