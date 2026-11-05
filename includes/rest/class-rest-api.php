@@ -2059,12 +2059,9 @@ class Rest_Api {
 		}
 
 		$response = array(
-			'builder'       => $builder,
-			'custom_xml'    => Xml_Engine::get_config( $builder ),
-			'gutenberg_xml' => Xml_Engine::get_config( 'gutenberg' ),
-			'elementor_xml' => Xml_Engine::get_config( 'elementor' ),
-			'rules'         => Xml_Engine::get_all_rules( $builder ),
-			'all_rules'     => Xml_Engine::get_all_rules( 'all' ),
+			'builder'    => $builder,
+			'custom_xml' => Xml_Engine::get_config( $builder ),
+			'rules'      => Xml_Engine::get_all_rules( $builder ),
 		);
 
 		return rest_ensure_response( $response );
