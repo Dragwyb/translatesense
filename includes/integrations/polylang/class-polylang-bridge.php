@@ -384,7 +384,7 @@ class Polylang_Bridge {
 
 		// Language must be assigned before translation group and sync operations.
 		self::set_post_language( $target_post_id, $target_lang );
-		update_post_meta( $target_post_id, '_translatesense_translated', '1' );
+		update_post_meta( $target_post_id, '_translatesense_translated', $target_post_id );
 		update_post_meta( $target_post_id, '_translatesense_source_id', $source_post_id );
 
 		$translations                 = (array) self::get_post_translations( $source_post_id );
