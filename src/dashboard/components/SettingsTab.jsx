@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from '@wordpress/element';
 import { DashboardIcons } from './DashboardIcons';
+import copyToClipboard from '../../components/CopyToClipbord';
 
 export function SettingsTab({
   settings,
@@ -112,10 +113,13 @@ export function SettingsTab({
       settings.custom_prompt !== undefined && settings.custom_prompt !== ''
         ? settings.custom_prompt
         : settings.default_prompt || '';
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(val);
-      if (showNotice) showNotice('Prompt template copied to clipboard!');
-    }
+
+    copyToClipboard({
+      value: val,
+      onSuccess: () => {
+        if (showNotice) showNotice('Prompt template copied to clipboard!');
+      },
+    });
   };
 
   const getTemperatureLabel = (temp) => {
