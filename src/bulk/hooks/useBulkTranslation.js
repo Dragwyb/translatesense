@@ -14,17 +14,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   const [currentStep, setCurrentStep] = useState(isPreviouslyRunning ? 3 : 1);
   const [postIds, setPostIds] = useState(initialPostIds);
-  const localizedData =
-    (typeof window !== 'undefined' && window.TranslateSenseBulkData) || {};
-  const defaultLanguage = localizedData.defaultLanguage || '';
-  const allConfiguredLanguages = Object.values(localizedData.languages || {});
-  const getDefaultTargetLanguages = () => {
-    return allConfiguredLanguages
-      .filter((l) => l && l.slug && l.slug !== defaultLanguage && !l.is_default)
-      .map((l) => l.slug);
-  };
 
-  const [selectedLanguages, setSelectedLanguages] = useState(() => getDefaultTargetLanguages());
+  const [selectedLanguages, setSelectedLanguages] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState('openai');
   const [providers, setProviders] = useState([]);
 
@@ -307,7 +298,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       setProgressSessionType(sessionType);
       setProgressModalSource(modalSource);
 
-      setCurrentStep(3);
+      setCurrentStep(2);
 
       let bId = targetBatchId || currentBatchIdRef.current;
       let data = initialBatchData;
@@ -800,7 +791,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   const startTranslation = useCallback(async () => {
     setProgressSessionType('new_queue');
     setProgressModalSource('provider_selection');
-    setCurrentStep(3);
+    setCurrentStep(2);
     setIsTranslating(true);
     setIsCompleted(false);
     setProgressPercent(0);

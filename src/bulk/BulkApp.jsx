@@ -151,12 +151,6 @@ export function BulkApp() {
       translationState.setProgressModalSource('provider_selection');
       translationState.setCurrentStep(1);
 
-      // Default all languages selected excluding default language on modal open
-      const defaultTargets = allLanguages
-        .filter((l) => l && l.slug && l.slug !== localizedData.defaultLanguage && !l.is_default)
-        .map((l) => l.slug);
-      translationState.setSelectedLanguages(defaultTargets);
-
       // Perform one fresh check to see if background jobs are running, so Step 1 notice banner can show
       checkBackgroundJobs(false).then((batches) => {
         if (translationState.setActiveBatches) {

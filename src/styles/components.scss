@@ -163,7 +163,7 @@
 .ts-modal-body,
 .ts-common-body {
   padding: 24px;
-  overflow-y: auto;
+  overflow: hidden;
   flex: 1 1 auto;
   display: inline-flex;
   flex-direction: column;
@@ -189,20 +189,6 @@
 
 // Reusable Buttons
 .ts-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  font-size: 13.5px;
-  font-weight: 600;
-  border-radius: $ts-radius-md;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  border: 1px solid transparent;
-  text-decoration: none;
-  white-space: nowrap;
-
   &.ts-btn-primary {
     background: $ts-primary;
     color: #ffffff;

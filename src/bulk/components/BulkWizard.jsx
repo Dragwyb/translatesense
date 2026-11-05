@@ -3,8 +3,7 @@
  */
 
 import { useCallback } from '@wordpress/element';
-import { LanguageSelection } from './LanguageSelection';
-import { ProviderSelection } from './ProviderSelection';
+import { UnifiedBulkSelection } from './UnifiedBulkSelection';
 import { BulkProgressModal } from './BulkProgressModal';
 import { SkipConfirmation } from './SkipConfirmation';
 import { ErrorModal } from '../../components/ErrorModal';
@@ -118,15 +117,27 @@ export function BulkWizard({
           }
         />
       ) : currentStep === 1 ? (
-        /* 3. Step 1: Language Selection Modal */
-        <LanguageSelection
+        /* 3. Unified Bulk Translation Modal (Replaces old Steps 1 & 2) */
+        <UnifiedBulkSelection
           isOpen={true}
           onClose={onClose}
           postIds={postIds}
           allLanguages={allLanguages}
           selectedLanguages={selectedLanguages}
           onLanguagesChange={setSelectedLanguages}
-          onNext={() => setCurrentStep(2)}
+          providers={providers}
+          selectedProvider={selectedProvider}
+          onSelectProvider={setSelectedProvider}
+          onStartTranslation={startTranslation}
+          onViewError={(p) =>
+            setErrorModal({
+              isOpen: true,
+              title: `${p.title} Notice`,
+              message: p.desc,
+              reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
+              icon: p.logo,
+            })
+          }
           activeBatches={activeBatches}
           onShowRunning={() => {
             const activeBatch = activeBatches && activeBatches[0] ? activeBatches[0] : null;
@@ -142,32 +153,10 @@ export function BulkWizard({
               );
             }
           }}
+          isTranslating={isTranslating}
         />
       ) : currentStep === 2 ? (
-        /* 4. Step 2: Provider Selection Modal */
-        <ProviderSelection
-          isOpen={true}
-          onClose={onClose}
-          postIds={postIds}
-          allLanguages={allLanguages}
-          selectedLanguages={selectedLanguages}
-          providers={providers}
-          selectedProvider={selectedProvider}
-          onSelectProvider={setSelectedProvider}
-          onBack={() => setCurrentStep(1)}
-          onStartTranslation={startTranslation}
-          onViewError={(p) =>
-            setErrorModal({
-              isOpen: true,
-              title: `${p.title} Notice`,
-              message: p.desc,
-              reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
-              icon: p.logo,
-            })
-          }
-        />
-      ) : currentStep === 3 ? (
-        /* 5. Step 3: Progress & Results Modal */
+        /* 4. Step 3: Progress & Results Modal */
         <BulkProgressModal
           isOpen={true}
           onClose={onClose}

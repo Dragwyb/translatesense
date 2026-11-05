@@ -49,6 +49,7 @@
   text-decoration: none;
   box-sizing: border-box;
   min-height: 30px !important;
+  display: inline-flex !important;
 }
 
 .ts-btn .dashicons{
@@ -483,59 +484,6 @@
   font-weight: 700;
   margin-bottom: 2px;
   font-size: 13px;
-}
-
-/* Info Callout Banner */
-.ts-lang-info-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #f8fafc;
-  border: 1px solid var(--ts-border, #e2e8f0);
-  border-radius: 4px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: #475569;
-  margin-bottom: 14px;
-}
-
-.ts-info-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #eff6ff;
-  color: #2563eb;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.ts-highlight-tag {
-  background: #eff6ff;
-  color: #1d4ed8;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-weight: 700;
-}
-
-/* ==========================================================================
-   Common Badges & Pills
-   ========================================================================== */
-.ts-badge-pill,
-.ts-lang-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1d4ed8;
-  border-radius: 3px;
-  font-size: 11.5px;
-  font-weight: 600;
 }
 
 /* ==========================================================================
