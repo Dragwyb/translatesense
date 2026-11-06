@@ -65,11 +65,10 @@ class Custom_Field_Manager {
 			return;
 		}
 
-		// Compute change hashes: schema, values, user XML, policy version
+		// Check change hashes: schema, values, and user XML configuration
 		$current_schema_hash = Custom_Field_Parser::get_schema_hash( $fields );
 		$current_val_hash    = Custom_Field_Parser::get_values_hash( $post_id, $fields );
 		$current_user_xml    = Xml_Engine::get_user_custom_field_config_hash( $editor_type );
-		$current_policy_ver  = Custom_Field_Rule_Resolver::POLICY_VERSION;
 
 		$stored = get_post_meta( $post_id, self::HASH_META_KEY, true );
 		if ( ! is_array( $stored ) ) {
@@ -82,8 +81,7 @@ class Custom_Field_Manager {
 		$is_fresh = is_array( $stored )
 			&& ( $stored['schema_hash'] ?? '' ) === $current_schema_hash
 			&& ( $stored['val_hash'] ?? '' ) === $current_val_hash
-			&& ( $stored['user_xml'] ?? '' ) === $current_user_xml
-			&& ( $stored['policy_ver'] ?? '' ) === $current_policy_ver;
+			&& ( $stored['user_xml'] ?? '' ) === $current_user_xml;
 
 		if ( $is_fresh && self::has_package_rows( $post_id, $editor_type ) ) {
 			return;
@@ -135,7 +133,6 @@ class Custom_Field_Manager {
 			'schema_hash' => $current_schema_hash,
 			'val_hash'    => $current_val_hash,
 			'user_xml'    => $current_user_xml,
-			'policy_ver'  => $current_policy_ver,
 			'updated_at'  => time(),
 		);
 
