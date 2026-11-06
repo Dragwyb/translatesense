@@ -3951,25 +3951,33 @@ class Rest_Api {
 		$strings_table  = esc_sql( Hashing_Db::get_strings_table() );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$allowed_strings = $wpdb->get_col(
+		$allowed_results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT DISTINCT s.filter_string
-				 FROM `{$packages_table}` p
-				 INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
-				 WHERE p.post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT DISTINCT s.filter_string, s.string_hash
+				FROM `{$packages_table}` p
+				INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
+				WHERE p.post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$source_post_id
-			)
+			),
+			ARRAY_A
 		);
 
-		if ( ! is_array( $allowed_strings ) || empty( $allowed_strings ) ) {
+		$filter_strings = array_column( $allowed_results, 'filter_string' );
+		$string_hashes  = array_column( $allowed_results, 'string_hash' );
+
+		if ( ! is_array( $filter_strings ) || empty( $filter_strings ) ) {
 			return false;
 		}
 
 		// Every submitted string must exactly match a stored source string.
 		// Strict matching prevents type coercion and partial/loose matches.
 		foreach ( $strings as $submitted ) {
-			if ( ! in_array( $submitted, $allowed_strings, true ) ) {
-				return false;
+			if ( ! in_array( $submitted, $filter_strings, true ) ) {
+				$hash = md5( $submitted );
+
+				if ( ! in_array( $hash, $string_hashes, true ) ) {
+					return false;
+				}
 			}
 		}
 
