@@ -1,8 +1,7 @@
 .github export-ignore
 .wordpress-org export-ignore
 src/ export-ignore
-assets/css/admin/dashboard*.css export-ignore
-assets/css/admin/editor*.css export-ignore
+assets/css/admin
 assets/css/bulk-translate*.css export-ignore
 assets/build/*rtl.css export-ignore
 .gitattributes export-ignore
