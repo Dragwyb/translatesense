@@ -468,14 +468,13 @@ class Editor_Integration {
 			return;
 		}
 
+		$post_id = (int) $post->ID;
+
+		self::maybe_enqueue_block_editor_assets( $post_id );
+
 		if ( ! self::is_translate_current_post() ) {
 			return;
 		}
-
-		$post_id = (int) $post->ID;
-
-		// Check and enqueue Gutenberg Block Processor System if pending
-		self::maybe_enqueue_block_processor_assets( $post_id );
 
 		if ( self::is_post_already_translated( $post_id ) ) {
 			return;
@@ -492,7 +491,7 @@ class Editor_Integration {
 	 *
 	 * @param int $post_id Post ID.
 	 */
-	public static function maybe_enqueue_block_processor_assets( int $post_id ): void {
+	public static function maybe_enqueue_block_editor_assets( int $post_id ): void {
 		if ( $post_id <= 0 ) {
 			return;
 		}
