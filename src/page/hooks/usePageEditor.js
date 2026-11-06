@@ -27,7 +27,7 @@ function disableTranslateButton(button) {
       ? window.wp.i18n.__('Translations Applied', 'translatesense')
       : 'Translations Applied';
 
-  button.innerHTML = `<span class="dashicons dashicons-yes-alt" style="margin-right: 5px; vertical-align: middle;"></span>${appliedText}`;
+  button.innerHTML = `${appliedText}`;
   button.title = appliedText;
 }
 

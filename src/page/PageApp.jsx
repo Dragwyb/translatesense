@@ -66,10 +66,11 @@ export function PageApp() {
     translation.setStrings((prev) => {
       const updated = [...prev];
       if (updated[index]) {
+        const hasVal = Boolean(newVal !== null && newVal !== undefined && String(newVal).trim() !== '');
         updated[index] = {
           ...updated[index],
           translated: newVal,
-          status: 'Custom',
+          status: hasVal ? 'Custom' : 'Pending',
         };
       }
       return updated;
@@ -81,10 +82,11 @@ export function PageApp() {
       const updated = [...prev];
       if (updated[index]) {
         const provVal = updated[index].providerTranslated || '';
+        const hasVal = Boolean(provVal && String(provVal).trim() !== '');
         updated[index] = {
           ...updated[index],
           translated: provVal,
-          status: 'Completed',
+          status: hasVal ? 'Completed' : 'Pending',
         };
       }
       return updated;
@@ -187,10 +189,9 @@ export function PageApp() {
                 progressTargetLang={translation.targetLang}
                 progressLanguages={allLanguages}
                 progressProviderTitle={providerTitle}
-                onReTranslate={() =>
-                  translation.extractAndTranslate(translation.selectedProvider, true)
-                }
-
+                showReTranslateAll={translation.showReTranslateAll}
+                isRetrying={translation.isRetrying}
+                onReTranslateAll={translation.retranslateFailed}
                 onApply={handleApplyToPage}
               />
             </>

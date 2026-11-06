@@ -90,7 +90,10 @@ export function ReviewRow({
       </td>
       <td>
         <div className="ts-trans-cell-wrap">
-          <div className="ts-trans-box">
+          <div
+            className={`ts-trans-box ${!transVal ? 'ts-trans-empty' : ''} ${item.status === 'Failed' ? 'ts-trans-failed' : ''}`}
+            title={item.status === 'Failed' && item.error ? item.error : undefined}
+          >
             <div
               ref={textRef}
               className="ts-trans-text"
@@ -148,4 +151,3 @@ export function ReviewRow({
     </tr>
   );
 }
-

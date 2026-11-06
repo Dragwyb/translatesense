@@ -386,6 +386,11 @@
   box-shadow: 0 0 0 1px #2563eb;
 }
 
+.ts-trans-box.ts-trans-failed {
+  border-color: #fca5a5;
+  background: #fffafa;
+}
+
 .ts-trans-text {
   width: 100%;
   border: none !important;

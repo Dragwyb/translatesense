@@ -26,7 +26,9 @@ export function ReviewModal({
   progressTargetLang,
   progressLanguages,
   progressProviderTitle,
-  onReTranslate,
+  showReTranslateAll = false,
+  isRetrying = false,
+  onReTranslateAll,
   onApply,
 }) {
   const [search, setSearch] = useState('');
@@ -44,6 +46,10 @@ export function ReviewModal({
       setApplying(false);
     }
   };
+
+  const translatedCount = strings.filter(
+    (s) => s.translated !== null && s.translated !== undefined && String(s.translated).trim() !== ''
+  ).length;
 
   return (
     <Modal
@@ -63,28 +69,30 @@ export function ReviewModal({
           align="space-between"
           customHtml={
             <span className="ts-footer-string-counter">
-              {strings.length} of {strings.length} strings
+              {translatedCount} of {strings.length} strings translated
             </span>
           }
         >
           <div style={{ display: 'flex', gap: '8px' }}>
-            {onReTranslate && (
+            {showReTranslateAll && onReTranslateAll && (
               <Button
                 variant="secondary"
-                onClick={onReTranslate}
-                disabled={applying}
+                onClick={onReTranslateAll}
+                loading={isRetrying}
+                disabled={applying || isRetrying}
+                title="Re-Translate only failed or untranslated strings"
               >
-                Re-Translate All
+                Re-Translate
               </Button>
             )}
-            <Button variant="secondary" onClick={onClose}>
+            <Button variant="secondary" onClick={onClose} disabled={isRetrying || applying}>
               Cancel
             </Button>
             <Button
               variant="primary"
               onClick={handleApplyClick}
               loading={applying}
-              disabled={applying || strings.length === 0}
+              disabled={applying || isRetrying || strings.length === 0}
             >
               Apply to Page
             </Button>
@@ -114,7 +122,7 @@ export function ReviewModal({
       </div>
       {progressIsOpen && (
         /* 2. Translation Progress Modal (Coffee Cup Visual) */
-        <div className='ts-review-progress-overlay'>
+        <div className="ts-review-progress-overlay">
           <TranslationProgress
             isOpen={true}
             percent={progressPercent}

@@ -97,25 +97,40 @@
         if (response.status === 429 || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
           message = `API Quota / Rate Limit reached for ${this.providerName.toUpperCase()}. Please check your API account plan.`;
         }
-        console.error(message);
+        throw new Error(message);
       }
 
       const data = await response.json();
-      const translatedList = data.results || [];
+      const translatedList = (data && Array.isArray(data.results)) ? data.results : [];
       const batchResults = [];
 
       for (let i = 0; i < batch.length; i++) {
         const item = batch[i];
         const sourceText = item.content || item.source || '';
-        const transResult = translatedList[i];
-        const translatedText = transResult && transResult.translated ? transResult.translated : sourceText;
-        const isCached = transResult && transResult.cached;
+
+        // Match response by hash identifier, falling back to positional index
+        let transResult = null;
+        if (item.hash) {
+          transResult = translatedList.find((r) => r && r.hash === item.hash);
+        }
+        if (!transResult && translatedList[i]) {
+          transResult = translatedList[i];
+        }
+
+        const rawTranslated = transResult && transResult.translated !== undefined ? transResult.translated : null;
+        const hasError = Boolean(transResult && transResult.error);
+
+        // A valid translation must not be null/undefined, must not have an error, and must not be empty (legitimate strings like "0" are valid)
+        const isValid = !hasError && rawTranslated !== null && rawTranslated !== undefined && String(rawTranslated).trim() !== '';
+        const isCached = Boolean(transResult && transResult.cached);
 
         const itemResult = {
-          hash: item.hash || '',
+          hash: item.hash || (transResult && transResult.hash) || '',
           source: sourceText,
-          translated: translatedText,
-          status: isCached ? 'Cached' : 'AI Completed',
+          translated: isValid ? String(rawTranslated) : '',
+          status: isValid ? (isCached ? 'Cached' : 'AI Completed') : 'AI Failed',
+          isSuccess: isValid,
+          error: hasError ? transResult.error : (!isValid ? 'Translation missing or empty' : null),
         };
 
         batchResults.push(itemResult);
@@ -170,9 +185,10 @@
               const fallbackResult = {
                 hash: item.hash || '',
                 source: sourceText,
-                translated: sourceText,
+                translated: '',
                 status: 'AI Failed',
                 error: err.message,
+                isSuccess: false,
               };
 
               allResults.push(fallbackResult);
