@@ -730,6 +730,7 @@
   font-weight: 700;
   line-height: 1;
   flex-shrink: 0;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .ts-prompt-step-separator {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Admin;
 
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
-use TranslateSense\Includes\AI\Ai_Connector_Bridge;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -109,9 +108,7 @@ class Admin_Menu {
 		wp_enqueue_script( 'wp-i18n' );
 
 		// Enqueue App Script (Production React Bundle)
-		$script_url = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/dashboard/index.js' )
-			? TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.js'
-			: TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/dashboard' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js';
+		$script_url = TRANSLATESENSE_PLUGIN_URL . 'assets/build/dashboard/index.js';
 
 		wp_enqueue_script(
 			'translatesense-admin-js',
@@ -121,15 +118,8 @@ class Admin_Menu {
 			true
 		);
 
-		$bridge           = Ai_Connector_Bridge::get_instance();
-		$active_providers = $bridge->get_active_providers();
 		$admin_url        = admin_url();
-		$provider_models  = array();
-		foreach ( $active_providers as $p_id => $p_opts ) {
-			$provider_models[ $p_id ] = $bridge->get_models( (string) $p_id, (array) $p_opts );
-		}
-
-		// Localize Script (Step 1.1)
+// Localize Script (Step 1.1)
 		wp_localize_script(
 			'translatesense-admin-js',
 			'TranslateSenseData',

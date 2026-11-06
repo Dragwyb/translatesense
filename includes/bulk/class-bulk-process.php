@@ -47,20 +47,13 @@ class Bulk_Process {
 	}
 
 	/**
-	 * Get table name.
-	 */
-	private static function get_table_name_internal(): string {
-		global $wpdb;
-		return $wpdb->prefix . 'translatesense_queue';
-	}
-
-	/**
-	 * Get table name (legacy compatibility).
+	 * Get queue table name.
 	 *
 	 * @return string
 	 */
 	final public static function get_table_name(): string {
-		return self::get_table_name_internal();
+		global $wpdb;
+		return $wpdb->prefix . 'translatesense_queue';
 	}
 
 	/**
@@ -189,7 +182,7 @@ class Bulk_Process {
 	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai' ): array {
 		global $wpdb;
 
-		$table    = self::get_table_name_internal();
+		$table    = self::get_table_name();
 		$batch_id = wp_generate_uuid4();
 		$provider = sanitize_key( $provider );
 		if ( '' === $provider ) {
@@ -327,7 +320,7 @@ class Bulk_Process {
 	 */
 	public static function cleanup_expired_jobs(): int {
 		global $wpdb;
-		$table      = self::get_table_name_internal();
+		$table      = self::get_table_name();
 		$cutoff     = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
 		$updated_at = current_time( 'mysql' );
 		$error      = __( 'Translation job expired: it remained pending for more than 1 day.', 'translatesense' );
@@ -354,7 +347,7 @@ class Bulk_Process {
 	 */
 	public static function has_pending_or_running_jobs(): bool {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
 			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -368,7 +361,7 @@ class Bulk_Process {
 	 */
 	public static function has_active_background_jobs(): bool {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
 			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND provider IN ('openai', 'gemini')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -384,7 +377,7 @@ class Bulk_Process {
 	 */
 	public static function get_active_background_batches(): array {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$batch_ids = $wpdb->get_col(
@@ -520,7 +513,7 @@ class Bulk_Process {
 	 */
 	private static function has_pending_backend_jobs(): bool {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$job_id = $wpdb->get_var(
@@ -564,7 +557,7 @@ class Bulk_Process {
 	 */
 	private static function process_next_backend_job(): void {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		// Fail any queue post more than 1 day old so it is not translated
 		self::cleanup_expired_jobs();
@@ -956,7 +949,7 @@ class Bulk_Process {
 		}
 
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		return $wpdb->get_row(
@@ -976,7 +969,7 @@ class Bulk_Process {
 	 */
 	public static function update_job( int $job_id, array $data ): bool {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		if ( ! isset( $data['updated_at'] ) ) {
 			$data['updated_at'] = current_time( 'mysql' );
@@ -1003,7 +996,7 @@ class Bulk_Process {
 		self::cleanup_expired_jobs();
 		global $wpdb;
 
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		if ( ! empty( $batch_id ) ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -1218,7 +1211,7 @@ class Bulk_Process {
 	 */
 	public static function skip_post_in_batch( string $batch_id, int $post_id ) {
 		global $wpdb;
-		$table = self::get_table_name_internal();
+		$table = self::get_table_name();
 
 		if ( empty( $batch_id ) || $post_id <= 0 ) {
 			return new WP_Error(

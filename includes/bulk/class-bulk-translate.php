@@ -159,8 +159,6 @@ class Bulk_Translate {
 			true
 		);
 
-		$settings = get_option( 'translatesense_settings', array() );
-
 		wp_localize_script(
 			'translatesense-bulk',
 			'TranslateSenseBulkData',

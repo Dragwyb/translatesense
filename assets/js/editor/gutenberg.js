@@ -233,7 +233,7 @@
 
     /**
        * Compare source HTML and translated HTML node-by-node to produce a mapping of
-       * original strings to translated strings (similar to block-processor.js).
+       * original strings to translated strings (similar to block-editor.js).
        */
     buildContentMapMap(sourceHTML, translatedHTML) {
       const mapping = new Map();

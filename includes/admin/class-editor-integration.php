@@ -138,7 +138,6 @@ class Editor_Integration {
 		}
 
 		// 2. Check Gutenberg (has blocks)
-		$post = get_post( $post_id );
 		if ( $post && function_exists( 'has_blocks' ) && has_blocks( $post->post_content ) ) {
 			return 'gutenberg';
 		}
@@ -341,9 +340,7 @@ class Editor_Integration {
 			$asset['dependencies']
 		);
 
-		$editor_script_url = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/build/page/index.js' )
-			? TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.js'
-			: TRANSLATESENSE_PLUGIN_URL . 'assets/js/admin/editor-panel' . sanitize_text_field( TRANSLATESENSE_ASSETS_EXT ) . '.js';
+		$editor_script_url = TRANSLATESENSE_PLUGIN_URL . 'assets/build/page/index.js';
 
 		wp_enqueue_script(
 			'translatesense-editor',
@@ -523,20 +520,16 @@ class Editor_Integration {
 	public static function enqueue_block_processor_assets( int $post_id ): void {
 		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
 
-		$js_file = file_exists( TRANSLATESENSE_PLUGIN_DIR . 'assets/js/translation/block-processor' . $assets_ext . '.js' )
-		? 'assets/js/translation/block-processor' . $assets_ext . '.js'
-		: 'assets/js/block-processor.js';
-
 		wp_enqueue_script(
-			'translatesense-block-processor',
-			TRANSLATESENSE_PLUGIN_URL . $js_file,
+			'translatesense-block-editor',
+			TRANSLATESENSE_PLUGIN_URL . 'assets/js/translation/block-editor' . $assets_ext . '.js',
 			array( 'wp-blocks', 'wp-element', 'wp-components', 'wp-data', 'wp-editor', 'wp-edit-post', 'wp-i18n', 'wp-notices', 'wp-plugins' ),
 			TRANSLATESENSE_VERSION,
 			true
 		);
 
 		wp_localize_script(
-			'translatesense-block-processor',
+			'translatesense-block-editor',
 			'TranslateSenseProcessorData',
 			array(
 				'postId'    => $post_id,
@@ -640,13 +633,13 @@ class Editor_Integration {
 	private static function is_translate_current_post() {
 		global $post;
 
-		if ( ! $post instanceof \WP_Post && self::is_post_already_translated( (int) $post->ID ) ) {
+		if ( ! $post instanceof \WP_Post ) {
 			return false;
 		}
 
 		$post_types = Polylang_Bridge::get_translated_post_types();
 
-		if ( ! is_array( $post_types ) || ! in_array( $post->post_type, $post_types ) ) {
+		if ( ! is_array( $post_types ) || ! in_array( $post->post_type, $post_types, true ) ) {
 			return false;
 		}
 
@@ -675,8 +668,13 @@ class Editor_Integration {
 			return;
 		}
 
-		if ( empty( $post->post_type ) || function_exists( 'get_current_screen' ) ) {
-			if ( property_exists( get_current_screen(), 'is_block_editor' ) && ! get_current_screen()->is_block_editor ) {
+		if ( empty( $post->post_type ) ) {
+			return;
+		}
+
+		if ( function_exists( 'get_current_screen' ) ) {
+			$screen = get_current_screen();
+			if ( $screen && property_exists( $screen, 'is_block_editor' ) && ! $screen->is_block_editor ) {
 				return;
 			}
 		}
@@ -687,7 +685,7 @@ class Editor_Integration {
 
 		add_meta_box(
 			'translatesense-editor-metabox',
-			__( 'TransalteSense', 'translatesense' ),
+			__( 'TranslateSense', 'translatesense' ),
 			array( __CLASS__, 'render_editor_meta_box' ),
 			$post->post_type,
 			'side',
@@ -726,7 +724,7 @@ class Editor_Integration {
 			<span class="dashicons dashicons-translation"></span>	
 			<?php esc_html_e( 'Auto Translate', 'translatesense' ); ?>
 			</button>
-			<p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0; font-weight: 500; font-size: 14px">
+			<p style="font-size: 12px; color: #64748b; margin: 10px 0 0 0; font-weight: 500; font-size: 14px">
 				<?php
 				// translators: %1$s source language flag, %2$s source language name, %3$s target langauge flag, %4$s target langauge name.
 				echo wp_kses_post( sprintf( __( 'Language: %1$s (%2$s) to %3$s (%4$s)', 'translatesense' ), wp_kses_post( $source_lang_flag ), esc_html( strtoupper( $source_lang ) ), wp_kses_post( $current_lang_flag ), esc_html( strtoupper( $current_lang ) ) ) );

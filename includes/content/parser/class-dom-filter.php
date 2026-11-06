@@ -29,7 +29,7 @@ class Dom_Filter {
 	/**
 	 * @var array<string, string>
 	 */
-	private static $attr_placehilders_cache = array();
+	private static $attr_placeholders_cache = array();
 
 	/**
 	 * HTML void elements.
@@ -271,8 +271,8 @@ class Dom_Filter {
 		foreach ( $matches as $match ) {
 			$attribute_name                                = $match[1];
 			$attribute_value                               = substr( $match[0], strpos( $match[0], $match[2] ) + 1, -1 );
-			$placeholder                                   = '__ts_ph__' . count( self::$attr_placehilders_cache ) . '__ts_ph__';
-			self::$attr_placehilders_cache[ $placeholder ] = $attribute_value;
+			$placeholder                                   = '__ts_ph__' . count( self::$attr_placeholders_cache ) . '__ts_ph__';
+			self::$attr_placeholders_cache[ $placeholder ] = $attribute_value;
 			$content                                       = str_replace( $match[0], $attribute_name . '="' . $placeholder . '"', $content );
 		}
 
@@ -286,15 +286,15 @@ class Dom_Filter {
 	 * @return string
 	 */
 	private static function replace_attr_placeholders( $content ) {
-		if ( empty( $content ) || ! is_string( $content ) || empty( self::$attr_placehilders_cache ) ) {
+		if ( empty( $content ) || ! is_string( $content ) || empty( self::$attr_placeholders_cache ) ) {
 			return $content;
 		}
 
-		foreach ( self::$attr_placehilders_cache as $placeholder => $attribute_value ) {
+		foreach ( self::$attr_placeholders_cache as $placeholder => $attribute_value ) {
 			$content = str_replace( $placeholder, $attribute_value, $content );
 		}
 
-		self::$attr_placehilders_cache = array();
+		self::$attr_placeholders_cache = array();
 		return $content;
 	}
 
@@ -305,7 +305,7 @@ class Dom_Filter {
 	 * @return string|false
 	 */
 	public static function filter_dom_content( string $value ) {
-		self::$attr_placehilders_cache = array();
+		self::$attr_placeholders_cache = array();
 
 		if ( '' === trim( $value ) ) {
 			return false;

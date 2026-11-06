@@ -7,8 +7,7 @@
     "start": "wp-scripts start",
     "build": "wp-scripts build",
     "lint:js": "wp-scripts lint-js",
-    "lint:css": "wp-scripts lint-style",
-    "test": "node --test test/run-tests.mjs"
+    "lint:css": "wp-scripts lint-style"
   },
   "keywords": [
     "wordpress",
