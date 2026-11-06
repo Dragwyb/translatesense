@@ -3,8 +3,8 @@
  * Plugin Name:       TranslateSense
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
  * Version:           0.0.9
- * Author:            aniketji007
- * Author URI:        https://github.com/Aniketji007
+ * Author:            dragwyb
+ * Author URI:        https://dragwyb.com/
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       translatesense
