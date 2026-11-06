@@ -91,9 +91,7 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
       translateBtn.id = 'ts-elementor-translate-btn';
       translateBtn.className =
         'elementor-button elementor-button-default ts-open-translate-btn';
-      translateBtn.style.cssText =
-        'width: 100%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #fff; font-weight: 600; margin-bottom: 8px;';
-      translateBtn.innerText = 'Translate Page';
+      translateBtn.innerHTML = '<span class="dashicons dashicons-translation"></span>Auto Translate';
 
       btnContainer.prepend(translateBtn);
     };

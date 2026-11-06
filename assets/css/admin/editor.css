@@ -16,6 +16,22 @@
   padding-inline: 16px !important;
 }
 
+#ts-elementor-translate-btn{
+  background: rgb(240, 171, 252);
+  font-size: 14px;
+  color: rgb(12, 13, 14);
+  font-weight: 600;
+  margin-block: 6px;
+}
+
+#ts-elementor-translate-btn span.dashicons{
+  margin-right: 5px;
+}
+
+#ts-elementor-translate-btn:hover{
+  background: rgb(235, 142, 251);
+}
+
 .ts-open-translate-btn .dashicons{
   color: inherit !important;
   line-height: 1 !important;
