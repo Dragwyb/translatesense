@@ -10,3 +10,4 @@ assets/build/*rtl.css export-ignore
 package.json  export-ignore
 package-lock.json  export-ignore
 webpack.config.js  export-ignore
+*.md export-ignore
