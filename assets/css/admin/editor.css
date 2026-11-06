@@ -37,6 +37,50 @@
   line-height: 1 !important;
 }
 
+/* Disabled translate button styling across all editors (Elementor, Block, Classic) */
+.ts-open-translate-btn:disabled,
+.ts-open-translate-btn.disabled,
+.ts-open-translate-btn.ts-btn-disabled,
+#ts-elementor-translate-btn:disabled,
+#ts-elementor-translate-btn.disabled,
+#ts-elementor-translate-btn.ts-btn-disabled,
+#ts-metabox-translate-btn:disabled,
+#ts-metabox-translate-btn.disabled,
+#ts-metabox-translate-btn.ts-btn-disabled,
+#ts-media-translate-btn:disabled,
+#ts-media-translate-btn.disabled,
+#ts-media-translate-btn.ts-btn-disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+#ts-elementor-translate-btn:disabled,
+#ts-elementor-translate-btn.disabled,
+#ts-elementor-translate-btn.ts-btn-disabled {
+  background: #cbd5e1 !important;
+  color: #475569 !important;
+  border-color: #94a3b8 !important;
+}
+
+#ts-elementor-translate-btn:disabled:hover,
+#ts-elementor-translate-btn.disabled:hover {
+  background: #cbd5e1 !important;
+  color: #475569 !important;
+  cursor: not-allowed !important;
+}
+
+.ts-open-translate-btn:disabled .dashicons.dashicons-yes-alt,
+.ts-open-translate-btn.disabled .dashicons.dashicons-yes-alt,
+.ts-open-translate-btn.ts-btn-disabled .dashicons.dashicons-yes-alt {
+  color: #16a34a !important;
+}
+
+.translatesense-metabox-content.ts-applied {
+  opacity: 0.85;
+}
+
 .ts-lang-flag-img {
   width: 16px;
   height: 11px;

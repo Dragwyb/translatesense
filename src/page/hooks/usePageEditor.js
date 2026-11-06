@@ -2,6 +2,54 @@ import { useEffect, useCallback, useRef } from '@wordpress/element';
 import { checkAndConsumeEditorOpenFlag } from '../../utils/editorStorage';
 import { dismissInitialPrompt } from '../../services/api/promptService';
 
+const ALL_TRANSLATE_BUTTON_SELECTORS =
+  '.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-classic-translate-btn';
+
+/**
+ * Disables a translate trigger button element and updates its UI to applied/translated state.
+ *
+ * @param {HTMLButtonElement|HTMLElement} button
+ */
+function disableTranslateButton(button) {
+  if (!button) return;
+
+  button.disabled = true;
+  button.setAttribute('disabled', 'disabled');
+  button.setAttribute('aria-disabled', 'true');
+  button.classList.add('disabled', 'ts-btn-disabled');
+  button.classList.remove('ts-btn-loading', 'is-loading');
+
+  const appliedText =
+    typeof window !== 'undefined' &&
+      window.wp &&
+      window.wp.i18n &&
+      typeof window.wp.i18n.__ === 'function'
+      ? window.wp.i18n.__('Translations Applied', 'translatesense')
+      : 'Translations Applied';
+
+  button.innerHTML = `<span class="dashicons dashicons-yes-alt" style="margin-right: 5px; vertical-align: middle;"></span>${appliedText}`;
+  button.title = appliedText;
+}
+
+/**
+ * Checks whether a trigger button is disabled or translations have been applied.
+ *
+ * @param {HTMLElement} trigger
+ * @param {boolean} isApplied
+ * @return {boolean}
+ */
+function isButtonDisabled(trigger, isApplied) {
+  if (isApplied) return true;
+  if (!trigger) return false;
+  return Boolean(
+    trigger.disabled ||
+    trigger.getAttribute('disabled') !== null ||
+    trigger.getAttribute('aria-disabled') === 'true' ||
+    trigger.classList.contains('disabled') ||
+    trigger.classList.contains('ts-btn-disabled')
+  );
+}
+
 /**
  * Hook to manage page editor environment integrations (Gutenberg, Elementor, Classic)
  */
@@ -16,6 +64,7 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
 
   const hasCheckedEditorOpenRef = useRef(false);
   const isDirectlyOpeningProviderRef = useRef(false);
+  const isAppliedRef = useRef(false);
 
   // Initial prompt modal or direct provider modal on page load
   useEffect(() => {
@@ -72,28 +121,67 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
     onShowInitialPrompt,
   ]);
 
+  // Mark all editor translate buttons as applied / disabled
+  const markButtonsApplied = useCallback(() => {
+    isAppliedRef.current = true;
+
+    // 1. Disable all buttons matching universal selectors across any editor
+    const buttons = document.querySelectorAll(ALL_TRANSLATE_BUTTON_SELECTORS);
+    buttons.forEach((btn) => {
+      disableTranslateButton(btn);
+    });
+
+    // 2. Elementor-specific button
+    const elementorBtn = document.getElementById('ts-elementor-translate-btn');
+    if (elementorBtn) {
+      disableTranslateButton(elementorBtn);
+    }
+
+    // 3. Gutenberg & Classic Meta box button and container
+    const metaBoxBtn = document.getElementById('ts-metabox-translate-btn');
+    if (metaBoxBtn) {
+      disableTranslateButton(metaBoxBtn);
+      const metaContent = metaBoxBtn.closest('.translatesense-metabox-content');
+      if (metaContent) {
+        metaContent.classList.add('ts-applied');
+      }
+    }
+
+    // 4. Classic Editor media button
+    const mediaBtn = document.getElementById('ts-media-translate-btn');
+    if (mediaBtn) {
+      disableTranslateButton(mediaBtn);
+    }
+  }, []);
+
   // Elementor integration: inject button into control footer panel
   useEffect(() => {
     if (editorType !== 'elementor' || typeof window === 'undefined') return;
 
     const injectElementorButton = () => {
-      if (document.getElementById('ts-elementor-translate-btn')) return;
+      let translateBtn = document.getElementById('ts-elementor-translate-btn');
+      if (!translateBtn) {
+        const elementorBtnGroup = document.querySelector(
+          '.MuiButtonGroup-root.MuiButtonGroup-contained'
+        );
+        if (!elementorBtnGroup) return;
 
-      const elementorBtnGroup = document.querySelector(
-        '.MuiButtonGroup-root.MuiButtonGroup-contained'
-      );
-      if (!elementorBtnGroup) return;
+        const btnContainer = elementorBtnGroup.closest('.MuiGrid-root');
+        if (!btnContainer) return;
 
-      const btnContainer = elementorBtnGroup.closest('.MuiGrid-root');
-      if (!btnContainer) return;
+        translateBtn = document.createElement('button');
+        translateBtn.id = 'ts-elementor-translate-btn';
+        translateBtn.className =
+          'elementor-button elementor-button-default ts-open-translate-btn';
+        translateBtn.innerHTML = '<span class="dashicons dashicons-translation"></span>Auto Translate';
 
-      const translateBtn = document.createElement('button');
-      translateBtn.id = 'ts-elementor-translate-btn';
-      translateBtn.className =
-        'elementor-button elementor-button-default ts-open-translate-btn';
-      translateBtn.innerHTML = '<span class="dashicons dashicons-translation"></span>Auto Translate';
+        btnContainer.prepend(translateBtn);
+      }
 
-      btnContainer.prepend(translateBtn);
+      // If translation was already completed/applied, maintain disabled state
+      if (isAppliedRef.current) {
+        disableTranslateButton(translateBtn);
+      }
     };
 
     if (window.jQuery) {
@@ -106,15 +194,32 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
 
     // Try injecting directly if already loaded
     injectElementorButton();
+
+    // Deferred periodic checks in case Elementor panel renders asynchronously
+    const interval = setInterval(injectElementorButton, 1000);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [editorType]);
 
   // Universal click listener for all translate buttons
   useEffect(() => {
     const handleTriggerClick = (e) => {
-      const trigger = e.target.closest(
-        '.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-elementor-translate-btn, #ts-classic-translate-btn'
-      );
+      const trigger = e.target.closest(ALL_TRANSLATE_BUTTON_SELECTORS);
       if (!trigger) return;
+
+      // Prevent click if button is disabled or translations have been applied
+      if (isButtonDisabled(trigger, isAppliedRef.current)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
       e.preventDefault();
 
       const currentPostId =
@@ -131,27 +236,9 @@ export function usePageEditor({ onOpenProviderModal, onShowInitialPrompt, transl
       }
     };
 
-    document.addEventListener('click', handleTriggerClick);
-    return () => document.removeEventListener('click', handleTriggerClick);
+    document.addEventListener('click', handleTriggerClick, true);
+    return () => document.removeEventListener('click', handleTriggerClick, true);
   }, [onOpenProviderModal, config.postId]);
-
-  const markButtonsApplied = useCallback(() => {
-    const metaBoxBtn = document.getElementById('ts-metabox-translate-btn');
-    if (metaBoxBtn) {
-      const metaContent =
-        metaBoxBtn.closest('.translatesense-metabox-content') || metaBoxBtn.parentElement;
-      if (metaContent) {
-        metaContent.innerText = 'Translations Applied';
-        metaContent.className = 'disabled';
-      }
-    }
-
-    const mediaBtn = document.getElementById('ts-media-translate-btn');
-    if (mediaBtn) {
-      mediaBtn.innerText = 'Translations Applied';
-      mediaBtn.className = 'disabled';
-    }
-  }, []);
 
   return {
     editorType,

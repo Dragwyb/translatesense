@@ -530,6 +530,17 @@
       '.ts-open-translate-btn, #ts-metabox-translate-btn, #ts-media-translate-btn, #ts-classic-translate-btn'
     );
     if (trigger) {
+      if (
+        trigger.disabled ||
+        trigger.getAttribute('disabled') !== null ||
+        trigger.getAttribute('aria-disabled') === 'true' ||
+        trigger.classList.contains('disabled') ||
+        trigger.classList.contains('ts-btn-disabled')
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       openModal();
