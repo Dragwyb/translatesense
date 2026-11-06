@@ -135,6 +135,12 @@ class Hashing_Db {
 			return 0;
 		}
 
+		// Do not record packages for values that contain only numbers
+		$clean_filter = trim( function_exists( 'wp_strip_all_tags' ) ? wp_strip_all_tags( (string) $filter_string ) : strip_tags( (string) $filter_string ) );
+		if ( '' !== $clean_filter && is_numeric( $clean_filter ) ) {
+			return 0;
+		}
+
 		$post_id = (int) $post_id;
 		if ( $post_id <= 0 ) {
 			return 0;
