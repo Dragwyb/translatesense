@@ -1011,6 +1011,9 @@
   box-shadow: var(--ts-shadow-xs);
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.ts-footer-bar.ts-footer-sticky{
   position: sticky;
   bottom: 0;
   z-index: 9;

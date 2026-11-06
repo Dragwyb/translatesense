@@ -62,7 +62,7 @@ export function FooterBar({
 
   return (
     <>
-      <footer className="ts-footer-bar">
+      <footer className={`ts-footer-bar ${['settings', 'cache'].includes(activeTab) ? 'ts-footer-sticky' : ''}`}>
         <div className="ts-footer-left">
           <span className="ts-footer-logo">
             <img
