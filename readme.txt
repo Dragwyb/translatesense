@@ -253,7 +253,7 @@ Contributions and community feedback are welcome!
 
 == Changelog ==
 
-= 0.0.8 =
+= 0.0.9 =
 
 * Initial public release.
 * Added OpenAI, Google Gemini, Chrome Built-in AI, and Edge Built-in AI support.
