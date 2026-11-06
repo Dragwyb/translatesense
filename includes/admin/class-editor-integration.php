@@ -508,7 +508,7 @@ class Editor_Integration {
 			return;
 		}
 
-		self::enqueue_block_processor_assets( $post_id );
+		self::enqueue_block_state_editor_assets( $post_id );
 	}
 
 	/**
@@ -516,7 +516,7 @@ class Editor_Integration {
 	 *
 	 * @param int $post_id Post ID.
 	 */
-	public static function enqueue_block_processor_assets( int $post_id ): void {
+	public static function enqueue_block_state_editor_assets( int $post_id ): void {
 		$assets_ext = sanitize_text_field( TRANSLATESENSE_ASSETS_EXT );
 
 		wp_enqueue_script(
