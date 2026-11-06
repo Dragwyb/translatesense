@@ -78,7 +78,7 @@ class Plugin {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( ! isset( $_GET['activate-multi'] ) && current_user_can( 'manage_options' ) ) {
 				delete_transient( 'translatesense_activation_redirect' );
-				wp_safe_redirect( admin_url( 'admin.php?page=translatesense' ) );
+				wp_safe_redirect( admin_url( 'admin.php?page=translatesense&welcome=1' ) );
 				exit;
 			}
 		}

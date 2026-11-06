@@ -13,28 +13,32 @@ export function HomeGuidePanel({
   bulkTranslateUrl = 'edit.php',
 }) {
 
+  const isWelcomeRedrect = new URLSearchParams(window.location.search).get('welcome')
+
   return (
     <div className="ts-guide-container">
       {/* Hero Welcome Card */}
-      <div className="ts-guide-hero">
-        <div className="ts-guide-hero-content">
-          <div className="ts-guide-hero-badge-wrap">
-            <span className="ts-guide-pill primary">Documentation &amp; Workflow Guide</span>
-            <span className={`ts-guide-pill ${polylangActive ? 'success' : 'warning'}`}>
-              {polylangActive
-                ? `Polylang Connected (${Object.keys(languages).length} Languages)`
-                : 'Polylang Inactive'}
-            </span>
-          </div>
+      {isWelcomeRedrect && isWelcomeRedrect === '1' &&
+        <div className="ts-guide-hero">
+          <div className="ts-guide-hero-content">
+            <div className="ts-guide-hero-badge-wrap">
+              <span className="ts-guide-pill primary">Documentation &amp; Workflow Guide</span>
+              <span className={`ts-guide-pill ${polylangActive ? 'success' : 'warning'}`}>
+                {polylangActive
+                  ? `Polylang Connected (${Object.keys(languages).length} Languages)`
+                  : 'Polylang Inactive'}
+              </span>
+            </div>
 
-          <h2 className="ts-guide-hero-title">Welcome to TranslateSense 👋</h2>
-          <p className="ts-guide-hero-desc">
-            TranslateSense is a high-performance automated translation suite built for WordPress &amp; Polylang.
-            It preserves your exact layout and styling across Gutenberg, Classic Editor &amp; Elementor while
-            utilizing a 4-tier database cache to eliminate duplicate AI token costs.
-          </p>
+            <h2 className="ts-guide-hero-title">Welcome to TranslateSense 👋</h2>
+            <p className="ts-guide-hero-desc">
+              TranslateSense is a high-performance automated translation suite built for WordPress &amp; Polylang.
+              It preserves your exact layout and styling across Gutenberg, Classic Editor &amp; Elementor while
+              utilizing a 4-tier database cache to eliminate duplicate AI token costs.
+            </p>
+          </div>
         </div>
-      </div>
+      }
 
       {/* Interactive Step-by-Step Translation Guide */}
       <TranslationGuide />
