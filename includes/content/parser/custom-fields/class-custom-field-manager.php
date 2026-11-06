@@ -17,10 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Custom_Field_Manager {
 
-	const HASH_META_KEY           = '_translatesense_cf_hashes';
-	const LEGACY_HASH_META        = '_translatesense_cf_fingerprints';
-	const LEGACY_ACF_META         = '_translatesense_acf_fingerprints';
-	const LOCK_TIMEOUT            = 5;
+	const HASH_META_KEY = '_translatesense_cf_hashes';
+	const LOCK_TIMEOUT  = 5;
 
 	/**
 	 * Prepare dynamic custom-field packages for a source post if needed.
@@ -60,8 +58,6 @@ class Custom_Field_Manager {
 		if ( empty( $fields ) ) {
 			self::purge_package_rows( $post_id, $editor_type );
 			delete_post_meta( $post_id, self::HASH_META_KEY );
-			delete_post_meta( $post_id, self::LEGACY_HASH_META );
-			delete_post_meta( $post_id, self::LEGACY_ACF_META );
 			return;
 		}
 
@@ -71,12 +67,6 @@ class Custom_Field_Manager {
 		$current_user_xml    = Xml_Engine::get_user_custom_field_config_hash( $editor_type );
 
 		$stored = get_post_meta( $post_id, self::HASH_META_KEY, true );
-		if ( ! is_array( $stored ) ) {
-			$stored = get_post_meta( $post_id, self::LEGACY_HASH_META, true );
-		}
-		if ( ! is_array( $stored ) ) {
-			$stored = get_post_meta( $post_id, self::LEGACY_ACF_META, true );
-		}
 
 		$is_fresh = is_array( $stored )
 			&& ( $stored['schema_hash'] ?? '' ) === $current_schema_hash
@@ -137,8 +127,6 @@ class Custom_Field_Manager {
 		);
 
 		update_post_meta( $post_id, self::HASH_META_KEY, $hashes );
-		update_post_meta( $post_id, self::LEGACY_HASH_META, $hashes );
-		update_post_meta( $post_id, self::LEGACY_ACF_META, $hashes );
 	}
 
 	/**
