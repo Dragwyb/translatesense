@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\REST;
 
 use TranslateSense\Includes\Content\Parser\Content_Parser;
+use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Database\Hashing_Db;
@@ -2964,6 +2965,18 @@ class Rest_Api {
 				$source_editor_type
 			);
 		}
+
+		Custom_Field_Manager::ensure_package_prepared(
+			$post_id,
+			$source_language,
+			$source_editor_type
+		);
+
+		$package_strings = Hashing_Db::get_post_package(
+			$post_id,
+			$source_language,
+			$source_editor_type
+		);
 
 		if ( is_wp_error( $package_strings ) ) {
 			return $package_strings;

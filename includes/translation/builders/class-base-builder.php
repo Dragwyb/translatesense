@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Translation\Builders;
 
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\Custom_Fields\Custom_Field_Translator;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
@@ -262,6 +263,16 @@ abstract class Base_Builder {
 		// 4. Builder-specific persistence runs after the post and Polylang
 		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
+
+		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules
+		Custom_Field_Translator::apply_target_metadata(
+			$post_id,
+			$created_post_id,
+			$source_lang,
+			$target_lang,
+			$is_existing,
+			$custom_opts
+		);
 
 		/**
 		 * Fires after the complete TranslateSense post translation pipeline.

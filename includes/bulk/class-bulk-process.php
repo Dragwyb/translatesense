@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Bulk;
 
 use TranslateSense\Includes\Content\Parser\Content_Parser;
+use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
 use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
@@ -651,6 +652,10 @@ class Bulk_Process {
 			if ( empty( $packages ) ) {
 				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
 			}
+
+			// Synchronize dynamic custom-field packages and refresh package list
+			Custom_Field_Manager::ensure_package_prepared( $post_id, $source_lang, $editor_type );
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
 
 			if ( ! is_array( $packages ) ) {
 				throw new \UnexpectedValueException( 'The translation package data is invalid.' );
