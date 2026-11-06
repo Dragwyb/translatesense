@@ -3950,17 +3950,18 @@ class Rest_Api {
 		$packages_table = esc_sql( Hashing_Db::get_packages_table() );
 		$strings_table  = esc_sql( Hashing_Db::get_strings_table() );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$allowed_results = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT DISTINCT s.filter_string, s.string_hash
 				FROM `{$packages_table}` p
 				INNER JOIN `{$strings_table}` s ON p.string_hash = s.string_hash
-				WHERE p.post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				WHERE p.post_id = %d",
 				$source_post_id
 			),
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		$filter_strings = array_column( $allowed_results, 'filter_string' );
 		$string_hashes  = array_column( $allowed_results, 'string_hash' );

@@ -202,7 +202,7 @@ class Bulk_Process {
 		$created_jobs    = array();
 		$seen_pairs      = array();
 		$cutoff          = current_time( 'timestamp' ) - DAY_IN_SECONDS;
-		$cutoff_mysql    = date( 'Y-m-d H:i:s', $cutoff );
+		$cutoff_mysql    = gmdate( 'Y-m-d H:i:s', $cutoff );
 		$clean_languages = array();
 		foreach ( $target_languages as $language ) {
 			if ( is_string( $language ) || is_numeric( $language ) ) {
@@ -321,7 +321,7 @@ class Bulk_Process {
 	public static function cleanup_expired_jobs(): int {
 		global $wpdb;
 		$table      = self::get_table_name();
-		$cutoff     = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+		$cutoff     = gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
 		$updated_at = current_time( 'mysql' );
 		$error      = __( 'Translation job expired: it remained pending for more than 1 day.', 'translatesense' );
 		$label      = __( 'Failed: Job expired (more than 1 day old)', 'translatesense' );
@@ -447,7 +447,7 @@ class Bulk_Process {
 
 		// MySQL advisory lock serializes workers across concurrent WP-Cron requests.
 		$lock_name = 'ts_bulk_' . substr( hash( 'sha256', (string) site_url() ), 0, 32 );
-		$lock      = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 0)', $lock_name ) );
+		$lock      = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 0)', $lock_name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching,
 
 		if ( '1' !== (string) $lock ) {
 			return;
@@ -488,6 +488,7 @@ class Bulk_Process {
 
 			$has_more_jobs = self::has_pending_backend_jobs();
 		} finally {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
 			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
 		}
 
@@ -592,7 +593,7 @@ class Bulk_Process {
 		// Double-check: if queue post is more than 1 day old, fail it immediately and do not translate
 		$created_ts = ! empty( $job['created_at'] ) ? strtotime( $job['created_at'] ) : 0;
 		if ( $created_ts > 0 && ( current_time( 'timestamp' ) - $created_ts ) >= DAY_IN_SECONDS ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->update(
 				$table,
 				array(

@@ -523,7 +523,7 @@ class Polylang_Synchronizer {
 
 			// The IDs and post type are validated above; wpdb->update prepares
 			// each value and condition. Only orphaned attachment parents change.
-			$updated = $wpdb->update(
+			$updated = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				$wpdb->posts,
 				array( 'post_parent' => $target_post_id ),
 				array(
