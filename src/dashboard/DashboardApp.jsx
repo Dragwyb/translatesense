@@ -337,6 +337,7 @@ export function DashboardApp() {
         {/* Right Sidebar */}
         <RightSidebar
           stats={stats}
+          docsUrl={localizedData.docsUrl}
         />
       </div>
 

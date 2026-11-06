@@ -5,7 +5,7 @@
 import { DashboardIcons } from './DashboardIcons';
 import { formatMs } from '../../utils/formatting';
 
-export function RightSidebar({ stats = {} }) {
+export function RightSidebar({ stats = {}, docsUrl = 'https://docs.dragwyb.com/' }) {
   const totalPosts = stats.successful_translations ? Number(stats.successful_translations).toLocaleString() : 0;
   const totalStrings = stats.total_strings
     ? (stats.total_strings >= 1000 ? (stats.total_strings / 1000).toFixed(1) + 'K' : stats.total_strings)
@@ -24,7 +24,7 @@ export function RightSidebar({ stats = {} }) {
 
   const getPluginUrl = (name) => {
     if (!adminUrl) return '#';
-    return `${adminUrl}plugin-install.php?tab=plugin-information&plugin=${name}&TB_iframe=true&width=772&height=380`;
+    return `${adminUrl}plugin-install.php?tab=plugin-information&plugin=${name}&TB_iframe=true&width=772&height=480`;
   };
 
   const providerBadge = (name) => {
@@ -137,13 +137,28 @@ export function RightSidebar({ stats = {} }) {
 
         <div className="ts-dragwyb-list">
           <a
+            href={getPluginUrl('dragwyb-ai-agent-workflows')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ts-dragwyb-item thickbox open-plugin-details-modal"
+            title="Automate WordPress workflows with AI agents."
+          >
+            <div className="ts-dragwyb-icon"><img src={docsUrl + 'wp-content/uploads/2026/10/ai-agent-workflow.png'} alt="AI Agent Workflows" /></div>
+            <div className="ts-dragwyb-info">
+              <div className="ts-dragwyb-title">AI Agent Workflows</div>
+              <div className="ts-dragwyb-desc">Automate WordPress workflows with AI agents.</div>
+            </div>
+            <span className="ts-dragwyb-arrow">›</span>
+          </a>
+
+          <a
             href={getPluginUrl('smart-form-builder-by-dragwyb')}
             target="_blank"
             rel="noopener noreferrer"
             className="ts-dragwyb-item thickbox open-plugin-details-modal"
             title="Advanced contact forms and lead generation."
           >
-            <div className="ts-dragwyb-icon red">{DashboardIcons.document()}</div>
+            <div className="ts-dragwyb-icon"><img src={docsUrl + 'wp-content/uploads/2026/10/form-builder.png'} alt="Smart Form Builder" /></div>
             <div className="ts-dragwyb-info">
               <div className="ts-dragwyb-title">Smart Form Builder</div>
               <div className="ts-dragwyb-desc">Advanced contact forms and lead generation.</div>
@@ -158,25 +173,10 @@ export function RightSidebar({ stats = {} }) {
             className="ts-dragwyb-item thickbox open-plugin-details-modal"
             title="AI chatbot and customer support."
           >
-            <div className="ts-dragwyb-icon green">{DashboardIcons.chat()}</div>
+            <div className="ts-dragwyb-icon"><img src={docsUrl + 'wp-content/uploads/2026/10/ai-chatbot.png'} alt="AI Chatbot" /></div>
             <div className="ts-dragwyb-info">
               <div className="ts-dragwyb-title">Click to Chat</div>
               <div className="ts-dragwyb-desc">AI chatbot and customer support.</div>
-            </div>
-            <span className="ts-dragwyb-arrow">›</span>
-          </a>
-
-          <a
-            href={getPluginUrl('dragwyb-ai-agent-workflows')}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ts-dragwyb-item thickbox open-plugin-details-modal"
-            title="Automate WordPress workflows with AI agents."
-          >
-            <div className="ts-dragwyb-icon purple">{DashboardIcons.workflow()}</div>
-            <div className="ts-dragwyb-info">
-              <div className="ts-dragwyb-title">AI Agent Workflows</div>
-              <div className="ts-dragwyb-desc">Automate WordPress workflows with AI agents.</div>
             </div>
             <span className="ts-dragwyb-arrow">›</span>
           </a>

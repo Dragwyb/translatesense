@@ -13,7 +13,7 @@ export function GuideStep({ number, title, description, screenshot, note }) {
         <h4 className="ts-timeline-title">{title}</h4>
         <p className="ts-timeline-desc">{description}</p>
 
-        {screenshot && (
+        {/* {screenshot && (
           <div className="ts-screenshot-placeholder">
             <div className="ts-screenshot-icon-box">
               <span className="dashicons dashicons-format-image" />
@@ -23,7 +23,7 @@ export function GuideStep({ number, title, description, screenshot, note }) {
               <span className="ts-screenshot-caption">{screenshot}</span>
             </div>
           </div>
-        )}
+        )} */}
 
         {note && (
           <div className="ts-timeline-note">

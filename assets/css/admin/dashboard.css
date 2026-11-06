@@ -953,19 +953,8 @@
   flex-shrink: 0;
 }
 
-.ts-dragwyb-icon.red {
-  background: #fdf2f8;
-  color: #db2777;
-}
-
-.ts-dragwyb-icon.green {
-  background: #f0fdf4;
-  color: #16a34a;
-}
-
-.ts-dragwyb-icon.purple {
-  background: #faf5ff;
-  color: #9333ea;
+.ts-dragwyb-icon img{
+  width: 34px;
 }
 
 .ts-dragwyb-info {
