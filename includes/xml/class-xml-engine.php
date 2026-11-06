@@ -375,8 +375,11 @@ class Xml_Engine {
 							continue;
 						}
 						$existing = self::find_dom_child_by_text( $cf_section, 'custom-field', $cf_name );
-						if ( $existing && $cf_builder ) {
-							$cf_builder->sync_node( $existing, $cf );
+						if ( $existing ) {
+							// Sync attributes onto existing node
+							foreach ( $cf->attributes() as $attr_k => $attr_v ) {
+								$existing->setAttribute( (string) $attr_k, (string) $attr_v );
+							}
 						} else {
 							$node_dom = dom_import_simplexml( $cf );
 							$cf_section->appendChild( $dom->importNode( $node_dom, true ) );
@@ -962,6 +965,109 @@ class Xml_Engine {
 					'source' => $source,
 				);
 			}
+		}
+	}
+
+	/**
+	 * Retrieve explicit user-configured custom-field rules.
+	 */
+	public static function get_user_custom_field_rules( string $builder = 'all' ): array {
+		$builder    = sanitize_key( (string) $builder );
+		$user_rules = array();
+
+		// Unified user-saved XML option
+		$all_xml = get_option( self::OPTION_ALL_XML, '' );
+		if ( ! empty( $all_xml ) && is_string( $all_xml ) ) {
+			self::extract_custom_field_rules_from_xml( $all_xml, $user_rules, 'all' );
+		}
+
+		// Builder-specific user XML option (overrides unified option)
+		if ( 'all' !== $builder && ! empty( $builder ) ) {
+			$builder_xml = get_option( 'translatesense_' . $builder . '_xml', '' );
+			if ( ! empty( $builder_xml ) && is_string( $builder_xml ) ) {
+				self::extract_custom_field_rules_from_xml( $builder_xml, $user_rules, $builder );
+			}
+		}
+
+		return $user_rules;
+	}
+
+	/**
+	 * Get hash of user custom-field rules.
+	 */
+	public static function get_user_custom_field_config_hash( string $builder = 'all' ): string {
+		$rules = self::get_user_custom_field_rules( $builder );
+		ksort( $rules );
+		return md5( (string) wp_json_encode( $rules ) );
+	}
+
+	/**
+	 * Retrieve all custom-field rules grouped by provenance layer.
+	 */
+	public static function get_custom_field_rule_sources( string $builder = 'all' ): array {
+		$sources = array(
+			'user_xml'         => self::get_user_custom_field_rules( $builder ),
+			'plugin_theme_xml' => array(),
+			'core_xml'         => array(),
+		);
+
+		// Core master XML rules
+		$core_path = self::get_master_xml_path();
+		if ( file_exists( $core_path ) ) {
+			$core_xml = (string) file_get_contents( $core_path );
+			if ( ! empty( $core_xml ) ) {
+				self::extract_custom_field_rules_from_xml( $core_xml, $sources['core_xml'], 'core' );
+			}
+		}
+
+		// Active plugins & themes WPML rules
+		$plugin_configs = self::get_active_plugins_wpml_configs();
+		foreach ( $plugin_configs as $plugin_id => $xml_content ) {
+			self::extract_custom_field_rules_from_xml( $xml_content, $sources['plugin_theme_xml'], 'plugin_theme:' . $plugin_id );
+		}
+
+		return $sources;
+	}
+
+	/**
+	 * Extract custom-field rules from an XML string.
+	 */
+	private static function extract_custom_field_rules_from_xml( string $xml_string, array &$target_array, string $source_id ): void {
+		if ( empty( trim( $xml_string ) ) || false !== stripos( $xml_string, '<!DOCTYPE' ) ) {
+			return;
+		}
+
+		libxml_use_internal_errors( true );
+		$xml = simplexml_load_string( $xml_string, 'SimpleXMLElement', LIBXML_NONET );
+		if ( ! $xml ) {
+			libxml_clear_errors();
+			return;
+		}
+
+		if ( ! isset( $xml->{'custom-fields'}->{'custom-field'} ) ) {
+			return;
+		}
+
+		foreach ( $xml->{'custom-fields'}->{'custom-field'} as $cf ) {
+			$field_name = trim( (string) $cf );
+			if ( '' === $field_name ) {
+				continue;
+			}
+
+			$action          = isset( $cf['action'] ) ? (string) $cf['action'] : 'translate';
+			$is_no_translate = isset( $cf['noTranslate'] ) && in_array( strtolower( (string) $cf['noTranslate'] ), array( 'true', '1', 'yes' ), true );
+			$raw_action      = $is_no_translate ? 'ignore' : $action;
+
+			$normalized_action = class_exists( Custom_Field_Rule_Resolver::class )
+				? Custom_Field_Rule_Resolver::normalize_action( $raw_action )
+				: ( 'ignore' === $raw_action ? 'ignore' : 'copy' );
+
+			$target_array[ $field_name ] = array(
+				'meta_key' => $field_name,
+				'action'   => $normalized_action,
+				'origin'   => ( 0 === strpos( $source_id, 'plugin_theme' ) ) ? 'plugin_theme_xml' : ( 'core' === $source_id ? 'core_xml' : 'user_xml' ),
+				'source'   => $source_id,
+			);
 		}
 	}
 
