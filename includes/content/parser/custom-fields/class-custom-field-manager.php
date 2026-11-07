@@ -147,7 +147,7 @@ class Custom_Field_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$found = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT 1 FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('acf', 'custom_field') LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT 1 FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%' LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$editor_type
 			)
@@ -166,7 +166,7 @@ class Custom_Field_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('acf', 'custom_field')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$editor_type
 			)
@@ -191,7 +191,7 @@ class Custom_Field_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('acf', 'custom_field') AND package_hash NOT IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%' AND package_hash NOT IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$params
 			)
 		);
