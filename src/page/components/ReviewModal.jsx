@@ -26,6 +26,8 @@ export function ReviewModal({
   progressTargetLang,
   progressLanguages,
   progressProviderTitle,
+  isCustomFieldsSyncEnabled = false,
+  skippedCustomFieldsCount = 0,
   showReTranslateAll = false,
   isRetrying = false,
   onReTranslateAll,
@@ -100,6 +102,30 @@ export function ReviewModal({
         </ModalFooter>
       }
     >
+      {isCustomFieldsSyncEnabled && skippedCustomFieldsCount > 0 && (
+        <div
+          className="ts-table-sync-notice"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 14px',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '6px',
+            color: '#1e40af',
+            fontSize: '12.5px',
+            marginBottom: '14px',
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ fontSize: '14px', flexShrink: 0 }}>ℹ️</span>
+          <span>
+            <strong>{skippedCustomFieldsCount} custom fields found:</strong> Not translated because Polylang Custom Fields Synchronization is enabled.
+          </span>
+        </div>
+      )}
+
       <div className="ts-review-body-wrap">
         {/* Toolbar Row: Search + Metrics */}
         <div className="ts-review-toolbar">

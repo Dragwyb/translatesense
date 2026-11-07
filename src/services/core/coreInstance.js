@@ -723,7 +723,7 @@ class TranslateSenseCore {
         if (!editor) {
             console.warn('[TranslateSense] No active page editor matched. Falling back to universal meta updater.');
             if (window.TranslateSenseMetaUpdater) {
-                window.TranslateSenseMetaUpdater.apply(strings);
+                window.TranslateSenseMetaUpdater.apply(strings, { ...options, sourcePageData, core: this });
             }
             return { success: true, editor: 'generic', count: strings.length };
         }

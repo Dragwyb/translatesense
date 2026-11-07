@@ -362,6 +362,31 @@ export function UnifiedBulkSelection({
           </div>
         )}
 
+        {/* Polylang Custom Fields Synchronization Notice */}
+        {localizedData.isCustomFieldsSyncEnabled && (
+          <div
+            className="ts-bulk-sync-notice"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '6px',
+              color: '#1e40af',
+              fontSize: '12.5px',
+              marginBottom: '14px',
+              lineHeight: 1.4,
+            }}
+          >
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>ℹ️</span>
+            <span>
+              <strong>Polylang Synchronization active:</strong> Custom fields are synced automatically and will not be translated.
+            </span>
+          </div>
+        )}
+
         {/* Two-Column Selection Layout */}
         <div className="ts-bulk-columns">
           {/* Left Column: Target Languages */}

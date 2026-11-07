@@ -189,6 +189,8 @@ export function PageApp() {
                 progressTargetLang={translation.targetLang}
                 progressLanguages={allLanguages}
                 progressProviderTitle={providerTitle}
+                isCustomFieldsSyncEnabled={translation.isCustomFieldsSyncEnabled}
+                skippedCustomFieldsCount={translation.skippedCustomFieldsCount}
                 showReTranslateAll={translation.showReTranslateAll}
                 isRetrying={translation.isRetrying}
                 onReTranslateAll={translation.retranslateFailed}
