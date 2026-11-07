@@ -410,7 +410,7 @@
 
       // 5. Update Meta Fields & SEO
       if (window.TranslateSenseMetaUpdater) {
-        window.TranslateSenseMetaUpdater.apply(strings);
+        window.TranslateSenseMetaUpdater.apply(strings, options);
       }
     },
   };

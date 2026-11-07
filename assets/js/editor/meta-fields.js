@@ -57,53 +57,6 @@
     },
 
     /**
-     * Set allowed fields from parsed WPML XML configuration.
-     *
-     * Accepts:
-     * [
-     *   '_yoast_wpseo_title',
-     *   'rank_math_title'
-     * ]
-     *
-     * Or:
-     * [
-     *   { name: '_yoast_wpseo_title', action: 'translate' }
-     * ]
-     *
-     * Or:
-     * {
-     *   '_yoast_wpseo_title': true
-     * }
-     */
-    setAllowedFields(fields) {
-      const allowed = {};
-
-      if (Array.isArray(fields)) {
-        fields.forEach((field) => {
-          const name = typeof field === 'string'
-            ? field
-            : field && (field.name || field.key);
-
-          const action = typeof field === 'string'
-            ? 'translate'
-            : field && field.action;
-
-          if (name && action === 'translate') {
-            allowed[name] = true;
-          }
-        });
-      } else if (fields && typeof fields === 'object') {
-        Object.entries(fields).forEach(([name, value]) => {
-          if (value === true || value === 'translate') {
-            allowed[name] = true;
-          }
-        });
-      }
-
-      this.allowedFields = allowed;
-    },
-
-    /**
      * Check whether a field is allowed.
      *
      * baseName is useful for ACF repeater subfields.
@@ -127,17 +80,6 @@
       );
     },
 
-    /**
-     * Get a matching translation object.
-     */
-    getStringItem(fieldName, baseName = '') {
-      return this.currentStrings.find((item) => {
-        const name = item.name || item.field || item.widget_id;
-
-        return name === fieldName ||
-          (baseName && name === baseName);
-      }) || null;
-    },
 
     /**
      * Get original source value from source metadata.
@@ -168,16 +110,22 @@
      * 2. Original source metadata.
      * 3. TranslateSenseCore cache.
      */
-    resolveTranslation(fieldName, sourceValue, baseName = '') {
-      const item = this.getStringItem(fieldName, baseName);
-
-      if (item && typeof item.translated === 'string' && item.translated !== '') {
-        return item.translated;
+    resolveTranslation(fieldName) {
+      if (!this.allowedFields || !this.allowedFields[fieldName]) {
+        return;
       }
 
+      const fieldContent = this.allowedFields[fieldName];
+
+      if (!fieldContent || !fieldContent.translate || !fieldContent.value) {
+        return;
+      }
+
+      const sourceVal = fieldContent && fieldContent.source;
+
       if (
-        typeof sourceValue !== 'string' ||
-        !sourceValue.trim()
+        typeof sourceVal !== 'string' ||
+        !sourceVal.trim()
       ) {
         return null;
       }
@@ -195,20 +143,20 @@
       try {
         // Follow the same lookup pattern as Elementor.
         const result = core.getTranslatedString(
-          'metaFields',
-          sourceValue,
+          fieldName,
+          sourceVal,
           this.provider,
-          fieldName
+          'custom_field_' + fieldName
         );
 
-        if (typeof result === 'string' && result !== sourceValue) {
+        if (typeof result === 'string' && result !== sourceVal) {
           return result;
         }
 
         if (
           result &&
           typeof result.translate === 'string' &&
-          result.translate !== sourceValue
+          result.translate !== sourceVal
         ) {
           return result.translate;
         }
@@ -220,36 +168,6 @@
       }
 
       return null;
-    },
-
-    /**
-     * Get original value for a configured field.
-     */
-    getFieldTranslation(fieldName, baseName = '') {
-      const item = this.getStringItem(fieldName, baseName);
-
-      let sourceValue = item && typeof item.source === 'string'
-        ? item.source
-        : null;
-
-      if (sourceValue === null) {
-        sourceValue = this.getSourceValue(fieldName, baseName);
-      }
-
-      // Use the translation object directly when available.
-      if (
-        item &&
-        typeof item.translated === 'string' &&
-        item.translated !== ''
-      ) {
-        return item.translated;
-      }
-
-      return this.resolveTranslation(
-        fieldName,
-        sourceValue,
-        baseName
-      );
     },
 
     /**
@@ -511,16 +429,18 @@
       );
 
       // Collect repeater ancestors, from inner to outer.
-      let parent = element.parentElement;
+      let repeaterField = element.closest('.acf-field.acf-field-repeater');
 
       const repeaterPaths = [];
+      parent = element.parentElement;
 
       while (parent) {
-        if (parent.matches('.acf-field.acf-field-repeater')) {
-          const row = parent.closest('.acf-row');
 
-          const repeaterName = parent.getAttribute('data-name');
-          const rowId = row && row.getAttribute('data-id');
+        if (repeaterField && (parent.classList.contains('acf-row') || parent.classList.contains('layout')) && parent.dataset.id) {
+          const parentAcfField = parent.closest('.acf-field');
+
+          const repeaterName = parentAcfField && parentAcfField.getAttribute('data-name');
+          const rowId = parent.getAttribute('data-id');
 
           if (
             repeaterName &&
@@ -640,10 +560,7 @@
             return;
           }
 
-          const translatedValue = this.getFieldTranslation(
-            fieldName,
-            baseName
-          );
+          const translatedValue = this.resolveTranslation(fieldName);
 
           if (
             translatedValue === null ||
@@ -690,7 +607,7 @@
           return;
         }
 
-        const translatedValue = this.getFieldTranslation(fieldName);
+        const translatedValue = this.resolveTranslation(fieldName);
 
         if (translatedValue === null) {
           return;
@@ -736,10 +653,7 @@
           ? item.source
           : this.getSourceValue(fieldName);
 
-        const translatedValue = this.resolveTranslation(
-          fieldName,
-          sourceValue
-        );
+        const translatedValue = this.resolveTranslation(fieldName);
 
         if (
           translatedValue === null ||
@@ -775,8 +689,8 @@
         (options.options && options.options.provider) ||
         this.provider;
 
-      if (options.allowedFields) {
-        this.setAllowedFields(options.allowedFields);
+      if (options.sourcePageData.allowedFields) {
+        this.allowedFields = options.sourcePageData.allowedFields;
       }
 
       this.sourceMetaFields =
