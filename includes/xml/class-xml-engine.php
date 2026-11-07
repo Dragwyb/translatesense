@@ -974,19 +974,10 @@ class Xml_Engine {
 	public static function get_user_custom_field_rules( string $builder = 'all' ): array {
 		$builder    = sanitize_key( (string) $builder );
 		$user_rules = array();
+		$all_xml    = self::get_config();
 
-		// Unified user-saved XML option
-		$all_xml = get_option( self::OPTION_ALL_XML, '' );
 		if ( ! empty( $all_xml ) && is_string( $all_xml ) ) {
 			self::extract_custom_field_rules_from_xml( $all_xml, $user_rules, 'all' );
-		}
-
-		// Builder-specific user XML option (overrides unified option)
-		if ( 'all' !== $builder && ! empty( $builder ) ) {
-			$builder_xml = get_option( 'translatesense_' . $builder . '_xml', '' );
-			if ( ! empty( $builder_xml ) && is_string( $builder_xml ) ) {
-				self::extract_custom_field_rules_from_xml( $builder_xml, $user_rules, $builder );
-			}
 		}
 
 		return $user_rules;
@@ -999,34 +990,6 @@ class Xml_Engine {
 		$rules = self::get_user_custom_field_rules( $builder );
 		ksort( $rules );
 		return md5( (string) wp_json_encode( $rules ) );
-	}
-
-	/**
-	 * Retrieve all custom-field rules grouped by provenance layer.
-	 */
-	public static function get_custom_field_rule_sources( string $builder = 'all' ): array {
-		$sources = array(
-			'user_xml'         => self::get_user_custom_field_rules( $builder ),
-			'plugin_theme_xml' => array(),
-			'core_xml'         => array(),
-		);
-
-		// Core master XML rules
-		$core_path = self::get_master_xml_path();
-		if ( file_exists( $core_path ) ) {
-			$core_xml = (string) file_get_contents( $core_path );
-			if ( ! empty( $core_xml ) ) {
-				self::extract_custom_field_rules_from_xml( $core_xml, $sources['core_xml'], 'core' );
-			}
-		}
-
-		// Active plugins & themes WPML rules
-		$plugin_configs = self::get_active_plugins_wpml_configs();
-		foreach ( $plugin_configs as $plugin_id => $xml_content ) {
-			self::extract_custom_field_rules_from_xml( $xml_content, $sources['plugin_theme_xml'], 'plugin_theme:' . $plugin_id );
-		}
-
-		return $sources;
 	}
 
 	/**
