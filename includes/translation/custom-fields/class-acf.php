@@ -46,7 +46,7 @@ class Acf {
 						if ( Custom_Field_Parser::is_only_numbers( $raw_val ) ) {
 							update_post_meta( $target_post_id, $current_path, $raw_val );
 						} else {
-							$translated = Custom_Field_Translator::resolve_translated_string( $raw_val, $current_path, $target_lang, $custom_opts, 'acf' );
+							$translated = Custom_Field_Translator::resolve_translated_string( $raw_val, $current_path, $target_lang, $custom_opts );
 							update_post_meta( $target_post_id, $current_path, $translated );
 						}
 					} else {
@@ -67,7 +67,7 @@ class Acf {
 				if ( is_array( $source_val ) ) {
 					$link_target = $source_val;
 					if ( Custom_Field_Rule_Resolver::ACTION_TRANSLATE === $action && ! empty( $source_val['title'] ) && is_string( $source_val['title'] ) ) {
-						$link_target['title'] = Custom_Field_Translator::resolve_translated_string( (string) $source_val['title'], $current_path . '[title]', $target_lang, $custom_opts, 'acf' );
+						$link_target['title'] = Custom_Field_Translator::resolve_translated_string( (string) $source_val['title'], $current_path . '[title]', $target_lang, $custom_opts );
 					}
 					update_post_meta( $target_post_id, $current_path, $link_target );
 				} else {
@@ -308,4 +308,3 @@ class Acf {
 		return $term_id;
 	}
 }
-

@@ -9,6 +9,7 @@ use TranslateSense\Includes\XML\Custom_Field_Rule_Resolver;
 use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Parser;
 use TranslateSense\Includes\Content\Parser\Dom_Filter;
 use TranslateSense\Includes\Database\Hashing_Db;
+use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -31,6 +32,11 @@ class Custom_Field_Translator {
 		array $custom_opts = array()
 	): array {
 		if ( $source_post_id <= 0 || $target_post_id <= 0 || empty( $target_lang ) ) {
+			return array();
+		}
+
+		// If Polylang custom fields synchronization is enabled, skip translating custom fields
+		if ( Polylang_Bridge::is_custom_fields_sync_enabled() ) {
 			return array();
 		}
 
@@ -86,7 +92,7 @@ class Custom_Field_Translator {
 						if ( Custom_Field_Parser::is_only_numbers( $raw_val ) ) {
 							update_post_meta( $target_post_id, $meta_key, $raw_val );
 						} else {
-							$translated = self::resolve_translated_string( $raw_val, $meta_key, $target_lang, $custom_opts, 'custom_field' );
+							$translated = self::resolve_translated_string( $raw_val, $meta_key, $target_lang, $custom_opts );
 							update_post_meta( $target_post_id, $meta_key, $translated );
 						}
 					} else {
@@ -111,7 +117,7 @@ class Custom_Field_Translator {
 		string $path,
 		string $target_lang,
 		array $custom_opts,
-		string $prefix = 'custom_field'
+		string $prefix = 'custom_field_'
 	): string {
 		$clean_val    = trim( $source_str );
 		$filtered_val = $clean_val;
@@ -122,9 +128,8 @@ class Custom_Field_Translator {
 			}
 		}
 
-		$clean_prefix = rtrim( $prefix, ':' );
 		$string_hash  = md5( $filtered_val );
-		$package_hash = Hashing_Db::generate_hash( $clean_prefix . ':' . $path, $filtered_val );
+		$package_hash = Hashing_Db::generate_hash( $prefix . $path, $filtered_val );
 
 		// Check in-memory translations (Chrome AI / custom translation payload)
 		if ( ! empty( $custom_opts['in_memory_translations'] ) && is_array( $custom_opts['in_memory_translations'] ) ) {

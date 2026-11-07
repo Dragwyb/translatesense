@@ -7,6 +7,7 @@ namespace TranslateSense\Includes\Content\Parser\Custom_Fields;
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\XML\Custom_Field_Rule_Resolver;
 use TranslateSense\Includes\Database\Hashing_Db;
+use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -31,6 +32,14 @@ class Custom_Field_Manager {
 		$editor_type = sanitize_key( $editor_type );
 		if ( 'core' === $editor_type ) {
 			$editor_type = 'gutenberg';
+		}
+
+		// If Polylang custom fields synchronization is enabled, do not translate custom fields
+		if ( Polylang_Bridge::is_custom_fields_sync_enabled() ) {
+			if ( self::has_package_rows( $post_id, $editor_type ) ) {
+				self::purge_package_rows( $post_id, $editor_type );
+			}
+			return;
 		}
 
 		// Only proceed if ACF is active or user has configured custom-field rules in XML
@@ -97,9 +106,8 @@ class Custom_Field_Manager {
 			}
 
 			$string_hash  = md5( $filtered_val );
-			$prefix       = ( 'acf' === $source_type ) ? 'acf:' : 'custom_field:';
-			$package_hash = Hashing_Db::generate_hash( $prefix . $path, $filtered_val );
-			$widget_name  = ( 'acf' === $source_type ) ? 'acf' : 'custom_field';
+			$package_hash = Hashing_Db::generate_hash( 'custom_field_' . $path, $filtered_val );
+			$widget_name  = ( 'acf' === $source_type ) ? 'custom_field>acf' : 'custom_field';
 
 			$active_package_hashes[] = $package_hash;
 
@@ -217,4 +225,3 @@ class Custom_Field_Manager {
 		);
 	}
 }
-
