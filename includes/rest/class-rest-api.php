@@ -2952,10 +2952,17 @@ class Rest_Api {
 			);
 		}
 
+		$is_sync_enabled  = Polylang_Bridge::is_custom_fields_sync_enabled();
+		$package_options  = array();
+		if ( $is_sync_enabled ) {
+			$package_options['exclude'] = array( 'custom_field' );
+		}
+
 		$package_strings = Hashing_Db::get_post_package(
 			$post_id,
 			$source_language,
-			$source_editor_type
+			$source_editor_type,
+			$package_options
 		);
 
 		if ( empty( $package_strings ) ) {
@@ -2968,7 +2975,6 @@ class Rest_Api {
 			);
 		}
 
-		$is_sync_enabled  = Polylang_Bridge::is_custom_fields_sync_enabled();
 		$skipped_cf_count = 0;
 
 		if ( $is_sync_enabled ) {
@@ -2993,7 +2999,8 @@ class Rest_Api {
 		$package_strings = Hashing_Db::get_post_package(
 			$post_id,
 			$source_language,
-			$source_editor_type
+			$source_editor_type,
+			$package_options
 		);
 
 		if ( is_wp_error( $package_strings ) ) {

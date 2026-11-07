@@ -646,8 +646,13 @@ class Bulk_Process {
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
+			$package_options = array();
+			if ( Polylang_Bridge::is_custom_fields_sync_enabled() ) {
+				$package_options['exclude'] = array( 'custom_field' );
+			}
+
 			// 1. Extract packages array (contains hash, strings, widget info)
-			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type, $package_options );
 
 			if ( empty( $packages ) ) {
 				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
@@ -655,7 +660,7 @@ class Bulk_Process {
 
 			// Synchronize dynamic custom-field packages and refresh package list
 			Custom_Field_Manager::ensure_package_prepared( $post_id, $source_lang, $editor_type );
-			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type, $package_options );
 
 			if ( ! is_array( $packages ) ) {
 				throw new \UnexpectedValueException( 'The translation package data is invalid.' );
