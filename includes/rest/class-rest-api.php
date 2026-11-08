@@ -2610,7 +2610,7 @@ class Rest_Api {
 		$response_settings = $settings;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ] = ! empty( $settings[ $secret_key ] ) ? (string) $settings[ $secret_key ] : '';
+			$response_settings[ $secret_key ] = self::mask_api_key( ! empty( $settings[ $secret_key ] ) ? (string) $settings[ $secret_key ] : '' );
 		}
 
 		return rest_ensure_response(
@@ -2689,7 +2689,7 @@ class Rest_Api {
 		$response_settings = $updated;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ]          = ! empty( $updated[ $secret_key ] ) ? (string) $updated[ $secret_key ] : '';
+			$response_settings[ $secret_key ]          = self::mask_api_key( ! empty( $updated[ $secret_key ] ) ? (string) $updated[ $secret_key ] : '' );
 			$response_settings[ 'has_' . $secret_key ] = ! empty( $updated[ $secret_key ] );
 		}
 
@@ -2773,6 +2773,26 @@ class Rest_Api {
 	}
 
 	/**
+	 * Mask an API key, keeping only the last 4–5 characters visible.
+	 *
+	 * @param string $key Raw API key.
+	 * @return string Masked API key, or empty string if key is empty.
+	 */
+	private static function mask_api_key( string $key ): string {
+		$key = trim( $key );
+		$len = strlen( $key );
+
+		if ( 0 === $len ) {
+			return '';
+		}
+
+		$visible_len = $len > 5 ? 5 : max( 1, $len - 1 );
+		$masked_len  = max( 8, $len - $visible_len );
+
+		return str_repeat( '•', $masked_len ) . substr( $key, -$visible_len );
+	}
+
+	/**
 	 * Sanitize supported plugin settings before persistence.
 	 *
 	 * @param array $input Submitted settings.
@@ -2797,14 +2817,22 @@ class Rest_Api {
 				continue;
 			}
 
-			$value = trim( (string) $input[ $key ] );
+			$value           = trim( (string) $input[ $key ] );
+			$existing_key    = isset( $current[ $key ] ) ? trim( (string) $current[ $key ] ) : '';
+			$expected_masked = self::mask_api_key( $existing_key );
 
-			/*
-			 * If empty string is submitted, allow removing the API key.
-			 */
+			// 1. If the submitted API key is empty, do not update the existing saved API key.
 			if ( '' === $value ) {
-				$updated[ $key ] = '';
-			} elseif ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
+				continue;
+			}
+
+			// 2 & 3. If submitted key is unchanged from or contains the existing masked representation, preserve existing key.
+			if ( '' !== $expected_masked && ( $value === $expected_masked || false !== strpos( $value, $expected_masked ) ) ) {
+				continue;
+			}
+
+			// 4. Only update the saved API key when the user submits a new, actual API key.
+			if ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
 				$updated[ $key ] = sanitize_text_field( $value );
 			}
 		}
