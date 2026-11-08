@@ -648,7 +648,7 @@ class Rest_Api {
 		);
 
 		/*
-		 * 12. Mark post as translated.
+		 * 12. Mark post as translated (pending translation).
 		 */
 		register_rest_route(
 			self::NAMESPACE,
@@ -2952,8 +2952,8 @@ class Rest_Api {
 			);
 		}
 
-		$is_sync_enabled  = Polylang_Bridge::is_custom_fields_sync_enabled();
-		$package_options  = array();
+		$is_sync_enabled = Polylang_Bridge::is_custom_fields_sync_enabled();
+		$package_options = array();
 		if ( $is_sync_enabled ) {
 			$package_options['exclude'] = array( 'custom_field' );
 		}
@@ -3681,7 +3681,7 @@ class Rest_Api {
 
 		update_post_meta(
 			$post_id,
-			'_translatesense_translated',
+			'_translatesense_translation_update_pending',
 			$post_id
 		);
 

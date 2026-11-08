@@ -44,6 +44,13 @@ class Content_Parser {
 	private static $existing_post_content = array();
 
 	/**
+	 * In-memory cache of finalized post IDs during the current request.
+	 *
+	 * @var array<int, bool>
+	 */
+	private static $finalized_posts = array();
+
+	/**
 	 * Initialize the Content Parser subsystem and register hooks.
 	 */
 	public static function init(): void {
@@ -58,6 +65,7 @@ class Content_Parser {
 
 		// Hook into elementor post save lifecycle to check for element modifications
 		add_action( 'elementor/document/before_save', array( __CLASS__, 'handle_elementor_save_post' ), 10, 2 );
+		add_action( 'elementor/document/after_save', array( __CLASS__, 'handle_elementor_after_save_post' ), 10, 2 );
 
 		// Hook into permanent post deletion lifecycle to purge package data
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_delete_post' ), 10, 1 );
@@ -87,6 +95,8 @@ class Content_Parser {
 	 */
 	public static function capture_post_updated( int $post_id, \WP_Post $post_after, \WP_Post $post_before ): void {
 		self::$existing_post_content[ $post_id ] = (string) $post_before->post_content;
+
+		self::finalize_pending_translation( $post_id );
 	}
 
 	/**
@@ -407,6 +417,85 @@ class Content_Parser {
 	}
 
 	/**
+	 * Handle Elementor document after save action.
+	 * Finalizes pending translation metadata only after Elementor has successfully persisted the document.
+	 *
+	 * @param \Elementor\Core\DocumentTypes\Page|\Elementor\Core\Base\Document|mixed $document Elementor document.
+	 * @param array|null                                                             $data     Post data.
+	 */
+	public static function handle_elementor_after_save_post( $document, $data = null ): void {
+		if ( ! $document || ! is_object( $document ) || ! method_exists( $document, 'get_id' ) ) {
+			return;
+		}
+
+		if ( method_exists( $document, 'is_autosave' ) && $document->is_autosave() ) {
+			return;
+		}
+
+		if ( method_exists( $document, 'is_revision' ) && $document->is_revision() ) {
+			return;
+		}
+
+		$post_id = (int) $document->get_id();
+		if ( $post_id <= 0 ) {
+			return;
+		}
+
+		self::finalize_pending_translation( $post_id );
+	}
+
+	/**
+	 * Finalize pending translation metadata if pending flag is set.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return bool True if finalized, false otherwise.
+	 */
+	private static function finalize_pending_translation( int $post_id ): bool {
+		if ( $post_id <= 0 ) {
+			return false;
+		}
+
+		// 3. Exclude autosaves and revisions.
+		if ( ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return false;
+		}
+
+		// Prevent duplicate processing during the same request lifecycle.
+		if ( isset( self::$finalized_posts[ $post_id ] ) ) {
+			return false;
+		}
+
+		// 2. Check whether _translatesense_translation_update_pending exists and has the value 1.
+		if ( ! metadata_exists( 'post', $post_id, '_translatesense_translation_update_pending' ) ) {
+			return false;
+		}
+
+		$pending = get_post_meta( $post_id, '_translatesense_translation_update_pending', true );
+		if ( $post_id !== (int) $pending ) {
+			return false;
+		}
+
+		// 4. Confirm that the post exists.
+		$post = get_post( $post_id );
+		if ( ! $post || ! ( $post instanceof \WP_Post ) ) {
+			return false;
+		}
+
+		// 5. Update _translatesense_translated to 1.
+		update_post_meta( $post_id, '_translatesense_translated', $post_id );
+
+		// 6. Delete _translatesense_translation_update_pending only after the translated status has been successfully persisted.
+		$stored_translated = get_post_meta( $post_id, '_translatesense_translated', true );
+		if ( $post_id === (int) $stored_translated ) {
+			delete_post_meta( $post_id, '_translatesense_translation_update_pending' );
+			self::$finalized_posts[ $post_id ] = true;
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Handle WordPress save_post action.
 	 * Compares new update data with existing saved data for post_content.
 	 * If they are not the same, triggers delete_post_packages (does not re-parse content).
@@ -416,6 +505,8 @@ class Content_Parser {
 	 * @param \WP_Post|null $post    Post object
 	 */
 	public static function handle_save_post( int $post_id, $post = null ): void {
+
+		self::finalize_pending_translation( $post_id );
 
 		if ( ! self::is_save_package( $post_id ) ) {
 			unset( self::$existing_post_content[ $post_id ] );
