@@ -253,6 +253,12 @@ Contributions and community feedback are welcome!
 
 == Changelog ==
 
+= 0.1.0 =
+* Added default ACF field translation support in Bulk Translation and the Page Editor.
+* Added default translation support for Yoast SEO, Rank Math SEO, and SEOPress fields in Bulk Translation and the Page Editor.
+* Added support for translating plugin-configured custom fields defined in wpml-config.xml.
+* Improved the post translation completion check.
+
 = 0.0.9 =
 
 * Initial public release.
