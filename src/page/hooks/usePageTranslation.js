@@ -220,7 +220,7 @@ export function usePageTranslation(config = {}) {
       const total = currentStrings.length;
       setProgress({
         isOpen: true,
-        percent: 15,
+        percent: 0,
         status: 'Translating strings...',
         subText: `0 of ${total} strings translated`,
         isExtracting: false,
@@ -404,7 +404,7 @@ export function usePageTranslation(config = {}) {
 
     setProgress({
       isOpen: true,
-      percent: 15,
+      percent: 0,
       status: `Re-translating ${totalFailed} untranslated string${totalFailed > 1 ? 's' : ''}...`,
       subText: `0 of ${totalFailed} retried`,
       isExtracting: false,
