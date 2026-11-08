@@ -227,98 +227,254 @@ class Translate {
 	 * @param string $translated_string Translated HTML with matching structure.
 	 * @return string
 	 */
+
+	/**
+	 * Sanitize translated content while preserving source formatting.
+	 *
+	 * @param string $source_string     Original source content.
+	 * @param string $translated_string Dynamic translated content.
+	 * @return string
+	 */
 	private static function sanitize_string(
 		string $source_string,
 		string $translated_string
 	): string {
-		if ( '' === $translated_string || $source_string === $translated_string ) {
+
+		if (
+		'' === trim( $source_string ) ||
+		'' === trim( $translated_string ) ||
+		$source_string === $translated_string
+		) {
 			return $source_string;
 		}
 
-		$filtered_string = wp_kses_post( $translated_string );
-
-		if ( $filtered_string === $translated_string ) {
-			return $filtered_string;
-		}
-
-		$source_tokens     = self::tokenize_html( $source_string );
-		$translated_tokens = self::tokenize_html( $translated_string );
-
-		// Do not apply translations if the token structures differ.
-		if ( count( $source_tokens ) !== count( $translated_tokens ) ) {
+		// Reject invalid UTF-8.
+		if (
+		1 !== preg_match( '//u', $source_string ) ||
+		1 !== preg_match( '//u', $translated_string )
+		) {
 			return $source_string;
 		}
 
-		$replacements = array();
-		$count        = count( $source_tokens );
+		/*
+		 * CASE 1: Plain text source.
+		 *
+		 * Do not allow AI to introduce HTML when the original
+		 * content does not contain HTML markup.
+		 */
+		if ( ! self::contains_html_markup( $source_string ) ) {
 
-		for ( $i = 0; $i < $count; $i++ ) {
-			$source_token     = $source_tokens[ $i ];
-			$translated_token = $translated_tokens[ $i ];
+			$filtered_string = wp_strip_all_tags(
+				$translated_string,
+				false
+			);
 
-			if ( $source_token['type'] !== $translated_token['type'] ) {
+			if ( '' === trim( $filtered_string ) ) {
 				return $source_string;
 			}
 
-			// Keep original tags and attributes unchanged.
+			return self::preserve_outer_whitespace(
+				$source_string,
+				$filtered_string
+			);
+		}
+
+		/*
+		 * CASE 2: HTML source.
+		 *
+		 * Use source tags and attributes.
+		 * Only accept translated text nodes.
+		 */
+		$source_tokens = self::tokenize_html(
+			$source_string
+		);
+
+		$translated_tokens = self::tokenize_html(
+			$translated_string
+		);
+
+		if (
+		empty( $source_tokens ) ||
+		empty( $translated_tokens ) ||
+		count( $source_tokens ) !== count( $translated_tokens )
+		) {
+			return $source_string;
+		}
+
+		// This is the final sanitized HTML fragment.
+		$filtered_string = '';
+
+		$count = count( $source_tokens );
+
+		for ( $i = 0; $i < $count; $i++ ) {
+
+			$source_token     = $source_tokens[ $i ];
+			$translated_token = $translated_tokens[ $i ];
+
+			if (
+			$source_token['type'] !== $translated_token['type']
+			) {
+				return $source_string;
+			}
+
+			/*
+			 * Preserve original HTML tags, comments and attributes.
+			 * Never use AI-generated HTML tags.
+			 */
 			if ( 'tag' === $source_token['type'] ) {
+
 				if (
-				self::get_tag_signature( $source_token['value'] )
-				!== self::get_tag_signature( $translated_token['value'] )
+				self::get_tag_signature( $source_token['value'] ) !==
+				self::get_tag_signature( $translated_token['value'] )
 				) {
 					return $source_string;
 				}
 
+				$filtered_string .= $source_token['value'];
+
 				continue;
 			}
 
-			$source_value     = $source_token['value'];
+			$source_value = $source_token['value'];
+
 			$translated_value = $translated_token['value'];
 
-			// Preserve whitespace-only nodes exactly.
+			// Preserve original whitespace-only nodes.
 			if ( '' === trim( $source_value ) ) {
+
+				$filtered_string .= $source_value;
+
+				continue;
+			}
+
+			// Prevent translation from deleting source text.
+			if ( '' === trim( $translated_value ) ) {
+
+				$filtered_string .= $source_value;
+
 				continue;
 			}
 
 			if ( $source_value === $translated_value ) {
+
+				$filtered_string .= $source_value;
+
 				continue;
 			}
 
-			// Decode existing HTML entities, then safely escape text content.
-			$decoded_value = html_entity_decode(
-				$translated_value,
-				ENT_QUOTES | ENT_HTML5,
-				'UTF-8'
+			/*
+			 * Sanitize the dynamic translated text node.
+			 */
+			$safe_value = self::sanitize_translated_text_node(
+				$source_value,
+				$translated_value
 			);
 
-			$safe_value = wp_kses_post( $decoded_value );
-
-			$replacements[] = array(
-				'start'            => $source_token['start'],
-				'length'           => strlen( $source_value ),
-				'original_value'   => $source_value,
-				'translated_value' => $safe_value,
-			);
+			$filtered_string .= $safe_value;
 		}
 
-		// Replace from right to left so earlier byte offsets remain valid.
-		usort(
-			$replacements,
-			static function ( $a, $b ) {
-				return $b['start'] <=> $a['start'];
-			}
+		// Return the complete reconstructed HTML fragment.
+		return $filtered_string;
+	}
+
+	private static function contains_html_markup(
+		string $value
+	): bool {
+
+		return 1 === preg_match(
+			'~(?:<!--|<!\[CDATA\[|<!DOCTYPE\b|</?[a-z][a-z0-9:-]*(?:\s|/?>))~i',
+			$value
+		);
+	}
+
+	private static function sanitize_translated_text_node(
+		string $source_value,
+		string $translated_value
+	): string {
+
+		// Decode HTML entities before sanitization.
+		$source_decoded = html_entity_decode(
+			$source_value,
+			ENT_QUOTES | ENT_HTML5,
+			'UTF-8'
 		);
 
-		foreach ( $replacements as $replacement ) {
-			$source_string = substr_replace(
-				$source_string,
-				$replacement['translated_value'],
-				$replacement['start'],
-				$replacement['length']
-			);
+		$translated_decoded = html_entity_decode(
+			$translated_value,
+			ENT_QUOTES | ENT_HTML5,
+			'UTF-8'
+		);
+
+		if (
+		1 !== preg_match( '//u', $translated_decoded ) ||
+		'' === trim( $translated_decoded )
+		) {
+			return $source_value;
 		}
 
-		return $source_string === $translated_string ? $translated_string : $source_string;
+		// Preserve source leading whitespace.
+		$leading = '';
+
+		if (
+		preg_match(
+			'/\A[\s\p{Z}]+/u',
+			$source_decoded,
+			$matches
+		)
+		) {
+			$leading = $matches[0];
+		}
+
+		// Preserve source trailing whitespace.
+		$trailing = '';
+
+		if (
+		preg_match(
+			'/[\s\p{Z}]+\z/u',
+			$source_decoded,
+			$matches
+		)
+		) {
+			$trailing = $matches[0];
+		}
+
+		// Keep translated text without changing its meaning.
+		$translated_core = preg_replace(
+			'/\A[\s\p{Z}]+|[\s\p{Z}]+\z/u',
+			'',
+			$translated_decoded
+		);
+
+		if (
+		! is_string( $translated_core ) ||
+		'' === $translated_core
+		) {
+			return $source_value;
+		}
+
+		// Escape only HTML text content.
+		$safe_value = esc_html( $translated_core );
+
+		return $leading . $safe_value . $trailing;
+	}
+
+	private static function preserve_outer_whitespace(
+		string $source,
+		string $translated
+	): string {
+
+		$leading  = '';
+		$trailing = '';
+
+		if ( preg_match( '/\A[\s\p{Z}]+/u', $source, $matches ) ) {
+			$leading = $matches[0];
+		}
+
+		if ( preg_match( '/[\s\p{Z}]+\z/u', $source, $matches ) ) {
+			$trailing = $matches[0];
+		}
+
+		return $leading . trim( $translated ) . $trailing;
 	}
 
 	/**
@@ -675,5 +831,4 @@ class Translate {
 
 		return str_replace( array_keys( $replacements ), array_values( $replacements ), $template );
 	}
-
 }
