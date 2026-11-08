@@ -47,7 +47,7 @@ class Gutenberg_Builder extends Base_Builder {
 		$blocks = parse_blocks( $source_post->post_content );
 		$rules  = Xml_Engine::get_all_rules( 'gutenberg' );
 
-		self::translate_blocks_tree( $blocks, $rules, $source_lang, $target_lang, $source_post->ID, $custom_opts );
+		self::translate_blocks_tree( $blocks, $rules, $source_lang, $target_lang, $custom_opts );
 
 		return serialize_blocks( $blocks );
 	}
@@ -59,10 +59,9 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param array  $rules
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 */
-	public static function translate_blocks_tree( array &$blocks, array $rules, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+	public static function translate_blocks_tree( array &$blocks, array $rules, string $source_lang, string $target_lang, array $custom_opts, int $depth = 0 ): void {
 		if ( empty( $blocks ) || $depth > 100 ) {
 			return;
 		}
@@ -75,7 +74,7 @@ class Gutenberg_Builder extends Base_Builder {
 			$name = $block['blockName'] ?? '';
 			if ( empty( $name ) ) {
 				if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
-					self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
+					self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $custom_opts, $depth + 1 );
 				}
 				continue;
 			}
@@ -105,7 +104,6 @@ class Gutenberg_Builder extends Base_Builder {
 								$found_strings,
 								$source_lang,
 								$target_lang,
-								$post_id,
 								$custom_opts,
 								0
 							);
@@ -130,7 +128,6 @@ class Gutenberg_Builder extends Base_Builder {
 										$name,
 										$source_lang,
 										$target_lang,
-										$post_id,
 										$custom_opts
 									);
 
@@ -195,7 +192,6 @@ class Gutenberg_Builder extends Base_Builder {
 									$found_strings,
 									$source_lang,
 									$target_lang,
-									$post_id,
 									$custom_opts,
 									0
 								);
@@ -263,7 +259,6 @@ class Gutenberg_Builder extends Base_Builder {
 							$found_strings,
 							$source_lang,
 							$target_lang,
-							$post_id,
 							$custom_opts,
 							0
 						);
@@ -282,7 +277,7 @@ class Gutenberg_Builder extends Base_Builder {
 			}
 
 			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
-				self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $post_id, $custom_opts, $depth + 1 );
+				self::translate_blocks_tree( $block['innerBlocks'], $rules, $source_lang, $target_lang, $custom_opts, $depth + 1 );
 			}
 		}
 	}
@@ -295,11 +290,10 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param string $block_name
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @return string
 	 */
-	public static function translate_inner_content_with_xpath( string $html, array $xpaths, string $block_name, string $source_lang, string $target_lang, int $post_id, array $custom_opts ): string {
+	public static function translate_inner_content_with_xpath( string $html, array $xpaths, string $block_name, string $source_lang, string $target_lang, array $custom_opts ): string {
 		if ( ! class_exists( 'DOMDocument' ) || ! class_exists( 'DOMXPath' ) || '' === trim( $html ) || empty( $xpaths ) ) {
 			return $html;
 		}
@@ -369,7 +363,6 @@ class Gutenberg_Builder extends Base_Builder {
 					$source_lang,
 					$target_lang,
 					$block_name,
-					$post_id,
 					$custom_opts
 				);
 
@@ -919,11 +912,10 @@ class Gutenberg_Builder extends Base_Builder {
 	 * @param array  $found_strings
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @param int    $depth
 	 */
-	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, &$found_strings, string $source_lang, string $target_lang, int $post_id, array $custom_opts, int $depth = 0 ): void {
+	private static function translate_attribute_value_recursive( &$val, $schema_info, string $block_name, &$found_strings, string $source_lang, string $target_lang, array $custom_opts, int $depth = 0 ): void {
 		if ( $depth > 20 || ( is_array( $schema_info ) && isset( $schema_info['type'] ) && 'link' === strtolower( (string) $schema_info['type'] ) ) ) {
 			return;
 		}
@@ -935,7 +927,6 @@ class Gutenberg_Builder extends Base_Builder {
 					$source_lang,
 					$target_lang,
 					$block_name,
-					$post_id,
 					$custom_opts
 				);
 
@@ -968,7 +959,6 @@ class Gutenberg_Builder extends Base_Builder {
 					$found_strings,
 					$source_lang,
 					$target_lang,
-					$post_id,
 					$custom_opts,
 					$depth + 1
 				);
@@ -990,7 +980,6 @@ class Gutenberg_Builder extends Base_Builder {
 						$found_strings,
 						$source_lang,
 						$target_lang,
-						$post_id,
 						$custom_opts,
 						$depth + 1
 					);
@@ -1005,7 +994,6 @@ class Gutenberg_Builder extends Base_Builder {
 					$found_strings,
 					$source_lang,
 					$target_lang,
-					$post_id,
 					$custom_opts,
 					$depth + 1
 				);

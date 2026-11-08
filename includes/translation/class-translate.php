@@ -136,7 +136,7 @@ class Translate {
 	 * @param array  $custom_options
 	 * @return array array( 'translated' => string, 'cached' => bool, 'hash' => string )
 	 */
-	public static function translate_string( $source_string, $source_lang, $target_lang, $widget_id = 'generic', $post_id = 0, $custom_options = array() ) {
+	public static function translate_string( $source_string, $source_lang, $target_lang, $widget_id = 'generic', $custom_options = array() ) {
 		if ( empty( trim( (string) $source_string ) ) || $source_lang === $target_lang || self::is_email_or_url( (string) $source_string ) ) {
 			return array(
 				'translated' => $source_string,
