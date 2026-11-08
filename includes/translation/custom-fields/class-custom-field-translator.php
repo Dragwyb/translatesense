@@ -91,7 +91,7 @@ class Custom_Field_Translator {
 						if ( Custom_Field_Parser::is_only_numbers( $raw_val ) ) {
 							update_post_meta( $target_post_id, $meta_key, $raw_val );
 						} else {
-							$res = Translate::translate_string( $raw_val, $source_lang, $target_lang, 'custom_option_' . $meta_key, 0, $custom_opts );
+							$res = Translate::translate_string( $raw_val, $source_lang, $target_lang, 'custom_field_' . $meta_key, $custom_opts );
 
 							$translated = ! empty( $res['translated'] ) ? (string) $res['translated'] : $raw_val;
 							update_post_meta( $target_post_id, $meta_key, $translated );

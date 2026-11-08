@@ -7,6 +7,7 @@ namespace TranslateSense\Includes\Translation\Custom_Fields;
 use TranslateSense\Includes\XML\Custom_Field_Rule_Resolver;
 use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Parser;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
+use TranslateSense\Includes\Translation\Translate;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -46,7 +47,9 @@ class Acf {
 						if ( Custom_Field_Parser::is_only_numbers( $raw_val ) ) {
 							update_post_meta( $target_post_id, $current_path, $raw_val );
 						} else {
-							$translated = Custom_Field_Translator::resolve_translated_string( $raw_val, $current_path, $target_lang, $custom_opts );
+							$res        = Translate::translate_string( $raw_val, $source_lang, $target_lang, 'custom_field_' . $current_path, $custom_opts );
+							$translated = ! empty( $res['translated'] ) ? (string) $res['translated'] : $raw_val;
+
 							update_post_meta( $target_post_id, $current_path, $translated );
 						}
 					} else {
@@ -67,7 +70,10 @@ class Acf {
 				if ( is_array( $source_val ) ) {
 					$link_target = $source_val;
 					if ( Custom_Field_Rule_Resolver::ACTION_TRANSLATE === $action && ! empty( $source_val['title'] ) && is_string( $source_val['title'] ) ) {
-						$link_target['title'] = Custom_Field_Translator::resolve_translated_string( (string) $source_val['title'], $current_path . '[title]', $target_lang, $custom_opts );
+						$res        = Translate::translate_string( (string) $source_val['title'], $source_lang, $target_lang, 'custom_field_' . $current_path, $custom_opts );
+						$translated = ! empty( $res['translated'] ) ? (string) $res['translated'] : (string) $source_val['title'];
+
+						$link_target['title'] = $translated;
 					}
 					update_post_meta( $target_post_id, $current_path, $link_target );
 				} else {
