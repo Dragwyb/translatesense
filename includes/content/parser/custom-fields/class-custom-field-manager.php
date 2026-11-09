@@ -188,13 +188,14 @@ class Custom_Field_Manager {
 		$placeholders = implode( ',', array_fill( 0, count( $active_package_hashes ), '%s' ) );
 		$params       = array_merge( array( $post_id, $editor_type ), $active_package_hashes );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('custom_field','custom_field>acf') AND package_hash NOT IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('custom_field','custom_field>acf') AND package_hash NOT IN ($placeholders)",
 				$params
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**

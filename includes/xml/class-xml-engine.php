@@ -1026,7 +1026,7 @@ class Xml_Engine {
 				: ( 'ignore' === $raw_action ? 'ignore' : 'copy' );
 
 			$target_array[ $field_name ] = array(
-				'meta_key' => $field_name,
+				'meta_key' => $field_name, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 				'action'   => $normalized_action,
 				'origin'   => ( 0 === strpos( $source_id, 'plugin_theme' ) ) ? 'plugin_theme_xml' : ( 'core' === $source_id ? 'core_xml' : 'user_xml' ),
 				'source'   => $source_id,

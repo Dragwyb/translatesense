@@ -646,7 +646,7 @@ class Bulk_Process {
 
 			$package_options = array();
 			if ( Polylang_Bridge::is_custom_fields_sync_enabled() ) {
-				$package_options['exclude'] = array( 'custom_field' );
+				$package_options['exclude'] = array( 'custom_field' ); // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude
 			}
 
 			// 1. Extract packages array (contains hash, strings, widget info)

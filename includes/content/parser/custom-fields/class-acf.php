@@ -69,7 +69,7 @@ class Acf {
 			}
 
 			$fields[ $field_name ] = array(
-				'meta_key'    => $field_name,
+				'meta_key'    => $field_name, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 				'field_key'   => $field_key,
 				'field_type'  => (string) ( $field_def['type'] ?? 'text' ),
 				'parent_key'  => (string) ( $field_def['parent'] ?? '' ),
@@ -92,7 +92,7 @@ class Acf {
 							$f_name = (string) $f['name'];
 							if ( ! isset( $fields[ $f_name ] ) ) {
 								$fields[ $f_name ] = array(
-									'meta_key'    => $f_name,
+									'meta_key'    => $f_name, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 									'field_key'   => (string) $f['key'],
 									'field_type'  => (string) ( $f['type'] ?? 'text' ),
 									'parent_key'  => (string) ( $f['parent'] ?? '' ),
@@ -157,7 +157,7 @@ class Acf {
 					}
 
 					$strings[] = array(
-						'meta_key'    => $root_meta_key,
+						'meta_key'    => $root_meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 						'path'        => $current_path,
 						'value'       => $clean_val,
 						'raw_value'   => $raw_val,
@@ -176,7 +176,7 @@ class Acf {
 				if ( is_array( $raw_val ) && ! empty( $raw_val['title'] ) && is_string( $raw_val['title'] ) && '' !== trim( $raw_val['title'] ) ) {
 					if ( ! Custom_Field_Parser::is_only_numbers( $raw_val['title'] ) ) {
 						$strings[] = array(
-							'meta_key'    => $root_meta_key,
+							'meta_key'    => $root_meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 							'path'        => $current_path . '[title]',
 							'value'       => trim( $raw_val['title'] ),
 							'raw_value'   => $raw_val['title'],

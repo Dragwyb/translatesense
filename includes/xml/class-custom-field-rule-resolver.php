@@ -88,7 +88,7 @@ class Custom_Field_Rule_Resolver {
 			$action = self::get_action( $field_type );
 
 			$rules[ $meta_key ] = array(
-				'meta_key'   => $meta_key,
+				'meta_key'   => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 				'action'     => ( 'structural' === $action ) ? self::ACTION_TRANSLATE : $action,
 				'origin'     => 'acf_generated',
 				'field_type' => $field_type,
@@ -132,7 +132,7 @@ class Custom_Field_Rule_Resolver {
 		// 1. Exact user XML rule
 		if ( isset( $user_rules[ $meta_key ] ) ) {
 			return array(
-				'meta_key' => $meta_key,
+				'meta_key' => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 				'action'   => self::normalize_action( (string) $user_rules[ $meta_key ]['action'] ),
 				'origin'   => 'user_xml',
 			);
@@ -142,7 +142,7 @@ class Custom_Field_Rule_Resolver {
 		foreach ( $user_rules as $pattern => $rule ) {
 			if ( false !== strpos( (string) $pattern, '*' ) && self::is_wildcard_match( (string) $pattern, $meta_key ) ) {
 				return array(
-					'meta_key' => $meta_key,
+					'meta_key' => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 					'action'   => self::normalize_action( (string) $rule['action'] ),
 					'origin'   => 'user_xml',
 				);
@@ -152,7 +152,7 @@ class Custom_Field_Rule_Resolver {
 		// 3. Generated ACF rule
 		if ( isset( $generated_rules[ $meta_key ] ) ) {
 			return array(
-				'meta_key' => $meta_key,
+				'meta_key' => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 				'action'   => self::normalize_action( (string) $generated_rules[ $meta_key ]['action'] ),
 				'origin'   => 'acf_generated',
 			);
@@ -160,7 +160,7 @@ class Custom_Field_Rule_Resolver {
 
 		// 4. Default policy
 		return array(
-			'meta_key' => $meta_key,
+			'meta_key' => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 			'action'   => self::normalize_action( self::get_action( $fallback_field_type ) ),
 			'origin'   => 'acf_policy_default',
 		);

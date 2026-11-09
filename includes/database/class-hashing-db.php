@@ -136,7 +136,7 @@ class Hashing_Db {
 		}
 
 		// Do not record packages for values that contain only numbers
-		$clean_filter = trim( function_exists( 'wp_strip_all_tags' ) ? wp_strip_all_tags( (string) $filter_string ) : strip_tags( (string) $filter_string ) );
+		$clean_filter = trim( wp_strip_all_tags( (string) $filter_string ) );
 		if ( '' !== $clean_filter && is_numeric( $clean_filter ) ) {
 			return 0;
 		}
@@ -495,14 +495,15 @@ class Hashing_Db {
 			$where_extra = ' AND ' . implode( ' AND ', $exclude_clauses );
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_hash FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s{$where_extra}", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_hash FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s{$where_extra}",
 				$query_params
 			),
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( ! empty( $results ) ) {
 			// Update last_used_at for all matching retrieved packages efficiently

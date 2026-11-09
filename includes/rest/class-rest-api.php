@@ -2983,7 +2983,7 @@ class Rest_Api {
 		$is_sync_enabled = Polylang_Bridge::is_custom_fields_sync_enabled();
 		$package_options = array();
 		if ( $is_sync_enabled ) {
-			$package_options['exclude'] = array( 'custom_field' );
+			$package_options['exclude'] = array( 'custom_field' ); // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude
 		}
 
 		$package_strings = Hashing_Db::get_post_package(

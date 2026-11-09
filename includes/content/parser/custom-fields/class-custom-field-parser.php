@@ -68,7 +68,7 @@ class Custom_Field_Parser {
 
 					if ( $matched ) {
 						$fields[ $meta_key ] = array(
-							'meta_key'    => $meta_key,
+							'meta_key'    => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 							'field_key'   => '',
 							'field_type'  => 'text',
 							'parent_key'  => '',
@@ -130,7 +130,7 @@ class Custom_Field_Parser {
 			return false;
 		}
 
-		$plain = trim( function_exists( 'wp_strip_all_tags' ) ? wp_strip_all_tags( $value ) : strip_tags( $value ) );
+		$plain = trim( wp_strip_all_tags( $value ) );
 
 		return '' !== $plain && is_numeric( $plain );
 	}
@@ -198,7 +198,7 @@ class Custom_Field_Parser {
 					}
 
 					$strings[] = array(
-						'meta_key'    => $meta_key,
+						'meta_key'    => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 						'path'        => $meta_key,
 						'value'       => $clean_val,
 						'raw_value'   => $raw_val,
