@@ -908,7 +908,7 @@
 
       // 4. Update Custom Fields & Meta Box inputs (Yoast, Rank Math, ACF, standard fields)
       if (window.TranslateSenseMetaUpdater && typeof window.TranslateSenseMetaUpdater.apply === 'function') {
-        window.TranslateSenseMetaUpdater.apply(strings);
+        window.TranslateSenseMetaUpdater.apply(strings, options);
       }
 
       // 5. Emit WordPress success notice if notices API is available

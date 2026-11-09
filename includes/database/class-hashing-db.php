@@ -135,6 +135,12 @@ class Hashing_Db {
 			return 0;
 		}
 
+		// Do not record packages for values that contain only numbers
+		$clean_filter = trim( wp_strip_all_tags( (string) $filter_string ) );
+		if ( '' !== $clean_filter && is_numeric( $clean_filter ) ) {
+			return 0;
+		}
+
 		$post_id = (int) $post_id;
 		if ( $post_id <= 0 ) {
 			return 0;
@@ -459,24 +465,45 @@ class Hashing_Db {
 	 * @param int    $post_id
 	 * @param string $lang
 	 * @param string $editor_type
+	 * @param array  $options Optional retrieval options (e.g. ['exclude' => ['custom_field']]).
 	 * @return array
 	 */
-	public static function get_post_package( int $post_id, string $lang, string $editor_type ): array {
+	public static function get_post_package( int $post_id, string $lang, string $editor_type, array $options = array() ): array {
 		global $wpdb;
 
 		$packages_table = self::get_packages_table();
 		$strings_table  = self::get_strings_table();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// Whitelist of valid exclude enum values for security
+		$allowed_excludes = array( 'custom_field' );
+		$exclude_clauses  = array();
+		$query_params     = array( $post_id, $lang, $editor_type );
+
+		if ( ! empty( $options['exclude'] ) && is_array( $options['exclude'] ) ) {
+			foreach ( $options['exclude'] as $exclude_item ) {
+				if ( is_string( $exclude_item ) && in_array( $exclude_item, $allowed_excludes, true ) ) {
+					if ( 'custom_field' === $exclude_item ) {
+						$exclude_clauses[] = 'NOT p.widget_name LIKE %s';
+						$query_params[]    = 'custom_field%';
+					}
+				}
+			}
+		}
+
+		$where_extra = '';
+		if ( ! empty( $exclude_clauses ) ) {
+			$where_extra = ' AND ' . implode( ' AND ', $exclude_clauses );
+		}
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_hash FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$post_id,
-				$lang,
-				$editor_type
+				"SELECT p.package_hash as hash, p.widget_name as name, p.widget_key as `key`, s.source_string as source, s.filter_string as value, p.string_hash FROM {$packages_table} p INNER JOIN {$strings_table} s ON p.string_hash = s.string_hash WHERE p.post_id = %d AND p.language = %s AND p.editor_type = %s{$where_extra}",
+				$query_params
 			),
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( ! empty( $results ) ) {
 			// Update last_used_at for all matching retrieved packages efficiently

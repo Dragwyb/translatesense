@@ -189,6 +189,8 @@ export function PageApp() {
                 progressTargetLang={translation.targetLang}
                 progressLanguages={allLanguages}
                 progressProviderTitle={providerTitle}
+                isCustomFieldsSyncEnabled={translation.isCustomFieldsSyncEnabled}
+                skippedCustomFieldsCount={translation.skippedCustomFieldsCount}
                 showReTranslateAll={translation.showReTranslateAll}
                 isRetrying={translation.isRetrying}
                 onReTranslateAll={translation.retranslateFailed}
@@ -208,7 +210,7 @@ export function PageApp() {
                 translation.setErrorModal({
                   isOpen: true,
                   title: `${p.title} Notice`,
-                  message: p.desc,
+                  message: '',
                   reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
                   icon: p.logo,
                 })

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\REST;
 
 use TranslateSense\Includes\Content\Parser\Content_Parser;
+use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
+use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Parser;
+use TranslateSense\Includes\XML\Custom_Field_Rule_Resolver;
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Database\Hashing_Db;
@@ -645,7 +648,7 @@ class Rest_Api {
 		);
 
 		/*
-		 * 12. Mark post as translated.
+		 * 12. Mark post as translated (pending translation).
 		 */
 		register_rest_route(
 			self::NAMESPACE,
@@ -2607,7 +2610,7 @@ class Rest_Api {
 		$response_settings = $settings;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ] = ! empty( $settings[ $secret_key ] ) ? (string) $settings[ $secret_key ] : '';
+			$response_settings[ $secret_key ] = self::mask_api_key( ! empty( $settings[ $secret_key ] ) ? (string) $settings[ $secret_key ] : '' );
 		}
 
 		return rest_ensure_response(
@@ -2686,7 +2689,7 @@ class Rest_Api {
 		$response_settings = $updated;
 
 		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $secret_key ) {
-			$response_settings[ $secret_key ]          = ! empty( $updated[ $secret_key ] ) ? (string) $updated[ $secret_key ] : '';
+			$response_settings[ $secret_key ]          = self::mask_api_key( ! empty( $updated[ $secret_key ] ) ? (string) $updated[ $secret_key ] : '' );
 			$response_settings[ 'has_' . $secret_key ] = ! empty( $updated[ $secret_key ] );
 		}
 
@@ -2770,6 +2773,26 @@ class Rest_Api {
 	}
 
 	/**
+	 * Mask an API key, keeping only the last 4–5 characters visible.
+	 *
+	 * @param string $key Raw API key.
+	 * @return string Masked API key, or empty string if key is empty.
+	 */
+	private static function mask_api_key( string $key ): string {
+		$key = trim( $key );
+		$len = strlen( $key );
+
+		if ( 0 === $len ) {
+			return '';
+		}
+
+		$visible_len = $len > 5 ? 5 : max( 1, $len - 1 );
+		$masked_len  = max( 8, $len - $visible_len );
+
+		return str_repeat( '•', $masked_len ) . substr( $key, -$visible_len );
+	}
+
+	/**
 	 * Sanitize supported plugin settings before persistence.
 	 *
 	 * @param array $input Submitted settings.
@@ -2794,14 +2817,22 @@ class Rest_Api {
 				continue;
 			}
 
-			$value = trim( (string) $input[ $key ] );
+			$value           = trim( (string) $input[ $key ] );
+			$existing_key    = isset( $current[ $key ] ) ? trim( (string) $current[ $key ] ) : '';
+			$expected_masked = self::mask_api_key( $existing_key );
 
-			/*
-			 * If empty string is submitted, allow removing the API key.
-			 */
+			// 1. If the submitted API key is empty, do not update the existing saved API key.
 			if ( '' === $value ) {
-				$updated[ $key ] = '';
-			} elseif ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
+				continue;
+			}
+
+			// 2 & 3. If submitted key is unchanged from or contains the existing masked representation, preserve existing key.
+			if ( '' !== $expected_masked && ( $value === $expected_masked || false !== strpos( $value, $expected_masked ) ) ) {
+				continue;
+			}
+
+			// 4. Only update the saved API key when the user submits a new, actual API key.
+			if ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
 				$updated[ $key ] = sanitize_text_field( $value );
 			}
 		}
@@ -2949,10 +2980,17 @@ class Rest_Api {
 			);
 		}
 
+		$is_sync_enabled = Polylang_Bridge::is_custom_fields_sync_enabled();
+		$package_options = array();
+		if ( $is_sync_enabled ) {
+			$package_options['exclude'] = array( 'custom_field' ); // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude
+		}
+
 		$package_strings = Hashing_Db::get_post_package(
 			$post_id,
 			$source_language,
-			$source_editor_type
+			$source_editor_type,
+			$package_options
 		);
 
 		if ( empty( $package_strings ) ) {
@@ -2965,15 +3003,45 @@ class Rest_Api {
 			);
 		}
 
+		$skipped_cf_count = 0;
+
+		if ( $is_sync_enabled ) {
+			// Count translatable custom fields skipped due to Polylang synchronization
+			$fields           = Custom_Field_Parser::get_post_fields( $post_id, $source_editor_type );
+			$user_rules       = Xml_Engine::get_user_custom_field_rules( $source_editor_type );
+			$resolved_rules   = Custom_Field_Rule_Resolver::resolve_all_rules( $fields, $user_rules );
+			$cf_strings       = Custom_Field_Parser::extract_strings( $post_id, $fields, $resolved_rules );
+			$skipped_cf_count = count( $cf_strings );
+
+			if ( Custom_Field_Manager::has_package_rows( $post_id, $source_editor_type ) ) {
+				Custom_Field_Manager::purge_package_rows( $post_id, $source_editor_type );
+			}
+		} else {
+			Custom_Field_Manager::ensure_package_prepared(
+				$post_id,
+				$source_language,
+				$source_editor_type
+			);
+		}
+
+		$package_strings = Hashing_Db::get_post_package(
+			$post_id,
+			$source_language,
+			$source_editor_type,
+			$package_options
+		);
+
 		if ( is_wp_error( $package_strings ) ) {
 			return $package_strings;
 		}
 
 		return rest_ensure_response(
 			array(
-				'success'     => true,
-				'editor_type' => $source_editor_type,
-				'strings'     => $package_strings,
+				'success'                     => true,
+				'editor_type'                 => $source_editor_type,
+				'strings'                     => $package_strings,
+				'custom_fields_sync_enabled'  => $is_sync_enabled,
+				'skipped_custom_fields_count' => $skipped_cf_count,
 			)
 		);
 	}
@@ -3641,7 +3709,7 @@ class Rest_Api {
 
 		update_post_meta(
 			$post_id,
-			'_translatesense_translated',
+			'_translatesense_translation_update_pending',
 			$post_id
 		);
 

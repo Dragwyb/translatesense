@@ -191,6 +191,24 @@ class Editor_Integration {
 		return false;
 	}
 
+	/**
+	 * Clean up existing pending translation during editor initialization.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	public static function clean_pending_translation_meta( int $post_id ): void {
+		if ( $post_id <= 0 ) {
+			return;
+		}
+
+		if ( metadata_exists( 'post', $post_id, '_translatesense_translation_update_pending' ) ) {
+			$pending = get_post_meta( $post_id, '_translatesense_translation_update_pending', true );
+			if ( $post_id === (int) $pending ) {
+				delete_post_meta( $post_id, '_translatesense_translation_update_pending' );
+			}
+		}
+	}
+
 
 	/**
 	 * Enqueue lightweight Editor Modal assets when source post was created in Elementor
@@ -270,7 +288,15 @@ class Editor_Integration {
 	 * Enqueue Universal Editor Assets (Helper).
 	 */
 	public static function enqueue_page_editor_assets( $post_id, $editor_type = 'gutenberg', $localize_data = array() ) {
-		if ( ! $post_id || self::is_post_already_translated( (int) $post_id ) ) {
+		$post_id = absint( $post_id );
+		if ( ! $post_id ) {
+			return;
+		}
+
+		// Handle abandoned pending translation during editor initialization.
+		self::clean_pending_translation_meta( $post_id );
+
+		if ( self::is_post_already_translated( $post_id ) ) {
 			return;
 		}
 
@@ -416,26 +442,27 @@ class Editor_Integration {
 
 		$localize_data = array_merge(
 			array(
-				'postId'                 => $post_id,
-				'editorType'             => $editor_type,
-				'sourcePostId'           => $source_post_id,
-				'sourceLanguage'         => $source_language,
-				'sourceEditorType'       => $source_editor_type,
-				'fromPost'               => $source_post_id,
-				'restUrl'                => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'                  => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'         => Polylang_Bridge::is_polylang_active(),
-				'targetLanguage'         => Polylang_Bridge::get_post_language( $post_id ),
-				'languages'              => Polylang_Bridge::get_languages(),
-				'defaultProvider'        => $settings['provider'] ?? '',
-				'enabledProviders'       => $active_providers,
-				'pluginUrl'              => TRANSLATESENSE_PLUGIN_URL,
-				'docsUrl'                => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'showInitialPromptModal' => ( '1' === (string) $show_initial_prompt_modal ),
-				'settingsUrl'            => esc_url_raw( Admin_Menu::get_dashboard_url( 'settings' ) ),
-				'connectorsUrl'          => esc_url_raw( admin_url( 'options-connectors.php' ) ),
-				'hasOpenAiKey'           => ! empty( $settings['openai_api_key'] ),
-				'hasGeminiKey'           => ! empty( $settings['gemini_api_key'] ),
+				'postId'                    => $post_id,
+				'editorType'                => $editor_type,
+				'sourcePostId'              => $source_post_id,
+				'sourceLanguage'            => $source_language,
+				'sourceEditorType'          => $source_editor_type,
+				'fromPost'                  => $source_post_id,
+				'restUrl'                   => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'                     => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'            => Polylang_Bridge::is_polylang_active(),
+				'isCustomFieldsSyncEnabled' => Polylang_Bridge::is_custom_fields_sync_enabled(),
+				'targetLanguage'            => Polylang_Bridge::get_post_language( $post_id ),
+				'languages'                 => Polylang_Bridge::get_languages(),
+				'defaultProvider'           => $settings['provider'] ?? '',
+				'enabledProviders'          => $active_providers,
+				'pluginUrl'                 => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'                   => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
+				'showInitialPromptModal'    => ( '1' === (string) $show_initial_prompt_modal ),
+				'settingsUrl'               => esc_url_raw( Admin_Menu::get_dashboard_url( 'settings' ) ),
+				'connectorsUrl'             => esc_url_raw( admin_url( 'options-connectors.php' ) ),
+				'hasOpenAiKey'              => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'              => ! empty( $settings['gemini_api_key'] ),
 			),
 			$localize_data
 		);
@@ -469,6 +496,8 @@ class Editor_Integration {
 		}
 
 		$post_id = (int) $post->ID;
+
+		self::clean_pending_translation_meta( $post_id );
 
 		self::maybe_enqueue_block_editor_assets( $post_id );
 
@@ -556,6 +585,8 @@ class Editor_Integration {
 		$current_screen = get_current_screen();
 		$post_id        = (int) $post->ID;
 
+		self::clean_pending_translation_meta( $post_id );
+
 		if ( method_exists( $current_screen, 'is_block_editor' ) && ! $current_screen->is_block_editor() ) {
 			self::enqueue_page_editor_assets( $post_id, 'classic' );
 		}
@@ -566,6 +597,10 @@ class Editor_Integration {
 	 */
 	public static function enqueue_elementor_editor_assets() {
 		$post_id = (int) get_the_ID();
+		if ( $post_id > 0 ) {
+			self::clean_pending_translation_meta( $post_id );
+		}
+
 		if ( ! $post_id || self::is_post_already_translated( $post_id ) ) {
 			return;
 		}

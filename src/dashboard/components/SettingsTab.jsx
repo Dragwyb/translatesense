@@ -15,9 +15,6 @@ export function SettingsTab({
   connectorsUrl = 'options-connectors.php',
   providerModels = {},
 }) {
-  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
-
   const enabledProviders = settings.enabled_providers || ['chrome_ai', 'openai', 'gemini'];
   const currentDefaultProvider = settings.provider || '';
 
@@ -315,24 +312,14 @@ export function SettingsTab({
                       Get Key ↗
                     </a>
                   </label>
-                  <div className="ts-input-password-wrap">
-                    <input
-                      type={showOpenAiKey ? 'text' : 'password'}
-                      className="ts-form-input"
-                      value={typeof settings.openai_api_key === 'string' ? settings.openai_api_key : ''}
-                      placeholder="sk-proj-..."
-                      disabled={!enabledProviders.includes('openai')}
-                      onChange={(e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() })}
-                    />
-                    <button
-                      type="button"
-                      className="ts-pw-toggle-btn"
-                      title={showOpenAiKey ? 'Hide key' : 'Show key'}
-                      onClick={() => setShowOpenAiKey(!showOpenAiKey)}
-                    >
-                      {showOpenAiKey ? DashboardIcons.eyeOff() : DashboardIcons.eye()}
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    className="ts-form-input"
+                    value={typeof settings.openai_api_key === 'string' ? settings.openai_api_key : ''}
+                    placeholder="sk-proj-..."
+                    disabled={!enabledProviders.includes('openai')}
+                    onChange={(e) => setSettings({ ...settings, openai_api_key: e.target.value.trim() })}
+                  />
                 </div>
               )}
 
@@ -420,24 +407,14 @@ export function SettingsTab({
                       Get Key ↗
                     </a>
                   </label>
-                  <div className="ts-input-password-wrap">
-                    <input
-                      type={showGeminiKey ? 'text' : 'password'}
-                      className="ts-form-input"
-                      value={typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key : ''}
-                      placeholder="AIzaSy..."
-                      disabled={!enabledProviders.includes('gemini')}
-                      onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() })}
-                    />
-                    <button
-                      type="button"
-                      className="ts-pw-toggle-btn"
-                      title={showGeminiKey ? 'Hide key' : 'Show key'}
-                      onClick={() => setShowGeminiKey(!showGeminiKey)}
-                    >
-                      {showGeminiKey ? DashboardIcons.eyeOff() : DashboardIcons.eye()}
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    className="ts-form-input"
+                    value={typeof settings.gemini_api_key === 'string' ? settings.gemini_api_key : ''}
+                    placeholder="AIzaSy..."
+                    disabled={!enabledProviders.includes('gemini')}
+                    onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value.trim() })}
+                  />
                 </div>
               )}
 

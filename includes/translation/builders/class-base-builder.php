@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Translation\Builders;
 
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\Custom_Fields\Custom_Field_Translator;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
@@ -48,11 +49,10 @@ abstract class Base_Builder {
 	 * @param string $title
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @return string
 	 */
-	public function translate_title( string $title, string $source_lang, string $target_lang, int $post_id = 0, array $custom_opts = array() ): string {
+	public function translate_title( string $title, string $source_lang, string $target_lang, array $custom_opts = array() ): string {
 		if ( empty( trim( $title ) ) ) {
 			return $title;
 		}
@@ -62,7 +62,6 @@ abstract class Base_Builder {
 			$source_lang,
 			$target_lang,
 			'post_title',
-			$post_id,
 			$custom_opts
 		);
 
@@ -75,11 +74,10 @@ abstract class Base_Builder {
 	 * @param string $excerpt
 	 * @param string $source_lang
 	 * @param string $target_lang
-	 * @param int    $post_id
 	 * @param array  $custom_opts
 	 * @return string
 	 */
-	public function translate_excerpt( string $excerpt, string $source_lang, string $target_lang, int $post_id = 0, array $custom_opts = array() ): string {
+	public function translate_excerpt( string $excerpt, string $source_lang, string $target_lang, array $custom_opts = array() ): string {
 		if ( empty( trim( $excerpt ) ) ) {
 			return $excerpt;
 		}
@@ -89,14 +87,13 @@ abstract class Base_Builder {
 			$source_lang,
 			$target_lang,
 			'post_excerpt',
-			$post_id,
 			$custom_opts
 		);
 
 		return ! empty( $res['translated'] ) ? (string) $res['translated'] : $excerpt;
 	}
 
-	public function translate_post_name( string $post_name, string $source_lang, string $target_lang, int $post_id = 0, array $custom_opts = array() ): string {
+	public function translate_post_name( string $post_name, string $source_lang, string $target_lang, array $custom_opts = array() ): string {
 		if ( empty( trim( $post_name ) ) ) {
 			return $post_name;
 		}
@@ -106,7 +103,6 @@ abstract class Base_Builder {
 			$source_lang,
 			$target_lang,
 			'post_name',
-			$post_id,
 			$custom_opts
 		);
 
@@ -191,15 +187,15 @@ abstract class Base_Builder {
 		do_action( 'translatesense_before_translate_post', $post_id, $target_lang, $is_existing, $existing_post_id );
 
 		// 1. Translate Title & Excerpt.
-		$translated_title   = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $post_id, $custom_opts );
-		$translated_excerpt = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $post_id, $custom_opts );
+		$translated_title   = $this->translate_title( $source_post->post_title, $source_lang, $target_lang, $custom_opts );
+		$translated_excerpt = $this->translate_excerpt( $source_post->post_excerpt, $source_lang, $target_lang, $custom_opts );
 
 		// Never translate or change the slug of an existing target translation.
 		$translated_post_name = $is_existing
 			? $source_post->post_name
 			: ( 'slug_translate' !== $slug_mode
 				? $source_post->post_name
-				: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $post_id, $custom_opts ) );
+				: $this->translate_post_name( $source_post->post_name, $source_lang, $target_lang, $custom_opts ) );
 
 		// Allow style CSS properities temporarily
 		add_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
@@ -262,6 +258,16 @@ abstract class Base_Builder {
 		// 4. Builder-specific persistence runs after the post and Polylang
 		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
+
+		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules
+		Custom_Field_Translator::apply_target_metadata(
+			$post_id,
+			$created_post_id,
+			$source_lang,
+			$target_lang,
+			$is_existing,
+			$custom_opts
+		);
 
 		/**
 		 * Fires after the complete TranslateSense post translation pipeline.

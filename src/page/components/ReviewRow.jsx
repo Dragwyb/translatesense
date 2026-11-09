@@ -79,13 +79,22 @@ export function ReviewRow({
     }
   };
 
+  const widgetName = (widget) => {
+    if (widget.startsWith('custom_field>')) {
+      return widget.replace('custom_field>', '');
+    }
+
+    return widget;
+
+  }
+
   return (
     <tr data-idx={index}>
       <td>
         <div className="ts-source-text">{sourceVal}</div>
         <div className="ts-widget-tag">
           <span className="ts-tag-symbol">&lt;&gt;</span>
-          <span>{item.name || 'block'}</span>
+          <span>{widgetName(item.name || 'block')}</span>
         </div>
       </td>
       <td>

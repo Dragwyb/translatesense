@@ -40,6 +40,17 @@ export function usePageTranslation(config = {}) {
     stringCount: 0,
   });
 
+  const [isCustomFieldsSyncEnabled, setIsCustomFieldsSyncEnabled] = useState(
+    Boolean(
+      config.isCustomFieldsSyncEnabled ||
+      (typeof window !== 'undefined' &&
+        (window.TranslateSenseEditorData?.isCustomFieldsSyncEnabled ||
+          window.TranslateSenseBulkData?.isCustomFieldsSyncEnabled)) ||
+      false
+    )
+  );
+  const [skippedCustomFieldsCount, setSkippedCustomFieldsCount] = useState(0);
+
   const lastCompletedProviderRef = useRef('');
   const lastCompletedTargetLangRef = useRef('');
 
@@ -126,10 +137,32 @@ export function usePageTranslation(config = {}) {
       if (!rawStrings || rawStrings.length === 0) {
         try {
           const res = await extractPostStrings(sourcePostId, editorType, targetLang);
-          rawStrings = Array.isArray(res.strings) ? res.strings : [];
-          rawStrings = rawStrings.filter((s) => !isEmailOrUrl(s.value || ''));
+          if (res && res.custom_fields_sync_enabled !== undefined) {
+            setIsCustomFieldsSyncEnabled(Boolean(res.custom_fields_sync_enabled));
+          }
+          if (res && res.skipped_custom_fields_count !== undefined) {
+            setSkippedCustomFieldsCount(Number(res.skipped_custom_fields_count) || 0);
+          }
+          const resStrings = Array.isArray(res.strings) ? res.strings : [];
+          rawStrings = [];
+          const allowedFields = {};
+
+          resStrings.forEach(string => {
+            if (!isEmailOrUrl(string.value || '')) {
+              rawStrings.push(string);
+
+              if (string.name.startsWith('custom_field')) {
+                allowedFields[string.key] = { translate: true, source: string.source, value: string.value, fieldType: string.name };
+              }
+            }
+          });
+
+          if (Object.keys(allowedFields).length > 0) {
+            setSourcePageData(prev => { return { ...prev, allowedFields } })
+          }
 
           setExtractedStrings(rawStrings);
+
         } catch (err) {
           setProgress({ isOpen: false, percent: 0, status: '', subText: '', isExtracting: false });
           setIsReviewModalOpen(false);
@@ -143,7 +176,13 @@ export function usePageTranslation(config = {}) {
         let translated = '';
         let status = 'Pending';
         if (core && !forceRetranslate) {
-          const cached = core.getTranslatedString(s.name, s.value, prov, s.name);
+          let packageName = s.name;
+
+          if (packageName && packageName !== '' && packageName.startsWith('custom_field') && s.key) {
+            packageName = `custom_field_${s.key}`;
+          }
+
+          const cached = core.getTranslatedString(packageName, s.value, null, packageName);
           if (cached && typeof cached === 'object' && cached.translate) {
             translated = cached.translate;
             status = 'Completed';
@@ -181,7 +220,7 @@ export function usePageTranslation(config = {}) {
       const total = currentStrings.length;
       setProgress({
         isOpen: true,
-        percent: 15,
+        percent: 0,
         status: 'Translating strings...',
         subText: `0 of ${total} strings translated`,
         isExtracting: false,
@@ -218,14 +257,20 @@ export function usePageTranslation(config = {}) {
                   if (item.value === result.source || (result.hash && item.hash === result.hash)) {
                     if (isSuccess) {
                       if (core) {
-                        core.saveSourceString(item.name, item.value, item.name);
+                        let packageName = item.name;
+
+                        if (packageName && packageName !== '' && packageName.startsWith('custom_field') && item.key) {
+                          packageName = `custom_field_${item.key}`;
+                        }
+
+                        core.saveSourceString(packageName, item.value, packageName);
                         core.saveTranslatedString(
-                          item.name,
+                          packageName,
                           item.source,
                           item.value,
                           result.translated,
                           prov,
-                          item.name
+                          packageName
                         );
                       }
                       return {
@@ -359,7 +404,7 @@ export function usePageTranslation(config = {}) {
 
     setProgress({
       isOpen: true,
-      percent: 15,
+      percent: 0,
       status: `Re-translating ${totalFailed} untranslated string${totalFailed > 1 ? 's' : ''}...`,
       subText: `0 of ${totalFailed} retried`,
       isExtracting: false,
@@ -557,5 +602,7 @@ export function usePageTranslation(config = {}) {
     isTranslationCompleted,
     targetLang,
     sourceLang,
+    isCustomFieldsSyncEnabled,
+    skippedCustomFieldsCount,
   };
 }

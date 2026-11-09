@@ -237,7 +237,6 @@
     core.registerProvider('openai', {
       title: 'OpenAI (GPT-4o)',
       logo: getProviderLogo('openai'),
-      desc: 'High-accuracy neural AI translation via OpenAI ChatGPT API.',
       category: 'ai',
 
       checkAvailability: function () {
@@ -254,7 +253,6 @@
     core.registerProvider('gemini', {
       title: 'Gemini AI',
       logo: getProviderLogo('gemini'),
-      desc: 'Next-generation multilingual translation powered by Google Gemini AI.',
       category: 'ai',
 
       checkAvailability: function () {

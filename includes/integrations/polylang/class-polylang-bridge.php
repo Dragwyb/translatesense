@@ -20,6 +20,31 @@ class Polylang_Bridge {
 	}
 
 	/**
+	 * Check if Polylang custom fields synchronization is enabled.
+	 *
+	 * When enabled, Polylang automatically copies and synchronizes custom fields (post_meta)
+	 * across translations, so custom fields should not be translated independently.
+	 *
+	 * @return bool
+	 */
+	public static function is_custom_fields_sync_enabled(): bool {
+		if ( ! self::is_polylang_active() ) {
+			return false;
+		}
+
+		if ( function_exists( 'PLL' ) && isset( PLL()->options['sync'] ) && is_array( PLL()->options['sync'] ) ) {
+			return in_array( 'post_meta', PLL()->options['sync'], true );
+		}
+
+		$pll_options = get_option( 'polylang' );
+		if ( is_array( $pll_options ) && ! empty( $pll_options['sync'] ) && is_array( $pll_options['sync'] ) ) {
+			return in_array( 'post_meta', $pll_options['sync'], true );
+		}
+
+		return false;
+	}
+
+	/**
 	 * Check if a post type is translated / supported by Polylang.
 	 *
 	 * @param string $post_type

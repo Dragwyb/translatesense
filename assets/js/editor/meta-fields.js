@@ -25,7 +25,7 @@
     provider: null,
     currentStrings: [],
     allowedFields: {},
-    sourceMetaFields: {},
+    updatedFields: [],
 
     /**
      * Register updater with TranslateSenseCore.
@@ -57,53 +57,6 @@
     },
 
     /**
-     * Set allowed fields from parsed WPML XML configuration.
-     *
-     * Accepts:
-     * [
-     *   '_yoast_wpseo_title',
-     *   'rank_math_title'
-     * ]
-     *
-     * Or:
-     * [
-     *   { name: '_yoast_wpseo_title', action: 'translate' }
-     * ]
-     *
-     * Or:
-     * {
-     *   '_yoast_wpseo_title': true
-     * }
-     */
-    setAllowedFields(fields) {
-      const allowed = {};
-
-      if (Array.isArray(fields)) {
-        fields.forEach((field) => {
-          const name = typeof field === 'string'
-            ? field
-            : field && (field.name || field.key);
-
-          const action = typeof field === 'string'
-            ? 'translate'
-            : field && field.action;
-
-          if (name && action === 'translate') {
-            allowed[name] = true;
-          }
-        });
-      } else if (fields && typeof fields === 'object') {
-        Object.entries(fields).forEach(([name, value]) => {
-          if (value === true || value === 'translate') {
-            allowed[name] = true;
-          }
-        });
-      }
-
-      this.allowedFields = allowed;
-    },
-
-    /**
      * Check whether a field is allowed.
      *
      * baseName is useful for ACF repeater subfields.
@@ -128,39 +81,6 @@
     },
 
     /**
-     * Get a matching translation object.
-     */
-    getStringItem(fieldName, baseName = '') {
-      return this.currentStrings.find((item) => {
-        const name = item.name || item.field || item.widget_id;
-
-        return name === fieldName ||
-          (baseName && name === baseName);
-      }) || null;
-    },
-
-    /**
-     * Get original source value from source metadata.
-     */
-    getSourceValue(fieldName, baseName = '') {
-      let value = this.sourceMetaFields[fieldName];
-
-      if (
-        (value === undefined || value === null) &&
-        baseName
-      ) {
-        value = this.sourceMetaFields[baseName];
-      }
-
-      // Handle values returned as arrays by the metadata layer.
-      if (Array.isArray(value)) {
-        value = value.length ? value[0] : '';
-      }
-
-      return typeof value === 'string' ? value : null;
-    },
-
-    /**
      * Resolve translated value.
      *
      * Priority:
@@ -168,16 +88,24 @@
      * 2. Original source metadata.
      * 3. TranslateSenseCore cache.
      */
-    resolveTranslation(fieldName, sourceValue, baseName = '') {
-      const item = this.getStringItem(fieldName, baseName);
-
-      if (item && typeof item.translated === 'string' && item.translated !== '') {
-        return item.translated;
+    resolveTranslation(fieldName) {
+      if (!this.allowedFields || !this.allowedFields[fieldName]) {
+        return;
       }
 
+      this.updatedFields.push(fieldName);
+
+      const fieldContent = this.allowedFields[fieldName];
+
+      if (!fieldContent || !fieldContent.translate || !fieldContent.value) {
+        return;
+      }
+
+      const sourceVal = fieldContent && fieldContent.source;
+
       if (
-        typeof sourceValue !== 'string' ||
-        !sourceValue.trim()
+        typeof sourceVal !== 'string' ||
+        !sourceVal.trim()
       ) {
         return null;
       }
@@ -195,20 +123,20 @@
       try {
         // Follow the same lookup pattern as Elementor.
         const result = core.getTranslatedString(
-          'metaFields',
-          sourceValue,
+          fieldName,
+          sourceVal,
           this.provider,
-          fieldName
+          'custom_field_' + fieldName
         );
 
-        if (typeof result === 'string' && result !== sourceValue) {
+        if (typeof result === 'string' && result !== sourceVal) {
           return result;
         }
 
         if (
           result &&
           typeof result.translate === 'string' &&
-          result.translate !== sourceValue
+          result.translate !== sourceVal
         ) {
           return result.translate;
         }
@@ -220,36 +148,6 @@
       }
 
       return null;
-    },
-
-    /**
-     * Get original value for a configured field.
-     */
-    getFieldTranslation(fieldName, baseName = '') {
-      const item = this.getStringItem(fieldName, baseName);
-
-      let sourceValue = item && typeof item.source === 'string'
-        ? item.source
-        : null;
-
-      if (sourceValue === null) {
-        sourceValue = this.getSourceValue(fieldName, baseName);
-      }
-
-      // Use the translation object directly when available.
-      if (
-        item &&
-        typeof item.translated === 'string' &&
-        item.translated !== ''
-      ) {
-        return item.translated;
-      }
-
-      return this.resolveTranslation(
-        fieldName,
-        sourceValue,
-        baseName
-      );
     },
 
     /**
@@ -394,24 +292,34 @@
       }
 
       const methods = {
-        rank_math_focus_keyword: 'updateKeywords',
-        rank_math_title: 'updateTitle',
-        rank_math_description: 'updateDescription',
-        rank_math_breadcrumb_title: 'updateBreadcrumbTitle',
+        rank_math_title: ['updateTitle', 'updateSerpTitle'],
+        rank_math_description: ['updateDescription', 'updateSerpDescription'],
         rank_math_facebook_title: 'updateFacebookTitle',
         rank_math_facebook_description: 'updateFacebookDescription',
         rank_math_twitter_title: 'updateTwitterTitle',
-        rank_math_twitter_description: 'updateTwitterDescription'
+        rank_math_twitter_description: 'updateTwitterDescription',
+        rank_math_focus_keyword: 'updateKeywords',
       };
 
       const method = methods[fieldName];
 
-      if (!method || typeof store[method] !== 'function') {
+      if (!method) {
         return false;
       }
 
       try {
-        store[method](value);
+
+        if (Array.isArray(method)) {
+          method.forEach(method => {
+            const methodCallback = store[method];
+            methodCallback(value);
+          })
+
+          return true;
+        }
+
+        const methodCallback = store[method];
+        methodCallback(value);
         return true;
       } catch (error) {
         console.warn('[TranslateSense] Rank Math update warning:', error);
@@ -511,16 +419,18 @@
       );
 
       // Collect repeater ancestors, from inner to outer.
-      let parent = element.parentElement;
+      let repeaterField = element.closest('.acf-field.acf-field-repeater');
 
       const repeaterPaths = [];
+      parent = element.parentElement;
 
       while (parent) {
-        if (parent.matches('.acf-field.acf-field-repeater')) {
-          const row = parent.closest('.acf-row');
 
-          const repeaterName = parent.getAttribute('data-name');
-          const rowId = row && row.getAttribute('data-id');
+        if (repeaterField && (parent.classList.contains('acf-row') || parent.classList.contains('layout')) && parent.dataset.id) {
+          const parentAcfField = parent.closest('.acf-field');
+
+          const repeaterName = parentAcfField && parentAcfField.getAttribute('data-name');
+          const rowId = parent.getAttribute('data-id');
 
           if (
             repeaterName &&
@@ -635,15 +545,12 @@
           const baseName = fieldNames.baseName;
 
           if (
-            !this.isAllowedField(fieldName, baseName)
+            !this.isAllowedField(fieldName, baseName) || this.updatedFields.includes(fieldName)
           ) {
             return;
           }
 
-          const translatedValue = this.getFieldTranslation(
-            fieldName,
-            baseName
-          );
+          const translatedValue = this.resolveTranslation(fieldName);
 
           if (
             translatedValue === null ||
@@ -686,11 +593,11 @@
 
         const fieldName = keyInput.value.trim();
 
-        if (!this.isAllowedField(fieldName)) {
+        if (!this.isAllowedField(fieldName) || this.updatedFields.includes(fieldName)) {
           return;
         }
 
-        const translatedValue = this.getFieldTranslation(fieldName);
+        const translatedValue = this.resolveTranslation(fieldName);
 
         if (translatedValue === null) {
           return;
@@ -707,39 +614,15 @@
      */
     updateConfiguredFields() {
       this.currentStrings.forEach((item) => {
-        const fieldName = item.name ||
-          item.field ||
-          item.widget_id;
+        const fieldName = item.key;
 
-        if (!fieldName || !this.isAllowedField(fieldName)) {
+        if (!fieldName || !this.isAllowedField(fieldName) || this.updatedFields.includes(fieldName) || !item.value) {
           return;
         }
 
-        // ACF fields are updated through ACF API.
-        if (
-          window.acf &&
-          typeof window.acf.getFields === 'function'
-        ) {
-          const isAcfField = window.acf.getFields().some((field) => {
-            const names = this.getAcfFieldName(field);
+        const sourceValue = item.value;
 
-            return names.name === fieldName ||
-              names.baseName === fieldName;
-          });
-
-          if (isAcfField) {
-            return;
-          }
-        }
-
-        const sourceValue = typeof item.source === 'string'
-          ? item.source
-          : this.getSourceValue(fieldName);
-
-        const translatedValue = this.resolveTranslation(
-          fieldName,
-          sourceValue
-        );
+        const translatedValue = this.resolveTranslation(fieldName);
 
         if (
           translatedValue === null ||
@@ -775,23 +658,17 @@
         (options.options && options.options.provider) ||
         this.provider;
 
-      if (options.allowedFields) {
-        this.setAllowedFields(options.allowedFields);
+      if (options.sourcePageData.allowedFields) {
+        this.allowedFields = options.sourcePageData.allowedFields;
       }
-
-      this.sourceMetaFields =
-        options.sourceMetaFields ||
-        (options.options && options.options.sourceMetaFields) ||
-        this.sourceMetaFields ||
-        {};
 
       this.currentStrings = strings;
 
-      // 1. Update SEO and regular custom fields.
-      this.updateConfiguredFields();
-
       // 2. Update ACF fields and repeater fields.
       this.updateAcfFields();
+
+      // 1. Update SEO and regular custom fields.
+      this.updateConfiguredFields();
 
       // 3. Update classic WordPress custom fields table.
       this.updateCustomFieldsTable();

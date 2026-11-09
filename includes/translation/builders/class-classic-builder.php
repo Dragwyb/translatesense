@@ -70,7 +70,6 @@ class Classic_Builder extends Base_Builder {
 				$source_lang,
 				$target_lang,
 				$unit['name'],
-				$source_post->ID,
 				$custom_opts
 			);
 

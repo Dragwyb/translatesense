@@ -24,6 +24,7 @@ export function ProviderModal({
       isOpen={isOpen}
       onClose={onClose}
       className="ts-provider-modal-container"
+      maxWidth="530px"
       header={
         <ModalHeader
           title="Choose Translation Provider"

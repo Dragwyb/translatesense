@@ -165,8 +165,9 @@ class Bulk_Translate {
 			array(
 				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'            => wp_create_nonce( 'wp_rest' ),
-				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
-				'defaultLanguage'  => Polylang_Bridge::get_default_language(),
+				'polylangActive'            => Polylang_Bridge::is_polylang_active(),
+				'isCustomFieldsSyncEnabled' => Polylang_Bridge::is_custom_fields_sync_enabled(),
+				'defaultLanguage'           => Polylang_Bridge::get_default_language(),
 				'languages'        => Polylang_Bridge::get_languages(),
 				'defaultProvider'  => $settings['provider'] ?? '',
 				'enabledProviders' => $active_providers,

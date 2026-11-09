@@ -1533,22 +1533,6 @@
   padding-right: 40px !important;
 }
 
-.ts-pw-toggle-btn {
-  position: absolute;
-  right: 8px;
-  background: none;
-  border: none;
-  font-size: 14px;
-  color: var(--ts-gray-400);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-}
-
-.ts-pw-toggle-btn:hover {
-  color: var(--ts-gray-700);
-}
-
 /* Provider Default Radio Badge */
 .ts-default-provider-row {
   margin-top: 18px;

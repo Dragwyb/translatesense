@@ -258,7 +258,9 @@
       if (settingCache && !modelData.settings.hasOwnProperty('attributes')) {
         if (Object.keys(settingCache).length > 0) {
           Object.keys(settingCache).forEach(settingKey => {
-            createdInstance.settings.setExternalChange(settingKey, settingCache[settingKey]);
+            if (createdInstance && createdInstance.settings && createdInstance.settings.setExternalChange) {
+              createdInstance.settings.setExternalChange(settingKey, settingCache[settingKey]);
+            }
           })
         }
       }
@@ -410,7 +412,7 @@
 
       // 5. Update Meta Fields & SEO
       if (window.TranslateSenseMetaUpdater) {
-        window.TranslateSenseMetaUpdater.apply(strings);
+        window.TranslateSenseMetaUpdater.apply(strings, options);
       }
     },
   };

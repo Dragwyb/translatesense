@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Bulk;
 
 use TranslateSense\Includes\Content\Parser\Content_Parser;
+use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
 use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
@@ -250,12 +251,10 @@ class Bulk_Process {
 				// Check if translation already exists for this post & target language
 				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
 
-				$source_lang                  = Polylang_Bridge::get_post_language( $post_id );
-				$is_source_in_target_language = (string) $source_lang === (string) $target_lang;
-				$has_existing_target          = $existing_trans_id > 0 && $existing_trans_id !== $post_id;
+				$has_existing_target = $existing_trans_id > 0 && $existing_trans_id !== $post_id;
 
-				$job_status      = $is_source_in_target_language ? 'already_exists' : 'pending';
-				$progress_status = $is_source_in_target_language
+				$job_status      = $existing_trans_id ? 'already_exists' : 'pending';
+				$progress_status = $existing_trans_id
 					? 'Source already uses target language'
 					: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
 				$target_post_id  = $has_existing_target ? $existing_trans_id : 0;
@@ -645,12 +644,21 @@ class Bulk_Process {
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
+			$package_options = array();
+			if ( Polylang_Bridge::is_custom_fields_sync_enabled() ) {
+				$package_options['exclude'] = array( 'custom_field' ); // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude
+			}
+
 			// 1. Extract packages array (contains hash, strings, widget info)
-			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type );
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type, $package_options );
 
 			if ( empty( $packages ) ) {
 				$packages = Content_Parser::parse( '', $post_id, $source_lang, $editor_type );
 			}
+
+			// Synchronize dynamic custom-field packages and refresh package list
+			Custom_Field_Manager::ensure_package_prepared( $post_id, $source_lang, $editor_type );
+			$packages = Hashing_Db::get_post_package( $post_id, $source_lang, $editor_type, $package_options );
 
 			if ( ! is_array( $packages ) ) {
 				throw new \UnexpectedValueException( 'The translation package data is invalid.' );
