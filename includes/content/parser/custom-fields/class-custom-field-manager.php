@@ -147,7 +147,7 @@ class Custom_Field_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$found = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT 1 FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%' LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT 1 FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('custom_field','custom_field>acf') LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$editor_type
 			)
@@ -166,7 +166,7 @@ class Custom_Field_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('custom_field','custom_field>acf')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$post_id,
 				$editor_type
 			)
@@ -188,10 +188,10 @@ class Custom_Field_Manager {
 		$placeholders = implode( ',', array_fill( 0, count( $active_package_hashes ), '%s' ) );
 		$params       = array_merge( array( $post_id, $editor_type ), $active_package_hashes );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name LIKE 'custom_field%' AND package_hash NOT IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"DELETE FROM {$table} WHERE post_id = %d AND editor_type = %s AND widget_name IN ('custom_field','custom_field>acf') AND package_hash NOT IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$params
 			)
 		);
