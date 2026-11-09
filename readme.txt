@@ -155,14 +155,6 @@ TranslateSense is open source. You can explore the source code, report issues, a
 
 Contributions and community feedback are welcome!
 
-== Screenshots ==
-
-1. TranslateSense dashboard and AI provider settings.
-2. Bulk Translation.
-3. AI provider selection.
-4. Translation progress.
-5. Background translation monitor.
-
 == Changelog ==
 
 = 0.1.0 =
@@ -170,6 +162,7 @@ Contributions and community feedback are welcome!
 * Added SEO metadata translation support for Yoast SEO, Rank Math SEO, and SEOPress.
 * Added support for custom fields configured through plugin `wpml-config.xml` files.
 * Improved post translation completion checks.
+* Improved API key validation in TranslateSense dashboard.
 
 = 0.0.9 =
 * Initial public release.
