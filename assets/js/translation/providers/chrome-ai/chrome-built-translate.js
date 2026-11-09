@@ -904,7 +904,6 @@
     core.registerProvider('chrome_ai', {
       title: 'Built-in AI',
       logo: getTranslateSenseAiLogo(),
-      desc: `Private on-device translation powered by ${browserType === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'} Built-in AI.`,
       category: 'browser',
       browserType: browserType.toLowerCase(),
 

@@ -210,7 +210,7 @@ export function PageApp() {
                 translation.setErrorModal({
                   isOpen: true,
                   title: `${p.title} Notice`,
-                  message: p.desc,
+                  message: '',
                   reasonHTML: p.isSupported?.reasonHTML || p.isSupported?.reason,
                   icon: p.logo,
                 })

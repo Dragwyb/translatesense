@@ -4,27 +4,17 @@
  */
 
 import { useState, useMemo } from '@wordpress/element';
-import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
+import { Modal, ModalHeader } from '../../components/Modal';
 import { getLanguageFlag } from '../../utils/language';
 
 function GlobeIcon({ size = 18, color = 'currentColor' }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-      <path d="M2 12h20" />
+    <svg width={size} height={size} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle r="8" cy="10" cx="9" />
+      <path d="M9 2a15.3 15 0 0 1 3 8 15 15 0 0 1-3 8 15 15 0 0 1-3-8 15 15 0 0 1 3-8z" />
+      <path d="M2 10h14" />
     </svg>
-  );
+  )
 }
 
 function SparklesIcon({ size = 18, color = 'currentColor' }) {
@@ -230,7 +220,7 @@ export function UnifiedBulkSelection({
         <button
           type="button"
           className="ts-provider-badge error-badge ts-provider-error-btn"
-          title={p.desc || 'View Error Details'}
+          title='View Error Details'
           onClick={(e) => {
             e.stopPropagation();
             if (onViewError) onViewError(p);
@@ -254,11 +244,6 @@ export function UnifiedBulkSelection({
           {p.badgeText || 'API key required'}
         </a>
       );
-    }
-
-    // 2. If provider is currently selected: display Current badge
-    if (isSelected) {
-      return <span className="ts-provider-badge current-badge">Current</span>;
     }
 
     // 3. If Chrome Built-in AI is supported and available: display On Device badge
@@ -394,7 +379,7 @@ export function UnifiedBulkSelection({
             <div className="ts-bulk-panel-header">
               <div className="ts-panel-title-group">
                 <div className="ts-panel-icon-circle">
-                  <GlobeIcon size={18} color="#2563eb" />
+                  <GlobeIcon size={19} color="#2563eb" />
                 </div>
                 <div>
                   <h3 className="ts-panel-title">Target Languages</h3>
@@ -561,7 +546,7 @@ export function UnifiedBulkSelection({
 
           <div className="ts-summary-item">
             <span className="ts-summary-icon">
-              <GlobeIcon size={18} color="#2563eb" />
+              <GlobeIcon size={19} color="#2563eb" />
             </span>
             <div className="ts-summary-text">
               <span className="ts-summary-num">{targetLangsCount}</span>

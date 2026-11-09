@@ -213,7 +213,6 @@ class TranslateSenseCore {
      * @param {Object} options Configuration options
      * @param {string} options.title Display name
      * @param {string} options.icon Emoji or Dashicon icon identifier
-     * @param {string} options.desc Brief description
      * @param {string} [options.category='ai'] Category: 'ai' | 'browser' | 'free'
      * @param {Function} [options.checkAvailability] Validation function returning { available: boolean, reason?: string, noticeType?: 'warning'|'error'|'info' }
      * @param {Function} [options.isLanguageSupported] Language support checker (sourceLang, targetLang) -> boolean
@@ -235,7 +234,6 @@ class TranslateSenseCore {
             title: options.title || id,
             logo: options.logo || '',
             browserType: options.browserType || '',
-            desc: options.desc || '',
             category: options.category || 'ai',
             checkAvailability: typeof options.checkAvailability === 'function' ? options.checkAvailability : () => ({ available: true }),
             isLanguageSupported: typeof options.isLanguageSupported === 'function' ? options.isLanguageSupported : () => true,

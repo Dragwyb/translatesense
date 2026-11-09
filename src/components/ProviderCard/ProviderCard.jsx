@@ -105,7 +105,6 @@ export function ProviderCard({
           <span className="ts-provider-custom-radio" />
         </div>
       </div>
-      {desc && <p className="ts-provider-caption">{desc}</p>}
     </div>
   );
 }
