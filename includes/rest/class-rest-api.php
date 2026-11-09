@@ -2663,6 +2663,15 @@ class Rest_Api {
 
 		$updated = self::sanitize_settings( $params, $current );
 
+		if ( is_wp_error( $updated ) ) {
+			return rest_ensure_response(
+				array(
+					'success' => false,
+					'message' => $updated->get_error_message(),
+				)
+			);
+		}
+
 		update_option(
 			'translatesense_settings',
 			$updated
@@ -2797,7 +2806,7 @@ class Rest_Api {
 	 *
 	 * @param array $input Submitted settings.
 	 * @param array $current Current settings.
-	 * @return array
+	 * @return array|WP_Error
 	 */
 	private static function sanitize_settings( $input, $current ) {
 
@@ -2807,8 +2816,9 @@ class Rest_Api {
 			$updated['provider'] = sanitize_key( $input['provider'] );
 		}
 
-		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $key ) {
+		$bridge = Ai_Connector_Bridge::get_instance();
 
+		foreach ( array( 'openai_api_key', 'gemini_api_key' ) as $key ) {
 			if ( ! isset( $input[ $key ] ) ) {
 				continue;
 			}
@@ -2833,7 +2843,32 @@ class Rest_Api {
 
 			// 4. Only update the saved API key when the user submits a new, actual API key.
 			if ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
-				$updated[ $key ] = sanitize_text_field( $value );
+
+				$api_key     = sanitize_text_field( $value );
+				$provider_id = str_replace( '_api_key', '', $key );
+
+				$validate_key = $bridge->api_key_validation( $provider_id, $api_key );
+
+				if ( is_wp_error( $validate_key ) ) {
+					$error_message = (string) $validate_key->get_error_message();
+
+					$is_invalid_key = false !== stripos( $error_message, 'incorrect api key' )
+					|| false !== stripos( $error_message, 'API key not valid.' );
+
+					return new WP_Error(
+						'api_key_validation_failed',
+						sprintf(
+						/* translators: %1$s: AI provider ID, %2$s: validation error. */
+							__( '%1$s: %2$s', 'translatesense' ),
+							$provider_id,
+							$is_invalid_key
+							? __( 'Invalid API key.', 'translatesense' )
+							: __( 'API key validation failed.', 'translatesense' )
+						)
+					);
+				}
+
+				$updated[ $key ] = $api_key;
 			}
 		}
 

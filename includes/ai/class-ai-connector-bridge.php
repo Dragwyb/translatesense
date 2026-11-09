@@ -1039,15 +1039,37 @@ class Ai_Connector_Bridge {
 	}
 
 	/**
+	 * Validate provider API key.
+	 *
+	 * @param string $provider Provider identifier.
+	 * @param string $api_key  Optional. API key to validate.
+	 * @return array<int, array<string, string>>|\WP_Error
+	 */
+	public function api_key_validation( string $provider, string $api_key = '' ) {
+		$provider_clean = sanitize_key( $provider );
+		if ( 'google' === $provider_clean ) {
+			$provider_clean = 'gemini';
+		}
+
+		if ( ! empty( $api_key ) ) {
+			$this->legacy_keys[ $provider_clean ] = $api_key;
+		}
+
+		return $this->fetch_remote_provider_models( $provider_clean );
+	}
+
+	/**
 	 * Custom fetch models directly from provider API endpoints.
 	 *
 	 * @param string $provider_id
-	 * @return array<int, array<string, string>>
+	 * @return array<int, array<string, string>>|\WP_Error
 	 */
-	private function fetch_remote_provider_models( string $provider_id ): array {
+	private function fetch_remote_provider_models( string $provider_id ) {
 		$models         = array();
 		$provider_clean = sanitize_key( $provider_id );
-		$this->load_saved_settings();
+		if ( empty( $this->legacy_keys[ $provider_clean ] ) ) {
+			$this->load_saved_settings();
+		}
 
 		switch ( $provider_clean ) {
 			case 'openai':
@@ -1066,8 +1088,14 @@ class Ai_Connector_Bridge {
 					)
 				);
 
-				if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-					return array();
+				if ( is_wp_error( $response ) ) {
+					return $response;
+				}
+
+				if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+					$body    = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+					$message = ! empty( $body['error']['message'] ) ? (string) $body['error']['message'] : wp_remote_retrieve_response_message( $response );
+					return new \WP_Error( (string) wp_remote_retrieve_response_code( $response ), $message );
 				}
 
 				$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
@@ -1114,8 +1142,14 @@ class Ai_Connector_Bridge {
 					)
 				);
 
-				if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-					return array();
+				if ( is_wp_error( $response ) ) {
+					return $response;
+				}
+
+				if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+					$body    = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+					$message = ! empty( $body['error']['message'] ) ? (string) $body['error']['message'] : wp_remote_retrieve_response_message( $response );
+					return new \WP_Error( (string) wp_remote_retrieve_response_code( $response ), $message );
 				}
 
 				$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
