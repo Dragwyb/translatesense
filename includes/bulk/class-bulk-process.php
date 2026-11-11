@@ -242,12 +242,13 @@ class Bulk_Process {
 			$post_ids = self::filter_linked_posts( $post_ids );
 		}
 
-		$initiating_user_id = absint( get_current_user_id() );
-		$created_jobs       = array();
-		$seen_pairs         = array();
-		$cutoff             = current_time( 'timestamp' ) - DAY_IN_SECONDS;
-		$cutoff_mysql       = gmdate( 'Y-m-d H:i:s', $cutoff );
-		$clean_languages    = array();
+		$created_by      = absint( get_current_user_id() );
+		$item_type       = $is_term ? 'taxonomy' : 'post';
+		$created_jobs    = array();
+		$seen_pairs      = array();
+		$cutoff          = current_time( 'timestamp' ) - DAY_IN_SECONDS;
+		$cutoff_mysql    = gmdate( 'Y-m-d H:i:s', $cutoff );
+		$clean_languages = array();
 		foreach ( $target_languages as $language ) {
 			if ( is_string( $language ) || is_numeric( $language ) ) {
 				$language = sanitize_key( (string) $language );
@@ -285,8 +286,9 @@ class Bulk_Process {
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 					$pending_job_id = $wpdb->get_var(
 						$wpdb->prepare(
-							"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s AND provider IN ('openai', 'gemini') ORDER BY id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+							"SELECT id FROM {$table} WHERE post_id = %d AND item_type = %s AND target_language = %s AND status = 'pending' AND created_at >= %s AND provider IN ('openai', 'gemini') ORDER BY id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 							$item_id,
+							$item_type,
 							$target_lang,
 							$cutoff_mysql
 						)
@@ -321,8 +323,9 @@ class Bulk_Process {
 
 				$insert_data = array(
 					'batch_id'          => $batch_id,
+					'item_type'         => $item_type,
 					'post_id'           => $item_id,
-					'user_id'           => $initiating_user_id,
+					'created_by'        => $created_by,
 					'target_language'   => $target_lang,
 					'provider'          => $provider,
 					'status'            => $job_status,
@@ -338,7 +341,7 @@ class Bulk_Process {
 				);
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
+				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
 					continue;
 				}
 
@@ -418,7 +421,7 @@ class Bulk_Process {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$result = $wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$table} SET status = 'failed', progress_status = %s, error_message = %s, updated_at = %s WHERE status = 'pending' AND created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"UPDATE {$table} SET status = 'failed', progress_status = %s, error_message = %s, updated_at = %s WHERE status = 'pending' AND item_type = 'post' AND created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$label,
 				$error,
 				$updated_at,
@@ -437,7 +440,7 @@ class Bulk_Process {
 		$table = self::get_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running') AND item_type = 'post' AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return $count > 0;
@@ -451,7 +454,7 @@ class Bulk_Process {
 		$table = self::get_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$count = (int) $wpdb->get_var(
-			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND provider IN ('openai', 'gemini')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT COUNT(id) FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND item_type = 'post' AND provider IN ('openai', 'gemini')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return $count > 0;
@@ -468,7 +471,7 @@ class Bulk_Process {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$batch_ids = $wpdb->get_col(
-			"SELECT DISTINCT batch_id FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND provider IN ('openai', 'gemini') ORDER BY id DESC" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT DISTINCT batch_id FROM {$table} WHERE status IN ('pending', 'running', 'cancelling') AND item_type = 'post' AND provider IN ('openai', 'gemini') ORDER BY id DESC" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		if ( empty( $batch_ids ) ) {
@@ -605,7 +608,7 @@ class Bulk_Process {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$job_id = $wpdb->get_var(
-			"SELECT id FROM {$table} WHERE status = 'pending' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT id FROM {$table} WHERE status = 'pending' AND item_type = 'post' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		return ! empty( $job_id );
@@ -655,12 +658,12 @@ class Bulk_Process {
 		// Clean up any stale cancelling jobs older than 10 minutes
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"UPDATE {$table} SET status = 'skipped', progress_status = 'Skipped by user' WHERE status = 'cancelling' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"UPDATE {$table} SET status = 'skipped', progress_status = 'Skipped by user' WHERE status = 'cancelling' AND item_type = 'post' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$job = $wpdb->get_row(
-			"SELECT * FROM {$table}  WHERE status = 'pending' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT * FROM {$table} WHERE status = 'pending' AND item_type = 'post' AND provider NOT IN ('chrome_ai', 'chrome_local_ai') ORDER BY id ASC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			ARRAY_A
 		);
 
@@ -672,7 +675,7 @@ class Bulk_Process {
 
 		$job_id                  = (int) $job['id'];
 		$post_id                 = (int) $job['post_id'];
-		$stored_user_id          = isset( $job['user_id'] ) ? absint( $job['user_id'] ) : 0;
+		$stored_user_id          = isset( $job['created_by'] ) ? absint( $job['created_by'] ) : 0;
 		$target_lang             = $job['target_language'];
 		$provider                = $job['provider'];
 		$existing_target_post_id = absint( $job['target_post_id'] );
@@ -1050,8 +1053,7 @@ class Bulk_Process {
 	/**
 	 * Validate the stored initiating user's current capabilities for a cron job.
 	 *
-	 * Legacy queue rows created before `user_id` migration (`0`) remain runnable
-	 * without failing on a missing user ID. When `user_id > 0`, the user must still
+	 * without failing on a missing user ID. When `created_by > 0`, the user must still
 	 * exist and currently hold post and taxonomy capabilities via `user_can()`.
 	 *
 	 * @param int    $user_id                 Stored initiating user ID.
@@ -1220,8 +1222,12 @@ class Bulk_Process {
 		$items = array();
 
 		foreach ( $rows as $row ) {
-			$post_id = (int) $row['post_id'];
-			if ( $post_id <= 0 || ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+			$post_id      = (int) $row['post_id'];
+			$row_type     = ! empty( $row['item_type'] ) ? sanitize_key( (string) $row['item_type'] ) : 'post';
+			$is_taxonomy  = ( 'taxonomy' === $row_type );
+			$required_cap = $is_taxonomy ? 'edit_term' : 'edit_post';
+
+			if ( $post_id <= 0 || ! is_user_logged_in() || ! current_user_can( $required_cap, $post_id ) ) {
 				continue;
 			}
 
@@ -1246,14 +1252,25 @@ class Bulk_Process {
 			$total_strings     += $t_str;
 			$completed_strings += $c_str;
 
-			$target_post_id    = (int) $row['target_post_id'];
-			$post              = get_post( $post_id );
-			$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
-			$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
-			$target_post_title = $target_post ? $target_post->post_title : '';
-			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
-			$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-			$view_url          = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
+			$target_post_id = (int) $row['target_post_id'];
+			if ( $is_taxonomy ) {
+				$source_term       = get_term( $post_id );
+				$term_taxonomy     = ( $source_term instanceof \WP_Term ) ? (string) $source_term->taxonomy : '';
+				$post_title        = ( $source_term instanceof \WP_Term ) ? $source_term->name : sprintf( '#%d', $post_id );
+				$target_term       = ( $target_post_id > 0 && '' !== $term_taxonomy ) ? get_term( $target_post_id, $term_taxonomy ) : null;
+				$target_post_title = ( $target_term instanceof \WP_Term ) ? $target_term->name : '';
+				$editor_type       = 'taxonomy';
+				$edit_url          = ( $target_term instanceof \WP_Term ) ? (string) get_edit_term_link( $target_post_id, $term_taxonomy ) : '';
+				$view_url          = ( $target_term instanceof \WP_Term && current_user_can( 'edit_term', $target_post_id ) ) ? self::get_safe_term_link( $target_post_id, $term_taxonomy ) : '';
+			} else {
+				$post              = get_post( $post_id );
+				$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
+				$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
+				$target_post_title = $target_post ? $target_post->post_title : '';
+				$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
+				$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				$view_url          = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
+			}
 
 			if ( 'completed' === $status || 'already_exists' === $status || 'skipped' === $status ) {
 				$item_progress = 100;
@@ -1284,6 +1301,7 @@ class Bulk_Process {
 			$items[] = array(
 				'id'                   => (int) $row['id'],
 				'batch_id'             => $row['batch_id'],
+				'item_type'            => $row_type,
 				'post_id'              => $post_id,
 				'post_title'           => $post_title,
 				'target_language'      => $row['target_language'],
@@ -1414,7 +1432,7 @@ class Bulk_Process {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$jobs = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT id, item_type, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id,
 				$post_id
 			),
@@ -1429,10 +1447,19 @@ class Bulk_Process {
 			);
 		}
 
-		if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+		$is_taxonomy_item = false;
+		foreach ( $jobs as $j ) {
+			if ( 'taxonomy' === ( $j['item_type'] ?? 'post' ) ) {
+				$is_taxonomy_item = true;
+				break;
+			}
+		}
+
+		$required_cap = $is_taxonomy_item ? 'edit_term' : 'edit_post';
+		if ( ! is_user_logged_in() || ! current_user_can( $required_cap, $post_id ) ) {
 			return new WP_Error(
 				'rest_forbidden',
-				__( 'You are not allowed to manage translation jobs for this post.', 'translatesense' ),
+				__( 'You are not allowed to manage translation jobs for this item.', 'translatesense' ),
 				array( 'status' => 403 )
 			);
 		}

@@ -388,7 +388,7 @@ class Rest_Api {
 					'type'               => array(
 						'required'          => false,
 						'type'              => 'string',
-						'default'           => 'post',
+						'default'           => '',
 						'sanitize_callback' => 'sanitize_key',
 					),
 					'subtype'            => array(
@@ -535,7 +535,7 @@ class Rest_Api {
 					'type'             => array(
 						'required'          => false,
 						'type'              => 'string',
-						'default'           => 'post',
+						'default'           => '',
 						'sanitize_callback' => 'sanitize_key',
 					),
 					'subtype'          => array(
@@ -608,7 +608,7 @@ class Rest_Api {
 					'type'             => array(
 						'required'          => false,
 						'type'              => 'string',
-						'default'           => 'post',
+						'default'           => '',
 						'sanitize_callback' => 'sanitize_key',
 					),
 					'status'           => array(
@@ -1099,6 +1099,36 @@ class Rest_Api {
 	}
 
 	/**
+	 * Resolve item type (`'post'` or `'term'`) for an existing queue job record.
+	 *
+	 * Uses the persisted `item_type` column (`'post'` or `'taxonomy'`) and verifies
+	 * that any explicit runtime `type` parameter matches the stored job type.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @param object          $job     Queue job object.
+	 * @return string `'post'`, `'term'`, or empty string when invalid/mismatched.
+	 */
+	private static function resolve_job_item_type( WP_REST_Request $request, $job ): string {
+		$job_type = ( ! empty( $job->item_type ) && 'taxonomy' === sanitize_key( (string) $job->item_type ) )
+			? 'term'
+			: 'post';
+
+		$params   = $request->get_json_params();
+		$raw_type = ( is_array( $params ) && array_key_exists( 'type', $params ) )
+			? $params['type']
+			: $request->get_param( 'type' );
+
+		if ( null !== $raw_type && '' !== (string) $raw_type ) {
+			$req_type = sanitize_key( (string) $raw_type );
+			if ( ! in_array( $req_type, array( 'post', 'term' ), true ) || $req_type !== $job_type ) {
+				return '';
+			}
+		}
+
+		return $job_type;
+	}
+
+	/**
 	 * Permission: POST /extract-strings.
 	 *
 	 * @param WP_REST_Request $request REST request.
@@ -1552,7 +1582,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, target_post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT item_type, post_id, target_post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id
 			),
 			ARRAY_A
@@ -1566,13 +1596,25 @@ class Rest_Api {
 			);
 		}
 
-		$source_posts = array();
+		$source_items = array();
+		$has_post_id  = false;
 
 		foreach ( $rows as $row ) {
+			$row_type       = ! empty( $row['item_type'] ) ? sanitize_key( (string) $row['item_type'] ) : 'post';
+			$is_taxonomy    = ( 'taxonomy' === $row_type );
+			$required_cap   = $is_taxonomy ? 'edit_term' : 'edit_post';
 			$source_post_id = isset( $row['post_id'] ) ? absint( $row['post_id'] ) : 0;
 			$target_post_id = isset( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
 
-			if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+			if ( $is_taxonomy ) {
+				if ( ! $source_post_id || ! get_term( $source_post_id ) instanceof \WP_Term ) {
+					return self::permission_error(
+						__( 'A taxonomy term associated with this batch could not be found.', 'translatesense' ),
+						'rest_post_not_found',
+						404
+					);
+				}
+			} elseif ( ! $source_post_id || ! get_post( $source_post_id ) ) {
 				return self::permission_error(
 					__( 'A post associated with this batch could not be found.', 'translatesense' ),
 					'rest_post_not_found',
@@ -1580,11 +1622,25 @@ class Rest_Api {
 				);
 			}
 
-			$source_posts[ $source_post_id ] = true;
+			$source_items[ $row_type . ':' . $source_post_id ] = array(
+				'id'  => $source_post_id,
+				'cap' => $required_cap,
+			);
+			if ( $post_id && $source_post_id === $post_id ) {
+				$has_post_id = true;
+			}
 
 			if ( $target_post_id ) {
 
-				if ( ! get_post( $target_post_id ) ) {
+				if ( $is_taxonomy ) {
+					if ( ! get_term( $target_post_id ) instanceof \WP_Term ) {
+						return self::permission_error(
+							__( 'A target translation term associated with this batch could not be found.', 'translatesense' ),
+							'rest_target_post_not_found',
+							404
+						);
+					}
+				} elseif ( ! get_post( $target_post_id ) ) {
 					return self::permission_error(
 						__( 'A target translation post associated with this batch could not be found.', 'translatesense' ),
 						'rest_target_post_not_found',
@@ -1592,7 +1648,7 @@ class Rest_Api {
 					);
 				}
 
-				if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+				if ( ! current_user_can( $required_cap, $target_post_id ) ) {
 					return self::permission_error(
 						__( 'You are not allowed to access a target translation in this batch.', 'translatesense' )
 					);
@@ -1600,14 +1656,14 @@ class Rest_Api {
 			}
 		}
 
-		if ( $post_id && ! isset( $source_posts[ $post_id ] ) ) {
+		if ( $post_id && ! $has_post_id ) {
 			return self::permission_error(
-				__( 'The requested post does not belong to this batch.', 'translatesense' )
+				__( 'The requested item does not belong to this batch.', 'translatesense' )
 			);
 		}
 
-		foreach ( array_keys( $source_posts ) as $source_post_id ) {
-			if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+		foreach ( $source_items as $source_item ) {
+			if ( ! current_user_can( $source_item['cap'], $source_item['id'] ) ) {
 				return self::permission_error(
 					__( 'You are not allowed to access this batch.', 'translatesense' )
 				);
@@ -1654,7 +1710,7 @@ class Rest_Api {
 			);
 		}
 
-		$type = self::get_request_item_type( $request );
+		$type = self::resolve_job_item_type( $request, $job );
 		if ( '' === $type ) {
 			return self::permission_error(
 				__( 'Invalid item type specified.', 'translatesense' ),
@@ -3905,7 +3961,7 @@ class Rest_Api {
 			}
 		}
 
-		$type = self::get_request_item_type( $request );
+		$type = self::resolve_job_item_type( $request, $job );
 		if ( '' === $type ) {
 			return new WP_Error(
 				'invalid_type',
