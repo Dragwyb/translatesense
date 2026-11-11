@@ -9,6 +9,7 @@ use TranslateSense\Includes\Translation\Custom_Fields\Custom_Field_Translator;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
+use TranslateSense\Includes\Translation\Taxonomy\Taxonomy_Translator;
 use TranslateSense\Includes\Admin\Editor_Integration;
 
 use WP_Post;
@@ -147,9 +148,10 @@ abstract class Base_Builder {
 	 * @param string $target_lang
 	 * @param string $provider
 	 * @param array  $in_memory_translations
+	 * @param array  $options
 	 * @return array|WP_Error
 	 */
-	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
+	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
 		$source_post = get_post( $post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ), array( 'status' => 404 ) );
@@ -242,7 +244,35 @@ abstract class Base_Builder {
 			$create_args['post_name'] = sanitize_title( $translated_post_name );
 		}
 
-		// 3. Create or update Polylang translated post
+		$include_taxonomies    = ! array_key_exists( 'include_taxonomies', $options ) || ! empty( $options['include_taxonomies'] );
+		$translated_taxonomies = array();
+
+		$taxonomy_options = array(
+			'user_id'             => ( array_key_exists( 'user_id', $options ) && null !== $options['user_id'] ) ? (int) $options['user_id'] : null,
+			'enforce_permissions' => array_key_exists( 'enforce_permissions', $options ) ? (bool) $options['enforce_permissions'] : true,
+			'skip_unauthorized'   => ! empty( $options['skip_unauthorized'] ),
+		);
+
+		// 3. Resolve taxonomy translations before creating/updating the target post (Bulk workflow only).
+		// This ensures Polylang can link existing translated terms during its copy pass.
+		if ( $include_taxonomies ) {
+			$translated_taxonomies = Taxonomy_Translator::prepare_post_translation(
+				$post_id,
+				$target_lang,
+				(string) $source_lang,
+				(string) $provider,
+				$in_memory_translations,
+				$taxonomy_options
+			);
+
+			if ( is_wp_error( $translated_taxonomies ) ) {
+				return $translated_taxonomies;
+			}
+		} else {
+			$create_args['skip_taxonomies_sync'] = true;
+		}
+
+		// 4. Create or update Polylang translated post.
 		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
 			$post_id,
 			$target_lang,
@@ -259,7 +289,28 @@ abstract class Base_Builder {
 		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
 
-		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules
+		// Replace copied source-language assignments with resolved target-language terms.
+		if ( $include_taxonomies ) {
+			$taxonomy_assignment = Taxonomy_Translator::assign_translated_terms(
+				$created_post_id,
+				$translated_taxonomies,
+				$is_existing,
+				$post_id,
+				$taxonomy_options
+			);
+
+			if ( is_wp_error( $taxonomy_assignment ) ) {
+				// Never leave source-language terms attached to a newly created target.
+				if ( ! $is_existing ) {
+					foreach ( array_keys( $translated_taxonomies ) as $failed_taxonomy ) {
+						wp_set_object_terms( $created_post_id, array(), $failed_taxonomy, false );
+					}
+				}
+				return $taxonomy_assignment;
+			}
+		}
+
+		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules.
 		Custom_Field_Translator::apply_target_metadata(
 			$post_id,
 			$created_post_id,

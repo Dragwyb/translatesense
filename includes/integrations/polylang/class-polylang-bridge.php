@@ -428,7 +428,8 @@ class Polylang_Bridge {
 			$source_post_id,
 			$target_post_id,
 			$target_lang,
-			! $is_existing
+			! $is_existing,
+			array( 'sync_taxonomies' => empty( $args['skip_taxonomies_sync'] ) )
 		);
 
 		update_post_meta(
