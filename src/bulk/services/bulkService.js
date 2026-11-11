@@ -20,17 +20,26 @@ export async function startBulkTranslation(payload) {
   });
 }
 
+export async function translateBulkTerm(payload) {
+  return await apiRequest(ENDPOINTS.BULK_TRANSLATE_TERM, {
+    method: 'POST',
+    data: payload,
+  });
+}
+
 /**
  * Update an individual bulk translation job
  * @param {number} jobId
  * @param {Object} data
+ * @param {'post'|'term'} [type='post']
  * @returns {Promise<{ success: boolean }>}
  */
-export async function updateBulkJob(jobId, data) {
+export async function updateBulkJob(jobId, data, type = 'post') {
   return await apiRequest(ENDPOINTS.BULK_UPDATE_JOB, {
     method: 'POST',
     data: {
       job_id: jobId,
+      type,
       data,
     },
   });

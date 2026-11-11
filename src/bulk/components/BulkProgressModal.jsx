@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { BulkProgress } from './BulkProgress';
 import { ProgressSummary } from './ProgressSummary';
 import { TranslationResults } from './TranslationResults';
+import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function BulkProgressModal({
   isOpen = true,
@@ -36,7 +37,9 @@ export function BulkProgressModal({
   showBackButton = false,
   onBack,
   canSkip = false,
+  itemMeta = {},
 }) {
+  const { plural: itemPlural } = getBulkItemLabels(itemMeta);
   const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
   const hasFailedPosts = Object.values(postResultsMap).some((p) =>
     Object.values(p.translations || {}).some((t) => t.status === 'failed')
@@ -116,6 +119,7 @@ export function BulkProgressModal({
             currentBatchId={currentBatchId}
             onBatchChange={onBatchChange}
             isTranslating={isTranslating}
+            itemPlural={itemPlural}
           />
         ) : (
           statsSummary && (
@@ -125,6 +129,7 @@ export function BulkProgressModal({
               totalCharacters={statsSummary.completedCharacters}
               totalCount={statsSummary.total}
               elapsedTime={humanReadableTimer}
+              itemMeta={itemMeta}
             />
           )
         )}
@@ -139,6 +144,7 @@ export function BulkProgressModal({
           filterOnlyFailed={filterOnlyFailed}
           onSkipPost={onSkipPost}
           onErrorDetail={onErrorDetail}
+          itemMeta={itemMeta}
         />
       </div>
     </Modal>

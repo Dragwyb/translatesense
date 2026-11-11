@@ -548,18 +548,18 @@ export function usePageTranslation(config = {}) {
       });
     }
 
-    // 3. Apply via Editor registry
+    // Apply content/meta strings through the active editor adapter.
     const res = await core.applyToPageEditor(editorType, {
       strings,
       sourcePageData,
       options: {
         provider: selectedProvider,
-      }
+      },
     });
 
     setIsReviewModalOpen(false);
 
-    // 2. Mark translated on server
+    // Complete post translation completion workflow via existing mark-translated route.
     if (postId) {
       const totalChars = translationStats.totalChars || strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
       const totalStrs = translationStats.stringCount || strings.length;

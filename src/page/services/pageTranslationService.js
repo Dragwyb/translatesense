@@ -15,6 +15,7 @@ export async function extractPostStrings(postId, builder, targetLang) {
       post_id: Number(postId),
       builder,
       target_lang: targetLang,
+      include_taxonomies: false,
     },
   });
 }
@@ -39,6 +40,7 @@ export async function translatePostServer(postId, targetLang, provider) {
       post_id: Number(postId),
       target_lang: targetLang,
       provider,
+      include_taxonomies: false,
     },
   });
 }

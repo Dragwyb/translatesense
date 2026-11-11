@@ -5,6 +5,7 @@
 import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { LanguageSelector } from '../../components/LanguageSelector';
+import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function LanguageSelection({
   isOpen = true,
@@ -16,8 +17,10 @@ export function LanguageSelection({
   onNext,
   activeBatches = [],
   onShowRunning,
+  itemMeta = {},
 }) {
   const postsCount = postIds.length;
+  const { singular: itemSingular, plural: itemPlural } = getBulkItemLabels(itemMeta);
 
   const localizedData =
     (typeof window !== 'undefined' &&
@@ -107,7 +110,7 @@ export function LanguageSelection({
       <div className="ts-lang-info-banner">
         <span className="ts-info-icon" aria-hidden="true">ℹ️</span>
         <span>
-          Targeting <strong className="ts-highlight-tag">{postsCount} {postsCount === 1 ? 'post' : 'posts'}</strong>. Choose target language(s) to translate into:
+          Targeting <strong className="ts-highlight-tag">{postsCount} {postsCount === 1 ? itemSingular : itemPlural}</strong>. Choose target language(s) to translate into:
         </span>
       </div>
 

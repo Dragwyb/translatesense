@@ -6,6 +6,7 @@ import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { ProviderCard } from '../../components/ProviderCard';
 import { getLanguageFlag } from '../../utils/language';
+import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function ProviderSelection({
   isOpen = true,
@@ -20,8 +21,10 @@ export function ProviderSelection({
   onStartTranslation,
   onViewError,
   isTranslating = false,
+  itemMeta = {},
 }) {
   const postsCount = postIds.length;
+  const { singular: itemSingular, plural: itemPlural } = getBulkItemLabels(itemMeta);
   const selectedProviderObj = providers.find((p) => p.id === selectedProvider);
   const isProviderAvailable = Boolean(selectedProviderObj?.isAvailable);
   const isTranslateDisabled = !selectedProvider || !isProviderAvailable || isTranslating;
@@ -61,7 +64,7 @@ export function ProviderSelection({
       <div className="ts-summary-box">
         <div className="ts-summary-info">
           <span>
-            Targeting <strong>{postsCount} {postsCount === 1 ? 'post' : 'posts'}</strong> across <strong>{selectedLanguages.length} languages</strong>:
+            Targeting <strong>{postsCount} {postsCount === 1 ? itemSingular : itemPlural}</strong> across <strong>{selectedLanguages.length} languages</strong>:
           </span>
           <div className="ts-summary-langs-tags">
             {selectedLanguages.map((slug) => {

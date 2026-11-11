@@ -12,13 +12,22 @@ import { ENDPOINTS } from '../api/endpoints';
  * @param {string} [targetLang]
  * @returns {Promise<{ success: boolean, strings: Array }>}
  */
-export async function extractStrings(postId, builder = '', targetLang = '') {
+export async function extractStrings(postId, builder = '', targetLang = '', options = {}) {
+  const {
+    type = 'post',
+    subtype = '',
+    includeTaxonomies = true,
+  } = options || {};
+
   return await apiRequest(ENDPOINTS.EXTRACT_STRINGS, {
     method: 'POST',
     data: {
       post_id: Number(postId),
       builder,
       target_lang: targetLang,
+      type,
+      subtype,
+      include_taxonomies: Boolean(includeTaxonomies),
     },
   });
 }

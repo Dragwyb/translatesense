@@ -16,6 +16,7 @@ export function BulkWizard({
   onClose,
   translationState,
   allLanguages = [],
+  itemMeta = {},
 }) {
   const {
     currentStep,
@@ -115,6 +116,7 @@ export function BulkWizard({
         <SkipConfirmation
           isOpen={true}
           postId={skipModal.postId}
+          itemMeta={itemMeta}
           onClose={() => setSkipModal({ isOpen: false, postId: null, batchId: null })}
           onConfirm={() => handleSkipPost(skipModal.postId, skipModal.batchId)}
         />
@@ -140,10 +142,11 @@ export function BulkWizard({
         isCompact ? (
           compactStep === 1 ? (
             /* Compact Step 1: Language Selection Modal (<= 864px) */
-            <LanguageSelection
+              <LanguageSelection
               isOpen={true}
               onClose={handleModalClose}
               postIds={postIds}
+              itemMeta={itemMeta}
               allLanguages={allLanguages}
               selectedLanguages={selectedLanguages}
               onLanguagesChange={setSelectedLanguages}
@@ -170,6 +173,7 @@ export function BulkWizard({
               isOpen={true}
               onClose={handleModalClose}
               postIds={postIds}
+              itemMeta={itemMeta}
               allLanguages={allLanguages}
               selectedLanguages={selectedLanguages}
               providers={providers}
@@ -195,6 +199,7 @@ export function BulkWizard({
             isOpen={true}
             onClose={handleModalClose}
             postIds={postIds}
+            itemMeta={itemMeta}
             allLanguages={allLanguages}
             selectedLanguages={selectedLanguages}
             onLanguagesChange={setSelectedLanguages}
@@ -275,6 +280,7 @@ export function BulkWizard({
           showBackButton={showBackButton}
           onBack={handleBackFromProgress}
           canSkip={canSkip}
+          itemMeta={itemMeta}
         />
       ) : null}
     </div>

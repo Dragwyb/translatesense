@@ -17,6 +17,7 @@ export const ENDPOINTS = {
   BULK_UPDATE_JOB: 'bulk-update-job',
   BULK_SKIP_POST: 'bulk-skip-post',
   BULK_ACTIVE_BATCHES: 'bulk-active-batches',
+  BULK_TRANSLATE_TERM: 'bulk-translate-term',
   MARK_TRANSLATED: 'mark-translated',
   DISMISS_INITIAL_PROMPT: 'dismiss-initial-prompt',
 };

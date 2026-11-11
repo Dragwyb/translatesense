@@ -15,6 +15,7 @@ export function TranslationResults({
   filterOnlyFailed = false,
   onSkipPost,
   onErrorDetail,
+  itemMeta = {},
 }) {
   const postIdsList =
     orderedPostIds.length > 0
@@ -49,6 +50,7 @@ export function TranslationResults({
               activeBatchId={activeBatchId}
               onSkipPost={onSkipPost}
               onErrorDetail={onErrorDetail}
+              itemMeta={itemMeta}
             />
           );
         })}

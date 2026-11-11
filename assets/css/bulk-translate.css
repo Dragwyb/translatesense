@@ -26,6 +26,10 @@
   color: inherit !important;
 }
 
+.ts-bulk-tablenav-action .ts-filter-action-btn {
+  margin-bottom: 0 !important;
+}
+
 .ts-active-pulse-dot {
   position: relative;
   display: inline-flex;
