@@ -189,16 +189,11 @@ class Polylang_Bridge {
 
 		if ( $target_id > 0 && $target_id !== $source_post_id ) {
 			$target_post = get_post( $target_id );
-			if ( $target_post && 'trash' !== $target_post->post_status ) {
+			if ( $target_post ) {
 				return $target_id;
 			}
 		}
 
-		// Recover a target created by TranslateSense if a previous request
-		// stopped after insertion but before saving the Polylang group.
-		// Include non-public editorial statuses so draft/private translations
-		// can also be recovered. The REST permission callback must still check
-		// edit_post on the resolved ID before allowing an update.
 		$searchable_statuses = array_values(
 			array_diff(
 				get_post_stati( array(), 'names' ),

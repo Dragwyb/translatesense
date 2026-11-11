@@ -124,7 +124,8 @@ export function BulkProgressModal({
         ) : (
           statsSummary && (
             <ProgressSummary
-              completedCount={statsSummary.completed + statsSummary.alreadyExists}
+              completedCount={statsSummary.completed}
+              skippedCount={statsSummary.alreadyExists + statsSummary.skipped}
               failedCount={statsSummary.failed}
               totalCharacters={statsSummary.completedCharacters}
               totalCount={statsSummary.total}

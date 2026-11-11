@@ -142,7 +142,7 @@ export function BulkWizard({
         isCompact ? (
           compactStep === 1 ? (
             /* Compact Step 1: Language Selection Modal (<= 864px) */
-              <LanguageSelection
+            <LanguageSelection
               isOpen={true}
               onClose={handleModalClose}
               postIds={postIds}
@@ -275,6 +275,7 @@ export function BulkWizard({
               message: detail.message,
               errorObj: detail.errorObj,
               reasonHTML: detail.errorObj?.reasonHTML,
+              icon: detail.icon || 'dashicons-warning'
             })
           }
           showBackButton={showBackButton}

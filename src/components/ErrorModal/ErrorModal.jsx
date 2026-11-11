@@ -142,7 +142,12 @@ export function ErrorModal({
           />
         ) : message ? (
           <div className="ts-error-notice-card">
-            <span className="dashicons dashicons-warning" />
+            <span
+              className={`dashicons ${typeof icon === 'string' && icon.startsWith('dashicons-')
+                ? icon
+                : 'dashicons-warning'
+                }`}
+            />
             <p className="ts-error-text">{message}</p>
           </div>
         ) : null}

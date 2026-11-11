@@ -177,13 +177,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         }
         if (item.post_title) updated[pId].postTitle = item.post_title;
 
-        const fallbackEditUrl =
-          !batchIsTaxonomy && item.target_post_id
-            ? `post.php?post=${item.target_post_id}&action=edit`
-            : '';
-        const fallbackViewUrl =
-          !batchIsTaxonomy && item.target_post_id ? `/?p=${item.target_post_id}` : '';
-
         updated[pId].translations[tLang] = {
           targetLang: item.target_language,
           targetPostId: item.target_post_id,
@@ -200,8 +193,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           totalCharacters: item.total_characters || (item.total_strings ? item.total_strings * 45 : 0),
           progressPercent: getPostProgress(item),
           progressStatus: item.progress_status || '',
-          editUrl: item.edit_url || fallbackEditUrl,
-          viewUrl: item.view_url || fallbackViewUrl,
+          editUrl: item.edit_url,
+          viewUrl: item.view_url,
           error: item.error_message,
           provider: item.provider || batchData.provider,
         };
@@ -451,15 +444,15 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
       // Track live state of each job for accurate, continuous overall progress calculations matching pollStatus
       const runningJobs = jobsList.map((job) => {
-        const isExists = job.status === 'already_exists';
-        if (isExists) {
+        const isResolvedSkip = job.status === 'already_exists' || job.status === 'skipped';
+        if (isResolvedSkip) {
           completedCount++;
         }
         return {
           id: job.id,
           post_id: job.post_id,
           target_language: job.target_language,
-          status: isExists ? 'already_exists' : (job.status || 'pending'),
+          status: job.status || 'pending',
           total_strings: Number(job.total_strings) || 0,
           completed_strings: Number(job.completed_strings) || 0,
         };
@@ -525,7 +518,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         const jobId = job.id;
         const postTitle = job.post_title || `${itemTitlePrefix} #${postId}`;
 
-        if (job.status === 'already_exists') {
+        if (job.status === 'already_exists' || job.status === 'skipped') {
           continue;
         }
 
@@ -755,19 +748,19 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
             postRes = itemIsTaxonomy
               ? await translateBulkTerm({
-                  term_id: Number(postId),
-                  taxonomy: itemTaxonomy,
-                  target_lang: targetLang,
-                  provider: 'chrome_ai',
-                  in_memory_translations: inMemoryTranslations,
-                })
+                term_id: Number(postId),
+                taxonomy: itemTaxonomy,
+                target_lang: targetLang,
+                provider: 'chrome_ai',
+                in_memory_translations: inMemoryTranslations,
+              })
               : await translatePost({
-                  post_id: postId,
-                  target_lang: targetLang,
-                  provider: 'chrome_ai',
-                  in_memory_translations: inMemoryTranslations,
-                  include_taxonomies: true,
-                });
+                post_id: postId,
+                target_lang: targetLang,
+                provider: 'chrome_ai',
+                in_memory_translations: inMemoryTranslations,
+                include_taxonomies: true,
+              });
 
             totalStringsCount = rawStrings.length;
             completedStringsCount = rawStrings.length;
@@ -849,11 +842,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         }
       }
 
+      const hasRunnableJobs = runningJobs.some(
+        (job) => job.status === 'completed' || job.status === 'failed'
+      );
+
       setProgressPercent(100);
       setStatusText(
         failedCount > 0
           ? `Completed with ${failedCount} errors.`
-          : 'All translations completed successfully!'
+          : hasRunnableJobs
+            ? 'All translations completed successfully!'
+            : 'All selected translations already exist.'
       );
       setIsTranslating(false);
       stopTimer();
@@ -868,7 +867,9 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         return finalMap;
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (hasRunnableJobs) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
 
       setIsCompleted(true);
     },
@@ -942,6 +943,16 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           },
           true
         );
+        setTotalJobsCount(batchRes.jobs.length);
+        setCompletedJobsCount(
+          batchRes.jobs.filter(
+            (j) =>
+              j.status === 'completed' ||
+              j.status === 'already_exists' ||
+              j.status === 'skipped'
+          ).length
+        );
+        setProgressPercent(Math.round(getOverallProgress(batchRes.jobs)));
       }
 
       if (isChromeAi || isTaxonomy) {

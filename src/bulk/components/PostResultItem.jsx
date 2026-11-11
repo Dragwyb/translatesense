@@ -113,23 +113,16 @@ export function PostResultItem({
             const trans = translations[langSlug];
             const flagInfo = getLanguageFlag(langSlug, allLanguages);
             const displayTitle = getDisplayTitle(trans, postTitle, postId, itemSingularTitle);
-            const isDone = trans.status === 'completed' || trans.status === 'already_exists';
+            const isDone =
+              trans.status === 'completed' ||
+              (trans.status === 'already_exists' && !trans.error);
             const isFail = trans.status === 'failed';
             const isSkipped = trans.status === 'skipped';
             const isCancelling = trans.status === 'cancelling';
             const isRunning = trans.status === 'running' || trans.status === 'processing';
 
-            const editUrl = isTaxonomy
-              ? (trans.editUrl || '')
-              : (trans.editUrl ||
-                (trans.targetPostId
-                  ? trans.editorType === 'elementor'
-                    ? `post.php?post=${trans.targetPostId}&action=elementor`
-                    : `post.php?post=${trans.targetPostId}&action=edit`
-                  : ''));
-            const viewUrl = isTaxonomy
-              ? (trans.viewUrl || '')
-              : (trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : ''));
+            const editUrl = trans.editUrl && '' !== trans.editUrl ? trans.editUrl : '';
+            const viewUrl = trans.viewUrl && '' !== trans.viewUrl ? trans.viewUrl : ''
 
             const isUnsupported =
               trans.error &&
@@ -153,9 +146,29 @@ export function PostResultItem({
 
                 <div className="ts-trans-status-col">
                   {trans.status === 'already_exists' ? (
-                    <span className="ts-row-status completed already-exists">
-                      <span className="dashicons dashicons-yes-alt" /> Already exists
-                    </span>
+                    trans.error ? (
+                      <button
+                        type="button"
+                        className="ts-row-status failed ts-error-detail-btn"
+                        onClick={() =>
+                          onErrorDetail &&
+                          onErrorDetail({
+                            title: `${flagInfo.name} (${flagInfo.code}) — Already Exists`,
+                            message: trans.error,
+                            icon: flagInfo.hasFlag ? (
+                              <img src={flagInfo.flagUrl} alt="" className="ts-lang-flag-img" />
+                            ) : null
+                          })
+                        }
+                        title="Click to view details"
+                      >
+                        <span className="dashicons dashicons-yes-alt" /> Already exists
+                      </button>
+                    ) : (
+                      <span className="ts-row-status completed already-exists">
+                        <span className="dashicons dashicons-yes-alt" /> Already exists
+                      </span>
+                    )
                   ) : trans.status === 'completed' ? (
                     <span className="ts-row-status completed">
                       <span className="dashicons dashicons-yes-alt" /> Completed

@@ -242,13 +242,15 @@ class Bulk_Process {
 			$post_ids = self::filter_linked_posts( $post_ids );
 		}
 
-		$created_by      = absint( get_current_user_id() );
-		$item_type       = $is_term ? 'taxonomy' : 'post';
-		$created_jobs    = array();
-		$seen_pairs      = array();
-		$cutoff          = current_time( 'timestamp' ) - DAY_IN_SECONDS;
-		$cutoff_mysql    = gmdate( 'Y-m-d H:i:s', $cutoff );
-		$clean_languages = array();
+		$created_by       = absint( get_current_user_id() );
+		$item_type        = $is_term ? 'taxonomy' : 'post';
+		$created_jobs     = array();
+		$has_pending_jobs = false;
+		$languages        = ! $is_term ? Polylang_Bridge::get_languages() : array();
+		$seen_pairs       = array();
+		$cutoff           = current_time( 'timestamp' ) - DAY_IN_SECONDS;
+		$cutoff_mysql     = gmdate( 'Y-m-d H:i:s', $cutoff );
+		$clean_languages  = array();
 		foreach ( $target_languages as $language ) {
 			if ( is_string( $language ) || is_numeric( $language ) ) {
 				$language = sanitize_key( (string) $language );
@@ -298,6 +300,9 @@ class Bulk_Process {
 					}
 				}
 
+				$error_message     = null;
+				$is_trashed_target = false;
+
 				if ( $source_term instanceof \WP_Term ) {
 					$term_state          = Taxonomy_Translator::term_has_completed_translation( $item_id, $source_term->taxonomy, $target_lang );
 					$existing_target_id  = (int) $term_state['target_term_id'];
@@ -314,11 +319,30 @@ class Bulk_Process {
 				} else {
 					$existing_trans_id   = self::get_existing_translation_post_id( $item_id, $target_lang );
 					$has_existing_target = $existing_trans_id > 0 && $existing_trans_id !== $item_id;
-					$job_status          = $existing_trans_id ? 'already_exists' : 'pending';
-					$progress_status     = $existing_trans_id
+					$target_post_id      = $has_existing_target ? $existing_trans_id : 0;
+					$target_lang_name    = ! empty( $languages[ $target_lang ]['name'] )
+						? sanitize_text_field( (string) $languages[ $target_lang ]['name'] )
+						: strtoupper( $target_lang );
+
+					$job_status       = $existing_trans_id ? 'already_exists' : 'pending';
+					$progress_status  = $existing_trans_id
 						? 'Source already uses target language'
 						: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
-					$target_post_id      = $has_existing_target ? $existing_trans_id : 0;
+					$has_pending_jobs = $existing_trans_id ? false : true;
+
+					if ( $has_existing_target ) {
+						$existing_post   = get_post( $existing_trans_id );
+						$existing_status = ( $existing_post instanceof \WP_Post ) ? (string) $existing_post->post_status : '';
+
+						if ( 'trash' === $existing_status ) {
+							$progress_status = 'Already Exist in Trash';
+							$error_message   = sprintf(
+								/* translators: %s: Target language name */
+								__( 'This post already has a %s translation in the Trash. Delete the existing translated post first if you want to translate it again.', 'translatesense' ),
+								$target_lang_name
+							);
+						}
+					}
 				}
 
 				$insert_data = array(
@@ -334,7 +358,7 @@ class Bulk_Process {
 					'completed_strings' => 0,
 					'sent_data'         => null,
 					'receive_data'      => null,
-					'error_message'     => null,
+					'error_message'     => $error_message,
 					'target_post_id'    => $target_post_id,
 					'created_at'        => current_time( 'mysql' ),
 					'updated_at'        => current_time( 'mysql' ),
@@ -364,8 +388,8 @@ class Bulk_Process {
 					$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $item_id );
 					$insert_data['post_title']        = get_the_title( $item_id ) ?: sprintf( '#%d', $item_id );
 					$insert_data['target_post_title'] = $has_existing_target ? ( get_the_title( $target_post_id ) ?: '' ) : '';
-					$insert_data['view_url']          = $has_existing_target ? get_permalink( $target_post_id ) : '';
-					$insert_data['edit_url']          = $has_existing_target && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+					$insert_data['view_url']          = ( $has_existing_target && ! $is_trashed_target ) ? get_permalink( $target_post_id ) : '';
+					$insert_data['edit_url']          = ( $has_existing_target && $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 				}
 
 				$created_jobs[] = $insert_data;
@@ -373,7 +397,7 @@ class Bulk_Process {
 		}
 
 		// If backend post queue needs WP-Cron, schedule and trigger immediately.
-		if ( $is_backend && ! empty( $created_jobs ) && self::has_pending_or_running_jobs() ) {
+		if ( $is_backend && $has_pending_jobs && self::has_pending_or_running_jobs() ) {
 			self::schedule_cron_if_needed();
 			self::trigger_async_cron();
 		}
@@ -1267,9 +1291,10 @@ class Bulk_Process {
 				$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
 				$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
 				$target_post_title = $target_post ? $target_post->post_title : '';
+				$is_trashed_target = ( $target_post instanceof \WP_Post && 'trash' === $target_post->post_status );
 				$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
-				$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-				$view_url          = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
+				$edit_url          = ( $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				$view_url          = ( $target_post_id && ! $is_trashed_target && current_user_can( 'edit_post', $target_post_id ) ) ? get_permalink( $target_post_id ) : '';
 			}
 
 			if ( 'completed' === $status || 'already_exists' === $status || 'skipped' === $status ) {
@@ -1367,9 +1392,12 @@ class Bulk_Process {
 			if ( $already_exists_jobs > 0 && $completed_jobs > 0 ) {
 				/* translators: 1: Number of translated posts, 2: Number of already existing posts */
 				$current_status = sprintf( __( 'Completed! %1$d posts translated, %2$d already existed.', 'translatesense' ), $completed_jobs, $already_exists_jobs );
-			} elseif ( $already_exists_jobs > 0 && 0 === $completed_jobs ) {
+			} elseif ( $already_exists_jobs > 0 && 0 === $completed_jobs && 0 === $failed_jobs ) {
 				/* translators: %d: Number of already existing posts */
 				$current_status = sprintf( __( 'All %d selected translations already exist.', 'translatesense' ), $already_exists_jobs );
+			} elseif ( $failed_jobs > 0 && 0 === $completed_jobs ) {
+				/* translators: %d: Number of failed translation jobs */
+				$current_status = sprintf( __( 'Completed with %d failed.', 'translatesense' ), $failed_jobs );
 			} else {
 				/* translators: %d: Number of translated posts */
 				$current_status = sprintf( __( 'Completed! %d posts translated successfully.', 'translatesense' ), $completed_jobs );

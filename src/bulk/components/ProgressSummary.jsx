@@ -8,6 +8,7 @@ import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function ProgressSummary({
   completedCount = 0,
+  skippedCount = 0,
   failedCount = 0,
   totalCharacters = 0,
   totalCount = 0,
@@ -27,6 +28,20 @@ export function ProgressSummary({
             <div className="ts-stat-label">Completed {pluralTitle}</div>
             <div className="ts-stat-val">
               {completedCount} / {totalCount}
+            </div>
+          </div>
+        </div>
+      }
+
+      {skippedCount > 0 &&
+        <div className="ts-stat-card gray">
+          <div className="ts-stat-icon-box gray">
+            <span className="dashicons dashicons-controls-skipforward" />
+          </div>
+          <div className="ts-stat-info">
+            <div className="ts-stat-label">Skipped {pluralTitle}</div>
+            <div className="ts-stat-val">
+              {skippedCount} / {totalCount}
             </div>
           </div>
         </div>

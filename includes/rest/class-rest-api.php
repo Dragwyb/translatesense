@@ -4507,7 +4507,7 @@ class Rest_Api {
 	/**
 	 * Get an existing target translation post ID.
 	 *
-	 * @param int    $source_post_id Source post ID.
+	 * @param int    $source_post_id  Source post ID.
 	 * @param string $target_language Target language slug.
 	 * @return int Target post ID or 0.
 	 */
@@ -4517,7 +4517,7 @@ class Rest_Api {
 		// orphaned target recovered through _translatesense_source_id.
 		return Polylang_Bridge::get_existing_translation_post_id(
 			absint( $source_post_id ),
-			sanitize_key( (string) $target_language )
+			sanitize_key( (string) $target_language ),
 		);
 	}
 

@@ -868,6 +868,25 @@ button.ts-error-detail-btn:hover {
   box-shadow: 0 2px 4px rgba(220, 38, 38, 0.15);
 }
 
+.ts-error-notice-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ts-error-notice-card .dashicons {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #b45309;
+}
+
+.ts-error-notice-card .ts-error-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #334155;
+}
+
 .ts-row-status.translating {
   background: #eff6ff;
   color: #2563eb;
@@ -1233,12 +1252,18 @@ button.ts-error-detail-btn:hover {
 }
 
 .ts-stat-card.gray {
+  background: #f8fafc;
+  border-color: #cbd5e1;
   border-left: 4px solid #94a3b8;
 }
 
 .ts-stat-icon-box.gray {
-  background: #f1f5f9;
-  color: #64748b;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.ts-stat-card.gray .ts-stat-label {
+  color: #475569;
 }
 
 .ts-skip-dialog-overlay {
