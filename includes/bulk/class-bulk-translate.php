@@ -96,6 +96,7 @@ class Bulk_Translate {
 	 */
 	public static function enqueue_bulk_assets( $hook ) {
 		$item_type = '';
+		$post_type = '';
 		$taxonomy  = '';
 
 		if ( 'edit.php' === $hook ) {
@@ -198,9 +199,22 @@ class Bulk_Translate {
 			true
 		);
 
-		$tax_obj       = ( 'taxonomy' === $item_type && '' !== $taxonomy ) ? get_taxonomy( $taxonomy ) : null;
-		$item_singular = ( $tax_obj && ! empty( $tax_obj->labels->singular_name ) ) ? strtolower( (string) $tax_obj->labels->singular_name ) : 'term';
-		$item_plural   = ( $tax_obj && ! empty( $tax_obj->labels->name ) ) ? strtolower( (string) $tax_obj->labels->name ) : 'terms';
+		$label_obj = ( 'taxonomy' === $item_type && '' !== $taxonomy )
+			? get_taxonomy( $taxonomy )
+			: ( '' !== $post_type ? get_post_type_object( $post_type ) : null );
+
+		$fallback_singular = ( 'taxonomy' === $item_type ) ? 'term' : 'post';
+		$fallback_plural   = ( 'taxonomy' === $item_type ) ? 'terms' : 'posts';
+
+		$raw_item_label    = ( $label_obj && ! empty( $label_obj->labels->name ) )
+			? (string) $label_obj->labels->name
+			: ucfirst( $fallback_plural );
+		$raw_item_singular = ( $label_obj && ! empty( $label_obj->labels->singular_name ) )
+			? (string) $label_obj->labels->singular_name
+			: $fallback_singular;
+
+		$item_singular = function_exists( 'mb_strtolower' ) ? mb_strtolower( $raw_item_singular, 'UTF-8' ) : strtolower( $raw_item_singular );
+		$item_plural   = function_exists( 'mb_strtolower' ) ? mb_strtolower( $raw_item_label, 'UTF-8' ) : strtolower( $raw_item_label );
 
 		wp_localize_script(
 			'translatesense-bulk',
@@ -208,9 +222,9 @@ class Bulk_Translate {
 			array(
 				'itemType'                  => $item_type,
 				'taxonomy'                  => $taxonomy,
-				'taxonomyLabel'             => ( $tax_obj && ! empty( $tax_obj->labels->name ) ) ? (string) $tax_obj->labels->name : '',
-				'itemSingular'              => ( 'taxonomy' === $item_type ) ? $item_singular : 'post',
-				'itemPlural'                => ( 'taxonomy' === $item_type ) ? $item_plural : 'posts',
+				'itemLabel'                 => $raw_item_label,
+				'itemSingular'              => $item_singular,
+				'itemPlural'                => $item_plural,
 				'restUrl'                   => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
 				'nonce'                     => wp_create_nonce( 'wp_rest' ),
 				'polylangActive'            => Polylang_Bridge::is_polylang_active(),
