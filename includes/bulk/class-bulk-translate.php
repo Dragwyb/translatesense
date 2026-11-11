@@ -7,6 +7,7 @@ namespace TranslateSense\Includes\Bulk;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Admin\Admin_Menu;
 use TranslateSense\Includes\AI\Ai_Connector_Bridge;
+use TranslateSense\Includes\Content\Parser\Taxonomy\Taxonomy_Parser;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -20,7 +21,35 @@ class Bulk_Translate {
 	public static function init() {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_bulk_assets' ) );
 		add_action( 'manage_posts_extra_tablenav', array( __CLASS__, 'render_filter_translate_button' ), 20, 1 );
-		add_action( 'admin_footer-edit.php', array( __CLASS__, 'render_bulk_modal_container' ) );
+	}
+
+	/**
+	 * Helper to get current Polylang-translatable taxonomy on edit-tags.php when authorized.
+	 */
+	private static function get_current_screen_translatable_taxonomy(): string {
+		if ( ! Polylang_Bridge::is_polylang_active() ) {
+			return '';
+		}
+
+		global $current_screen, $taxnow;
+		$taxonomy = '';
+
+		if ( ! empty( $taxnow ) ) {
+			$taxonomy = sanitize_key( (string) $taxnow );
+		} elseif ( $current_screen && ! empty( $current_screen->taxonomy ) ) {
+			$taxonomy = sanitize_key( (string) $current_screen->taxonomy );
+		}
+
+		if ( '' === $taxonomy || ! Taxonomy_Parser::is_translatable_taxonomy( $taxonomy ) ) {
+			return '';
+		}
+
+		$tax_obj = get_taxonomy( $taxonomy );
+		if ( ! $tax_obj || ! Taxonomy_Parser::user_has_cap( null, (string) $tax_obj->cap->manage_terms ) ) {
+			return '';
+		}
+
+		return $taxonomy;
 	}
 
 	/**
@@ -63,15 +92,25 @@ class Bulk_Translate {
 	}
 
 	/**
-	 * Enqueue assets on edit.php only for Polylang translated post types.
+	 * Enqueue assets on edit.php (Polylang translated post types) and edit-tags.php (Polylang translated taxonomies).
 	 */
 	public static function enqueue_bulk_assets( $hook ) {
-		if ( 'edit.php' !== $hook ) {
-			return;
-		}
+		$item_type = '';
+		$taxonomy  = '';
 
-		$post_type = self::get_current_screen_post_type();
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+		if ( 'edit.php' === $hook ) {
+			$post_type = self::get_current_screen_post_type();
+			if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
+				return;
+			}
+			$item_type = 'post';
+		} elseif ( 'edit-tags.php' === $hook ) {
+			$taxonomy = self::get_current_screen_translatable_taxonomy();
+			if ( '' === $taxonomy ) {
+				return;
+			}
+			$item_type = 'taxonomy';
+		} else {
 			return;
 		}
 
@@ -159,40 +198,36 @@ class Bulk_Translate {
 			true
 		);
 
+		$tax_obj       = ( 'taxonomy' === $item_type && '' !== $taxonomy ) ? get_taxonomy( $taxonomy ) : null;
+		$item_singular = ( $tax_obj && ! empty( $tax_obj->labels->singular_name ) ) ? strtolower( (string) $tax_obj->labels->singular_name ) : 'term';
+		$item_plural   = ( $tax_obj && ! empty( $tax_obj->labels->name ) ) ? strtolower( (string) $tax_obj->labels->name ) : 'terms';
+
 		wp_localize_script(
 			'translatesense-bulk',
 			'TranslateSenseBulkData',
 			array(
-				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'            => wp_create_nonce( 'wp_rest' ),
+				'itemType'                  => $item_type,
+				'taxonomy'                  => $taxonomy,
+				'taxonomyLabel'             => ( $tax_obj && ! empty( $tax_obj->labels->name ) ) ? (string) $tax_obj->labels->name : '',
+				'itemSingular'              => ( 'taxonomy' === $item_type ) ? $item_singular : 'post',
+				'itemPlural'                => ( 'taxonomy' === $item_type ) ? $item_plural : 'posts',
+				'restUrl'                   => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'                     => wp_create_nonce( 'wp_rest' ),
 				'polylangActive'            => Polylang_Bridge::is_polylang_active(),
 				'isCustomFieldsSyncEnabled' => Polylang_Bridge::is_custom_fields_sync_enabled(),
 				'defaultLanguage'           => Polylang_Bridge::get_default_language(),
-				'languages'        => Polylang_Bridge::get_languages(),
-				'defaultProvider'  => $settings['provider'] ?? '',
-				'enabledProviders' => $active_providers,
-				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
-				'docsUrl'          => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'settingsUrl'      => Admin_Menu::get_dashboard_url( 'settings' ),
-				'connectorsUrl'    => admin_url( 'options-connectors.php' ),
-				'hasOpenAiKey'     => ! empty( $settings['openai_api_key'] ),
-				'hasGeminiKey'     => ! empty( $settings['gemini_api_key'] ),
-				'slugTranslation'  => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
-				'postStatus'       => ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft',
+				'languages'                 => Polylang_Bridge::get_languages(),
+				'defaultProvider'           => $settings['provider'] ?? '',
+				'enabledProviders'          => $active_providers,
+				'pluginUrl'                 => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'                   => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
+				'settingsUrl'               => Admin_Menu::get_dashboard_url( 'settings' ),
+				'connectorsUrl'             => admin_url( 'options-connectors.php' ),
+				'hasOpenAiKey'              => ! empty( $settings['openai_api_key'] ),
+				'hasGeminiKey'              => ! empty( $settings['gemini_api_key'] ),
+				'slugTranslation'           => ( isset( $settings['slug_translation'] ) && in_array( sanitize_key( (string) $settings['slug_translation'] ), array( 'keep_orignal', 'title_based', 'slug_translate' ), true ) ) ? sanitize_key( (string) $settings['slug_translation'] ) : 'slug_translate',
+				'postStatus'                => ( isset( $settings['post_status'] ) && in_array( sanitize_key( (string) $settings['post_status'] ), array( 'publish', 'draft' ), true ) ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft',
 			)
 		);
-	}
-
-	/**
-	 * Render portal container in admin footer on edit.php (only for Polylang translated post types).
-	 */
-	public static function render_bulk_modal_container() {
-		$post_type = self::get_current_screen_post_type();
-		if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
-			return;
-		}
-		?>
-		<div id="translatesense-bulk-modal-root"></div>
-		<?php
 	}
 }
