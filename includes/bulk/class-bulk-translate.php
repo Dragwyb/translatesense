@@ -27,25 +27,17 @@ class Bulk_Translate {
 	 * Helper to get current Polylang-translatable taxonomy on edit-tags.php when authorized.
 	 */
 	private static function get_current_screen_translatable_taxonomy(): string {
-		if ( ! Polylang_Bridge::is_polylang_active() ) {
-			return '';
-		}
-
 		global $current_screen, $taxnow;
-		$taxonomy = '';
-
-		if ( ! empty( $taxnow ) ) {
-			$taxonomy = sanitize_key( (string) $taxnow );
-		} elseif ( $current_screen && ! empty( $current_screen->taxonomy ) ) {
-			$taxonomy = sanitize_key( (string) $current_screen->taxonomy );
-		}
+		$taxonomy = ! empty( $taxnow )
+			? sanitize_key( (string) $taxnow )
+			: ( $current_screen && ! empty( $current_screen->taxonomy ) ? sanitize_key( (string) $current_screen->taxonomy ) : '' );
 
 		if ( '' === $taxonomy || ! Taxonomy_Parser::is_translatable_taxonomy( $taxonomy ) ) {
 			return '';
 		}
 
 		$tax_obj = get_taxonomy( $taxonomy );
-		if ( ! $tax_obj || ! Taxonomy_Parser::user_has_cap( null, (string) $tax_obj->cap->manage_terms ) ) {
+		if ( ! $tax_obj || ! current_user_can( $tax_obj->cap->manage_terms ) ) {
 			return '';
 		}
 
@@ -95,7 +87,6 @@ class Bulk_Translate {
 	 * Enqueue assets on edit.php (Polylang translated post types) and edit-tags.php (Polylang translated taxonomies).
 	 */
 	public static function enqueue_bulk_assets( $hook ) {
-		$item_type = '';
 		$post_type = '';
 		$taxonomy  = '';
 
@@ -104,13 +95,11 @@ class Bulk_Translate {
 			if ( ! Polylang_Bridge::is_translated_post_type( $post_type ) ) {
 				return;
 			}
-			$item_type = 'post';
 		} elseif ( 'edit-tags.php' === $hook ) {
 			$taxonomy = self::get_current_screen_translatable_taxonomy();
 			if ( '' === $taxonomy ) {
 				return;
 			}
-			$item_type = 'taxonomy';
 		} else {
 			return;
 		}
@@ -199,30 +188,21 @@ class Bulk_Translate {
 			true
 		);
 
-		$label_obj = ( 'taxonomy' === $item_type && '' !== $taxonomy )
-			? get_taxonomy( $taxonomy )
-			: ( '' !== $post_type ? get_post_type_object( $post_type ) : null );
+		$is_taxonomy_screen = ( '' !== $taxonomy );
+		$subtype            = $is_taxonomy_screen ? $taxonomy : $post_type;
+		$label_obj          = $is_taxonomy_screen ? get_taxonomy( $taxonomy ) : get_post_type_object( $post_type );
 
-		$fallback_singular = ( 'taxonomy' === $item_type ) ? 'term' : 'post';
-		$fallback_plural   = ( 'taxonomy' === $item_type ) ? 'terms' : 'posts';
-
-		$raw_item_label    = ( $label_obj && ! empty( $label_obj->labels->name ) )
-			? (string) $label_obj->labels->name
-			: ucfirst( $fallback_plural );
-		$raw_item_singular = ( $label_obj && ! empty( $label_obj->labels->singular_name ) )
-			? (string) $label_obj->labels->singular_name
-			: $fallback_singular;
-
-		$item_singular = function_exists( 'mb_strtolower' ) ? mb_strtolower( $raw_item_singular, 'UTF-8' ) : strtolower( $raw_item_singular );
-		$item_plural   = function_exists( 'mb_strtolower' ) ? mb_strtolower( $raw_item_label, 'UTF-8' ) : strtolower( $raw_item_label );
+		$item_label    = ! empty( $label_obj->labels->name ) ? (string) $label_obj->labels->name : ( $is_taxonomy_screen ? 'Terms' : 'Posts' );
+		$item_singular = strtolower( ! empty( $label_obj->labels->singular_name ) ? (string) $label_obj->labels->singular_name : ( $is_taxonomy_screen ? 'term' : 'post' ) );
+		$item_plural   = strtolower( $item_label );
 
 		wp_localize_script(
 			'translatesense-bulk',
 			'TranslateSenseBulkData',
 			array(
-				'itemType'                  => $item_type,
-				'taxonomy'                  => $taxonomy,
-				'itemLabel'                 => $raw_item_label,
+				'type'                      => $is_taxonomy_screen ? 'term' : 'post',
+				'subtype'                   => $subtype,
+				'itemLabel'                 => $item_label,
 				'itemSingular'              => $item_singular,
 				'itemPlural'                => $item_plural,
 				'restUrl'                   => esc_url_raw( rest_url( 'translatesense/v1/' ) ),

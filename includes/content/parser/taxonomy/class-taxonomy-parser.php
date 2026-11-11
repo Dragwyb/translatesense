@@ -28,7 +28,7 @@ class Taxonomy_Parser {
 	const MAX_PARENT_DEPTH = 25;
 
 	/**
-	 * Return the active Polylang term model when its required methods exist.
+	 * Return the active Polylang term model when available.
 	 *
 	 * @return object|null
 	 */
@@ -38,22 +38,27 @@ class Taxonomy_Parser {
 		}
 
 		$polylang = PLL();
-		if (
-			! is_object( $polylang )
-			|| ! isset( $polylang->model->term )
-			|| ! is_object( $polylang->model->term )
-		) {
+		if ( ! is_object( $polylang ) || empty( $polylang->model->term ) || ! is_object( $polylang->model->term ) ) {
 			return null;
 		}
 
-		$model = $polylang->model->term;
-		foreach ( array( 'get_language', 'get_translation', 'get_translations', 'set_language', 'save_translations' ) as $method ) {
-			if ( ! is_callable( array( $model, $method ) ) ) {
-				return null;
-			}
+		return $polylang->model->term;
+	}
+
+	/**
+	 * Get a taxonomy term's Polylang language slug, or empty string when unassigned.
+	 *
+	 * @param int $term_id Term ID.
+	 * @return string
+	 */
+	public static function get_term_language( int $term_id ): string {
+		$model = self::get_term_model();
+		if ( ! $model || $term_id <= 0 ) {
+			return '';
 		}
 
-		return $model;
+		$language = $model->get_language( $term_id );
+		return ( is_object( $language ) && ! empty( $language->slug ) ) ? sanitize_key( (string) $language->slug ) : '';
 	}
 
 	/**
@@ -68,19 +73,9 @@ class Taxonomy_Parser {
 			return false;
 		}
 
-		if ( function_exists( 'pll_is_translated_taxonomy' ) ) {
-			return (bool) pll_is_translated_taxonomy( $taxonomy );
-		}
-
-		$polylang = function_exists( 'PLL' ) ? PLL() : null;
-		$options  = is_object( $polylang ) && isset( $polylang->options ) && is_array( $polylang->options )
-			? $polylang->options
-			: get_option( 'polylang', array() );
-
-		return is_array( $options )
-			&& isset( $options['taxonomies'] )
-			&& is_array( $options['taxonomies'] )
-			&& in_array( $taxonomy, $options['taxonomies'], true );
+		return Polylang_Bridge::is_polylang_active()
+			&& function_exists( 'pll_is_translated_taxonomy' )
+			&& (bool) pll_is_translated_taxonomy( $taxonomy );
 	}
 
 	/**
@@ -102,11 +97,6 @@ class Taxonomy_Parser {
 
 		$translated_id = absint( $model->get_translation( $term_id, $target_lang ) );
 		if ( $translated_id <= 0 ) {
-			$translations  = (array) $model->get_translations( $term_id );
-			$translated_id = isset( $translations[ $target_lang ] ) ? absint( $translations[ $target_lang ] ) : 0;
-		}
-
-		if ( $translated_id <= 0 ) {
 			return 0;
 		}
 
@@ -116,12 +106,7 @@ class Taxonomy_Parser {
 			return 0;
 		}
 
-		$target_language = $model->get_language( $translated_id );
-		if (
-			! is_object( $target_language )
-			|| empty( $target_language->slug )
-			|| sanitize_key( (string) $target_language->slug ) !== $target_lang
-		) {
+		if ( self::get_term_language( $translated_id ) !== $target_lang ) {
 			return 0;
 		}
 
@@ -184,17 +169,12 @@ class Taxonomy_Parser {
 	 * @return string[]
 	 */
 	public static function get_supported_taxonomies(): array {
-		$taxonomies = get_taxonomies( array(), 'names' );
-		$supported  = array();
-
-		foreach ( (array) $taxonomies as $taxonomy ) {
-			$slug = sanitize_key( (string) $taxonomy );
-			if ( '' !== $slug && self::is_translatable_taxonomy( $slug ) ) {
-				$supported[] = $slug;
-			}
-		}
-
-		return array_values( array_unique( $supported ) );
+		return array_values(
+			array_filter(
+				(array) get_taxonomies( array(), 'names' ),
+				array( __CLASS__, 'is_translatable_taxonomy' )
+			)
+		);
 	}
 
 	/**
@@ -389,21 +369,9 @@ class Taxonomy_Parser {
 			return false;
 		}
 
-		if ( null === $user ) {
-			return function_exists( 'current_user_can' ) && current_user_can( $capability, ...$args );
-		}
-
-		if ( is_int( $user ) ) {
-			if ( $user <= 0 || ! function_exists( 'get_userdata' ) ) {
-				return false;
-			}
-			$user = get_userdata( $user );
-		}
-
-		return $user instanceof WP_User
-			&& $user->exists()
-			&& function_exists( 'user_can' )
-			&& user_can( $user, $capability, ...$args );
+		return null === $user
+			? current_user_can( $capability, ...$args )
+			: user_can( $user, $capability, ...$args );
 	}
 
 	/**
@@ -483,8 +451,7 @@ class Taxonomy_Parser {
 		?int $user_id,
 		bool $enforce_permissions
 	): array {
-		$term_language = $model->get_language( (int) $term->term_id );
-		if ( is_object( $term_language ) && ! empty( $term_language->slug ) && sanitize_key( (string) $term_language->slug ) === $target_lang ) {
+		if ( self::get_term_language( (int) $term->term_id ) === $target_lang ) {
 			return array();
 		}
 
@@ -497,7 +464,10 @@ class Taxonomy_Parser {
 				return array();
 			}
 
-			foreach ( array( 'name' => (string) $term->name, 'description' => (string) $term->description ) as $field => $raw_val ) {
+			foreach ( array(
+				'name'        => (string) $term->name,
+				'description' => (string) $term->description,
+			) as $field => $raw_val ) {
 				$item = self::format_string_item( $term, 'taxonomy_term', 'term_' . (int) $term->term_id . '_' . $field, $raw_val, $field );
 				if ( null !== $item ) {
 					$strings[] = $item;
@@ -554,11 +524,9 @@ class Taxonomy_Parser {
 			return array();
 		}
 
-		if ( method_exists( Polylang_Bridge::class, 'get_languages' ) ) {
-			$languages = Polylang_Bridge::get_languages();
-			if ( ! empty( $languages ) && ! isset( $languages[ $target_lang ] ) ) {
-				return array();
-			}
+		$languages = Polylang_Bridge::get_languages();
+		if ( ! empty( $languages ) && ! isset( $languages[ $target_lang ] ) ) {
+			return array();
 		}
 
 		$taxonomy_object = get_taxonomy( $taxonomy );
@@ -608,11 +576,9 @@ class Taxonomy_Parser {
 			return array();
 		}
 
-		if ( method_exists( Polylang_Bridge::class, 'get_languages' ) ) {
-			$languages = Polylang_Bridge::get_languages();
-			if ( ! empty( $languages ) && ! isset( $languages[ $target_lang ] ) ) {
-				return array();
-			}
+		$languages = Polylang_Bridge::get_languages();
+		if ( ! empty( $languages ) && ! isset( $languages[ $target_lang ] ) ) {
+			return array();
 		}
 
 		if ( $enforce_permissions && ! self::user_has_cap( $user_id, 'edit_post', $post_id ) ) {
@@ -641,4 +607,3 @@ class Taxonomy_Parser {
 		return $strings;
 	}
 }
-

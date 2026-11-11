@@ -46,7 +46,7 @@ class Taxonomy_Translator {
 		}
 
 		if ( $enforce_permissions && null !== $user_id ) {
-			$user_obj = ( $user_id > 0 && function_exists( 'get_userdata' ) ) ? get_userdata( $user_id ) : null;
+			$user_obj = $user_id > 0 ? get_userdata( $user_id ) : null;
 			if ( ! $user_obj instanceof WP_User || ! $user_obj->exists() ) {
 				return new WP_Error( 'translatesense_taxonomy_invalid_user', __( 'The user account for taxonomy translation could not be verified.', 'translatesense' ), array( 'status' => 403 ) );
 			}
@@ -116,12 +116,8 @@ class Taxonomy_Translator {
 		?int $user_id,
 		object $taxonomy_object
 	) {
-		$model = Taxonomy_Parser::get_term_model();
-		if ( $model ) {
-			$term_language = $model->get_language( (int) $term->term_id );
-			if ( is_object( $term_language ) && ! empty( $term_language->slug ) && sanitize_key( (string) $term_language->slug ) === $target_lang ) {
-				return true;
-			}
+		if ( Taxonomy_Parser::get_term_language( (int) $term->term_id ) === $target_lang ) {
+			return true;
 		}
 
 		$target_term_id = Taxonomy_Parser::get_translation_id( (int) $term->term_id, $target_lang );
@@ -435,15 +431,11 @@ class Taxonomy_Translator {
 			return $result;
 		}
 
-		$model = Taxonomy_Parser::get_term_model();
-		if ( $model ) {
-			$term_lang = $model->get_language( (int) $term->term_id );
-			if ( is_object( $term_lang ) && ! empty( $term_lang->slug ) && sanitize_key( (string) $term_lang->slug ) === $target_lang ) {
-				$result['exists']         = true;
-				$result['target_term_id'] = (int) $term->term_id;
-				$result['is_same_lang']   = true;
-				return $result;
-			}
+		if ( Taxonomy_Parser::get_term_language( (int) $term->term_id ) === $target_lang ) {
+			$result['exists']         = true;
+			$result['target_term_id'] = (int) $term->term_id;
+			$result['is_same_lang']   = true;
+			return $result;
 		}
 
 		$target_term_id = Taxonomy_Parser::get_translation_id( (int) $term->term_id, $target_lang );
@@ -598,16 +590,12 @@ class Taxonomy_Translator {
 		}
 
 		$source_lang = sanitize_key( (string) ( $options['source_lang'] ?? '' ) );
-		$model       = Taxonomy_Parser::get_term_model();
-		if ( '' === $source_lang && $model ) {
+		if ( '' === $source_lang ) {
 			foreach ( $authorized_terms as $term ) {
-				$t_lang = $model->get_language( (int) $term->term_id );
-				if ( is_object( $t_lang ) && ! empty( $t_lang->slug ) ) {
-					$slug = sanitize_key( (string) $t_lang->slug );
-					if ( '' !== $slug && $slug !== $target_lang ) {
-						$source_lang = $slug;
-						break;
-					}
+				$slug = Taxonomy_Parser::get_term_language( (int) $term->term_id );
+				if ( '' !== $slug && $slug !== $target_lang ) {
+					$source_lang = $slug;
+					break;
 				}
 			}
 		}
@@ -1046,10 +1034,8 @@ class Taxonomy_Translator {
 			return new WP_Error( 'translatesense_polylang_term_api_unavailable', __( 'Polylang term translation APIs are unavailable.', 'translatesense' ) );
 		}
 
-		$term_language      = $model->get_language( $source_term_id );
-		$actual_source_lang = is_object( $term_language ) && ! empty( $term_language->slug )
-			? sanitize_key( (string) $term_language->slug )
-			: sanitize_key( $source_lang );
+		$term_language      = Taxonomy_Parser::get_term_language( $source_term_id );
+		$actual_source_lang = '' !== $term_language ? $term_language : sanitize_key( $source_lang );
 
 		if ( $actual_source_lang === $target_lang ) {
 			return $source_term_id;
@@ -1273,16 +1259,13 @@ class Taxonomy_Translator {
 				if ( $parent_matches && $no_source_clash && is_object( $duplicate_language ) && $target_lang === $duplicate_language->slug ) {
 					$inserted = array( 'term_id' => $duplicate_id );
 				} else {
-					$fallback_slug = $slug . '-' . $target_lang;
-					if ( function_exists( 'wp_unique_term_slug' ) ) {
-						$fallback_slug = wp_unique_term_slug(
-							$fallback_slug,
-							(object) array(
-								'taxonomy' => $source_term->taxonomy,
-								'parent'   => $target_parent_id,
-							)
-						);
-					}
+					$fallback_slug = wp_unique_term_slug(
+						$slug . '-' . $target_lang,
+						(object) array(
+							'taxonomy' => $source_term->taxonomy,
+							'parent'   => $target_parent_id,
+						)
+					);
 
 					$inserted = wp_insert_term(
 						wp_slash( $translated_name ),
@@ -1344,16 +1327,8 @@ class Taxonomy_Translator {
 			return;
 		}
 
-		$model = Taxonomy_Parser::get_term_model();
-		if ( $model ) {
-			$target_parent_lang = $model->get_language( $target_parent_id );
-			if (
-				! is_object( $target_parent_lang )
-				|| empty( $target_parent_lang->slug )
-				|| sanitize_key( (string) $target_parent_lang->slug ) !== $target_lang
-			) {
-				return;
-			}
+		if ( Taxonomy_Parser::get_term_model() && Taxonomy_Parser::get_term_language( $target_parent_id ) !== $target_lang ) {
+			return;
 		}
 
 		$children = get_terms(

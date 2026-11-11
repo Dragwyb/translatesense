@@ -6,7 +6,9 @@ namespace TranslateSense\Includes\Bulk;
 
 use TranslateSense\Includes\Content\Parser\Content_Parser;
 use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
+use TranslateSense\Includes\Content\Parser\Taxonomy\Taxonomy_Parser;
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\Taxonomy\Taxonomy_Translator;
 use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Admin\Editor_Integration;
@@ -180,12 +182,13 @@ class Bulk_Process {
 		return $filtered_post_ids;
 	}
 
-	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai' ): array {
+	public static function create_batch( array $post_ids, array $target_languages, string $provider = 'openai', array $options = array() ): array {
 		global $wpdb;
 
 		$table    = self::get_table_name();
 		$batch_id = wp_generate_uuid4();
 		$provider = sanitize_key( $provider );
+
 		if ( '' === $provider ) {
 			return array(
 				'batch_id'   => '',
@@ -197,14 +200,54 @@ class Bulk_Process {
 				'error'      => __( 'Please select a valid translation provider.', 'translatesense' ),
 			);
 		}
-		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
 
-		$post_ids        = self::filter_linked_posts( $post_ids );
-		$created_jobs    = array();
-		$seen_pairs      = array();
-		$cutoff          = current_time( 'timestamp' ) - DAY_IN_SECONDS;
-		$cutoff_mysql    = gmdate( 'Y-m-d H:i:s', $cutoff );
-		$clean_languages = array();
+		$subtype = sanitize_key( (string) ( $options['subtype'] ?? '' ) );
+		$type    = sanitize_key( (string) ( $options['type'] ?? '' ) );
+		if ( 'term' !== $type && '' !== $subtype && taxonomy_exists( $subtype ) ) {
+			$type = 'term';
+		} elseif ( 'term' !== $type ) {
+			$type = 'post';
+		}
+
+		$is_term = ( 'term' === $type );
+		if ( $is_term && '' === $subtype && ! empty( $post_ids ) ) {
+			$first_term = get_term( absint( reset( $post_ids ) ) );
+			if ( $first_term instanceof \WP_Term ) {
+				$subtype = sanitize_key( (string) $first_term->taxonomy );
+			}
+		}
+
+		if ( $is_term && ( '' === $subtype || ! Taxonomy_Parser::is_translatable_taxonomy( $subtype ) ) ) {
+			return array(
+				'batch_id'   => '',
+				'type'       => 'term',
+				'subtype'    => $subtype,
+				'total_jobs' => 0,
+				'jobs'       => array(),
+				'post_ids'   => array(),
+				'is_backend' => false,
+				'provider'   => $provider,
+				'error'      => __( 'The selected taxonomy is not registered or supported for translation in Polylang.', 'translatesense' ),
+			);
+		}
+
+		$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
+		$is_backend   = ! $is_chrome_ai && ! $is_term;
+
+		if ( $is_term ) {
+			$filtered_terms = Taxonomy_Parser::filter_linked_terms( $post_ids, $subtype );
+			$ordered_terms  = Taxonomy_Parser::order_terms_parent_first( $filtered_terms, $subtype );
+			$post_ids       = array_keys( $ordered_terms );
+		} else {
+			$post_ids = self::filter_linked_posts( $post_ids );
+		}
+
+		$initiating_user_id = absint( get_current_user_id() );
+		$created_jobs       = array();
+		$seen_pairs         = array();
+		$cutoff             = current_time( 'timestamp' ) - DAY_IN_SECONDS;
+		$cutoff_mysql       = gmdate( 'Y-m-d H:i:s', $cutoff );
+		$clean_languages    = array();
 		foreach ( $target_languages as $language ) {
 			if ( is_string( $language ) || is_numeric( $language ) ) {
 				$language = sanitize_key( (string) $language );
@@ -216,10 +259,14 @@ class Bulk_Process {
 		$target_languages = array_values( array_unique( $clean_languages ) );
 
 		foreach ( $post_ids as $p_id ) {
-			$post_id = (int) $p_id;
-			if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+			$item_id     = (int) $p_id;
+			$source_term = $is_term ? get_term( $item_id, $subtype ) : null;
+			$source_post = ! $is_term ? get_post( $item_id ) : null;
+
+			if ( $is_term ? ( ! $source_term instanceof \WP_Term ) : ( ! $source_post instanceof \WP_Post ) ) {
 				continue;
 			}
+			$item_subtype = $is_term ? (string) $source_term->taxonomy : (string) $source_post->post_type;
 
 			foreach ( $target_languages as $lang ) {
 				$target_lang = sanitize_key( $lang );
@@ -227,41 +274,55 @@ class Bulk_Process {
 					continue;
 				}
 
-				$pair_key = $post_id . ':' . $target_lang;
+				$pair_key = $item_id . ':' . $target_lang;
 				if ( isset( $seen_pairs[ $pair_key ] ) ) {
 					continue;
 				}
 				$seen_pairs[ $pair_key ] = true;
 
-				// A recent pending job already covers this post and language.
-				// Running jobs are deliberately not blocked by this rule.
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-				$pending_job_id = $wpdb->get_var(
-					$wpdb->prepare(
-						"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s AND provider IN ('openai', 'gemini') ORDER BY id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-						$post_id,
-						$target_lang,
-						$cutoff_mysql
-					)
-				);
-				if ( $pending_job_id ) {
-					continue;
+				if ( ! $is_term ) {
+					// A recent pending job already covers this post and language.
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+					$pending_job_id = $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT id FROM {$table} WHERE post_id = %d AND target_language = %s AND status = 'pending' AND created_at >= %s AND provider IN ('openai', 'gemini') ORDER BY id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+							$item_id,
+							$target_lang,
+							$cutoff_mysql
+						)
+					);
+					if ( $pending_job_id ) {
+						continue;
+					}
 				}
 
-				// Check if translation already exists for this post & target language
-				$existing_trans_id = self::get_existing_translation_post_id( $post_id, $target_lang );
+				if ( $source_term instanceof \WP_Term ) {
+					$term_state          = Taxonomy_Translator::term_has_completed_translation( $item_id, $source_term->taxonomy, $target_lang );
+					$existing_target_id  = (int) $term_state['target_term_id'];
+					$has_existing_target = $term_state['exists'] && ! $term_state['is_same_lang'] && $existing_target_id > 0;
+					$should_skip         = $term_state['is_same_lang'] || ( $term_state['exists'] && ! $term_state['needs_update'] );
 
-				$has_existing_target = $existing_trans_id > 0 && $existing_trans_id !== $post_id;
-
-				$job_status      = $existing_trans_id ? 'already_exists' : 'pending';
-				$progress_status = $existing_trans_id
-					? 'Source already uses target language'
-					: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
-				$target_post_id  = $has_existing_target ? $existing_trans_id : 0;
+					$job_status      = $should_skip ? 'already_exists' : 'processing';
+					$progress_status = $term_state['is_same_lang']
+						? 'Source term already uses target language'
+						: ( $has_existing_target
+							? ( $term_state['needs_update'] ? 'Queued to update existing translation' : 'Already exists' )
+							: 'Queued' );
+					$target_post_id  = $has_existing_target ? $existing_target_id : 0;
+				} else {
+					$existing_trans_id   = self::get_existing_translation_post_id( $item_id, $target_lang );
+					$has_existing_target = $existing_trans_id > 0 && $existing_trans_id !== $item_id;
+					$job_status          = $existing_trans_id ? 'already_exists' : 'pending';
+					$progress_status     = $existing_trans_id
+						? 'Source already uses target language'
+						: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
+					$target_post_id      = $has_existing_target ? $existing_trans_id : 0;
+				}
 
 				$insert_data = array(
 					'batch_id'          => $batch_id,
-					'post_id'           => $post_id,
+					'post_id'           => $item_id,
+					'user_id'           => $initiating_user_id,
 					'target_language'   => $target_lang,
 					'provider'          => $provider,
 					'status'            => $job_status,
@@ -277,7 +338,7 @@ class Bulk_Process {
 				);
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
+				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
 					continue;
 				}
 
@@ -285,31 +346,58 @@ class Bulk_Process {
 				if ( $job_id <= 0 ) {
 					continue;
 				}
-				$insert_data['id']                = $job_id;
-				$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $post_id );
-				$insert_data['post_title']        = get_the_title( $post_id ) ?: sprintf( '#%d', $post_id );
-				$insert_data['target_post_title'] = $has_existing_target ? ( get_the_title( $target_post_id ) ?: '' ) : '';
-				$insert_data['view_url']          = $has_existing_target ? get_permalink( $target_post_id ) : '';
-				$insert_data['edit_url']          = $has_existing_target && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-				$created_jobs[]                   = $insert_data;
+
+				$insert_data['id']      = $job_id;
+				$insert_data['subtype'] = $item_subtype;
+
+				if ( $source_term instanceof \WP_Term ) {
+					$target_term_obj                  = $has_existing_target ? get_term( $target_post_id, $source_term->taxonomy ) : null;
+					$insert_data['editor_type']       = 'taxonomy';
+					$insert_data['post_title']        = $source_term->name ?: sprintf( '#%d', $item_id );
+					$insert_data['target_post_title'] = ( $target_term_obj instanceof \WP_Term ) ? $target_term_obj->name : '';
+					$insert_data['view_url']          = $has_existing_target ? self::get_safe_term_link( $target_post_id, $source_term->taxonomy ) : '';
+					$insert_data['edit_url']          = $has_existing_target ? (string) get_edit_term_link( $target_post_id, $source_term->taxonomy ) : '';
+				} else {
+					$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $item_id );
+					$insert_data['post_title']        = get_the_title( $item_id ) ?: sprintf( '#%d', $item_id );
+					$insert_data['target_post_title'] = $has_existing_target ? ( get_the_title( $target_post_id ) ?: '' ) : '';
+					$insert_data['view_url']          = $has_existing_target ? get_permalink( $target_post_id ) : '';
+					$insert_data['edit_url']          = $has_existing_target && $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				}
+
+				$created_jobs[] = $insert_data;
 			}
 		}
 
-		// If backend provider (OpenAI, Gemini, etc.), schedule cron and trigger immediate background processing if there are pending jobs
-		if ( ! $is_chrome_ai && ! empty( $created_jobs ) && self::has_pending_or_running_jobs() ) {
+		// If backend post queue needs WP-Cron, schedule and trigger immediately.
+		if ( $is_backend && ! empty( $created_jobs ) && self::has_pending_or_running_jobs() ) {
 			self::schedule_cron_if_needed();
 			self::trigger_async_cron();
 		}
 
 		return array(
 			'batch_id'   => $batch_id,
+			'type'       => $type,
+			'subtype'    => $subtype,
 			'total_jobs' => count( $created_jobs ),
-			'notice'     => empty( $created_jobs ) ? __( 'No new translation jobs were added. Recent pending jobs may already exist, or the selected posts could not be queued.', 'translatesense' ) : '',
+			'notice'     => empty( $created_jobs ) ? __( 'No new translation jobs were added. Recent pending jobs may already exist, or the selected items could not be queued.', 'translatesense' ) : '',
 			'jobs'       => $created_jobs,
 			'post_ids'   => $post_ids,
-			'is_backend' => ! $is_chrome_ai,
+			'is_backend' => $is_backend,
 			'provider'   => $provider,
 		);
+	}
+
+	/**
+	 * Resolve a permalink URL for a translated term without WP_Error propagation.
+	 *
+	 * @param int    $term_id  Term ID.
+	 * @param string $taxonomy Taxonomy slug.
+	 * @return string
+	 */
+	public static function get_safe_term_link( int $term_id, string $taxonomy ): string {
+		$link = get_term_link( $term_id, $taxonomy );
+		return is_wp_error( $link ) ? '' : $link;
 	}
 
 	/**
@@ -584,6 +672,7 @@ class Bulk_Process {
 
 		$job_id                  = (int) $job['id'];
 		$post_id                 = (int) $job['post_id'];
+		$stored_user_id          = isset( $job['user_id'] ) ? absint( $job['user_id'] ) : 0;
 		$target_lang             = $job['target_language'];
 		$provider                = $job['provider'];
 		$existing_target_post_id = absint( $job['target_post_id'] );
@@ -641,6 +730,8 @@ class Bulk_Process {
 				throw new \Exception( sprintf( 'Post #%d does not exist.', $post_id ) );
 			}
 
+			$perm_context = self::validate_cron_job_permissions( $stored_user_id, $post_id, $target_lang, $existing_target_post_id );
+
 			$source_lang = Polylang_Bridge::get_post_language( $post_id );
 			$editor_type = Editor_Integration::get_post_editor_type( $post_id );
 
@@ -662,6 +753,16 @@ class Bulk_Process {
 
 			if ( ! is_array( $packages ) ) {
 				throw new \UnexpectedValueException( 'The translation package data is invalid.' );
+			}
+
+			$taxonomy_strings = Taxonomy_Parser::extract_strings(
+				$post_id,
+				$target_lang,
+				$perm_context['user_id'],
+				$perm_context['enforce_permissions']
+			);
+			if ( ! empty( $taxonomy_strings ) ) {
+				$packages = array_merge( $packages, $taxonomy_strings );
 			}
 
 			$packages = array_values( $packages );
@@ -831,8 +932,21 @@ class Bulk_Process {
 				return;
 			}
 
-			// 4. Execute post translation
-			$result = self::execute_post_translation_sync( $post_id, $target_lang, $provider, $in_memory_translations );
+			// Revalidate initiating user capabilities right before applying translations.
+			$perm_context = self::validate_cron_job_permissions( $stored_user_id, $post_id, $target_lang, $existing_target_post_id );
+
+			// 4. Execute post translation.
+			$result = self::execute_post_translation_sync(
+				$post_id,
+				$target_lang,
+				$provider,
+				$in_memory_translations,
+				array(
+					'user_id'             => $perm_context['user_id'],
+					'enforce_permissions' => $perm_context['enforce_permissions'],
+					'skip_unauthorized'   => false,
+				)
+			);
 
 			if ( is_wp_error( $result ) ) {
 				throw new \RuntimeException( $result->get_error_message() );
@@ -934,16 +1048,84 @@ class Bulk_Process {
 	}
 
 	/**
+	 * Validate the stored initiating user's current capabilities for a cron job.
+	 *
+	 * Legacy queue rows created before `user_id` migration (`0`) remain runnable
+	 * without failing on a missing user ID. When `user_id > 0`, the user must still
+	 * exist and currently hold post and taxonomy capabilities via `user_can()`.
+	 *
+	 * @param int    $user_id                 Stored initiating user ID.
+	 * @param int    $post_id                 Source post ID.
+	 * @param string $target_lang             Target language slug.
+	 * @param int    $existing_target_post_id Existing target post ID if known.
+	 * @return array{ user_id: int|null, enforce_permissions: bool }
+	 * @throws \RuntimeException When the initiating user no longer exists or lacks required capabilities.
+	 */
+	private static function validate_cron_job_permissions(
+		int $user_id,
+		int $post_id,
+		string $target_lang,
+		int $existing_target_post_id = 0
+	): array {
+		if ( $user_id <= 0 ) {
+			return array(
+				'user_id'             => null,
+				'enforce_permissions' => false,
+			);
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user instanceof \WP_User || ! $user->exists() ) {
+			throw new \RuntimeException( __( 'The initiating user no longer exists.', 'translatesense' ) );
+		}
+
+		$source_post = get_post( $post_id );
+		if ( ! $source_post || ! user_can( $user, 'edit_post', $post_id ) ) {
+			throw new \RuntimeException( __( 'The initiating user no longer has permission to edit the source post.', 'translatesense' ) );
+		}
+
+		$target_post_id = $existing_target_post_id > 0
+			? $existing_target_post_id
+			: self::get_existing_translation_post_id( $post_id, $target_lang );
+
+		if ( $target_post_id > 0 && $target_post_id !== $post_id ) {
+			if ( ! get_post( $target_post_id ) || ! user_can( $user, 'edit_post', $target_post_id ) ) {
+				throw new \RuntimeException( __( 'The initiating user no longer has permission to update the target translation post.', 'translatesense' ) );
+			}
+		} else {
+			$post_type_obj     = get_post_type_object( $source_post->post_type );
+			$create_capability = ( $post_type_obj && ! empty( $post_type_obj->cap->create_posts ) )
+				? $post_type_obj->cap->create_posts
+				: 'edit_posts';
+
+			if ( ! user_can( $user, $create_capability ) ) {
+				throw new \RuntimeException( __( 'The initiating user no longer has permission to create target translation posts.', 'translatesense' ) );
+			}
+		}
+
+		$taxonomy_auth = Taxonomy_Translator::check_post_permissions( $post_id, $target_lang, $user_id );
+		if ( is_wp_error( $taxonomy_auth ) ) {
+			throw new \RuntimeException( $taxonomy_auth->get_error_message() );
+		}
+
+		return array(
+			'user_id'             => $user_id,
+			'enforce_permissions' => true,
+		);
+	}
+
+	/**
 	 * Synchronously translate a complete post (Title, Content, Elementor/Gutenberg data) and create Polylang linked post.
 	 *
 	 * @param int    $post_id
 	 * @param string $target_lang
 	 * @param string $provider
 	 * @param array  $in_memory_translations
+	 * @param array  $options
 	 * @return array|WP_Error
 	 */
-	public static function execute_post_translation_sync( int $post_id, string $target_lang, string $provider, array $in_memory_translations = array() ) {
-		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
+	public static function execute_post_translation_sync( int $post_id, string $target_lang, string $provider, array $in_memory_translations = array(), array $options = array() ) {
+		return Translate::translate_post( $post_id, $target_lang, $provider, $in_memory_translations, $options );
 	}
 
 	/**
@@ -1064,16 +1246,14 @@ class Bulk_Process {
 			$total_strings     += $t_str;
 			$completed_strings += $c_str;
 
-			$post       = get_post( (int) $row['post_id'] );
-			$post_title = $post ? $post->post_title : sprintf( '#%d', (int) $row['post_id'] );
-
 			$target_post_id    = (int) $row['target_post_id'];
+			$post              = get_post( $post_id );
+			$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
 			$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
 			$target_post_title = $target_post ? $target_post->post_title : '';
 			$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
-
-			$edit_url = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-			$view_url = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
+			$edit_url          = $target_post_id ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+			$view_url          = $target_post_id && current_user_can( 'edit_post', $target_post_id ) ? get_permalink( $target_post_id ) : '';
 
 			if ( 'completed' === $status || 'already_exists' === $status || 'skipped' === $status ) {
 				$item_progress = 100;
@@ -1104,7 +1284,7 @@ class Bulk_Process {
 			$items[] = array(
 				'id'                   => (int) $row['id'],
 				'batch_id'             => $row['batch_id'],
-				'post_id'              => (int) $row['post_id'],
+				'post_id'              => $post_id,
 				'post_title'           => $post_title,
 				'target_language'      => $row['target_language'],
 				'provider'             => $row['provider'],
@@ -1244,7 +1424,7 @@ class Bulk_Process {
 		if ( empty( $jobs ) ) {
 			return new WP_Error(
 				'jobs_not_found',
-				__( 'No translation jobs found for the specified batch and post.', 'translatesense' ),
+				__( 'No translation jobs found for the specified batch and item.', 'translatesense' ),
 				array( 'status' => 404 )
 			);
 		}
