@@ -20,7 +20,8 @@ delete_option( 'translatesense_classic_xml' );
 delete_option( 'translatesense_db_version' );
 delete_option( 'translatesense_statics' );
 delete_option( 'translatesense_hide_review' );
-delete_option( 'translatesense_install_date' );
+delete_option( 'translatesense_activation_date' );
+delete_option( 'translatesense_activation_version' );
 
 // Clear transients
 delete_transient( 'translatesense_polylang_missing_notice' );

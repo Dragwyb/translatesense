@@ -233,8 +233,12 @@ class Activator {
 		}
 
 		if ( false === get_option( 'translatesense_install_date' ) ) {
-			update_option( 'translatesense_install_date', time(), false );
+			update_option( 'translatesense_install_date', gmdate( 'Y-m-d H:i:s' ), false );
+			update_option( 'translatesense_install_version', TRANSLATESENSE_VERSION );
 		}
+
+		update_option( 'translatesense_activation_date', gmdate( 'Y-m-d H:i:s' ), false );
+		update_option( 'translatesense_activation_version', TRANSLATESENSE_VERSION );
 	}
 
 	/**
