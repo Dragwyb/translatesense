@@ -235,7 +235,8 @@ TranslateSense is open source under the GPLv2 or later license. Explore the sour
 * Added automatic taxonomy translation during bulk post translation.
 * Added Failed, Completed, and Skipped filters to the bulk translation progress modal footer.
 * Added a review notice to the TranslateSense dashboard.
-* Fixed an issue that prevented trashed posts from being translated correctly.
+* Fixed an issue that caused duplicate translated posts when an existing translation was in the trash.
+* Fixed an issue with Elementor page translation during bulk translation.
 
 = 0.1.0 =
 * Added default ACF field translation support in Bulk Translation and the Page Editor.
