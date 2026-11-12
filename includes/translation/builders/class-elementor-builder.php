@@ -7,7 +7,7 @@ namespace TranslateSense\Includes\Translation\Builders;
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Translation\Translate;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
-use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
+use Elementor\Plugin as Elementor_Plugin;
 
 use WP_Post;
 
@@ -19,6 +19,34 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Elementor Page Builder Translation.
  */
 class Elementor_Builder extends Base_Builder {
+
+	/**
+	 * Source post id.
+	 *
+	 * @var int $source_post_id
+	 */
+	private static int $source_post_id;
+
+	/**
+	 * Source language.
+	 *
+	 * @var string $source_lang
+	 */
+	private static string $source_lang;
+
+	/**
+	 * Target language.
+	 *
+	 * @var string $target_lang
+	 */
+	private static string $target_lang;
+
+	/**
+	 * Translated content.
+	 *
+	 * @var array $translated_content
+	 */
+	private static array $translated_content;
 
 	/**
 	 * Get builder slug.
@@ -48,7 +76,12 @@ class Elementor_Builder extends Base_Builder {
 		$rules = Xml_Engine::get_all_rules( 'elementor' );
 		self::translate_elements_tree( $elements, $rules, $source_lang, $target_lang, $custom_opts );
 
-		return $elements;
+		self::$source_post_id     = $source_post->ID;
+		self::$source_lang        = $source_lang;
+		self::$target_lang        = $target_lang;
+		self::$translated_content = $elements;
+
+		return '';
 	}
 
 	/**
@@ -168,39 +201,75 @@ class Elementor_Builder extends Base_Builder {
 	 * Lifecycle method called after translated post is saved/inserted.
 	 * Updates Elementor mode, serialized _elementor_data, and template meta based on translated content.
 	 *
-	 * @param int    $source_post_id
-	 * @param int    $target_post_id
-	 * @param string $source_lang
-	 * @param string $target_lang
-	 * @param mixed  $translated_content
+	 * @param int $target_post_id - translated post id.
 	 */
-	public function after_save_post( int $source_post_id, int $target_post_id, string $source_lang, string $target_lang, $translated_content ): void {
-		if ( ! empty( $translated_content ) ) {
-			update_post_meta( $target_post_id, '_elementor_edit_mode', 'builder' );
+	public function after_save_post( int $target_post_id ): void {
+		if ( empty( self::$translated_content ) || ! is_array( self::$translated_content ) ) {
+			return;
+		}
 
+		// Keep original content as fallback.
+		$elementor_json = wp_json_encode( self::$translated_content );
+
+		if ( ! is_string( $elementor_json ) ) {
+			return;
+		}
+
+		try {
 			// Batch translate internal links and media references across Elementor structures.
 			$translator    = new Internal_Link_Translator();
 			$content_batch = array(
-				'elementor_data' => $translated_content,
+				'elementor_data' => $elementor_json,
 			);
-			$page_settings = get_post_meta( $source_post_id, '_elementor_page_settings', true );
-			if ( $page_settings ) {
-				$content_batch['page_settings'] = $page_settings;
-			}
-			$translated_batch   = $translator->translate_batch( $content_batch, $target_lang );
-			$translated_content = $translated_batch['elementor_data'] ?? $translated_content;
-			$elementor_json     = is_string( $translated_content ) ? $translated_content : wp_json_encode( $translated_content );
-			if ( is_string( $elementor_json ) ) {
-				update_post_meta( $target_post_id, '_elementor_data', wp_slash( $elementor_json ) );
-			}
 
-			$template_type = get_post_meta( $source_post_id, '_elementor_template_type', true );
-			if ( $template_type ) {
-				update_post_meta( $target_post_id, '_elementor_template_type', $template_type );
-			}
+			$translated_batch = $translator->translate_batch( $content_batch, self::$target_lang );
 
-			if ( ! empty( $translated_batch['page_settings'] ) ) {
-				update_post_meta( $target_post_id, '_elementor_page_settings', $translated_batch['page_settings'] );
+			if ( ! empty( $translated_batch['elementor_data'] ) ) {
+				$translated_content = $translated_batch['elementor_data'];
+
+				$candidate_json = is_array( $translated_content )
+				? wp_json_encode( $translated_content )
+				: $translated_content;
+
+				// Use translated content only when it contains valid JSON.
+				if ( is_string( $candidate_json ) ) {
+					$decoded_content = json_decode( $candidate_json, true );
+
+					if ( JSON_ERROR_NONE === json_last_error() && is_array( $decoded_content ) ) {
+						$elementor_json = $candidate_json;
+					}
+				}
+			}
+		} catch ( \Throwable $exception ) {
+			$elementor_json = get_post_meta( self::$source_post_id, '_elementor_data', true );
+			// Continue with original Elementor content.
+		}
+
+		$elements = json_decode( $elementor_json, true );
+
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $elements ) ) {
+			return;
+		}
+
+		// Save Elementor data.
+		update_post_meta( $target_post_id, '_elementor_data', wp_slash( $elementor_json ) );
+
+		if ( class_exists( Elementor_Plugin::class ) ) {
+			try {
+				$plugin   = Elementor_Plugin::$instance;
+				$document = $plugin->documents->get( $target_post_id );
+
+				if ( $document ) {
+					$document->save(
+						array(
+							'elements' => $elements,
+						)
+					);
+
+					$plugin->files_manager->clear_cache();
+				}
+			} catch ( \Throwable $exception ) {
+				// Elementor post meta is already saved as a fallback.
 			}
 		}
 	}

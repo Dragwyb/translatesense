@@ -208,7 +208,7 @@ abstract class Base_Builder {
 		// Remove filter after translation
 		remove_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
 
-		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
+		$wp_post_content = ! empty( $translated_content ) && is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
 		// Translate internal references (URLs and media) across content strings in batch.
 		$translator         = new Internal_Link_Translator();
@@ -286,7 +286,7 @@ abstract class Base_Builder {
 		}
 
 		// 4. Builder-specific persistence runs after the post and Polylang
-		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
+		$this->after_save_post( $created_post_id );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
 
 		// Replace copied source-language assignments with resolved target-language terms.
@@ -355,13 +355,9 @@ abstract class Base_Builder {
 	 * Lifecycle method called immediately after target post is inserted/updated.
 	 * Override in specific builder (e.g. Elementor_Builder) to update builder-specific meta & settings.
 	 *
-	 * @param int    $source_post_id
-	 * @param int    $target_post_id
-	 * @param string $source_lang
-	 * @param string $target_lang
-	 * @param mixed  $translated_content
+	 * @param int $target_post_id
 	 */
-	public function after_save_post( int $source_post_id, int $target_post_id, string $source_lang, string $target_lang, $translated_content ): void {
+	public function after_save_post( int $target_post_id ): void {
 		// Base implementation - can be extended by builders
 	}
 
