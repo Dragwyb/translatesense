@@ -618,24 +618,24 @@ class Rest_Api {
 							return is_array( $value ) && ! empty( $value );
 						},
 						'properties'        => array(
-							'status'            => array(
+							'status'               => array(
 								'type'              => 'string',
 								'enum'              => array( 'pending', 'processing', 'completed', 'failed', 'cancelled', 'error' ),
 								'sanitize_callback' => 'sanitize_key',
 							),
-							'progress_status'   => array(
+							'progress_status'      => array(
 								'type'              => 'string',
 								'sanitize_callback' => 'sanitize_text_field',
 							),
-							'total_strings'     => array(
+							'total_strings'        => array(
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
-							'completed_strings' => array(
+							'completed_strings'    => array(
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
-							'total_characters'  => array(
+							'total_characters'     => array(
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
@@ -643,11 +643,11 @@ class Rest_Api {
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
-							'time_take'         => array(
+							'time_take'            => array(
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
-							'target_post_id'    => array(
+							'target_post_id'       => array(
 								'type'              => 'integer',
 								'sanitize_callback' => 'absint',
 							),
@@ -3255,9 +3255,16 @@ class Rest_Api {
 			$value           = trim( (string) $input[ $key ] );
 			$existing_key    = isset( $current[ $key ] ) ? trim( (string) $current[ $key ] ) : '';
 			$expected_masked = self::mask_api_key( $existing_key );
+			$provider_id     = str_replace( '_api_key', '', $key );
 
 			// 1. If the submitted API key is empty, do not update the existing saved API key.
 			if ( '' === $value ) {
+				if ( isset( $updated[ $key ] ) ) {
+					unset( $updated[ $key ] );
+					// 2. Check 1-hour transient cache for connector models.
+					$transient_key = 'translatesense_models_' . $provider_id;
+					delete_transient( $transient_key );
+				}
 				continue;
 			}
 
@@ -3269,8 +3276,7 @@ class Rest_Api {
 			// 4. Only update the saved API key when the user submits a new, actual API key.
 			if ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
 
-				$api_key     = sanitize_text_field( $value );
-				$provider_id = str_replace( '_api_key', '', $key );
+				$api_key = sanitize_text_field( $value );
 
 				$validate_key = $bridge->api_key_validation( $provider_id, $api_key );
 
