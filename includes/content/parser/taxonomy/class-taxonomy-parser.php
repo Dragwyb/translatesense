@@ -424,7 +424,7 @@ class Taxonomy_Parser {
 		);
 
 		if ( '' !== $meta_key ) {
-			$item['meta_key'] = $meta_key; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			$item['meta_key'] = sanitize_key( $meta_key ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 		}
 
 		return $item;
