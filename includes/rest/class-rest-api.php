@@ -4091,8 +4091,6 @@ class Rest_Api {
 			);
 		}
 
-		wp_delete_post( $target_post_id, true );
-
 		return rest_ensure_response(
 			array(
 				'success' => (bool) $updated,
