@@ -76,6 +76,12 @@ class Plugin {
 	}
 
 	public function handle_activation_redirect() {
+		global $pagenow;
+
+		if ( ! isset( $pagenow ) || 'plugins.php' !== $pagenow ) {
+			return;
+		}
+
 		if ( get_transient( 'translatesense_activation_redirect' ) ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( ! isset( $_GET['activate-multi'] ) && current_user_can( 'manage_options' ) ) {
