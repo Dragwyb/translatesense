@@ -8,27 +8,31 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI translation for WordPress with Polylang. Translate posts, pages, WooCommerce products, and custom fields directly in your editor or in bulk.
+AI translation for WordPress with Polylang. Translate posts, pages, WooCommerce products, custom fields, and SEO content using OpenAI, Google Gemini, or built-in browser AI.
 
 == Description ==
 
-TranslateSense makes it easier to translate your WordPress website with AI and Polylang. Use Page Editor Translation to translate content directly inside Gutenberg, Elementor, or Classic Editor. Review the translated content, make your own changes, and keep full control before saving it. For larger translation tasks, use Bulk Translation to translate several posts into different languages.
+TranslateSense makes it easier to translate your WordPress website with AI and Polylang. Use Page Editor Translation to translate content directly inside Gutenberg, Elementor, or Classic Editor. Review AI-generated translations, make your own changes, and keep full control before saving. For larger translation tasks, use Bulk Translation to translate multiple posts into different languages.
 
-Choose OpenAI, Google Gemini, or built-in AI in supported Chrome and Microsoft Edge browsers. TranslateSense works with Gutenberg, Elementor, and Classic Editor, and supports WooCommerce products, custom fields, SEO details, and more.
+Choose OpenAI, Google Gemini, Chrome Built-in AI, or Microsoft Edge built-in AI. TranslateSense works with Gutenberg, Elementor, and Classic Editor, and supports WooCommerce products, custom fields, SEO metadata, taxonomy translation, and more.
+
+Whether you are translating a few pages or managing a multilingual WordPress website with hundreds of posts, TranslateSense makes AI-powered translation easier.
 
 **Key Features**
 
-* **AI translation:** Use OpenAI, Google Gemini, Chrome Built-in AI, or Microsoft Edge built-in AI.
-* **Bulk translation:** Translate multiple posts into one or more languages in one go.
-* **Page Editor Translation:** Translate content directly inside Gutenberg, Elementor, or Classic Editor. Review and edit the translation in the editor, with full control over the final content.
-* **WooCommerce products:** Translate product titles, slugs, descriptions, excerpts, ACF fields, and other configured custom fields.
+* **AI Translation for Polylang:** Translate WordPress content into your selected languages using AI translation providers.
+* **Multiple AI Providers:** Use OpenAI, Google Gemini, Chrome Built-in AI, or Microsoft Edge built-in AI.
+* **Bulk Translation:** Translate multiple posts into one or more languages in a single process.
+* **Page Editor Translation:** Translate content directly inside Gutenberg, Elementor, or Classic Editor. Review and edit translations before saving.
+* **WooCommerce products:** Translate product titles, slugs, descriptions, excerpts, supported ACF fields, and configured custom fields.
 * **Custom fields:** Translate supported custom fields, including ACF repeater and flexible content fields.
-* **SEO details:** Translate SEO titles and meta descriptions for Yoast SEO, Rank Math, and SEOPress.
-* **Internal links:** Link to the matching translated post when a translation is available.
+* **SEO translation:** Translate SEO titles and meta descriptions for Yoast SEO, Rank Math, and SEOPress.
+* **Internal links:** Automatically update internal links to point to matching translated posts when available.
 * **Categories and tags:** Translate and assign categories, tags, and supported custom taxonomy terms.
-* **Translation Memory:** Reuse saved translations instead of sending the same text for translation again.
+* **Taxonomy translation:** Translate taxonomy terms directly from supported taxonomy pages or automatically during bulk post translation.
+* **Translation Memory:** Reuse saved translations to reduce repeated AI translation requests.
 * **Keep your layout:** Preserve supported Gutenberg blocks, Elementor widgets, and custom field structures.
-* **Custom translation rules:** Use XML Configuration to add or change rules for supported blocks, widgets, and fields.
+* **Custom translation rules:** Use XML Configuration to add or adjust rules for supported blocks, widgets, and custom fields.
 
 == AI Providers ==
 
@@ -39,7 +43,7 @@ TranslateSense supports:
 * Chrome Built-in AI
 * Microsoft Edge built-in AI
 
-You can connect OpenAI and Google Gemini with your API credentials or through a supported WordPress AI Connector. Chrome and Edge built-in AI can translate without an external AI provider API key when the required browser features are available.
+You can connect OpenAI and Google Gemini using your API credentials or through a supported WordPress AI Connector. Chrome and Edge built-in AI can translate without an external AI provider API key when the required browser features are available.
 
 == Supported Editors and Integrations ==
 
@@ -61,7 +65,7 @@ Translate content directly from the editor you already use. Start a translation 
 
 === Bulk Translation ===
 
-Choose the posts you want to translate, select the target languages and AI provider, then start the translation. Supported API-based translations can continue in the background. You can check progress and skip items that are still waiting to be translated.
+Choose the posts you want to translate, select the target languages and AI provider, then start the translation. Supported API-based translations can continue in the background. You can monitor translation progress and use the Failed, Completed, and Skipped filters to check the results. You can also skip items that are still waiting to be translated.
 
 === Translation Memory ===
 
@@ -71,13 +75,17 @@ TranslateSense saves translations in your WordPress database. When the same text
 
 Translate supported SEO titles, meta descriptions, and slugs. When a translated version of a linked post is available, TranslateSense can update the link to point to it.
 
+=== Taxonomy Translation ===
+
+Translate supported categories, tags, and custom taxonomy terms. Use the Bulk Translate button on supported taxonomy pages to translate terms, or let TranslateSense translate required taxonomy terms automatically during bulk post translation.
+
 == Support ==
 
 📖[Documentation](https://docs.dragwyb.com/ai-automatic-translation-addon-for-polylang/) | ✨[TranslateSense Pro](https://dragwyb.com/product/ai-automatic-translation-addon-for-polylang/) | 💬[Premium Support](https://dragwyb.com/contact/)
 
 == External Services ==
 
-When you ask TranslateSense to translate content, the text you select is sent to the AI provider you choose. The provider processes that text under its own terms and privacy policy.
+When you ask TranslateSense to translate content, the text you select is sent to the AI provider you choose, along with source and target language information. The provider processes that text under its own terms and privacy policy.
 
 **OpenAI**
 
@@ -102,14 +110,18 @@ Chrome and Microsoft Edge built-in AI process translation text through the brows
 
 1. Install and activate Polylang or Polylang Pro.
 2. Install and activate TranslateSense.
-3. Go to **Languages > TranslateSense** and choose your AI provider.
+3. Go to **Languages > TranslateSense** and configure your preferred AI provider.
 4. Open a supported editor and use Page Editor Translation to translate and edit content directly, or select posts from the posts list to use Bulk Translation.
 
 == Frequently Asked Questions ==
 
 = Do I need Polylang to use TranslateSense? =
 
-Yes. TranslateSense uses Polylang to manage your website languages and connect translated content.
+Yes. TranslateSense uses https://wordpress.org/plugins/polylang/ to manage your website languages and connect translated content.
+
+= What is TranslateSense? =
+
+TranslateSense is an AI translation plugin for WordPress that works with Polylang. It helps you translate posts, pages, WooCommerce products, custom fields, and SEO content using AI.
 
 = Which AI providers can I use? =
 
@@ -135,6 +147,10 @@ Yes. You can translate product titles, slugs, descriptions, excerpts, supported 
 
 Yes. TranslateSense supports configured custom fields, ACF fields, and supported SEO details from Yoast SEO, Rank Math, and SEOPress.
 
+= Can I translate categories and tags? =
+
+Yes. TranslateSense supports categories, tags, and supported custom taxonomy terms. You can translate terms directly from supported taxonomy pages or automatically during bulk post translation.
+
 = What is the difference between Page Editor Translation and Bulk Translation? =
 
 Page Editor Translation lets you translate and edit content directly inside Gutenberg, Elementor, or Classic Editor. Bulk Translation lets you select multiple posts and target languages to translate them in one process.
@@ -146,6 +162,10 @@ Yes. Use Bulk Translation to choose multiple posts and target languages.
 = Can I add support for other blocks or widgets? =
 
 Yes. Use XML Configuration to add or update rules for supported Gutenberg blocks, Elementor widgets, and custom fields.
+
+== Special Thanks ==
+
+Special thanks to the team behind [Polylang](https://wordpress.org/plugins/polylang/) for creating and maintaining a great multilingual plugin for WordPress. TranslateSense builds on Polylang to make AI-powered website translation easier.
 
 == Source Code and Contributions ==
 
