@@ -1,3 +1,4 @@
+
 === TranslateSense – AI Translation for Polylang ===
 Contributors: dragwyb
 Tags: translation, polylang, multilingual, ai translation, automatic translation
@@ -8,139 +9,214 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI translation for WordPress with Polylang. Translate posts, custom post types, taxonomies, ACF, and SEO content via OpenAI, Gemini, or browser AI.
+AI Translation for Polylang: bulk translate WordPress posts, pages, taxonomies, ACF fields, and SEO content with AI.
 
 == Description ==
 
-TranslateSense brings AI-powered content translation to WordPress sites running Polylang. Translate directly inside Gutenberg, Elementor, or Classic Editor using Page Editor Translation—reviewing and editing translated strings before saving—or queue multiple posts, pages, custom post types, and taxonomy terms from WordPress list tables using Bulk Translation.
+TranslateSense is an AI translation plugin for WordPress built for Polylang. Its powerful **Bulk Translation** feature helps you translate multiple posts, pages, custom post types, and taxonomy terms into different languages using AI.
 
-Choose between **OpenAI**, **Google Gemini**, or **Built-in Browser AI** (available in supported Google Chrome and Microsoft Edge browsers). On WordPress 7.0 and newer, TranslateSense also integrates directly with **WordPress AI Connectors**.
+Select your content, choose one or more target languages, select an AI provider, and start translating. OpenAI and Google Gemini post translation batches can run in the background using WP-Cron, so you can continue working while translation jobs are processed. Monitor translation progress, review results, and manage pending translations from the progress modal.
+
+You can also use **Page Editor Translation** to translate individual posts directly inside Gutenberg, Elementor, or Classic Editor. Review and edit translated strings before applying them to your content.
+
+Choose OpenAI, Google Gemini, or Built-in Browser AI in supported Google Chrome and Microsoft Edge browsers. On WordPress 7.0 and newer, TranslateSense also supports WordPress AI Connectors.
 
 == Resources ==
 
-📖[Documentation](https://docs.dragwyb.com/ai-automatic-translation-addon-for-polylang/) | ✨[TranslateSense Pro](https://dragwyb.com/product/ai-automatic-translation-addon-for-polylang/)
+📖 [Documentation](https://docs.dragwyb.com/ai-automatic-translation-addon-for-polylang/) | ✨ [TranslateSense Pro](https://dragwyb.com/product/ai-automatic-translation-addon-for-polylang/)
 
 **Key Features**
 
-* **Built for Polylang:** Uses Polylang languages, post/taxonomy translation settings, linked translation relationships, and media synchronization settings.
-* **Multiple AI Engines:** Translate with OpenAI, Google Gemini (via API key or WordPress AI Connectors), or Built-in Browser AI (Chrome/Edge v131+ without an external API key).
-* **Page Editor Translation:** Translate directly inside Gutenberg, Elementor, and Classic Editor. Search, edit inline, reset individual strings, re-translate failed strings with OpenAI/Gemini, and apply changes to the editor before saving.
-* **Bulk Translation & Background Processing:** Select multiple posts, pages, or custom post types on list screens to translate into one or more target languages. OpenAI and Google Gemini post batches continue asynchronously in the background via WP-Cron; browser AI and taxonomy term batches run directly in the active browser tab.
-* **Taxonomy Translation:** Bulk-translate categories, tags, and Polylang-enabled custom taxonomies from taxonomy list screens, or translate and assign linked terms automatically during bulk post translation.
-* **Gutenberg & Elementor Layout Preservation:** Includes built-in XML rules for 225 Gutenberg blocks (Core, Embeds, Spectra, Essential Blocks, Kadence Blocks, Otter Blocks, Stackable, Gutenverse, Ultimate Blocks, Qi Blocks, Rank Math TOC, TinyMCE Advanced) and 8 core Elementor widgets, plus Elementor widget auto-discovery and fallback translation for unconfigured Gutenberg blocks.
-* **ACF & Custom Fields:** Supports Advanced Custom Fields (ACF) including text, WYSIWYG, choice/link titles, Repeaters, Flexible Content, Groups, and relational post/term/media ID mapping, as well as custom fields defined via active plugin/theme `wpml-config.xml` files or custom XML rules.
-* **SEO Metadata & Slug Translation:** Syncs translated SEO metadata into Yoast SEO, Rank Math, and SEOPress editor fields (with field extraction driven by `wpml-config.xml` or custom XML rules) and supports translated, title-generated, or original post slugs.
-* **Internal Links & Media Reference Updates:** Automatically rewrites internal post, category, tag, custom taxonomy, shortcode, and attachment URLs/IDs to point to existing Polylang-translated equivalents.
-* **Translation Memory & Cache Controls:** Stores source strings, MD5-hashed translation packages, and translated strings in dedicated database tables to reuse prior translations, paired with manual cache clearing and automatic WP-Cron cleanup.
-* **XML Configuration Editor:** View supported, custom, and unsupported Gutenberg blocks and Elementor widgets in the dashboard and edit custom `<wpml-config>` XML rules.
+* **Bulk Translation:** Translate multiple WordPress posts, pages, custom post types, and taxonomy terms into one or more languages in a single workflow.
+* **Background Translation:** Process OpenAI and Google Gemini post translation batches in the background using WP-Cron, with progress monitoring, batch management, and pending job controls.
+* **Multiple AI Providers:** Choose OpenAI, Google Gemini, or Built-in Browser AI. WordPress 7.0+ users can also connect supported providers through WordPress AI Connectors.
+* **Automatic Taxonomy Translation:** Translate categories, tags, and supported custom taxonomy terms. Translate and assign related terms automatically during supported post translation workflows.
+* **Page Editor Translation:** Translate individual posts directly inside Gutenberg, Elementor, and Classic Editor. Search, edit, reset, and retry individual translated strings before applying them.
+* **Gutenberg and Elementor Support:** Translate supported blocks and widgets while preserving their content structure and layout.
+* **ACF and Custom Fields:** Translate supported Advanced Custom Fields (ACF), including Repeater, Flexible Content, Group, and supported relationship fields.
+* **WooCommerce Translation:** Translate supported product content, product taxonomies, and configured custom fields.
+* **SEO Metadata and Slugs:** Translate supported SEO titles, meta descriptions, and post slugs for Yoast SEO, Rank Math, and SEOPress.
+* **Internal Links and Media:** Update supported internal links and media references to use existing Polylang translations.
+* **Translation Memory:** Reuse saved translations to reduce repeated AI requests.
+* **XML Configuration:** Customize translation rules for additional Gutenberg blocks, Elementor widgets, and custom fields.
 
 == AI Providers ==
 
-TranslateSense supports three translation engines:
+TranslateSense supports the following AI translation providers:
 
-* **OpenAI:** Connect with an OpenAI API key in plugin settings or through a registered WordPress 7.0+ AI Connector. Supports background WP-Cron bulk processing and per-string retry in the Page Editor.
-* **Google Gemini:** Connect with a Google Gemini API key in plugin settings or through a registered WordPress 7.0+ AI Connector. Supports background WP-Cron bulk processing and per-string retry in the Page Editor.
-* **Built-in Browser AI:** Uses the on-device Translator API in **Google Chrome (v131+)** and **Microsoft Edge (v131+)** over HTTPS or `localhost` across 39 supported language codes. No external API key is required, and translations are processed locally inside the open browser tab.
+* **OpenAI:** Connect using an OpenAI API key or a supported WordPress AI Connector. Supports background WP-Cron bulk translation and retrying individual failed strings in Page Editor Translation.
+* **Google Gemini:** Connect using a Google Gemini API key or a supported WordPress AI Connector. Supports background WP-Cron bulk translation and retrying individual failed strings in Page Editor Translation.
+* **Built-in Browser AI:** Uses the browser's on-device Translator API in supported Google Chrome and Microsoft Edge browsers (v131+). No external AI provider API key is required. Translation runs locally inside the active browser tab.
+
+Built-in Browser AI supports 39 language codes through Chromium's Translator API, depending on browser availability and the selected language pair.
 
 == Supported Editors and Integrations ==
 
-* **Gutenberg (Block Editor):** Supports 225 preconfigured block rules across WordPress Core blocks, Core Embeds, TinyMCE Advanced (`tadv/classic-paragraph`), Spectra (`uagb/*`), Essential Blocks, Kadence Blocks, Otter Blocks, Stackable, Gutenverse, Ultimate Blocks, Qi Blocks, and Rank Math TOC, plus fallback text extraction for unmapped blocks and automatic block recovery after bulk translation.
-* **Elementor:** Supports core Elementor widgets (`heading`, `text-editor`, `button`, `icon-box`, `image-box`, `call-to-action`, `testimonial`, `alert`), nested repeater lists, Elementor v4 atomic controls, Elementor page settings, and automatic schema discovery for unmapped widgets (persisted when edited by an administrator).
-* **Classic Editor:** Uses DOM offset mapping to translate text units, standalone accessibility/UI attributes (`alt`, `title`, `aria-label`, `aria-description`, `placeholder`), post titles, slugs, and excerpts while keeping HTML markup intact.
-* **Cross-Editor Guard:** When a source post was built in Elementor and the target translation is opened in Gutenberg or Classic Editor, TranslateSense prompts you to switch to Elementor so page builder data is preserved.
-* **Advanced Custom Fields (ACF):** Extracts and translates `text`, `textarea`, `wysiwyg`, `select`, `checkbox`, `radio`, `button_group`, `link` titles, `repeater`, `flexible_content`, and `group` fields, and maps translated IDs for `image`, `file`, `gallery`, `relationship`, `post_object`, `page_link`, and `taxonomy` fields. (Skipped automatically when Polylang's Custom Fields synchronization option is active.)
-* **SEO Plugins (Yoast SEO, Rank Math, SEOPress):** Updates live editor fields and stores in Page Editor Translation and supports translating SEO post meta when rules are provided by the SEO plugin's `wpml-config.xml` file or custom XML Configuration.
-* **WooCommerce:** Compatible with WooCommerce products (`product`) and product taxonomies (`product_cat`, `product_tag`) when enabled for translation in Polylang, including internal product/category link resolution, ACF fields, and custom field rules from `wpml-config.xml` or XML Configuration.
-* **Polylang:** Manages site languages, linked translations, taxonomy assignment, sticky post status, media attachment translation (`media_support`), and optional custom field sync detection.
+* **Gutenberg (Block Editor):** Includes 225 preconfigured block rules covering WordPress Core blocks, Core Embeds, TinyMCE Advanced, Spectra, Essential Blocks, Kadence Blocks, Otter Blocks, Stackable, Gutenverse, Ultimate Blocks, Qi Blocks, and Rank Math Table of Contents. Also includes fallback text extraction for supported unmapped blocks and automatic block recovery after bulk translation.
+* **Elementor:** Supports 8 core Elementor widgets, nested repeater lists, Elementor v4 atomic controls, page settings, and automatic schema discovery for unmapped widgets.
+* **Classic Editor:** Translates post titles, slugs, excerpts, content, and supported accessibility and UI attributes while preserving HTML markup.
+* **Cross-Editor Protection:** Detects when a post was built with Elementor and prompts you to open the translation in Elementor if you try to use Gutenberg or Classic Editor.
+* **Advanced Custom Fields (ACF):** Supports text, textarea, WYSIWYG, select, checkbox, radio, button group, link titles, Repeater, Flexible Content, and Group fields. Also supports translated ID mapping for supported image, file, gallery, relationship, post object, page link, and taxonomy fields.
+* **SEO Plugins:** Supports SEO metadata from Yoast SEO, Rank Math, and SEOPress. Additional field extraction can be configured through XML rules.
+* **WooCommerce:** Supports WooCommerce products and product taxonomies when enabled for translation in Polylang, including internal product and category link resolution.
+* **Polylang:** Uses Polylang for language management, linked translations, taxonomy assignments, sticky post status, media synchronization, and custom field synchronization detection.
+
+Additional Gutenberg block, Elementor widget, and custom field rules can be configured using XML Configuration.
 
 == Translation Tools ==
 
-=== Page Editor Translation ===
-
-Start translation from the TranslateSense metabox or toolbar button inside Gutenberg, Elementor, or Classic Editor:
-
-* Choose an enabled AI provider and monitor progress in real time.
-* Filter strings by search text, inspect character/string/time statistics, edit any translated row inline, or reset edited rows back to the AI output.
-* Re-translate remaining empty/failed strings when using OpenAI or Google Gemini.
-* Click **Apply to Page** to populate the editor without overwriting your post until you review and save it yourself.
-
 === Bulk Translation ===
 
-Select posts, pages, custom post types, or taxonomy terms from WordPress admin list tables and click **Bulk Translate**:
+Translate multiple WordPress posts, pages, custom post types, or taxonomy terms into different languages directly from your WordPress admin list screens.
 
-* Choose one or more target languages and select an AI provider.
-* **Background Queue (OpenAI & Gemini posts):** Batches are processed via WP-Cron with memory-limit protection (pausing at 80% PHP memory limit), time budgeting, active batch switching, a live progress modal, status filters (`Show Failed`, `Show Completed`, `Show Skip/Exist`), and confirmation-protected skipping of pending posts.
-* **Foreground Execution (Browser AI & Taxonomy Terms):** Runs sequentially in your active browser tab (keep the tab open until completion).
+Select the content you want to translate, choose your target languages, select an AI provider, and start the translation process.
+
+* Select multiple posts, pages, custom post types, or taxonomy terms.
+* Choose one or more target languages.
+* Select your preferred AI provider.
+* Start translation and monitor progress through the progress modal.
+* Review completed, failed, skipped, and existing translation results.
+* Manage pending translations and skip items that are waiting in the queue.
+
+**Background Processing (OpenAI and Google Gemini):**
+
+Post translation batches run through WP-Cron. Background processing includes:
+
+* Memory-limit protection to help prevent server memory issues.
+* Time budgeting for translation batches.
+* Active batch switching and queue management.
+* Live translation progress monitoring.
+* Status filters for completed, failed, and skipped or existing translations.
+* Options to skip pending translations.
+
+**Browser Processing (Built-in Browser AI and Taxonomy Terms):**
+
+Browser AI and taxonomy term translation run sequentially in the active browser tab. Keep the tab open until the process is complete.
+
+=== Page Editor Translation ===
+
+Translate individual posts directly inside Gutenberg, Elementor, or Classic Editor using the TranslateSense metabox or toolbar button.
+
+* Choose an enabled AI provider and monitor translation progress.
+* Search and filter strings to find the content you want to review.
+* View translation statistics, including character, string, and processing time information.
+* Edit translated strings directly in the translation list.
+* Reset edited strings to their original AI-generated translations.
+* Retry empty or failed strings using OpenAI or Google Gemini.
+* Click **Apply to Page** to add translations to your editor. Your content is not saved until you review and save the post yourself.
 
 === Translation Memory & Automatic Cache Cleanup ===
 
-TranslateSense caches source strings, post package mappings, and MD5-hashed translations per language in custom WordPress database tables (`translatesense_strings`, `translatesense_packages`, `translatesense_translations`, `translatesense_queue`). A scheduled WP-Cron task runs every three days to remove unused cached translations older than 30 days and unused package mappings older than 10 days.
+TranslateSense stores source strings, translation packages, and translated strings in custom WordPress database tables.
+
+When the same source text is encountered again, TranslateSense can reuse a previously saved translation instead of sending another request to the AI provider.
+
+A scheduled WP-Cron task runs every three days to remove unused cached translations older than 30 days and unused package mappings older than 10 days. You can also clear cached data manually from the Cache tab.
 
 == Plugin Settings ==
 
-Manage plugin configuration under **Languages > TranslateSense** (requires `manage_options` capability, filterable via `translatesense_menu_capability`):
+Manage TranslateSense from **Languages > TranslateSense** in your WordPress dashboard.
 
-* **Home Tab:** Quick-start walkthroughs for Gutenberg, Classic Editor, Elementor, and Bulk Translation, plus a live Translation Overview card tracking total translated posts, strings, characters, elapsed time, cache counts, and per-provider usage.
+* **Home Tab:** View quick-start guides for supported editors and Bulk Translation, along with translation statistics and provider usage.
 * **General Settings Tab:**
-  * **Default AI Engine (`provider`):** Select the default preselected engine (`chrome_ai`, `openai`, or `gemini`; activation default is `openai`).
-  * **Enable / Disable Providers (`enabled_providers`):** Toggle OpenAI, Google Gemini, and Chrome Built-in AI individually (at least one provider must remain enabled; all three enabled by default).
-  * **API Keys & WordPress AI Connectors:** Enter `openai_api_key` or `gemini_api_key` (validated remotely against the provider's models endpoint when saved), or connect providers through **Settings > Connectors** on WordPress 7.0+.
-  * **Model Selection (`openai_model`, `gemini_model`):** Select from dynamically loaded provider/connector models (default OpenAI model: `gpt-4o-mini`; fallback model lists include `gpt-4o-mini`, `gpt-4o`, `gpt-3.5-turbo` for OpenAI and `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro` for Gemini, while initial activation stores `gemini-3.5-flash-lite`).
-  * **Batch Size (`batch_size`):** Number of strings sent per AI request (`1–50` in UI slider, clamped `1–500` on server; default `25`).
-  * **Response Timeout (`response_timeout`):** Request timeout in seconds (`5–120`s in UI slider, clamped `1–300`s on server; default `30`s; WP AI Client default `60`s).
-  * **Max Tokens (`max_tokens`):** Maximum output tokens per request (`512–16384` in UI slider, clamped `1–100000` on server; default `4096`).
-  * **Temperature (`temperature`):** Creativity vs determinism (`0–1.0` step `0.05` in UI slider, clamped `0–2.0` on server; default `0.2`).
-  * **Bulk Post Status (`post_status`):** Choose `Draft` (default) or `Publish` for newly bulk-translated posts.
-  * **Slug Translation (`slug_translation`):** Choose `Translate Slug` (default), `Generate from Translated Title`, or `Keep Original Slug`.
-  * **AI Prompt Engineering Studio (`custom_prompt`):** Customize the system translation prompt with `{source_lang}`, `{target_lang}`, `{count}`, and `{json_strings}` tokens, copy the active prompt, or reset to default.
-* **Gutenberg Blocks & Elementor Widgets Tabs:** Search, filter (`Supported`, `Custom`, `Unsupported`), sort, and customize `<wpml-config>` XML rules per widget or globally.
-* **Cache Tab:** Inspect database counts and clear cached Translations, Source Strings, Package Logs, or All Caches at once.
+  * **Default AI Engine:** Choose the AI provider selected by default.
+  * **Enable or Disable Providers:** Enable or disable OpenAI, Google Gemini, and Chrome Built-in AI.
+  * **API Keys and AI Connectors:** Configure provider API credentials or connect supported providers through WordPress AI Connectors on WordPress 7.0+.
+  * **Model Selection:** Choose from the available models provided by your connected AI provider.
+  * **Batch Size:** Configure how many strings are sent in each AI request.
+  * **Response Timeout:** Set the maximum time allowed for an AI request.
+  * **Max Tokens:** Configure the maximum output tokens for AI responses.
+  * **Temperature:** Adjust how consistent or creative AI-generated translations should be.
+  * **Bulk Post Status:** Choose whether newly created bulk translations are saved as Draft or Publish.
+  * **Slug Translation:** Translate slugs, generate slugs from translated titles, or keep original slugs.
+  * **Custom AI Prompt:** Customize the translation prompt using the available language and content placeholders.
+* **Gutenberg Blocks and Elementor Widgets Tabs:** Search, filter, and customize supported, custom, and unsupported block or widget XML rules.
+* **Cache Tab:** View database cache counts and clear translated strings, source strings, package logs, or all cached data.
 
 == External Services ==
 
-When you initiate a translation with an external AI provider, selected source text and language metadata are transmitted to that service under its respective terms and privacy policy:
+TranslateSense connects to external services when you choose an AI provider or voluntarily submit feedback and diagnostic information.
 
-* **OpenAI (`https://api.openai.com`):** Receives text strings and language/prompt parameters when OpenAI is used for translation, and retrieves available model lists when fetching or validating OpenAI credentials. [Privacy Policy](https://openai.com/policies/privacy-policy) | [Terms of Use](https://openai.com/policies/terms-of-use)
-* **Google Gemini (`https://generativelanguage.googleapis.com`):** Receives text strings and language/prompt parameters when Google Gemini is used for translation, and retrieves available model lists when fetching or validating Gemini credentials. [Privacy Policy](https://policies.google.com/privacy) | [Terms of Service](https://policies.google.com/terms)
-* **Dragwyb Deactivation Feedback (`https://feedback.dragwyb.com`):** If you voluntarily submit the optional deactivation feedback modal on the WordPress Plugins screen, your selected reason, optional comment, plugin slug/version—and, only if you check the diagnostics option, site admin email, site URL, WordPress version, and PHP version—are sent to Dragwyb. [Privacy Policy](https://dragwyb.com/privacy-policy/) | [Terms](https://dragwyb.com/terms/)
-* **Built-in Browser AI (Chrome / Edge):** Processes translations locally through Chromium's browser Translator API without sending translation text to OpenAI or Google Gemini servers.
+When you request an AI translation, the selected source text and relevant language or prompt information are sent to the provider you choose.
+
+* **OpenAI (https://api.openai.com):** Receives text submitted for translation and related language and prompt information when you use OpenAI. TranslateSense also retrieves available model information when validating credentials or loading models. [Privacy Policy](https://openai.com/policies/privacy-policy) | [Terms of Use](https://openai.com/policies/terms-of-use)
+* **Google Gemini (https://generativelanguage.googleapis.com):** Receives text submitted for translation and related language and prompt information when you use Google Gemini. TranslateSense also retrieves available model information when validating credentials or loading models. [Privacy Policy](https://policies.google.com/privacy) | [Terms of Service](https://policies.google.com/terms)
+* **Dragwyb Deactivation Feedback (https://feedback.dragwyb.com):** If you voluntarily submit the optional deactivation feedback form, your selected reason, optional comment, and plugin information are sent to Dragwyb. If you enable the diagnostics option, additional site and environment information may also be included. [Privacy Policy](https://dragwyb.com/privacy-policy/) | [Terms](https://dragwyb.com/terms/)
+* **Built-in Browser AI (Chrome / Microsoft Edge):** Uses the browser's Translator API to process translation text locally. TranslateSense does not send that text to OpenAI or Google Gemini when you use this option.
 
 == Installation ==
 
-1. Install and activate **Polylang** (or Polylang Pro) and configure at least two languages.
-2. Upload or install **TranslateSense** and activate it from the Plugins screen.
-3. Navigate to **Languages > TranslateSense > General Settings** to select your preferred AI engine and enter an OpenAI/Gemini API key (or configure a WordPress 7.0+ AI Connector, or use Built-in Browser AI in Chrome/Edge v131+).
-4. Open any post, page, or supported custom post type in Gutenberg, Elementor, or Classic Editor to use **Page Editor Translation**, or select multiple posts/terms from admin list screens and click **Bulk Translate**.
+1. Install and activate **Polylang** or **Polylang Pro**.
+2. Configure at least two languages in Polylang.
+3. Install and activate **TranslateSense**.
+4. Go to **Languages > TranslateSense > General Settings** to choose your AI provider.
+5. Configure an OpenAI or Google Gemini API key, connect a supported WordPress AI Connector, or use Built-in Browser AI in a compatible browser.
+6. Open a supported editor to translate an individual post, or select multiple posts or terms from the WordPress admin list screens and click **Bulk Translate**.
 
 == Frequently Asked Questions ==
 
+= What is TranslateSense? =
+TranslateSense is an AI translation plugin for WordPress that works with Polylang. Its Bulk Translation feature helps you translate multiple posts, pages, custom post types, and taxonomy terms into different languages using AI.
+
 = Do I need Polylang to use TranslateSense? =
+Yes. TranslateSense uses Polylang to manage site languages, assign languages to posts and taxonomy terms, and connect translated content.
 
-Yes. TranslateSense requires Polylang (or Polylang Pro) to manage site languages, post/term language assignments, and translation links.
+= How can I bulk translate WordPress posts with Polylang? =
+Open a supported WordPress admin list screen, select the posts you want to translate, and click **Bulk Translate**. Choose one or more target languages and an AI provider to start translating multiple posts in one workflow.
 
-= Which PHP and WordPress extensions or versions are required? =
+= Can I translate multiple posts into different languages at once? =
+Yes. Bulk Translation lets you select multiple posts, pages, or supported custom post types and choose one or more target languages.
 
-TranslateSense declares support for WordPress 5.8+ (tested up to 7.1) and PHP 7.4+. PHP `mbstring` and `DOMDocument` extensions are recommended for string measurement and Classic Editor HTML parsing. WordPress 7.0+ Core AI Connectors are supported natively, while older WordPress versions automatically use direct OpenAI/Gemini REST API calls.
+= Does Bulk Translation run in the background? =
+OpenAI and Google Gemini post translation batches can run in the background through WP-Cron. You can leave the page and check translation progress later. Built-in Browser AI and taxonomy term translation run in the active browser tab, which must remain open until processing is complete.
 
-= Do I need an API key? =
+= Which AI providers does TranslateSense support? =
+TranslateSense supports OpenAI, Google Gemini, and Built-in Browser AI in compatible Google Chrome and Microsoft Edge browsers. WordPress 7.0+ users can also connect supported AI providers through WordPress AI Connectors.
 
-You need an API key (or a configured WordPress 7.0+ AI Connector) to use OpenAI or Google Gemini. Built-in Browser AI works without an external API key in Google Chrome 131+ or Microsoft Edge 131+ over HTTPS or `localhost`.
+= Can I translate WordPress content without an API key? =
+Yes. You can use supported Chrome or Microsoft Edge Built-in Browser AI features without an external AI provider API key. Availability depends on your browser, configuration, and selected language pair.
 
-= Why does Bulk Translation keep the window open for Browser AI or Taxonomies? =
+= What is Page Editor Translation? =
+Page Editor Translation lets you translate individual posts directly inside Gutenberg, Elementor, or Classic Editor. You can review, search, and edit translated strings before applying them to your content.
 
-Because Chrome and Microsoft Edge built-in AI run inside your browser rather than on the WordPress server, your browser tab must remain open while those jobs run. OpenAI and Google Gemini post batches run asynchronously on your server via WP-Cron so you can leave the page and check progress later. Note that pending background jobs expire if not processed within 24 hours.
+= Can I review translations before publishing? =
+Yes. Page Editor Translation applies the translated content to your editor only after you click **Apply to Page**. You can review and save it yourself. Bulk Translation creates translated posts as Draft by default, unless you choose Publish in the plugin settings.
 
-= Can I translate WooCommerce products and SEO metadata? =
+= Does TranslateSense support Gutenberg and Elementor? =
+Yes. TranslateSense supports Gutenberg, Elementor, and Classic Editor. It includes built-in rules for supported blocks and widgets and allows you to configure additional mappings through XML Configuration.
 
-Yes. Enable your `product` post type and WooCommerce taxonomies (`product_cat`, `product_tag`) in Polylang, and ensure your SEO plugin or WooCommerce custom field rules are available via `wpml-config.xml` or added under XML Configuration. If Polylang's own Custom Fields synchronization option is turned on, TranslateSense defers custom field meta syncing to Polylang.
+= Can I translate WooCommerce products? =
+Yes. TranslateSense supports WooCommerce products and product taxonomies when they are enabled for translation in Polylang. Product content and supported custom fields can be translated through the supported editor workflow.
 
-= Can I customize which Gutenberg blocks, Elementor widgets, or custom fields are translated? =
+= Does TranslateSense support Advanced Custom Fields (ACF)? =
+Yes. TranslateSense supports configured ACF fields, including Repeater, Flexible Content, and Group fields, along with supported relationship and media ID mapping.
 
-Yes. TranslateSense automatically merges `wpml-config.xml` files from active plugins and themes, and you can edit custom `<wpml-config>` XML rules directly from the **Gutenberg Blocks** or **Elementor Widgets** tabs in **Languages > TranslateSense**.
+= Can I translate SEO titles and meta descriptions? =
+Yes. TranslateSense supports SEO metadata from Yoast SEO, Rank Math, and SEOPress. Additional metadata fields can be configured through XML rules.
 
-= Who can use TranslateSense? =
+= Can TranslateSense translate categories and tags? =
+Yes. You can translate categories, tags, and supported custom taxonomy terms from taxonomy list screens. TranslateSense can also translate and assign related terms during supported post translation workflows.
 
-Dashboard settings, XML configuration, and cache controls require `manage_options` (filterable via `translatesense_menu_capability`). Page Editor and Bulk Translation check WordPress `edit_post`, post-type `create_posts`, `edit_term`, and `manage_terms` capabilities for the specific items being translated.
+= Does TranslateSense update internal links? =
+Yes. When a corresponding translated post, page, taxonomy term, or supported media item is available, TranslateSense can update internal references to point to the translated version.
+
+= Why does the browser tab need to stay open for some translations? =
+Built-in Browser AI runs inside your browser rather than on the WordPress server. Taxonomy term translation also runs in the active browser tab. Keep the tab open until these operations finish. OpenAI and Google Gemini post batches use background processing.
+
+= Can I customize the translation rules? =
+Yes. TranslateSense supports XML Configuration for Gutenberg blocks, Elementor widgets, and custom fields. It can also use supported `wpml-config.xml` files from active plugins and themes.
+
+= How does Translation Memory work? =
+TranslateSense saves translated strings and package mappings in your WordPress database. When the same source text is encountered again, it can reuse a saved translation instead of sending another request to the AI provider.
+
+= Which languages work with Built-in Browser AI? =
+Built-in Browser AI supports 39 language codes through Chromium's on-device Translator API when the browser supports the selected language pair. If a language pair is unavailable, you can use OpenAI or Google Gemini instead.
+
+= Which WordPress and PHP versions are required? =
+TranslateSense requires WordPress 5.8 or later and PHP 7.4 or later. PHP `mbstring` and `DOMDocument` extensions are recommended for string measurement and Classic Editor HTML parsing.
+
+= Who can access TranslateSense settings? =
+Dashboard settings, XML configuration, and cache controls require the `manage_options` capability by default. Translation actions also check the relevant WordPress post and taxonomy capabilities.
 
 == Special Thanks ==
 
@@ -159,7 +235,7 @@ TranslateSense is open source under the GPLv2 or later license. Explore the sour
 * Added SEO metadata translation support for Yoast SEO, Rank Math SEO, and SEOPress.
 * Added support for custom fields configured through plugin `wpml-config.xml` files.
 * Improved post translation completion checks.
-* Improved API key validation in TranslateSense dashboard.
+* Improved API key validation in the TranslateSense dashboard.
 
 = 0.0.9 =
 * Initial public release.
