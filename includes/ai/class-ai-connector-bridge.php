@@ -570,7 +570,7 @@ class Ai_Connector_Bridge {
 					return new WP_Error( 'missing_api_key', __( 'Google Gemini API key is missing. Please configure it in TranslateSense Settings.', 'translatesense' ), array( 'status' => 401 ) );
 				}
 
-				$url  = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode( $model ) . ':generateContent?key=' . rawurlencode( $api_key ); // phpcs:ignore fallback if connector not found and for older wp version compatibility.
+				$url  = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode( $model ) . ':generateContent'; // phpcs:ignore fallback if connector not found and for older wp version compatibility.
 				$body = array(
 					'contents'         => array(
 						array(
@@ -589,7 +589,10 @@ class Ai_Connector_Bridge {
 				$response = wp_remote_post(
 					$url,
 					array(
-						'headers'     => array( 'Content-Type' => 'application/json' ),
+						'headers'     => array(
+							'Content-Type'   => 'application/json',
+							'x-goog-api-key' => $api_key,
+						),
 						'body'        => wp_json_encode( $body ),
 						'timeout'     => $timeout,
 						'data_format' => 'body',
@@ -754,7 +757,10 @@ class Ai_Connector_Bridge {
 							$provider_connector = wp_get_connector( $id );
 							$file               = $provider_connector['plugin']['file'];
 							$is_activated       = (bool) call_user_func( $provider_connector['plugin']['is_active'] );
-							$is_installed       = $is_activated || 0 === validate_plugin( $file );
+							if ( ! $is_activated && ! function_exists( 'validate_plugin' ) && defined( 'ABSPATH' ) ) {
+								require_once ABSPATH . 'wp-admin/includes/plugin.php';
+							}
+							$is_installed = $is_activated || ( function_exists( 'validate_plugin' ) && 0 === validate_plugin( $file ) );
 
 							if ( ! $is_installed ) {
 								continue;
@@ -853,14 +859,19 @@ class Ai_Connector_Bridge {
 			$status = 401;
 		}
 
+		$payload_data = array(
+			'status'   => $status,
+			'provider' => $provider,
+		);
+
+		if ( current_user_can( 'manage_options' ) ) {
+			$payload_data['original'] = $error->get_error_message();
+		}
+
 		return new WP_Error(
 			'translatesense_ai_' . $code,
 			$msg,
-			array(
-				'status'   => $status,
-				'provider' => $provider,
-				'original' => $error->get_error_message(),
-			)
+			$payload_data
 		);
 	}
 
@@ -883,7 +894,7 @@ class Ai_Connector_Bridge {
 	}
 
 	/**
-	 * Get provider models either from WP Core AI Connectors, provider API endpoint with 24h transient cache, or static cache.
+	 * Get provider models either from WP Core AI Connectors, provider API endpoint with 1h transient cache, or static cache.
 	 *
 	 * @param string $id        Provider identifier ('openai', 'gemini'/'google', 'chrome_ai').
 	 * @param bool   $connector Whether to retrieve models via WP AI Connectors.
@@ -916,8 +927,8 @@ class Ai_Connector_Bridge {
 				return array();
 			}
 
-			// 2. If connector is false, check 24-hour transient cache
-			$transient_key = 'translatesense_connector_models_' . $provider_id;
+			// 2. Check 1-hour transient cache for connector models.
+			$transient_key = 'translatesense_models_' . $provider_id;
 			$cached_models = get_transient( $transient_key );
 
 			if ( false !== $cached_models && is_array( $cached_models ) && ! empty( $cached_models ) ) {
@@ -1003,7 +1014,7 @@ class Ai_Connector_Bridge {
 			return array();
 		}
 
-		// 2. If connector is false, check 24-hour transient cache
+		// 2. If connector is false, check 1-hour transient cache
 		$transient_key = 'translatesense_models_' . $provider_id;
 		$cached_models = get_transient( $transient_key );
 
@@ -1134,10 +1145,13 @@ class Ai_Connector_Bridge {
 					return array();
 				}
 
-				$url      = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . rawurlencode( $api_key ); // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration only for fetch ai models
+				$url      = 'https://generativelanguage.googleapis.com/v1beta/models'; // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration only for fetch ai models
 				$response = wp_remote_get(
 					$url,
 					array(
+						'headers' => array(
+							'x-goog-api-key' => $api_key,
+						),
 						'timeout' => 15,
 					)
 				);
