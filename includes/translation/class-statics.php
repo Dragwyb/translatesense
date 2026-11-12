@@ -95,78 +95,97 @@ class Statics {
 			$processed_requests[ $req_id ] = true;
 		}
 
-		$stats = self::get_translation_statistics();
+		global $wpdb;
+		$lock_name     = $wpdb->prefix . 'translatesense_statics_lock';
+		$lock_acquired = false;
 
-		// Parse status.
-		$raw_status = ! empty( $data['status'] ) ? sanitize_key( (string) $data['status'] ) : 'success';
-		$is_success = in_array( $raw_status, array( 'success', 'completed', 'ok' ), true );
-
-		// Parse total characters.
-		$characters = 0;
-		if ( isset( $data['total_characters'] ) ) {
-			$characters = absint( $data['total_characters'] );
-		} elseif ( isset( $data['characters'] ) ) {
-			$characters = absint( $data['characters'] );
+		if ( isset( $wpdb ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$lock_acquired = ( 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 2)', $lock_name ) ) );
+			if ( $lock_acquired ) {
+				wp_cache_delete( self::OPTION_TRANSLATION_STATISTICS, 'options' );
+			}
 		}
 
-		// Parse total strings.
-		$strings = 0;
-		if ( isset( $data['total_strings'] ) ) {
-			$strings = absint( $data['total_strings'] );
-		} elseif ( isset( $data['strings'] ) ) {
-			$strings = absint( $data['strings'] );
+		try {
+			$stats = self::get_translation_statistics();
+
+			// Parse status.
+			$raw_status = ! empty( $data['status'] ) ? sanitize_key( (string) $data['status'] ) : 'success';
+			$is_success = in_array( $raw_status, array( 'success', 'completed', 'ok' ), true );
+
+			// Parse total characters.
+			$characters = 0;
+			if ( isset( $data['total_characters'] ) ) {
+				$characters = absint( $data['total_characters'] );
+			} elseif ( isset( $data['characters'] ) ) {
+				$characters = absint( $data['characters'] );
+			}
+
+			// Parse total strings.
+			$strings = 0;
+			if ( isset( $data['total_strings'] ) ) {
+				$strings = absint( $data['total_strings'] );
+			} elseif ( isset( $data['strings'] ) ) {
+				$strings = absint( $data['strings'] );
+			}
+
+			// Parse provider.
+			$provider = ! empty( $data['provider'] ) ? sanitize_key( (string) $data['provider'] ) : 'unknown';
+
+			// Parse time taken (kept in milliseconds).
+			$time_taken = 0;
+			if ( isset( $data['time_take'] ) ) {
+				$time_taken = max( 0, (float) $data['time_take'] );
+			}
+
+			$time_taken = (int) round( $time_taken );
+
+			// Update global statistics. Only successful translations contribute to character/string counts.
+			$stats['total_translations'] += 1;
+			if ( $is_success ) {
+				$stats['successful_translations'] += 1;
+				$stats['total_characters']        += $characters;
+				$stats['total_strings']           += $strings;
+			} else {
+				$stats['failed_translations'] += 1;
+			}
+			$stats['time_take']   += $time_taken;
+			$stats['last_updated'] = current_time( 'mysql' );
+
+			// Update per-provider statistics breakdown.
+			if ( ! isset( $stats['providers'][ $provider ] ) || ! is_array( $stats['providers'][ $provider ] ) ) {
+				$stats['providers'][ $provider ] = array(
+					'total_translations'      => 0,
+					'successful_translations' => 0,
+					'failed_translations'     => 0,
+					'total_characters'        => 0,
+					'total_strings'           => 0,
+					'time_take'               => 0,
+					'last_used'               => '',
+				);
+			}
+
+			$p_stats                        = &$stats['providers'][ $provider ];
+			$p_stats['total_translations'] += 1;
+			if ( $is_success ) {
+				$p_stats['successful_translations'] += 1;
+				$p_stats['total_characters']        += $characters;
+				$p_stats['total_strings']           += $strings;
+			} else {
+				$p_stats['failed_translations'] += 1;
+			}
+			$p_stats['time_take'] += $time_taken;
+			$p_stats['last_used']  = current_time( 'mysql' );
+
+			update_option( self::OPTION_TRANSLATION_STATISTICS, $stats, false );
+
+			return $stats;
+		} finally {
+			if ( $lock_acquired && isset( $wpdb ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+			}
 		}
-
-		// Parse provider.
-		$provider = ! empty( $data['provider'] ) ? sanitize_key( (string) $data['provider'] ) : 'unknown';
-
-		// Parse time taken (kept in milliseconds).
-		$time_taken = 0;
-		if ( isset( $data['time_take'] ) ) {
-			$time_taken = max( 0, (float) $data['time_take'] );
-		}
-
-		$time_taken = (int) round( $time_taken );
-
-		// Update global statistics. Only successful translations contribute to character/string counts.
-		$stats['total_translations'] += 1;
-		if ( $is_success ) {
-			$stats['successful_translations'] += 1;
-			$stats['total_characters']        += $characters;
-			$stats['total_strings']           += $strings;
-		} else {
-			$stats['failed_translations'] += 1;
-		}
-		$stats['time_take']   += $time_taken;
-		$stats['last_updated'] = current_time( 'mysql' );
-
-		// Update per-provider statistics breakdown.
-		if ( ! isset( $stats['providers'][ $provider ] ) || ! is_array( $stats['providers'][ $provider ] ) ) {
-			$stats['providers'][ $provider ] = array(
-				'total_translations'      => 0,
-				'successful_translations' => 0,
-				'failed_translations'     => 0,
-				'total_characters'        => 0,
-				'total_strings'           => 0,
-				'time_take'               => 0,
-				'last_used'               => '',
-			);
-		}
-
-		$p_stats                        = &$stats['providers'][ $provider ];
-		$p_stats['total_translations'] += 1;
-		if ( $is_success ) {
-			$p_stats['successful_translations'] += 1;
-			$p_stats['total_characters']        += $characters;
-			$p_stats['total_strings']           += $strings;
-		} else {
-			$p_stats['failed_translations'] += 1;
-		}
-		$p_stats['time_take'] += $time_taken;
-		$p_stats['last_used']  = current_time( 'mysql' );
-
-		update_option( self::OPTION_TRANSLATION_STATISTICS, $stats, false );
-
-		return $stats;
 	}
 }
