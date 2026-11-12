@@ -870,9 +870,37 @@ class Taxonomy_Translator {
 			}
 
 			foreach ( (array) $values as $value ) {
-				add_term_meta( $target_term_id, $meta_key, maybe_unserialize( $value ), false );
+				add_term_meta( $target_term_id, $meta_key, wp_slash( self::safe_unserialize_meta( $value ) ), false );
 			}
 		}
+	}
+
+	/**
+	 * Unserialize metadata values safely without instantiating PHP objects.
+	 *
+	 * @param mixed $value Raw metadata value.
+	 * @return mixed
+	 */
+	private static function safe_unserialize_meta( $value ) {
+		if ( ! is_string( $value ) || ! is_serialized( $value ) ) {
+			return $value;
+		}
+
+		$trimmed = trim( $value );
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Required to safely decode serialized metadata without instantiating PHP objects.
+		$unserialized = @unserialize(
+			$trimmed,
+			array(
+				'allowed_classes' => false,
+			)
+		);
+
+		if ( false !== $unserialized || 'b:0;' === $trimmed ) {
+			return $unserialized;
+		}
+
+		return $value;
 	}
 
 	/**
@@ -912,12 +940,12 @@ class Taxonomy_Translator {
 
 			foreach ( (array) $source_values as $source_value ) {
 				if ( ! is_string( $source_value ) || '' === trim( $source_value ) || Custom_Field_Parser::is_only_numbers( $source_value ) ) {
-					add_term_meta( $target_term_id, $meta_key, $source_value, false );
+					add_term_meta( $target_term_id, $meta_key, wp_slash( $source_value ), false );
 					continue;
 				}
 
 				$res = Translate::translate_string( $source_value, $source_lang, $target_lang, 'taxonomy_term_meta', $custom_opts );
-				add_term_meta( $target_term_id, $meta_key, (string) ( $res['translated'] ?? $source_value ), false );
+				add_term_meta( $target_term_id, $meta_key, wp_slash( (string) ( $res['translated'] ?? $source_value ) ), false );
 			}
 		}
 	}
