@@ -41,8 +41,8 @@ export function BulkWizard({
     formattedTimer,
     humanReadableTimer,
     statsSummary,
-    filterOnlyFailed,
-    setFilterOnlyFailed,
+    statusFilters,
+    setStatusFilters,
     startTranslation,
     skipModal,
     setSkipModal,
@@ -265,8 +265,8 @@ export function BulkWizard({
           orderedPostIds={orderedPostIds}
           postResultsMap={postResultsMap}
           allLanguages={allLanguages}
-          filterOnlyFailed={filterOnlyFailed}
-          onFilterChange={setFilterOnlyFailed}
+          selectedFilters={statusFilters}
+          onFilterChange={setStatusFilters}
           onSkipPost={(pId, bId) =>
             setSkipModal({ isOpen: true, postId: pId, batchId: bId })
           }

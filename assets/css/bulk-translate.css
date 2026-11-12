@@ -972,6 +972,8 @@ button.ts-error-detail-btn:hover {
 .ts-footer-filter-wrap {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
 .ts-footer-filter-label {

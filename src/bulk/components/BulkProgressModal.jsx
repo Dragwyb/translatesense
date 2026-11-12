@@ -3,6 +3,7 @@
  * Encapsulates Progress Monitoring, Results Table, and Actions in its own Modal
  */
 
+import { useState } from '@wordpress/element';
 import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { ReviewNotice } from '../../components/ReviewNotice';
@@ -31,7 +32,7 @@ export function BulkProgressModal({
   orderedPostIds = [],
   postResultsMap = {},
   allLanguages = [],
-  filterOnlyFailed = false,
+  selectedFilters,
   onFilterChange,
   onSkipPost,
   onErrorDetail,
@@ -42,8 +43,36 @@ export function BulkProgressModal({
   hideReviewNotice = true,
   onDismissReviewNotice = null,
 }) {
+  const [internalFilters, setInternalFilters] = useState([]);
+  const activeFilters = Array.isArray(selectedFilters) ? selectedFilters : internalFilters;
+
   const { plural: itemPlural } = getBulkItemLabels(itemMeta);
   const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
+
+  const failedCount = Number(statsSummary?.failed) || 0;
+  const completedCount = Number(statsSummary?.completed) || 0;
+  const skipExistCount =
+    (Number(statsSummary?.alreadyExists) || 0) + (Number(statsSummary?.skipped) || 0);
+
+  const filterOptions = [
+    failedCount > 0 ? { key: 'failed', label: 'Show Failed' } : null,
+    completedCount > 0 ? { key: 'completed', label: 'Show Completed' } : null,
+    skipExistCount > 0 ? { key: 'skip_exist', label: 'Show Skip/Exist' } : null,
+  ].filter(Boolean);
+
+  const showStatusFilters = filterOptions.length >= 2;
+
+  const handleToggleFilter = (filterKey) => {
+    const nextFilters = activeFilters.includes(filterKey)
+      ? activeFilters.filter((key) => key !== filterKey)
+      : [...activeFilters, filterKey];
+
+    if (onFilterChange) {
+      onFilterChange(nextFilters);
+    } else {
+      setInternalFilters(nextFilters);
+    }
+  };
 
   const shouldShowReviewNotice = Boolean(
     !hideReviewNotice &&
@@ -81,15 +110,19 @@ export function BulkProgressModal({
                 &larr; Back
               </Button>
             )}
-            {statsSummary && statsSummary.failed && (statsSummary.alreadyExists > 0 || statsSummary.completed > 0) && (
-              <label className="ts-footer-filter-label">
-                <input
-                  type="checkbox"
-                  checked={filterOnlyFailed}
-                  onChange={(e) => onFilterChange && onFilterChange(e.target.checked)}
-                />
-                <span>Show failed</span>
-              </label>
+            {showStatusFilters && (
+              <div className="ts-footer-filter-wrap">
+                {filterOptions.map((option) => (
+                  <label key={option.key} className="ts-footer-filter-label">
+                    <input
+                      type="checkbox"
+                      checked={activeFilters.includes(option.key)}
+                      onChange={() => handleToggleFilter(option.key)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
 
@@ -156,7 +189,7 @@ export function BulkProgressModal({
           isBackgroundMode={!isChromeAi}
           canSkip={canSkip}
           activeBatchId={currentBatchId}
-          filterOnlyFailed={filterOnlyFailed}
+          selectedFilters={showStatusFilters ? activeFilters : []}
           onSkipPost={onSkipPost}
           onErrorDetail={onErrorDetail}
           itemMeta={itemMeta}

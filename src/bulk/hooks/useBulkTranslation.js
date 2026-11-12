@@ -51,7 +51,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   const [totalJobsCount, setTotalJobsCount] = useState(0);
 
   const [statsSummary, setStatsSummary] = useState(null);
-  const [filterOnlyFailed, setFilterOnlyFailed] = useState(false);
+  const [statusFilters, setStatusFilters] = useState([]);
   const [hideReviewNotice, setHideReviewNotice] = useState(true);
 
   const handleDismissReviewNotice = useCallback(() => {
@@ -324,6 +324,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       const modalSource = contextOptions.modalSource || 'bulk_button';
       setProgressSessionType(sessionType);
       setProgressModalSource(modalSource);
+      setStatusFilters([]);
 
       setCurrentStep(2);
 
@@ -917,6 +918,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     setIsCompleted(false);
     setCurrentBatch(null);
     setStatsSummary(null);
+    setStatusFilters([]);
     setHideReviewNotice(true);
     setProgressPercent(0);
     resetTimer();
@@ -1060,8 +1062,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     formattedTimer,
     humanReadableTimer: humanReadable,
     statsSummary,
-    filterOnlyFailed,
-    setFilterOnlyFailed,
+    statusFilters,
+    setStatusFilters,
     startTranslation,
     skipModal,
     setSkipModal,
