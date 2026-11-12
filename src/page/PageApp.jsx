@@ -194,6 +194,8 @@ export function PageApp() {
                 showReTranslateAll={translation.showReTranslateAll}
                 isRetrying={translation.isRetrying}
                 isTranslationComplete={translation.isTranslationComplete}
+                hideReviewNotice={translation.hideReviewNotice}
+                onDismissReviewNotice={translation.handleDismissReviewNotice}
                 onReTranslateAll={translation.retranslateFailed}
                 onApply={handleApplyToPage}
               />

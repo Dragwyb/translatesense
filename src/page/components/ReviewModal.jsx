@@ -32,6 +32,8 @@ export function ReviewModal({
   showReTranslateAll = false,
   isRetrying = false,
   isTranslationComplete = false,
+  hideReviewNotice = true,
+  onDismissReviewNotice = null,
   onReTranslateAll,
   onApply,
 }) {
@@ -56,6 +58,7 @@ export function ReviewModal({
   ).length;
 
   const shouldShowReviewNotice = Boolean(
+    !hideReviewNotice &&
     isTranslationComplete &&
     !isExtracting &&
     !progressIsOpen &&
@@ -139,6 +142,7 @@ export function ReviewModal({
 
       <ReviewNotice
         isVisible={shouldShowReviewNotice}
+        onDismiss={onDismissReviewNotice}
         className="ts-modal-review-notice"
       />
 

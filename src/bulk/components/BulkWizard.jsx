@@ -55,6 +55,8 @@ export function BulkWizard({
     progressSessionType,
     progressModalSource,
     isQueueChromeAi,
+    hideReviewNotice,
+    handleDismissReviewNotice,
   } = translationState;
 
   // Responsive breakpoint hook: <= 864px uses two-step flow, > 864px uses combined flow
@@ -282,6 +284,8 @@ export function BulkWizard({
           onBack={handleBackFromProgress}
           canSkip={canSkip}
           itemMeta={itemMeta}
+          hideReviewNotice={hideReviewNotice}
+          onDismissReviewNotice={handleDismissReviewNotice}
         />
       ) : null}
     </div>

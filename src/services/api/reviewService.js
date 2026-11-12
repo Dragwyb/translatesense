@@ -24,23 +24,28 @@ function getLocalizedConfigs() {
 }
 
 /**
- * Check whether the review notice has been globally dismissed in localized script data.
+ * Parse `hideReviewNotice` safely from an API response (/bulk-start or /get-page-content).
+ * Missing or invalid values are treated as hidden (`true`) until a valid boolean is returned.
  *
+ * @param {Object|null|undefined} responseData
  * @returns {boolean}
  */
-export function isReviewNoticeHidden() {
-  const configs = getLocalizedConfigs();
-  return configs.some((cfg) => Boolean(cfg.hideReviewNotice));
+export function parseHideReviewNotice(responseData) {
+  if (responseData && typeof responseData.hideReviewNotice === 'boolean') {
+    return responseData.hideReviewNotice;
+  }
+  return true;
 }
 
 /**
- * Update in-memory localized configs so closing/reopening modals in the same page session
- * keeps the review notice hidden without a reload.
+ * Update in-memory localized dashboard config after successful dismissal.
  */
 function markReviewNoticeHiddenInMemory() {
   const configs = getLocalizedConfigs();
   configs.forEach((cfg) => {
-    cfg.hideReviewNotice = true;
+    if ('hideReviewNotice' in cfg) {
+      cfg.hideReviewNotice = true;
+    }
     if ('showReviewNotice' in cfg) {
       cfg.showReviewNotice = false;
     }
@@ -57,8 +62,6 @@ export async function dismissReviewNotice(reviewAction) {
   if (!ALLOWED_ACTIONS.has(reviewAction)) {
     return { success: false };
   }
-
-  markReviewNoticeHiddenInMemory();
 
   const configs = getLocalizedConfigs();
   const activeConfig = configs.find((cfg) => cfg.ajaxUrl && cfg.reviewNonce) || configs[0] || {};
@@ -86,7 +89,11 @@ export async function dismissReviewNotice(reviewAction) {
     });
 
     const json = await response.json().catch(() => null);
-    return { success: Boolean(response.ok && json && json.success) };
+    const success = Boolean(response.ok && json && json.success);
+    if (success) {
+      markReviewNoticeHiddenInMemory();
+    }
+    return { success };
   } catch (err) {
     console.warn('[TranslateSense] Could not dismiss review notice:', err);
     return { success: false };

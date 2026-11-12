@@ -4,6 +4,7 @@ import { startBulkTranslation, translateBulkTerm, updateBulkJob, skipBulkPost } 
 import { getActiveBatches, getBatchStatus } from '../services/batchService';
 import { extractStrings, translatePost } from '../../services/core/translationService';
 import { getCoreInstance } from '../../services/core/coreService';
+import { parseHideReviewNotice } from '../../services/api/reviewService';
 import { isEmailOrUrl } from '../../utils/validation';
 import { getPostProgress, getOverallProgress, calculateBatchStats } from '../utils/bulkCalculations';
 import { useElapsedTimer } from './useElapsedTimer';
@@ -51,6 +52,11 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
   const [statsSummary, setStatsSummary] = useState(null);
   const [filterOnlyFailed, setFilterOnlyFailed] = useState(false);
+  const [hideReviewNotice, setHideReviewNotice] = useState(true);
+
+  const handleDismissReviewNotice = useCallback(() => {
+    setHideReviewNotice(true);
+  }, []);
 
   // Modal progress session context: separates new user queue from existing background queue
   const [progressSessionType, setProgressSessionType] = useState('new_queue'); // 'new_queue' | 'existing_queue'
@@ -880,6 +886,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     setIsCompleted(false);
     setCurrentBatch(null);
     setStatsSummary(null);
+    setHideReviewNotice(true);
     setProgressPercent(0);
     resetTimer();
 
@@ -925,6 +932,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         subtype,
       });
 
+      setHideReviewNotice(parseHideReviewNotice(batchRes));
+
       if (!batchRes.batch_id) {
         console.error(batchRes.message || 'Failed to start batch');
       }
@@ -958,6 +967,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         pollStatus(batchRes.batch_id);
       }
     } catch (err) {
+      setHideReviewNotice(true);
       setIsTranslating(false);
       setStatusText(`Error: ${err.message}`);
       setErrorModal({
@@ -1042,6 +1052,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     progressModalSource,
     setProgressModalSource,
     isQueueChromeAi,
+    hideReviewNotice,
+    handleDismissReviewNotice,
   };
 }
 

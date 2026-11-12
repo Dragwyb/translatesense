@@ -8,25 +8,32 @@ import {
   REVIEW_URL,
   REVIEW_NOTICE_BODY,
   REVIEW_NOTICE_LINK_TEXT,
-  isReviewNoticeHidden,
   dismissReviewNotice,
 } from '../../services/api/reviewService';
 
-export function ReviewNotice({ isVisible = false, className = '' }) {
-  const [isDismissed, setIsDismissed] = useState(() => isReviewNoticeHidden());
+export function ReviewNotice({ isVisible = false, onDismiss = null, className = '' }) {
+  const [isDismissed, setIsDismissed] = useState(false);
   const isSubmittingRef = useRef(false);
 
-  if (!isVisible || isDismissed || isReviewNoticeHidden()) {
+  if (!isVisible || isDismissed) {
     return null;
   }
 
-  const handleDismiss = (reviewAction) => {
+  const handleDismiss = async (reviewAction) => {
     if (isSubmittingRef.current) {
       return;
     }
     isSubmittingRef.current = true;
-    setIsDismissed(true);
-    dismissReviewNotice(reviewAction);
+
+    const result = await dismissReviewNotice(reviewAction);
+    if (result && result.success) {
+      setIsDismissed(true);
+      if (typeof onDismiss === 'function') {
+        onDismiss(reviewAction);
+      }
+    } else {
+      isSubmittingRef.current = false;
+    }
   };
 
   return (

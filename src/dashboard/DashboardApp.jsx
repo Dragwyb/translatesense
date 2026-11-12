@@ -67,13 +67,17 @@ export function DashboardApp() {
   );
   const isDismissingReviewRef = useRef(false);
 
-  const handleDismissReviewNotice = (reviewAction) => {
+  const handleDismissReviewNotice = async (reviewAction) => {
     if (isDismissingReviewRef.current) {
       return;
     }
     isDismissingReviewRef.current = true;
-    setIsReviewNoticeDismissed(true);
-    dismissReviewNotice(reviewAction);
+    const result = await dismissReviewNotice(reviewAction);
+    if (result && result.success) {
+      setIsReviewNoticeDismissed(true);
+    } else {
+      isDismissingReviewRef.current = false;
+    }
   };
 
   const showDashboardReviewNotice = Boolean(

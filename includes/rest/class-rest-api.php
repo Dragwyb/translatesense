@@ -2861,11 +2861,12 @@ class Rest_Api {
 
 		return rest_ensure_response(
 			array(
-				'success' => true,
-				'title'   => $post->post_title,
-				'content' => $post->post_content,
-				'excerpt' => $post->post_excerpt,
-				'slug'    => $post->post_name,
+				'success'          => true,
+				'title'            => $post->post_title,
+				'content'          => $post->post_content,
+				'excerpt'          => $post->post_excerpt,
+				'slug'             => $post->post_name,
+				'hideReviewNotice' => Admin_Menu::is_review_notice_hidden(),
 			)
 		);
 	}
@@ -3796,6 +3797,10 @@ class Rest_Api {
 				(string) $result['error'],
 				array( 'status' => 400 )
 			);
+		}
+
+		if ( is_array( $result ) ) {
+			$result['hideReviewNotice'] = Admin_Menu::is_review_notice_hidden();
 		}
 
 		return rest_ensure_response( $result );

@@ -47,18 +47,27 @@ class Admin_Menu {
 	}
 
 	/**
-	 * Get shared global review notice dismissal state and AJAX config for localized scripts.
+	 * Check whether the review notice should be hidden globally or for the current user.
 	 *
-	 * @return array{ajaxUrl: string, reviewNonce: string, hideReviewNotice: bool}
+	 * @return bool
 	 */
-	public static function get_review_notice_data(): array {
-		$can_manage       = current_user_can( self::get_manage_capability() );
+	public static function is_review_notice_hidden(): bool {
 		$is_review_hidden = ( 1 === (int) get_option( 'translatesense_hide_review', 0 ) );
 
+		return ( $is_review_hidden || ! current_user_can( self::get_manage_capability() ) );
+	}
+
+	/**
+	 * Get shared global review notice AJAX config for localized scripts.
+	 *
+	 * @return array{ajaxUrl: string, reviewNonce: string}
+	 */
+	public static function get_review_notice_data(): array {
+		$can_manage = current_user_can( self::get_manage_capability() );
+
 		return array(
-			'ajaxUrl'          => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
-			'reviewNonce'      => $can_manage ? wp_create_nonce( self::REVIEW_NONCE_ACTION ) : '',
-			'hideReviewNotice' => ( $is_review_hidden || ! $can_manage ),
+			'ajaxUrl'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+			'reviewNonce' => $can_manage ? wp_create_nonce( self::REVIEW_NONCE_ACTION ) : '',
 		);
 	}
 
@@ -204,22 +213,27 @@ class Admin_Menu {
 
 		$admin_url          = admin_url();
 		$review_data        = self::get_review_notice_data();
+		$is_review_hidden   = self::is_review_notice_hidden();
 		$show_review_notice = false;
+		$current_utc_date   = gmdate( 'Y-m-d H:i:s' );
+		$current_timestamp  = strtotime( $current_utc_date . ' UTC' );
 
-		$install_raw = get_option( 'translatesense_install_date', false );
+		$install_raw = get_option( 'translatesense_activation_date', false );
 		if ( false === $install_raw || '' === $install_raw ) {
-			$install_timestamp = time();
-			update_option( 'translatesense_install_date', $install_timestamp, false );
+			update_option( 'translatesense_activation_date', $current_utc_date, false );
+			$install_timestamp = $current_timestamp;
 		} else {
-			$install_timestamp = is_numeric( $install_raw ) ? (int) $install_raw : (int) strtotime( (string) $install_raw );
-			if ( $install_timestamp <= 0 ) {
-				$install_timestamp = time();
-				update_option( 'translatesense_install_date', $install_timestamp, false );
+			$install_timestamp = is_numeric( $install_raw )
+				? (int) $install_raw
+				: strtotime( trim( (string) $install_raw ) . ' UTC' );
+			if ( false === $install_timestamp || $install_timestamp <= 0 ) {
+				update_option( 'translatesense_activation_date', $current_utc_date, false );
+				$install_timestamp = $current_timestamp;
 			}
 		}
 
-		if ( ! $review_data['hideReviewNotice'] ) {
-			$is_old_enough = ( time() - $install_timestamp ) >= ( 3 * DAY_IN_SECONDS );
+		if ( ! $is_review_hidden ) {
+			$is_old_enough = ( false !== $current_timestamp ) && ( ( $current_timestamp - $install_timestamp ) >= ( 3 * DAY_IN_SECONDS ) );
 
 			if ( $is_old_enough ) {
 				$stats       = Statics::get_translation_statistics();
@@ -249,6 +263,7 @@ class Admin_Menu {
 				'adminUrl'         => $admin_url,
 				'activeBuilders'   => self::get_active_builders(),
 				'showReviewNotice' => $show_review_notice,
+				'hideReviewNotice' => $is_review_hidden,
 			) + $review_data
 		);
 	}

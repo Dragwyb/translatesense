@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from '@wordpress/element';
 import { getEvaluatedProviders } from '../../services/providers/providerService';
 import { extractPostStrings, markPostTranslated, translatePostServer } from '../services/pageTranslationService';
 import { getCoreInstance } from '../../services/core/coreService';
+import { parseHideReviewNotice } from '../../services/api/reviewService';
 import { isEmailOrUrl } from '../../utils/validation';
 import { formatMs } from '../../utils/formatting';
 
@@ -116,6 +117,22 @@ export function usePageTranslation(config = {}) {
     )
   );
   const [skippedCustomFieldsCount, setSkippedCustomFieldsCount] = useState(0);
+  const [hideReviewNotice, setHideReviewNotice] = useState(true);
+  const hasDismissedReviewRef = useRef(false);
+
+  const handleDismissReviewNotice = useCallback(() => {
+    hasDismissedReviewRef.current = true;
+    setHideReviewNotice(true);
+    setSourcePageData((prev) => (prev ? { ...prev, hideReviewNotice: true } : prev));
+    const core = getCoreInstance();
+    if (core && core.pageContentCache instanceof Map) {
+      core.pageContentCache.forEach((cached) => {
+        if (cached && typeof cached === 'object') {
+          cached.hideReviewNotice = true;
+        }
+      });
+    }
+  }, []);
 
   const lastCompletedProviderRef = useRef('');
   const lastCompletedTargetLangRef = useRef('');
@@ -196,8 +213,12 @@ export function usePageTranslation(config = {}) {
         try {
           pageData = await core.getPageContent(sourcePostId);
           setSourcePageData(pageData);
+          if (!hasDismissedReviewRef.current) {
+            setHideReviewNotice(parseHideReviewNotice(pageData));
+          }
         } catch (e) {
           console.warn('[TranslateSense] Could not fetch source page data:', e);
+          setHideReviewNotice(true);
         }
       }
 
@@ -637,5 +658,7 @@ export function usePageTranslation(config = {}) {
     sourceLang,
     isCustomFieldsSyncEnabled,
     skippedCustomFieldsCount,
+    hideReviewNotice,
+    handleDismissReviewNotice,
   };
 }

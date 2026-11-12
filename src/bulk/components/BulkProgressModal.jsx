@@ -39,6 +39,8 @@ export function BulkProgressModal({
   onBack,
   canSkip = false,
   itemMeta = {},
+  hideReviewNotice = true,
+  onDismissReviewNotice = null,
 }) {
   const { plural: itemPlural } = getBulkItemLabels(itemMeta);
   const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
@@ -47,7 +49,11 @@ export function BulkProgressModal({
   );
 
   const shouldShowReviewNotice = Boolean(
-    isCompleted && statsSummary && statsSummary.completedCharacters > 1000 && statsSummary.completed > 0
+    !hideReviewNotice &&
+    isCompleted &&
+    statsSummary &&
+    statsSummary.completedCharacters > 1000 &&
+    statsSummary.completed > 0
   );
 
   return (
@@ -114,6 +120,7 @@ export function BulkProgressModal({
       <div className="ts-bulk-progress-view">
         <ReviewNotice
           isVisible={shouldShowReviewNotice}
+          onDismiss={onDismissReviewNotice}
           className="ts-modal-review-notice"
         />
 
