@@ -611,6 +611,54 @@ class Rest_Api {
 						'default'           => '',
 						'sanitize_callback' => 'sanitize_key',
 					),
+					'data'             => array(
+						'required'          => false,
+						'type'              => 'object',
+						'validate_callback' => static function ( $value ) {
+							return is_array( $value ) && ! empty( $value );
+						},
+						'properties'        => array(
+							'status'            => array(
+								'type'              => 'string',
+								'enum'              => array( 'pending', 'processing', 'completed', 'failed', 'cancelled', 'error' ),
+								'sanitize_callback' => 'sanitize_key',
+							),
+							'progress_status'   => array(
+								'type'              => 'string',
+								'sanitize_callback' => 'sanitize_text_field',
+							),
+							'total_strings'     => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'completed_strings' => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'total_characters'  => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'completed_characters' => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'time_take'         => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'target_post_id'    => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'error_message'        => array(
+								'type'              => array( 'string', 'null' ),
+								'sanitize_callback' => static function ( $value ) {
+									return is_string( $value ) ? sanitize_text_field( $value ) : null;
+								},
+							),
+						),
+					),
 					'status'           => array(
 						'required'          => false,
 						'type'              => 'string',
@@ -1922,7 +1970,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, post_id, target_post_id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT id, item_type, post_id, target_post_id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id,
 				$post_id
 			),
@@ -1937,18 +1985,42 @@ class Rest_Api {
 			);
 		}
 
-		if ( ! get_post( $post_id ) ) {
-			return self::permission_error(
-				__( 'The requested post could not be found.', 'translatesense' ),
-				'rest_post_not_found',
-				404
-			);
+		$is_taxonomy_item = false;
+		foreach ( $rows as $row ) {
+			if ( 'taxonomy' === ( $row['item_type'] ?? 'post' ) ) {
+				$is_taxonomy_item = true;
+				break;
+			}
 		}
 
-		if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
-			return self::permission_error(
-				__( 'You are not allowed to modify translations for this post.', 'translatesense' )
-			);
+		if ( $is_taxonomy_item ) {
+			if ( ! get_term( $post_id ) instanceof \WP_Term ) {
+				return self::permission_error(
+					__( 'The requested taxonomy term could not be found.', 'translatesense' ),
+					'rest_term_not_found',
+					404
+				);
+			}
+
+			if ( ! is_user_logged_in() || ! current_user_can( 'edit_term', $post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to modify translations for this term.', 'translatesense' )
+				);
+			}
+		} else {
+			if ( ! get_post( $post_id ) ) {
+				return self::permission_error(
+					__( 'The requested post could not be found.', 'translatesense' ),
+					'rest_post_not_found',
+					404
+				);
+			}
+
+			if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to modify translations for this post.', 'translatesense' )
+				);
+			}
 		}
 
 		// Provider validation: STRICTLY restricted to OpenAI and Gemini
@@ -1963,7 +2035,13 @@ class Rest_Api {
 			}
 
 			$target_post_id = ! empty( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
-			if ( $target_post_id && get_post( $target_post_id ) && ! current_user_can( 'edit_post', $target_post_id ) ) {
+			if ( $is_taxonomy_item ) {
+				if ( $target_post_id && ( get_term( $target_post_id ) instanceof \WP_Term ) && ! current_user_can( 'edit_term', $target_post_id ) ) {
+					return self::permission_error(
+						__( 'You are not allowed to modify target translations for this term.', 'translatesense' )
+					);
+				}
+			} elseif ( $target_post_id && get_post( $target_post_id ) && ! current_user_can( 'edit_post', $target_post_id ) ) {
 				return self::permission_error(
 					__( 'You are not allowed to modify target translations for this post.', 'translatesense' )
 				);
@@ -2736,13 +2814,11 @@ class Rest_Api {
 	 */
 	public static function get_editor_xml_config( WP_REST_Request $request ) {
 
-		$editor = sanitize_key(
-			(string) (
-				$request->get_param( 'editor' )
-				?: $request->get_param( 'builder' )
-				?: ''
-			)
-		);
+		$raw_editor = $request->get_param( 'editor' );
+		if ( empty( $raw_editor ) ) {
+			$raw_editor = $request->get_param( 'builder' );
+		}
+		$editor = sanitize_key( (string) ( ! empty( $raw_editor ) ? $raw_editor : '' ) );
 
 		if (
 			empty( $editor ) ||
@@ -3015,12 +3091,10 @@ class Rest_Api {
 		$updated = self::sanitize_settings( $params, $current );
 
 		if ( is_wp_error( $updated ) ) {
-			return rest_ensure_response(
-				array(
-					'success' => false,
-					'message' => $updated->get_error_message(),
-				)
-			);
+			if ( empty( $updated->get_error_data() ) ) {
+				$updated->add_data( array( 'status' => 400 ) );
+			}
+			return $updated;
 		}
 
 		update_option(
@@ -3215,7 +3289,8 @@ class Rest_Api {
 							$is_invalid_key
 							? __( 'Invalid API key.', 'translatesense' )
 							: __( 'API key validation failed.', 'translatesense' )
-						)
+						),
+						array( 'status' => 400 )
 					);
 				}
 
@@ -3998,12 +4073,12 @@ class Rest_Api {
 		}
 
 		if (
-			isset( $updates['status'] ) &&
-			'completed' === $updates['status'] &&
-			! empty( $updates['target_post_id'] )
+			isset( $clean_data['status'] ) &&
+			'completed' === $clean_data['status'] &&
+			! empty( $clean_data['target_post_id'] )
 		) {
 
-			$target_post_id = absint( $updates['target_post_id'] );
+			$target_post_id = absint( $clean_data['target_post_id'] );
 
 			if ( 'term' === $type ) {
 				$source_term  = ! empty( $job->post_id ) ? get_term( absint( $job->post_id ) ) : null;
