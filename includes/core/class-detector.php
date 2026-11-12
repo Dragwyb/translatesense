@@ -171,14 +171,21 @@ class Detector {
 				wp_update_post( array( 'ID' => $sandbox_id, 'post_status' => 'publish' ) );
 			}
 		} else {
-			$sandbox_id = (int) wp_insert_post(
+			$inserted_id = wp_insert_post(
 				array(
 					'post_title'   => sprintf( 'TranslateSense Config Sandbox (%s)', ucfirst( $builder ) ),
 					'post_type'    => self::POST_TYPE,
 					'post_status'  => ( 'elementor' === $builder ) ? 'publish' : 'draft',
 					'post_content' => '<!-- wp:paragraph --><p>Translate This Content</p><!-- /wp:paragraph -->',
-				)
+				),
+				true
 			);
+
+			if ( is_wp_error( $inserted_id ) || (int) $inserted_id <= 0 ) {
+				return 0;
+			}
+
+			$sandbox_id = (int) $inserted_id;
 
 			update_post_meta( $sandbox_id, '_translatesense_config_post', $builder );
 
