@@ -80,7 +80,7 @@ export async function apiRequest(endpoint, options = {}) {
     } catch (err) {
       const message = err.message || err.code || 'API request failed';
       const status = err.status || (err.data && err.data.status) || 500;
-      console.error(message, status, err);
+      throw new ApiError(message, status, err);
     }
   }
 
@@ -110,7 +110,7 @@ export async function apiRequest(endpoint, options = {}) {
   try {
     response = await fetch(fullUrl, fetchConfig);
   } catch (netErr) {
-    console.error(`Network error: ${netErr.message}`, 0, netErr);
+    throw new ApiError(`Network error: ${netErr.message}`, 0, netErr);
   }
 
   let resData;
@@ -124,7 +124,7 @@ export async function apiRequest(endpoint, options = {}) {
     const errorMsg =
       (resData && (resData.message || resData.error)) ||
       `HTTP Error ${response.status}: ${response.statusText}`;
-    console.error(errorMsg, response.status, resData);
+    throw new ApiError(errorMsg, response.status, resData);
   }
 
   return resData;

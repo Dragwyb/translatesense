@@ -127,15 +127,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     });
 
     if (!isTaxonomy) {
-      getActiveBatches().then((res) => {
-        if (!mounted) return;
-        const batches = res.batches || [];
-        setActiveBatches(batches);
-        if (batches.length > 0 && !currentBatchId) {
-          setCurrentBatchId(batches[0].batch_id);
-          setCurrentBatch(batches[0]);
-        }
-      });
+      getActiveBatches()
+        .then((res) => {
+          if (!mounted) return;
+          const batches = (res && res.batches) || [];
+          setActiveBatches(batches);
+          if (batches.length > 0 && !currentBatchId) {
+            setCurrentBatchId(batches[0].batch_id);
+            setCurrentBatch(batches[0]);
+          }
+        })
+        .catch(() => {});
     }
 
     return () => {
@@ -532,16 +534,24 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         }
 
         // If queue post is more than 1 day old, mark status as failed and do not translate
-        const jobCreated = job.created_at ? new Date(job.created_at).getTime() : 0;
+        const normalizedCreatedAt =
+          typeof job.created_at === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(job.created_at)
+            ? `${job.created_at.replace(' ', 'T')}Z`
+            : job.created_at;
+        const jobCreated = normalizedCreatedAt ? new Date(normalizedCreatedAt).getTime() : 0;
         const isOneDayOld = jobCreated > 0 && (Date.now() - jobCreated) >= 86400000;
         if (isOneDayOld) {
           failedCount++;
           runningJobs[i].status = 'failed';
-          await updateBulkJob(jobId, {
-            status: 'failed',
-            progress_status: 'Failed: Job expired (more than 1 day old)',
-            error_message: 'Translation job expired: queued for more than 1 day.',
-          }, itemType);
+          try {
+            await updateBulkJob(jobId, {
+              status: 'failed',
+              progress_status: 'Failed: Job expired (more than 1 day old)',
+              error_message: 'Translation job expired: queued for more than 1 day.',
+            }, itemType);
+          } catch {
+            // Non-blocking UI progress sync
+          }
           setPostResultsMap((prev) => {
             const updated = { ...prev };
             if (updated[postId] && updated[postId].translations[targetLang]) {
@@ -857,13 +867,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           const postFailPct = Math.round(getOverallProgress(runningJobs));
           setProgressPercent(postFailPct);
 
-          await updateBulkJob(jobId, {
-            status: 'failed',
-            progress_status: `Failed: ${err.message}`,
-            error_message: err.message,
-            total_strings: rawStrings.length || 0,
-            time_take: Math.round(performance.now() - jobStartTime),
-          }, itemType);
+          try {
+            await updateBulkJob(jobId, {
+              status: 'failed',
+              progress_status: `Failed: ${err.message}`,
+              error_message: err.message,
+              total_strings: rawStrings.length || 0,
+              time_take: Math.round(performance.now() - jobStartTime),
+            }, itemType);
+          } catch {
+            // Non-blocking UI progress sync
+          }
 
           setPostResultsMap((prev) => {
             const updated = { ...prev };
