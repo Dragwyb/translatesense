@@ -316,7 +316,7 @@ class Editor_Integration {
 		}
 
 		$settings         = get_option( 'translatesense_settings', array() );
-		$enable_providers = $settings['enabled_providers'];
+		$enable_providers = is_array( $settings ) && isset( $settings['enabled_providers'] ) && is_array( $settings['enabled_providers'] ) ? $settings['enabled_providers'] : array();
 		$active_providers = array();
 
 		if ( class_exists( Ai_Connector_Bridge::class ) ) {
