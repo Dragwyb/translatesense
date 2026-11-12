@@ -1061,8 +1061,8 @@ class Bulk_Process {
 				Statics::update_translation_statistics(
 					array(
 						'status'           => 'failed',
-						'total_characters' => isset( $total_chars ) ? $total_chars : 0,
-						'total_strings'    => isset( $total_str ) ? $total_str : 0,
+						'total_characters' => 0,
+						'total_strings'    => 0,
 						'provider'         => $provider,
 						'time_take'        => $elapsed_ms,
 						'request_id'       => 'bulk_cron_job_' . $job_id,
@@ -1102,12 +1102,12 @@ class Bulk_Process {
 
 		$user = get_userdata( $user_id );
 		if ( ! $user instanceof \WP_User || ! $user->exists() ) {
-			throw new \RuntimeException( __( 'The initiating user no longer exists.', 'translatesense' ) );
+			throw new \RuntimeException( esc_html__( 'The initiating user no longer exists.', 'translatesense' ) );
 		}
 
 		$source_post = get_post( $post_id );
 		if ( ! $source_post || ! user_can( $user, 'edit_post', $post_id ) ) {
-			throw new \RuntimeException( __( 'The initiating user no longer has permission to edit the source post.', 'translatesense' ) );
+			throw new \RuntimeException( esc_html__( 'The initiating user no longer has permission to edit the source post.', 'translatesense' ) );
 		}
 
 		$target_post_id = $existing_target_post_id > 0
@@ -1116,7 +1116,7 @@ class Bulk_Process {
 
 		if ( $target_post_id > 0 && $target_post_id !== $post_id ) {
 			if ( ! get_post( $target_post_id ) || ! user_can( $user, 'edit_post', $target_post_id ) ) {
-				throw new \RuntimeException( __( 'The initiating user no longer has permission to update the target translation post.', 'translatesense' ) );
+				throw new \RuntimeException( esc_html__( 'The initiating user no longer has permission to update the target translation post.', 'translatesense' ) );
 			}
 		} else {
 			$post_type_obj     = get_post_type_object( $source_post->post_type );
@@ -1125,13 +1125,13 @@ class Bulk_Process {
 				: 'edit_posts';
 
 			if ( ! user_can( $user, $create_capability ) ) {
-				throw new \RuntimeException( __( 'The initiating user no longer has permission to create target translation posts.', 'translatesense' ) );
+				throw new \RuntimeException( esc_html__( 'The initiating user no longer has permission to create target translation posts.', 'translatesense' ) );
 			}
 		}
 
 		$taxonomy_auth = Taxonomy_Translator::check_post_permissions( $post_id, $target_lang, $user_id );
 		if ( is_wp_error( $taxonomy_auth ) ) {
-			throw new \RuntimeException( $taxonomy_auth->get_error_message() );
+			throw new \RuntimeException( esc_html( $taxonomy_auth->get_error_message() ) );
 		}
 
 		return array(
