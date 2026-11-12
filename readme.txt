@@ -5,7 +5,7 @@ Tags: translation, polylang, multilingual, ai translation, automatic translation
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -229,6 +229,13 @@ TranslateSense is open source under the GPLv2 or later license. Explore the sour
 [GitHub Repository](https://github.com/Dragwyb/translatesense)
 
 == Changelog ==
+
+= 0.2.0 =
+* Added a Bulk Translate button to supported taxonomy pages to translate terms.
+* Added automatic taxonomy translation during bulk post translation.
+* Added Failed, Completed, and Skipped filters to the bulk translation progress modal footer.
+* Added a review notice to the TranslateSense dashboard.
+* Fixed an issue that prevented trashed posts from being translated correctly.
 
 = 0.1.0 =
 * Added default ACF field translation support in Bulk Translation and the Page Editor.

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       TranslateSense – AI Translation for Polylang
  * Description:       A high-performance automatic translation addon for Polylang with Gutenberg & Elementor XML mapping, auto-detection, and DB caching.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Author:            dragwyb
  * Author URI:        https://dragwyb.com/
  * Requires PHP:      7.4
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'TRANSLATESENSE_VERSION', '0.1.0' );
+define( 'TRANSLATESENSE_VERSION', '0.2.0' );
 define( 'TRANSLATESENSE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'TRANSLATESENSE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
