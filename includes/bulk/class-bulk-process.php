@@ -242,13 +242,14 @@ class Bulk_Process {
 			$post_ids = self::filter_linked_posts( $post_ids );
 		}
 
+		$now_utc          = gmdate( 'Y-m-d H:i:s' );
 		$created_by       = absint( get_current_user_id() );
 		$item_type        = $is_term ? 'taxonomy' : 'post';
 		$created_jobs     = array();
 		$has_pending_jobs = false;
 		$languages        = ! $is_term ? Polylang_Bridge::get_languages() : array();
 		$seen_pairs       = array();
-		$cutoff           = current_time( 'timestamp' ) - DAY_IN_SECONDS;
+		$cutoff           = time() - DAY_IN_SECONDS;
 		$cutoff_mysql     = gmdate( 'Y-m-d H:i:s', $cutoff );
 		$clean_languages  = array();
 		foreach ( $target_languages as $language ) {
@@ -318,25 +319,26 @@ class Bulk_Process {
 					$target_post_id  = $has_existing_target ? $existing_target_id : 0;
 				} else {
 					$existing_trans_id   = self::get_existing_translation_post_id( $item_id, $target_lang );
+					$is_same_lang        = ( $existing_trans_id > 0 && $existing_trans_id === $item_id );
 					$has_existing_target = $existing_trans_id > 0 && $existing_trans_id !== $item_id;
 					$target_post_id      = $has_existing_target ? $existing_trans_id : 0;
 					$target_lang_name    = ! empty( $languages[ $target_lang ]['name'] )
 						? sanitize_text_field( (string) $languages[ $target_lang ]['name'] )
 						: strtoupper( $target_lang );
 
-					$job_status       = $existing_trans_id ? 'already_exists' : 'pending';
-					$progress_status  = $existing_trans_id
+					$job_status      = $existing_trans_id ? 'already_exists' : 'pending';
+					$progress_status = $is_same_lang
 						? 'Source already uses target language'
-						: ( $has_existing_target ? 'Queued to update existing translation' : 'Queued' );
-					$has_pending_jobs = $existing_trans_id ? false : true;
+						: ( $has_existing_target ? 'Already exists' : 'Queued' );
 
 					if ( $has_existing_target ) {
 						$existing_post   = get_post( $existing_trans_id );
 						$existing_status = ( $existing_post instanceof \WP_Post ) ? (string) $existing_post->post_status : '';
 
 						if ( 'trash' === $existing_status ) {
-							$progress_status = 'Already Exist in Trash';
-							$error_message   = sprintf(
+							$is_trashed_target = true;
+							$progress_status   = 'Already Exist in Trash';
+							$error_message     = sprintf(
 								/* translators: %s: Target language name */
 								__( 'This post already has a %s translation in the Trash. Delete the existing translated post first if you want to translate it again.', 'translatesense' ),
 								$target_lang_name
@@ -360,8 +362,8 @@ class Bulk_Process {
 					'receive_data'      => null,
 					'error_message'     => $error_message,
 					'target_post_id'    => $target_post_id,
-					'created_at'        => current_time( 'mysql' ),
-					'updated_at'        => current_time( 'mysql' ),
+					'created_at'        => $now_utc,
+					'updated_at'        => $now_utc,
 				);
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
@@ -374,20 +376,28 @@ class Bulk_Process {
 					continue;
 				}
 
-				$insert_data['id']      = $job_id;
-				$insert_data['subtype'] = $item_subtype;
+				if ( 'pending' === $job_status ) {
+					$has_pending_jobs = true;
+				}
+
+				$insert_data['id']         = $job_id;
+				$insert_data['subtype']    = $item_subtype;
+				$insert_data['created_at'] = str_replace( ' ', 'T', $now_utc ) . 'Z';
+				$insert_data['updated_at'] = str_replace( ' ', 'T', $now_utc ) . 'Z';
 
 				if ( $source_term instanceof \WP_Term ) {
 					$target_term_obj                  = $has_existing_target ? get_term( $target_post_id, $source_term->taxonomy ) : null;
 					$insert_data['editor_type']       = 'taxonomy';
-					$insert_data['post_title']        = $source_term->name ?: sprintf( '#%d', $item_id );
+					$insert_data['post_title']        = ! empty( $source_term->name ) ? $source_term->name : sprintf( '#%d', $item_id );
 					$insert_data['target_post_title'] = ( $target_term_obj instanceof \WP_Term ) ? $target_term_obj->name : '';
 					$insert_data['view_url']          = $has_existing_target ? self::get_safe_term_link( $target_post_id, $source_term->taxonomy ) : '';
 					$insert_data['edit_url']          = $has_existing_target ? (string) get_edit_term_link( $target_post_id, $source_term->taxonomy ) : '';
 				} else {
+					$raw_source_title                 = get_the_title( $item_id );
+					$raw_target_title                 = $has_existing_target ? get_the_title( $target_post_id ) : '';
 					$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $item_id );
-					$insert_data['post_title']        = get_the_title( $item_id ) ?: sprintf( '#%d', $item_id );
-					$insert_data['target_post_title'] = $has_existing_target ? ( get_the_title( $target_post_id ) ?: '' ) : '';
+					$insert_data['post_title']        = ! empty( $raw_source_title ) ? $raw_source_title : sprintf( '#%d', $item_id );
+					$insert_data['target_post_title'] = ! empty( $raw_target_title ) ? $raw_target_title : '';
 					$insert_data['view_url']          = ( $has_existing_target && ! $is_trashed_target ) ? get_permalink( $target_post_id ) : '';
 					$insert_data['edit_url']          = ( $has_existing_target && $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 				}
@@ -435,8 +445,8 @@ class Bulk_Process {
 	public static function cleanup_expired_jobs(): int {
 		global $wpdb;
 		$table      = self::get_table_name();
-		$cutoff     = gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
-		$updated_at = current_time( 'mysql' );
+		$cutoff     = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+		$updated_at = gmdate( 'Y-m-d H:i:s' );
 		$error      = __( 'Translation job expired: it remained pending for more than 1 day.', 'translatesense' );
 		$label      = __( 'Failed: Job expired (more than 1 day old)', 'translatesense' );
 
@@ -680,9 +690,14 @@ class Bulk_Process {
 		// Do not reset stale running jobs solely by age: an AI request may legitimately take longer than 10 minutes.
 
 		// Clean up any stale cancelling jobs older than 10 minutes
+		$stale_cancelling_cutoff = gmdate( 'Y-m-d H:i:s', time() - ( 10 * MINUTE_IN_SECONDS ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
-			"UPDATE {$table} SET status = 'skipped', progress_status = 'Skipped by user' WHERE status = 'cancelling' AND item_type = 'post' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND provider NOT IN ('chrome_ai', 'chrome_local_ai')" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->prepare(
+				"UPDATE {$table} SET status = 'skipped', progress_status = 'Skipped by user', updated_at = %s WHERE status = 'cancelling' AND item_type = 'post' AND updated_at < %s AND provider NOT IN ('chrome_ai', 'chrome_local_ai')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				gmdate( 'Y-m-d H:i:s' ),
+				$stale_cancelling_cutoff
+			)
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -706,8 +721,8 @@ class Bulk_Process {
 		$is_retranslation        = $existing_target_post_id > 0 && $existing_target_post_id !== $post_id;
 
 		// Double-check: if queue post is more than 1 day old, fail it immediately and do not translate
-		$created_ts = ! empty( $job['created_at'] ) ? strtotime( $job['created_at'] ) : 0;
-		if ( $created_ts > 0 && ( current_time( 'timestamp' ) - $created_ts ) >= DAY_IN_SECONDS ) {
+		$created_ts = ! empty( $job['created_at'] ) ? strtotime( $job['created_at'] . ' UTC' ) : 0;
+		if ( $created_ts > 0 && ( time() - $created_ts ) >= DAY_IN_SECONDS ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->update(
 				$table,
@@ -715,7 +730,7 @@ class Bulk_Process {
 					'status'          => 'failed',
 					'progress_status' => 'Failed: Job expired (more than 1 day old)',
 					'error_message'   => __( 'Translation job expired: queued for more than 1 day.', 'translatesense' ),
-					'updated_at'      => current_time( 'mysql' ),
+					'updated_at'      => gmdate( 'Y-m-d H:i:s' ),
 				),
 				array( 'id' => $job_id ),
 				array( '%s', '%s', '%s', '%s' ),
@@ -734,7 +749,7 @@ class Bulk_Process {
 			$wpdb->prepare(
 				"UPDATE {$table} SET status = 'running', progress_status = %s, updated_at = %s WHERE id = %d AND status = 'pending'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$is_retranslation ? 'Preparing existing translation update...' : 'Extracting strings...',
-				current_time( 'mysql' ),
+				gmdate( 'Y-m-d H:i:s' ),
 				$job_id
 			)
 		);
@@ -835,7 +850,7 @@ class Bulk_Process {
 					$wpdb->prepare(
 						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 						__( 'Skipped by user', 'translatesense' ),
-						current_time( 'mysql' ),
+						gmdate( 'Y-m-d H:i:s' ),
 						$job_id
 					)
 				);
@@ -855,7 +870,7 @@ class Bulk_Process {
 						? sprintf( 'Updating existing translation (%d strings)...', $total_str )
 						: sprintf( 'Translating strings (%d found)...', $total_str ),
 					'sent_data'       => wp_json_encode( $strings_to_send ),
-					'updated_at'      => current_time( 'mysql' ),
+					'updated_at'      => gmdate( 'Y-m-d H:i:s' ),
 				)
 			);
 
@@ -887,7 +902,7 @@ class Bulk_Process {
 					$wpdb->prepare(
 						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 						__( 'Skipped by user', 'translatesense' ),
-						current_time( 'mysql' ),
+						gmdate( 'Y-m-d H:i:s' ),
 						$job_id
 					)
 				);
@@ -948,7 +963,7 @@ class Bulk_Process {
 					$wpdb->prepare(
 						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 						__( 'Skipped by user', 'translatesense' ),
-						current_time( 'mysql' ),
+						gmdate( 'Y-m-d H:i:s' ),
 						$job_id
 					)
 				);
@@ -1009,7 +1024,7 @@ class Bulk_Process {
 					$total_str,
 					$target_post_id,
 					wp_json_encode( $translated_content ),
-					current_time( 'mysql' ),
+					gmdate( 'Y-m-d H:i:s' ),
 					$job_id
 				)
 			);
@@ -1042,7 +1057,7 @@ class Bulk_Process {
 					$wpdb->prepare(
 						"UPDATE {$table} SET status = 'skipped', progress_status = %s, updated_at = %s WHERE id = %d AND status IN ('cancelling', 'running')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 						__( 'Skipped by user', 'translatesense' ),
-						current_time( 'mysql' ),
+						gmdate( 'Y-m-d H:i:s' ),
 						$job_id
 					)
 				);
@@ -1053,7 +1068,7 @@ class Bulk_Process {
 						'status'          => 'failed',
 						'progress_status' => 'Failed: ' . substr( $e->getMessage(), 0, 80 ),
 						'error_message'   => $e->getMessage(),
-						'updated_at'      => current_time( 'mysql' ),
+						'updated_at'      => gmdate( 'Y-m-d H:i:s' ),
 					)
 				);
 
@@ -1077,15 +1092,15 @@ class Bulk_Process {
 	/**
 	 * Validate the stored initiating user's current capabilities for a cron job.
 	 *
-	 * without failing on a missing user ID. When `created_by > 0`, the user must still
-	 * exist and currently hold post and taxonomy capabilities via `user_can()`.
+	 * Requires a valid initiating user (`created_by > 0`) who still exists and
+	 * currently holds post and taxonomy capabilities via `user_can()`.
 	 *
 	 * @param int    $user_id                 Stored initiating user ID.
 	 * @param int    $post_id                 Source post ID.
 	 * @param string $target_lang             Target language slug.
 	 * @param int    $existing_target_post_id Existing target post ID if known.
-	 * @return array{ user_id: int|null, enforce_permissions: bool }
-	 * @throws \RuntimeException When the initiating user no longer exists or lacks required capabilities.
+	 * @return array{ user_id: int, enforce_permissions: bool }
+	 * @throws \RuntimeException When the initiating user is missing, no longer exists, or lacks required capabilities.
 	 */
 	private static function validate_cron_job_permissions(
 		int $user_id,
@@ -1094,10 +1109,7 @@ class Bulk_Process {
 		int $existing_target_post_id = 0
 	): array {
 		if ( $user_id <= 0 ) {
-			return array(
-				'user_id'             => null,
-				'enforce_permissions' => false,
-			);
+			throw new \RuntimeException( esc_html__( 'The translation job has no valid initiating user.', 'translatesense' ) );
 		}
 
 		$user = get_userdata( $user_id );
@@ -1189,7 +1201,7 @@ class Bulk_Process {
 		$table = self::get_table_name();
 
 		if ( ! isset( $data['updated_at'] ) ) {
-			$data['updated_at'] = current_time( 'mysql' );
+			$data['updated_at'] = gmdate( 'Y-m-d H:i:s' );
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1345,8 +1357,8 @@ class Bulk_Process {
 				'edit_url'             => $edit_url,
 				'view_url'             => $view_url,
 				'error_message'        => $row['error_message'],
-				'created_at'           => $row['created_at'],
-				'updated_at'           => $row['updated_at'],
+				'created_at'           => ! empty( $row['created_at'] ) ? str_replace( ' ', 'T', (string) $row['created_at'] ) . 'Z' : '',
+				'updated_at'           => ! empty( $row['updated_at'] ) ? str_replace( ' ', 'T', (string) $row['updated_at'] ) . 'Z' : '',
 			);
 		}
 
@@ -1521,7 +1533,7 @@ class Bulk_Process {
 			);
 		}
 
-		$now = current_time( 'mysql' );
+		$now = gmdate( 'Y-m-d H:i:s' );
 
 		// 1. Atomically update all pending jobs for this post & batch to skipped
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
