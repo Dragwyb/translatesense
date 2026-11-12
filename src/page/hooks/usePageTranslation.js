@@ -9,12 +9,12 @@ import { formatMs } from '../../utils/formatting';
 function isTranslatedStringValid(item) {
   return Boolean(
     item &&
-      !item.error &&
-      item.status !== 'Failed' &&
-      item.status !== 'Pending' &&
-      item.translated !== null &&
-      item.translated !== undefined &&
-      String(item.translated).trim() !== ''
+    !item.error &&
+    item.status !== 'Failed' &&
+    item.status !== 'Pending' &&
+    item.translated !== null &&
+    item.translated !== undefined &&
+    String(item.translated).trim() !== ''
   );
 }
 
@@ -22,12 +22,12 @@ function applyTranslationResult(list, result, core, providerId, options = {}) {
   const { saveToCore = false, useCustomFieldPackage = true } = options;
   const isSuccess = Boolean(
     result &&
-      (result.isSuccess !== undefined
-        ? result.isSuccess
-        : (result.status !== 'AI Failed' &&
-            result.translated !== null &&
-            result.translated !== undefined &&
-            String(result.translated).trim() !== ''))
+    (result.isSuccess !== undefined
+      ? result.isSuccess
+      : (result.status !== 'AI Failed' &&
+        result.translated !== null &&
+        result.translated !== undefined &&
+        String(result.translated).trim() !== ''))
   );
 
   return list.map((item) => {
@@ -345,7 +345,7 @@ export function usePageTranslation(config = {}) {
               });
 
               const completedCountNow = trackedStrings.filter(isTranslatedStringValid).length;
-              const pct = Math.min(100, Math.max(15, Math.round((completedCountNow / total) * 100)));
+              const pct = Math.min(100, Math.max(0, Math.round((completedCountNow / total) * 100)));
 
               setStrings((prevList) =>
                 applyTranslationResult(prevList, result, core, prov, {
@@ -379,8 +379,8 @@ export function usePageTranslation(config = {}) {
         );
         const allSucceeded = Boolean(
           Array.isArray(translateResults) &&
-            trackedStrings.length > 0 &&
-            failedCount === 0
+          trackedStrings.length > 0 &&
+          failedCount === 0
         );
 
         setTranslationStats({
@@ -402,7 +402,7 @@ export function usePageTranslation(config = {}) {
           lastCompletedProviderRef.current = prov;
           lastCompletedTargetLangRef.current = targetLang;
         } else {
-          const finalPct = Math.min(100, Math.max(15, Math.round((completedCount / total) * 100)));
+          const finalPct = Math.min(100, Math.max(0, Math.round((completedCount / total) * 100)));
           setProgress({
             isOpen: true,
             percent: finalPct,
@@ -515,7 +515,7 @@ export function usePageTranslation(config = {}) {
               })
             );
 
-            const pct = Math.min(100, Math.max(15, Math.round((retriedCount / totalFailed) * 100)));
+            const pct = Math.min(100, Math.max(0, Math.round((retriedCount / totalFailed) * 100)));
             setProgress((p) => ({
               ...p,
               isOpen: true,
@@ -530,9 +530,9 @@ export function usePageTranslation(config = {}) {
       const remainingFailed = trackedStrings.length - completedItems.length;
       const allSuccess = Boolean(
         Array.isArray(retryResults) &&
-          successfulRetryCount === totalFailed &&
-          trackedStrings.length > 0 &&
-          remainingFailed === 0
+        successfulRetryCount === totalFailed &&
+        trackedStrings.length > 0 &&
+        remainingFailed === 0
       );
 
       setTranslationStats((prev) => ({

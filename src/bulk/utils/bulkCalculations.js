@@ -36,10 +36,6 @@ export function getPostProgress(item) {
     return Math.max(status === 'running' || status === 'processing' ? 5 : 0, Math.min(99, calculated));
   }
 
-  if (status === 'running' || status === 'processing') {
-    return 15;
-  }
-
   return 0;
 }
 

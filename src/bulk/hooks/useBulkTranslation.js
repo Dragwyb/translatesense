@@ -638,6 +638,37 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
               console.error(`No translatable text found in ${itemIsTaxonomy ? 'taxonomy term' : 'post'}.`);
             }
 
+            if (useBrowserAi && core) {
+              const chromeProvider =
+                typeof core.getProvider === 'function' ? core.getProvider('chrome_ai') : null;
+              if (!chromeProvider) {
+                throw new Error('Built-in AI translation provider is not registered.');
+              }
+
+              if (
+                typeof chromeProvider.isLanguageSupported === 'function' &&
+                !chromeProvider.isLanguageSupported(sourceLanguage, targetLang)
+              ) {
+                const err = new Error(
+                  `Language pair (${sourceLanguage.toUpperCase()} → ${targetLang.toUpperCase()}) is not supported by ${chromeProvider.title || 'Built-in AI'}.`
+                );
+                err.errorObj = { reason: err.message };
+                throw err;
+              }
+
+              if (typeof chromeProvider.checkAvailability === 'function') {
+                const availability = await chromeProvider.checkAvailability(sourceLanguage, targetLang);
+                if (availability && availability.available === false) {
+                  const reasonMsg =
+                    availability.reason ||
+                    `Language pair (${sourceLanguage.toUpperCase()} → ${targetLang.toUpperCase()}) is not supported by ${chromeProvider.title || 'Built-in AI'}.`;
+                  const err = new Error(reasonMsg);
+                  err.errorObj = availability;
+                  throw err;
+                }
+              }
+            }
+
             const totalStrings = translatable.length;
             totalCharacters = translatable.reduce(
               (acc, s) => acc + (s.value ? s.value.length : 0),
@@ -820,7 +851,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           });
         } catch (err) {
           failedCount++;
-          console.error(`[TranslateSense] Runtime translation error for ${itemType} #${postId}:`, err);
 
           runningJobs[i].status = 'failed';
           const postFailPct = Math.round(getOverallProgress(runningJobs));
@@ -840,6 +870,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
               const t = { ...updated[postId].translations[targetLang] };
               t.status = 'failed';
               t.error = err.message;
+              t.errorObj = err.errorObj || null;
               t.progressPercent = 100;
               t.progressStatus = `Failed: ${err.message}`;
               t.targetTitle = `Failed: ${err.message}`;
@@ -933,10 +964,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       });
 
       setHideReviewNotice(parseHideReviewNotice(batchRes));
-
-      if (!batchRes.batch_id) {
-        console.error(batchRes.message || 'Failed to start batch');
-      }
 
       setCurrentBatchId(batchRes.batch_id);
 

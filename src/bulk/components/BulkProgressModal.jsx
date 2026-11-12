@@ -44,9 +44,6 @@ export function BulkProgressModal({
 }) {
   const { plural: itemPlural } = getBulkItemLabels(itemMeta);
   const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
-  const hasFailedPosts = Object.values(postResultsMap).some((p) =>
-    Object.values(p.translations || {}).some((t) => t.status === 'failed')
-  );
 
   const shouldShowReviewNotice = Boolean(
     !hideReviewNotice &&
@@ -84,14 +81,14 @@ export function BulkProgressModal({
                 &larr; Back
               </Button>
             )}
-            {hasFailedPosts && (
+            {statsSummary && statsSummary.failed && (statsSummary.alreadyExists > 0 || statsSummary.completed > 0) && (
               <label className="ts-footer-filter-label">
                 <input
                   type="checkbox"
                   checked={filterOnlyFailed}
                   onChange={(e) => onFilterChange && onFilterChange(e.target.checked)}
                 />
-                <span>Only show untranslated or failed items</span>
+                <span>Show failed</span>
               </label>
             )}
           </div>
