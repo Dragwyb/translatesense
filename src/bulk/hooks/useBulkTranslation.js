@@ -339,6 +339,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           // Do not schedule another request when there are no active batches.
           if (batches.length === 0) {
             setIsTranslating(false);
+            setIsCompleted(false);
+            setStatsSummary(null);
             stopTimer();
             setStatusText('No active translation batches.');
             return;
@@ -857,15 +859,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       setIsTranslating(false);
       stopTimer();
 
-      // Calculate final stats
-      setPostResultsMap((finalMap) => {
-        const allItems = [];
-        Object.values(finalMap).forEach((p) => {
-          Object.values(p.translations).forEach((t) => allItems.push(t));
-        });
-        setStatsSummary(calculateBatchStats(allItems));
-        return finalMap;
-      });
+      // Calculate final stats from tracked jobs
+      setStatsSummary(calculateBatchStats(runningJobs));
 
       if (hasRunnableJobs) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -883,6 +878,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     setCurrentStep(2);
     setIsTranslating(true);
     setIsCompleted(false);
+    setCurrentBatch(null);
+    setStatsSummary(null);
     setProgressPercent(0);
     resetTimer();
 

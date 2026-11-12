@@ -5,7 +5,7 @@
 
 import { useState } from '@wordpress/element';
 import { getLanguageFlag } from '../../utils/language';
-import { getBulkItemLabels, getDisplayTitle, getStatusBadgeInfo } from '../utils/bulkFormatters';
+import { getBulkItemLabels, getDisplayTitle } from '../utils/bulkFormatters';
 
 export function PostResultItem({
   postId,

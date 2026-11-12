@@ -4072,11 +4072,13 @@ class Rest_Api {
 				? absint( $updates['time_take'] )
 				: 0;
 
+			$is_job_completed = ( 'completed' === $clean_data['status'] );
+
 			Statics::update_translation_statistics(
 				array(
-					'status'           => 'completed' === $clean_data['status'] ? 'success' : 'failed',
-					'total_characters' => $c_chars,
-					'total_strings'    => $c_strings,
+					'status'           => $is_job_completed ? 'success' : 'failed',
+					'total_characters' => $is_job_completed ? $c_chars : 0,
+					'total_strings'    => $is_job_completed ? $c_strings : 0,
 					'provider'         => $job_provider,
 					'time_take'        => $time_take,
 					'request_id'       => 'bulk_job_' . $job_id,

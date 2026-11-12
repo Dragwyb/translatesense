@@ -7,7 +7,6 @@ import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function SkipConfirmation({
   isOpen,
-  postId,
   onClose,
   onConfirm,
   loading = false,

@@ -1,10 +1,4 @@
 /**
- * Bulk Translation UI Formatters
- */
-
-import { escapeHtml } from '../../utils/html';
-
-/**
  * Get status badge CSS class and dashicon for a translation status
  * @param {string} status
  * @returns {{ className: string, icon: string, label: string }}

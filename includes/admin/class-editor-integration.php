@@ -463,7 +463,7 @@ class Editor_Integration {
 				'connectorsUrl'             => esc_url_raw( admin_url( 'options-connectors.php' ) ),
 				'hasOpenAiKey'              => ! empty( $settings['openai_api_key'] ),
 				'hasGeminiKey'              => ! empty( $settings['gemini_api_key'] ),
-			),
+			) + Admin_Menu::get_review_notice_data(),
 			$localize_data
 		);
 

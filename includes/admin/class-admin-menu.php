@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace TranslateSense\Includes\Admin;
 
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
+use TranslateSense\Includes\Translation\Statics;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 class Admin_Menu {
+
+	const REVIEW_NONCE_ACTION = 'translatesense_review_notice_nonce';
+	const REVIEW_AJAX_ACTION  = 'translatesense_dismiss_review';
 
 	/**
 	 * Hook suffix for the admin menu page.
@@ -25,18 +29,98 @@ class Admin_Menu {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu_pages' ), 99 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 		add_action( 'in_admin_header', array( __CLASS__, 'hide_unrelated_admin_notices' ), 100 );
+		add_action( 'wp_ajax_' . self::REVIEW_AJAX_ACTION, array( __CLASS__, 'ajax_dismiss_review_notice' ) );
+	}
+
+	/**
+	 * Resolve the administration capability for TranslateSense settings and site-wide actions.
+	 *
+	 * @return string
+	 */
+	public static function get_manage_capability(): string {
+		$capability = 'manage_options';
+		if ( function_exists( 'pll_languages_list' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Using Polylang capability filter for compatibility.
+			$capability = apply_filters( 'pll_capability_manage_options', $capability );
+		}
+		return (string) apply_filters( 'translatesense_menu_capability', $capability );
+	}
+
+	/**
+	 * Get shared global review notice dismissal state and AJAX config for localized scripts.
+	 *
+	 * @return array{ajaxUrl: string, reviewNonce: string, hideReviewNotice: bool}
+	 */
+	public static function get_review_notice_data(): array {
+		$can_manage       = current_user_can( self::get_manage_capability() );
+		$is_review_hidden = ( 1 === (int) get_option( 'translatesense_hide_review', 0 ) );
+
+		return array(
+			'ajaxUrl'          => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+			'reviewNonce'      => $can_manage ? wp_create_nonce( self::REVIEW_NONCE_ACTION ) : '',
+			'hideReviewNotice' => ( $is_review_hidden || ! $can_manage ),
+		);
+	}
+
+	/**
+	 * Authenticated AJAX handler to dismiss the global review notice.
+	 *
+	 * @return void
+	 */
+	public static function ajax_dismiss_review_notice(): void {
+		if ( ! check_ajax_referer( self::REVIEW_NONCE_ACTION, 'nonce', false ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Security check failed.', 'translatesense' ),
+				),
+				403
+			);
+		}
+
+		if ( ! is_user_logged_in() || ! current_user_can( self::get_manage_capability() ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'You do not have permission to perform this action.', 'translatesense' ),
+				),
+				403
+			);
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer().
+		$review_action = isset( $_POST['review_action'] ) ? sanitize_key( wp_unslash( $_POST['review_action'] ) ) : '';
+
+		if ( ! in_array( $review_action, array( 'not_interested', 'already_reviewed' ), true ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Invalid review notice action.', 'translatesense' ),
+				),
+				400
+			);
+		}
+
+		update_option( 'translatesense_hide_review', 1 );
+
+		if ( 1 !== (int) get_option( 'translatesense_hide_review', 0 ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Unable to save review notice preference.', 'translatesense' ),
+				),
+				500
+			);
+		}
+
+		wp_send_json_success(
+			array(
+				'hidden' => true,
+			)
+		);
 	}
 
 	/**
 	 * Register menu and submenus.
 	 */
 	public static function register_menu_pages() {
-		$capability = 'manage_options';
-		if ( function_exists( 'pll_languages_list' ) ) {
-			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Using Polylang capability filter for compatibility.
-			$capability = apply_filters( 'pll_capability_manage_options', $capability );
-		}
-		$capability = apply_filters( 'translatesense_menu_capability', $capability );
+		$capability = self::get_manage_capability();
 
 		// If Polylang is active, place directly under Polylang's main "Languages" (mlang) menu
 		if ( Polylang_Bridge::is_polylang_active() ) {
@@ -118,22 +202,54 @@ class Admin_Menu {
 			true
 		);
 
-		$admin_url        = admin_url();
-// Localize Script (Step 1.1)
+		$admin_url          = admin_url();
+		$review_data        = self::get_review_notice_data();
+		$show_review_notice = false;
+
+		$install_raw = get_option( 'translatesense_install_date', false );
+		if ( false === $install_raw || '' === $install_raw ) {
+			$install_timestamp = time();
+			update_option( 'translatesense_install_date', $install_timestamp, false );
+		} else {
+			$install_timestamp = is_numeric( $install_raw ) ? (int) $install_raw : (int) strtotime( (string) $install_raw );
+			if ( $install_timestamp <= 0 ) {
+				$install_timestamp = time();
+				update_option( 'translatesense_install_date', $install_timestamp, false );
+			}
+		}
+
+		if ( ! $review_data['hideReviewNotice'] ) {
+			$is_old_enough = ( time() - $install_timestamp ) >= ( 3 * DAY_IN_SECONDS );
+
+			if ( $is_old_enough ) {
+				$stats       = Statics::get_translation_statistics();
+				$total_chars = isset( $stats['total_characters'] ) ? (int) $stats['total_characters'] : 0;
+
+				// Exclude legacy stats where only failed translations were recorded.
+				if ( isset( $stats['successful_translations'], $stats['failed_translations'] ) && (int) $stats['failed_translations'] > 0 && (int) $stats['successful_translations'] <= 0 ) {
+					$total_chars = 0;
+				}
+
+				$show_review_notice = ( $total_chars >= 5000 );
+			}
+		}
+
+		// Localize Script (Step 1.1)
 		wp_localize_script(
 			'translatesense-admin-js',
 			'TranslateSenseData',
 			array(
-				'restUrl'        => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
-				'nonce'          => wp_create_nonce( 'wp_rest' ),
-				'polylangActive' => Polylang_Bridge::is_polylang_active(),
-				'connectorsUrl'  => esc_url_raw( admin_url( 'options-connectors.php' ) ),
-				'pluginUrl'      => TRANSLATESENSE_PLUGIN_URL,
-				'docsUrl'        => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
-				'version'        => TRANSLATESENSE_VERSION,
-				'adminUrl'       => $admin_url,
-				'activeBuilders' => self::get_active_builders(),
-			)
+				'restUrl'          => esc_url_raw( rest_url( 'translatesense/v1/' ) ),
+				'nonce'            => wp_create_nonce( 'wp_rest' ),
+				'polylangActive'   => Polylang_Bridge::is_polylang_active(),
+				'connectorsUrl'    => esc_url_raw( admin_url( 'options-connectors.php' ) ),
+				'pluginUrl'        => TRANSLATESENSE_PLUGIN_URL,
+				'docsUrl'          => defined( 'TRANSLATESENSE_DOCS_URL' ) ? TRANSLATESENSE_DOCS_URL : 'https://docs.dragwyb.com/',
+				'version'          => TRANSLATESENSE_VERSION,
+				'adminUrl'         => $admin_url,
+				'activeBuilders'   => self::get_active_builders(),
+				'showReviewNotice' => $show_review_notice,
+			) + $review_data
 		);
 	}
 

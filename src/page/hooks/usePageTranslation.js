@@ -5,6 +5,71 @@ import { getCoreInstance } from '../../services/core/coreService';
 import { isEmailOrUrl } from '../../utils/validation';
 import { formatMs } from '../../utils/formatting';
 
+function isTranslatedStringValid(item) {
+  return Boolean(
+    item &&
+      !item.error &&
+      item.status !== 'Failed' &&
+      item.status !== 'Pending' &&
+      item.translated !== null &&
+      item.translated !== undefined &&
+      String(item.translated).trim() !== ''
+  );
+}
+
+function applyTranslationResult(list, result, core, providerId, options = {}) {
+  const { saveToCore = false, useCustomFieldPackage = true } = options;
+  const isSuccess = Boolean(
+    result &&
+      (result.isSuccess !== undefined
+        ? result.isSuccess
+        : (result.status !== 'AI Failed' &&
+            result.translated !== null &&
+            result.translated !== undefined &&
+            String(result.translated).trim() !== ''))
+  );
+
+  return list.map((item) => {
+    if (item.value === result?.source || (result?.hash && item.hash === result.hash)) {
+      if (isSuccess) {
+        if (saveToCore && core) {
+          let packageName = item.name;
+          if (useCustomFieldPackage && packageName && packageName.startsWith('custom_field') && item.key) {
+            packageName = `custom_field_${item.key}`;
+          }
+          core.saveSourceString(packageName, item.value, packageName);
+          core.saveTranslatedString(
+            packageName,
+            item.source,
+            item.value,
+            result.translated,
+            providerId,
+            packageName
+          );
+        }
+        return {
+          ...item,
+          providerTranslated: result.translated,
+          translated: result.translated,
+          status: result.status || 'Completed',
+          error: null,
+        };
+      }
+
+      const prevValid =
+        item.translated !== null && item.translated !== undefined && String(item.translated).trim() !== '';
+      return {
+        ...item,
+        providerTranslated: prevValid ? item.providerTranslated : '',
+        translated: prevValid ? item.translated : '',
+        status: prevValid ? item.status : 'Failed',
+        error: result?.error || 'Translation failed or empty',
+      };
+    }
+    return item;
+  });
+}
+
 export function usePageTranslation(config = {}) {
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -20,6 +85,7 @@ export function usePageTranslation(config = {}) {
 
   // Failure tracking & retry state
   const [hasAttemptedTranslation, setHasAttemptedTranslation] = useState(false);
+  const [isTranslationComplete, setIsTranslationComplete] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
   // Progress overlay state
@@ -103,8 +169,11 @@ export function usePageTranslation(config = {}) {
 
       // If translation already complete and not retranslating, directly open review modal
       if (!forceRetranslate && isTranslationCompleted(prov)) {
+        setIsTranslationComplete(true);
         return;
       }
+
+      setIsTranslationComplete(false);
 
       if (forceRetranslate) {
         lastCompletedProviderRef.current = null;
@@ -211,6 +280,7 @@ export function usePageTranslation(config = {}) {
         lastCompletedProviderRef.current = prov;
         lastCompletedTargetLangRef.current = targetLang;
         setHasAttemptedTranslation(true);
+        setIsTranslationComplete(true);
         setProgress({ isOpen: false, percent: 100, status: '', subText: '', isExtracting: false });
         setIsReviewModalOpen(true);
         return;
@@ -234,10 +304,12 @@ export function usePageTranslation(config = {}) {
         source: s.source || s.value,
         content: s.value,
       }));
+      let trackedStrings = currentStrings.map((s) => ({ ...s }));
 
       try {
+        let translateResults = null;
         if (core) {
-          await core.translate(
+          translateResults = await core.translate(
             prov,
             {
               items: itemsToTranslate,
@@ -246,69 +318,27 @@ export function usePageTranslation(config = {}) {
               postId,
             },
             (result) => {
-              setStrings((prevList) => {
-                const isSuccess = Boolean(
-                  result.isSuccess !== undefined
-                    ? result.isSuccess
-                    : (result.status !== 'AI Failed' && result.translated !== null && result.translated !== undefined && String(result.translated).trim() !== '')
-                );
+              trackedStrings = applyTranslationResult(trackedStrings, result, core, prov, {
+                saveToCore: true,
+                useCustomFieldPackage: true,
+              });
 
-                const nextList = prevList.map((item) => {
-                  if (item.value === result.source || (result.hash && item.hash === result.hash)) {
-                    if (isSuccess) {
-                      if (core) {
-                        let packageName = item.name;
+              const completedCountNow = trackedStrings.filter(isTranslatedStringValid).length;
+              const pct = Math.min(100, Math.max(15, Math.round((completedCountNow / total) * 100)));
 
-                        if (packageName && packageName !== '' && packageName.startsWith('custom_field') && item.key) {
-                          packageName = `custom_field_${item.key}`;
-                        }
+              setStrings((prevList) =>
+                applyTranslationResult(prevList, result, core, prov, {
+                  saveToCore: false,
+                  useCustomFieldPackage: true,
+                })
+              );
 
-                        core.saveSourceString(packageName, item.value, packageName);
-                        core.saveTranslatedString(
-                          packageName,
-                          item.source,
-                          item.value,
-                          result.translated,
-                          prov,
-                          packageName
-                        );
-                      }
-                      return {
-                        ...item,
-                        providerTranslated: result.translated,
-                        translated: result.translated,
-                        status: result.status || 'Completed',
-                        error: null,
-                      };
-                    } else {
-                      // Failed or missing translation
-                      const prevValid = item.translated !== null && item.translated !== undefined && String(item.translated).trim() !== '';
-                      return {
-                        ...item,
-                        providerTranslated: prevValid ? item.providerTranslated : '',
-                        translated: prevValid ? item.translated : '',
-                        status: prevValid ? item.status : 'Failed',
-                        error: result.error || 'Translation failed or empty',
-                      };
-                    }
-                  }
-                  return item;
-                });
-
-                const completedCount = nextList.filter(
-                  (s) => s.translated !== null && s.translated !== undefined && String(s.translated).trim() !== ''
-                ).length;
-                const pct = Math.min(100, Math.max(15, Math.round((completedCount / total) * 100)));
-
-                setProgress({
-                  isOpen: true,
-                  percent: pct,
-                  status: `Translating strings... (${pct}%)`,
-                  subText: `${completedCount} of ${total} strings translated`,
-                  isExtracting: false,
-                });
-
-                return nextList;
+              setProgress({
+                isOpen: true,
+                percent: pct,
+                status: `Translating strings... (${pct}%)`,
+                subText: `${completedCountNow} of ${total} strings translated`,
+                isExtracting: false,
               });
             }
           );
@@ -319,24 +349,28 @@ export function usePageTranslation(config = {}) {
           (sum, s) => sum + String(s.value || '').length,
           0
         );
+        const completedItems = trackedStrings.filter(isTranslatedStringValid);
+        const completedCount = completedItems.length;
+        const failedCount = trackedStrings.length - completedCount;
+        const translatedChars = completedItems.reduce(
+          (sum, s) => sum + String(s.value || '').length,
+          0
+        );
+        const allSucceeded = Boolean(
+          Array.isArray(translateResults) &&
+            trackedStrings.length > 0 &&
+            failedCount === 0
+        );
 
         setTranslationStats({
           timeTaken: formatMs(elapsedMs),
           timeTakenMs: Math.round(elapsedMs),
           totalChars: totalSourceChars,
-          translatedChars: totalSourceChars,
+          translatedChars,
           stringCount: total,
         });
 
-        let completedCount = 0;
-        let failedCount = 0;
-        setStrings((latest) => {
-          completedCount = latest.filter((s) => s.translated !== null && s.translated !== undefined && String(s.translated).trim() !== '').length;
-          failedCount = latest.length - completedCount;
-          return latest;
-        });
-
-        if (failedCount === 0) {
+        if (allSucceeded) {
           setProgress({
             isOpen: true,
             percent: 100,
@@ -358,13 +392,15 @@ export function usePageTranslation(config = {}) {
           lastCompletedProviderRef.current = null;
         }
 
+        setIsTranslationComplete(allSucceeded);
         setHasAttemptedTranslation(true);
 
         setTimeout(() => {
           setProgress((p) => ({ ...p, isOpen: false }));
           setIsReviewModalOpen(true);
-        }, failedCount === 0 ? 3000 : 2000);
+        }, allSucceeded ? 3000 : 2000);
       } catch (err) {
+        setIsTranslationComplete(false);
         setHasAttemptedTranslation(true);
         setProgress((p) => ({ ...p, isOpen: false }));
         setIsReviewModalOpen(true);
@@ -399,6 +435,7 @@ export function usePageTranslation(config = {}) {
     if (failedStrings.length === 0) return;
 
     setIsRetrying(true);
+    setIsTranslationComplete(false);
     const core = getCoreInstance();
     const totalFailed = failedStrings.length;
 
@@ -417,13 +454,15 @@ export function usePageTranslation(config = {}) {
       source: s.source || s.value,
       content: s.value,
     }));
+    let trackedStrings = strings.map((s) => ({ ...s }));
 
     try {
       let retriedCount = 0;
       let successfulRetryCount = 0;
+      let retryResults = null;
 
       if (core) {
-        await core.translate(
+        retryResults = await core.translate(
           prov,
           {
             items: itemsToRetry,
@@ -443,57 +482,43 @@ export function usePageTranslation(config = {}) {
               successfulRetryCount++;
             }
 
-            setStrings((prevList) => {
-              const nextList = prevList.map((item) => {
-                if (item.value === result.source || (result.hash && item.hash === result.hash)) {
-                  if (isSuccess) {
-                    if (core) {
-                      core.saveSourceString(item.name, item.value, item.name);
-                      core.saveTranslatedString(
-                        item.name,
-                        item.source,
-                        item.value,
-                        result.translated,
-                        prov,
-                        item.name
-                      );
-                    }
-                    return {
-                      ...item,
-                      providerTranslated: result.translated,
-                      translated: result.translated,
-                      status: result.status || 'Completed',
-                      error: null,
-                    };
-                  } else {
-                    const prevValid = item.translated !== null && item.translated !== undefined && String(item.translated).trim() !== '';
-                    return {
-                      ...item,
-                      providerTranslated: prevValid ? item.providerTranslated : '',
-                      translated: prevValid ? item.translated : '',
-                      status: prevValid ? item.status : 'Failed',
-                      error: result.error || 'Translation failed or empty',
-                    };
-                  }
-                }
-                return item;
-              });
-
-              const pct = Math.min(100, Math.max(15, Math.round((retriedCount / totalFailed) * 100)));
-              setProgress((p) => ({
-                ...p,
-                isOpen: true,
-                percent: pct,
-                subText: `${retriedCount} of ${totalFailed} retried (${successfulRetryCount} succeeded)`,
-              }));
-
-              return nextList;
+            trackedStrings = applyTranslationResult(trackedStrings, result, core, prov, {
+              saveToCore: true,
+              useCustomFieldPackage: false,
             });
+
+            setStrings((prevList) =>
+              applyTranslationResult(prevList, result, core, prov, {
+                saveToCore: false,
+                useCustomFieldPackage: false,
+              })
+            );
+
+            const pct = Math.min(100, Math.max(15, Math.round((retriedCount / totalFailed) * 100)));
+            setProgress((p) => ({
+              ...p,
+              isOpen: true,
+              percent: pct,
+              subText: `${retriedCount} of ${totalFailed} retried (${successfulRetryCount} succeeded)`,
+            }));
           }
         );
       }
 
-      const allSuccess = successfulRetryCount === totalFailed;
+      const completedItems = trackedStrings.filter(isTranslatedStringValid);
+      const remainingFailed = trackedStrings.length - completedItems.length;
+      const allSuccess = Boolean(
+        Array.isArray(retryResults) &&
+          successfulRetryCount === totalFailed &&
+          trackedStrings.length > 0 &&
+          remainingFailed === 0
+      );
+
+      setTranslationStats((prev) => ({
+        ...prev,
+        translatedChars: completedItems.reduce((sum, s) => sum + String(s.value || '').length, 0),
+      }));
+
       setProgress({
         isOpen: true,
         percent: 100,
@@ -507,10 +532,13 @@ export function usePageTranslation(config = {}) {
         lastCompletedTargetLangRef.current = targetLang;
       }
 
+      setIsTranslationComplete(allSuccess);
+
       setTimeout(() => {
         setProgress((p) => ({ ...p, isOpen: false }));
       }, 1800);
     } catch (err) {
+      setIsTranslationComplete(false);
       console.error('[TranslateSense] Error during re-translation:', err);
       setProgress((p) => ({
         ...p,
@@ -561,12 +589,16 @@ export function usePageTranslation(config = {}) {
 
     // Complete post translation completion workflow via existing mark-translated route.
     if (postId) {
-      const totalChars = translationStats.totalChars || strings.reduce((sum, s) => sum + String(s.value || '').length, 0);
-      const totalStrs = translationStats.stringCount || strings.length;
+      const successfulStrings = strings.filter(isTranslatedStringValid);
+      const isFullyCompleted = strings.length > 0 && successfulStrings.length === strings.length;
+      const totalChars = isFullyCompleted
+        ? successfulStrings.reduce((sum, s) => sum + String(s.value || '').length, 0)
+        : 0;
+      const totalStrs = isFullyCompleted ? successfulStrings.length : 0;
 
       markPostTranslated({
         post_id: postId,
-        status: 'success',
+        status: isFullyCompleted ? 'success' : 'incomplete',
         total_characters: totalChars,
         total_strings: totalStrs,
         provider: selectedProvider || 'openai',
@@ -598,6 +630,7 @@ export function usePageTranslation(config = {}) {
     retranslateFailed,
     showReTranslateAll,
     isRetrying,
+    isTranslationComplete,
     applyTranslationsToPage,
     isTranslationCompleted,
     targetLang,

@@ -231,6 +231,10 @@ class Activator {
 		if ( false === get_option( 'translatesense_settings' ) ) {
 			update_option( 'translatesense_settings', $defaults );
 		}
+
+		if ( false === get_option( 'translatesense_install_date' ) ) {
+			update_option( 'translatesense_install_date', time(), false );
+		}
 	}
 
 	/**

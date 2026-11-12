@@ -466,7 +466,7 @@
 .ts-stat-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 6px 12px;
   border-radius: var(--ts-radius-md);
   border: 1px solid transparent;
@@ -495,8 +495,8 @@
 }
 
 .ts-stat-icon-box {
-  width: 25px;
-  height: 25px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -526,10 +526,10 @@
 }
 
 .ts-stat-icon-box .dashicons {
-  font-size: 17px;
-  width: 17px;
-  height: 17px;
-  line-height: 17px;
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
 }
 
 .ts-stat-info {

@@ -7,6 +7,7 @@ import { useState } from '@wordpress/element';
 import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { SearchInput } from '../../components/SearchInput';
+import { ReviewNotice } from '../../components/ReviewNotice';
 import { TranslationStats } from './TranslationStats';
 import { ReviewTable } from './ReviewTable';
 import { TranslationProgress } from './TranslationProgress';
@@ -30,6 +31,7 @@ export function ReviewModal({
   skippedCustomFieldsCount = 0,
   showReTranslateAll = false,
   isRetrying = false,
+  isTranslationComplete = false,
   onReTranslateAll,
   onApply,
 }) {
@@ -52,6 +54,15 @@ export function ReviewModal({
   const translatedCount = strings.filter(
     (s) => s.translated !== null && s.translated !== undefined && String(s.translated).trim() !== ''
   ).length;
+
+  const shouldShowReviewNotice = Boolean(
+    isTranslationComplete &&
+    !isExtracting &&
+    !progressIsOpen &&
+    !isRetrying &&
+    !showReTranslateAll &&
+    translationStats.totalChars > 1000
+  );
 
   return (
     <Modal
@@ -125,6 +136,11 @@ export function ReviewModal({
           </span>
         </div>
       )}
+
+      <ReviewNotice
+        isVisible={shouldShowReviewNotice}
+        className="ts-modal-review-notice"
+      />
 
       <div className="ts-review-body-wrap">
         {/* Toolbar Row: Search + Metrics */}

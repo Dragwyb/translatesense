@@ -121,23 +121,24 @@ class Statics {
 		$provider = ! empty( $data['provider'] ) ? sanitize_key( (string) $data['provider'] ) : 'unknown';
 
 		// Parse time taken (kept in milliseconds).
+		$time_taken = 0;
 		if ( isset( $data['time_take'] ) ) {
 			$time_taken = max( 0, (float) $data['time_take'] );
 		}
 
 		$time_taken = (int) round( $time_taken );
 
-		// Update global statistics.
+		// Update global statistics. Only successful translations contribute to character/string counts.
 		$stats['total_translations'] += 1;
 		if ( $is_success ) {
 			$stats['successful_translations'] += 1;
+			$stats['total_characters']        += $characters;
+			$stats['total_strings']           += $strings;
 		} else {
 			$stats['failed_translations'] += 1;
 		}
-		$stats['total_characters'] += $characters;
-		$stats['total_strings']    += $strings;
-		$stats['time_take']        += $time_taken;
-		$stats['last_updated']      = current_time( 'mysql' );
+		$stats['time_take']   += $time_taken;
+		$stats['last_updated'] = current_time( 'mysql' );
 
 		// Update per-provider statistics breakdown.
 		if ( ! isset( $stats['providers'][ $provider ] ) || ! is_array( $stats['providers'][ $provider ] ) ) {
@@ -156,13 +157,13 @@ class Statics {
 		$p_stats['total_translations'] += 1;
 		if ( $is_success ) {
 			$p_stats['successful_translations'] += 1;
+			$p_stats['total_characters']        += $characters;
+			$p_stats['total_strings']           += $strings;
 		} else {
 			$p_stats['failed_translations'] += 1;
 		}
-		$p_stats['total_characters'] += $characters;
-		$p_stats['total_strings']    += $strings;
-		$p_stats['time_take']        += $time_taken;
-		$p_stats['last_used']         = current_time( 'mysql' );
+		$p_stats['time_take'] += $time_taken;
+		$p_stats['last_used']  = current_time( 'mysql' );
 
 		update_option( self::OPTION_TRANSLATION_STATISTICS, $stats, false );
 

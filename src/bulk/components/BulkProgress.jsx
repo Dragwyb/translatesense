@@ -1,9 +1,6 @@
 /**
  * BulkProgress Component (Step 3 Progress Bar Card)
  */
-
-import { ProgressBar } from '../../components/ProgressBar';
-
 export function BulkProgress({
   statusText = 'Translating content...',
   percent = 0,

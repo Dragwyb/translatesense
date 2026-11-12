@@ -5,6 +5,7 @@
 
 import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
+import { ReviewNotice } from '../../components/ReviewNotice';
 import { BulkProgress } from './BulkProgress';
 import { ProgressSummary } from './ProgressSummary';
 import { TranslationResults } from './TranslationResults';
@@ -43,6 +44,10 @@ export function BulkProgressModal({
   const isChromeAi = explicitIsChromeAi !== null ? Boolean(explicitIsChromeAi) : selectedProvider === 'chrome_ai';
   const hasFailedPosts = Object.values(postResultsMap).some((p) =>
     Object.values(p.translations || {}).some((t) => t.status === 'failed')
+  );
+
+  const shouldShowReviewNotice = Boolean(
+    isCompleted && statsSummary && statsSummary.completedCharacters > 1000 && statsSummary.completed > 0
   );
 
   return (
@@ -99,14 +104,19 @@ export function BulkProgressModal({
               {isTranslating && isChromeAi
                 ? 'Translation In Progress...'
                 : isCompleted
-                ? 'Done (Reload)'
-                : 'Close'}
+                  ? 'Done (Reload)'
+                  : 'Close'}
             </Button>
           </div>
         </ModalFooter>
       }
     >
       <div className="ts-bulk-progress-view">
+        <ReviewNotice
+          isVisible={shouldShowReviewNotice}
+          className="ts-modal-review-notice"
+        />
+
         {!isCompleted ? (
           <BulkProgress
             statusText={statusText}
