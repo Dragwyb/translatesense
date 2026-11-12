@@ -16,6 +16,6 @@ class Deactivator {
 	public static function deactivate() {
 		wp_clear_scheduled_hook( 'translatesense_cache_cleanup' );
 		wp_clear_scheduled_hook( 'translatesense_bulk_process_cron' );
-		wp_clear_scheduled_hook( 'translatesense_bulk_cron_tick' );
+		wp_clear_scheduled_hook( 'translatesense_bulk_process_now' );
 	}
 }
