@@ -353,7 +353,7 @@ abstract class Base_Builder {
 			'target_post_title' => $translated_title,
 			'is_retranslation'  => $is_existing,
 			'sync_status'       => get_post_meta( $created_post_id, '_translatesense_sync_status', true ),
-			'sync_warnings'     => (array) get_post_meta( $created_post_id, '_translatesense_sync_warnings', true ),
+			'sync_warnings'     => get_post_meta( $created_post_id, '_translatesense_sync_warnings', true ),
 			'builder'           => $this->get_builder_slug(),
 			'editor_type'       => $editor_type,
 			'edit_url'          => $edit_url,
