@@ -1298,6 +1298,11 @@ class Bulk_Process {
 				$editor_type       = 'taxonomy';
 				$edit_url          = ( $target_term instanceof \WP_Term ) ? (string) get_edit_term_link( $target_post_id, $term_taxonomy ) : '';
 				$view_url          = ( $target_term instanceof \WP_Term && current_user_can( 'edit_term', $target_post_id ) ) ? self::get_safe_term_link( $target_post_id, $term_taxonomy ) : '';
+
+				if ( $target_post_id && ! get_term( $target_post_id, $term_taxonomy ) ) {
+					self::update_job( (int) $row['id'], array( 'status' => 'failed' ) );
+					$status = 'failed';
+				}
 			} else {
 				$post              = get_post( $post_id );
 				$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
@@ -1307,6 +1312,11 @@ class Bulk_Process {
 				$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
 				$edit_url          = ( $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
 				$view_url          = ( $target_post_id && ! $is_trashed_target && current_user_can( 'edit_post', $target_post_id ) ) ? get_permalink( $target_post_id ) : '';
+
+				if ( $target_post_id && ! get_post( $target_post_id ) ) {
+					self::update_job( (int) $row['id'], array( 'status' => 'failed' ) );
+					$status = 'failed';
+				}
 			}
 
 			if ( 'completed' === $status || 'already_exists' === $status || 'skipped' === $status ) {
