@@ -14,6 +14,7 @@ use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Admin\Editor_Integration;
 use TranslateSense\Includes\Translation\Statics;
 use TranslateSense\Includes\Content\Processor\Block_Processor;
+use TranslateSense\Includes\Content\Parser\Dom_Filter;
 
 use WP_Error;
 
@@ -23,9 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Bulk_Process {
 
-	const CRON_HOOK           = 'translatesense_bulk_process_cron';
-	const IMMEDIATE_CRON_HOOK = 'translatesense_bulk_process_now';
-	const CRON_INTERVAL       = 'translatesense_batch_interval';
+	const CRON_HOOK            = 'translatesense_bulk_process_cron';
+	const IMMEDIATE_CRON_HOOK  = 'translatesense_bulk_process_now';
+	const CRON_INTERVAL        = 'translatesense_batch_interval';
 	const TAXONOMY_JOB_TIMEOUT = 30 * MINUTE_IN_SECONDS;
 
 	/**
@@ -281,12 +282,10 @@ class Bulk_Process {
 						$item_has_language = false;
 					}
 				}
-			} else {
-				if ( function_exists( 'pll_get_post_language' ) ) {
+			} elseif ( function_exists( 'pll_get_post_language' ) ) {
 					$source_item_lang = pll_get_post_language( $item_id, 'slug' );
-					if ( empty( $source_item_lang ) ) {
-						$item_has_language = false;
-					}
+				if ( empty( $source_item_lang ) ) {
+					$item_has_language = false;
 				}
 			}
 
@@ -296,6 +295,7 @@ class Bulk_Process {
 
 			foreach ( $target_languages as $lang ) {
 				$target_lang = sanitize_key( $lang );
+
 				if ( '' === $target_lang ) {
 					continue;
 				}
@@ -393,6 +393,33 @@ class Bulk_Process {
 					'updated_at'        => $now_utc,
 				);
 
+				$temp_data = array();
+
+				if ( $source_term instanceof \WP_Term ) {
+					$target_term_obj                = $has_existing_target ? get_term( $target_post_id, $source_term->taxonomy ) : null;
+					$temp_data['editor_type']       = 'taxonomy';
+					$temp_data['post_title']        = ! empty( $source_term->name ) ? $source_term->name : sprintf( '#%d', $item_id );
+					$temp_data['target_post_title'] = ( $target_term_obj instanceof \WP_Term ) ? Dom_Filter::decode_html_string( $target_term_obj->name ) : '';
+					$temp_data['view_url']          = $has_existing_target ? self::get_safe_term_link( $target_post_id, $source_term->taxonomy ) : '';
+					$temp_data['edit_url']          = $has_existing_target ? (string) get_edit_term_link( $target_post_id, $source_term->taxonomy ) : '';
+				} else {
+					$raw_source_title               = get_the_title( $item_id );
+					$raw_target_title               = $has_existing_target ? get_the_title( $target_post_id ) : '';
+					$temp_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $item_id );
+					$temp_data['post_title']        = ! empty( $raw_source_title ) ? $raw_source_title : sprintf( '#%d', $item_id );
+					$temp_data['target_post_title'] = ! empty( $raw_target_title ) ? Dom_Filter::decode_html_string( $raw_target_title ) : '';
+					$temp_data['view_url']          = ( $has_existing_target && ! $is_trashed_target ) ? get_permalink( $target_post_id ) : '';
+					$temp_data['edit_url']          = ( $has_existing_target && $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
+				}
+
+				// Existing translations are informational only; do not persist them as
+				// queue jobs because there is no work left for the batch to process.
+
+				if ( 'already_exists' === $job_status ) {
+					$created_jobs[] = array_merge( $insert_data, $temp_data );
+					continue;
+				}
+
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				if ( false === $wpdb->insert( $table, $insert_data, array( '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) ) ) {
 					continue;
@@ -413,24 +440,7 @@ class Bulk_Process {
 				$insert_data['created_at']      = str_replace( ' ', 'T', $now_utc ) . 'Z';
 				$insert_data['updated_at']      = str_replace( ' ', 'T', $now_utc ) . 'Z';
 
-				if ( $source_term instanceof \WP_Term ) {
-					$target_term_obj                  = $has_existing_target ? get_term( $target_post_id, $source_term->taxonomy ) : null;
-					$insert_data['editor_type']       = 'taxonomy';
-					$insert_data['post_title']        = ! empty( $source_term->name ) ? $source_term->name : sprintf( '#%d', $item_id );
-					$insert_data['target_post_title'] = ( $target_term_obj instanceof \WP_Term ) ? $target_term_obj->name : '';
-					$insert_data['view_url']          = $has_existing_target ? self::get_safe_term_link( $target_post_id, $source_term->taxonomy ) : '';
-					$insert_data['edit_url']          = $has_existing_target ? (string) get_edit_term_link( $target_post_id, $source_term->taxonomy ) : '';
-				} else {
-					$raw_source_title                 = get_the_title( $item_id );
-					$raw_target_title                 = $has_existing_target ? get_the_title( $target_post_id ) : '';
-					$insert_data['editor_type']       = Editor_Integration::get_post_editor_type( $has_existing_target ? $target_post_id : $item_id );
-					$insert_data['post_title']        = ! empty( $raw_source_title ) ? $raw_source_title : sprintf( '#%d', $item_id );
-					$insert_data['target_post_title'] = ! empty( $raw_target_title ) ? $raw_target_title : '';
-					$insert_data['view_url']          = ( $has_existing_target && ! $is_trashed_target ) ? get_permalink( $target_post_id ) : '';
-					$insert_data['edit_url']          = ( $has_existing_target && $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
-				}
-
-				$created_jobs[] = $insert_data;
+				$created_jobs[] = array_merge( $insert_data, $temp_data );
 			}
 		}
 
@@ -523,12 +533,10 @@ class Bulk_Process {
 						$has_lang = false;
 					}
 				}
-			} else {
-				if ( function_exists( 'pll_get_post_language' ) ) {
+			} elseif ( function_exists( 'pll_get_post_language' ) ) {
 					$post_lang = pll_get_post_language( $post_id, 'slug' );
-					if ( empty( $post_lang ) ) {
-						$has_lang = false;
-					}
+				if ( empty( $post_lang ) ) {
+					$has_lang = false;
 				}
 			}
 
@@ -574,7 +582,7 @@ class Bulk_Process {
 
 			// A taxonomy job is executed by the browser, so claim its retry atomically
 			// to prevent two browser sessions from processing the same job.
-			$retry_where = $is_term
+			$retry_where        = $is_term
 				? array(
 					'id'     => $job_id,
 					'status' => (string) $row['status'],
@@ -1533,6 +1541,27 @@ class Bulk_Process {
 			$rows = array();
 		}
 
+		if ( empty( $rows ) ) {
+			return array(
+				'success'             => true,
+				'batch_id'            => $batch_id,
+				'overall_status'      => 'completed',
+				'progress_percent'    => 100,
+				'current_status'      => __( 'All selected translations already exist.', 'translatesense' ),
+				'total_jobs'          => 0,
+				'completed_jobs'      => 0,
+				'already_exists_jobs' => 0,
+				'failed_jobs'         => 0,
+				'running_jobs'        => 0,
+				'pending_jobs'        => 0,
+				'skipped_jobs'        => 0,
+				'total_strings'       => 0,
+				'completed_strings'   => 0,
+				'pending_strings'     => 0,
+				'items'               => array(),
+			);
+		}
+
 		$total_jobs          = count( $rows );
 		$completed_jobs      = 0;
 		$already_exists_jobs = 0;
@@ -1583,7 +1612,7 @@ class Bulk_Process {
 				$term_taxonomy     = ( $source_term instanceof \WP_Term ) ? (string) $source_term->taxonomy : '';
 				$post_title        = ( $source_term instanceof \WP_Term ) ? $source_term->name : sprintf( '#%d', $post_id );
 				$target_term       = ( $target_post_id > 0 && '' !== $term_taxonomy ) ? get_term( $target_post_id, $term_taxonomy ) : null;
-				$target_post_title = ( $target_term instanceof \WP_Term ) ? $target_term->name : '';
+				$target_post_title = ( $target_term instanceof \WP_Term ) ? Dom_Filter::decode_html_string( $target_term->name ) : '';
 				$editor_type       = 'taxonomy';
 				$edit_url          = ( $target_term instanceof \WP_Term ) ? (string) get_edit_term_link( $target_post_id, $term_taxonomy ) : '';
 				$source_edit_url   = ( $source_term instanceof \WP_Term ) ? (string) get_edit_term_link( $post_id, $term_taxonomy ) : '';
@@ -1597,7 +1626,7 @@ class Bulk_Process {
 				$post              = get_post( $post_id );
 				$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
 				$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
-				$target_post_title = $target_post ? $target_post->post_title : '';
+				$target_post_title = ! empty( $raw_target_title ) ? Dom_Filter::decode_html_string( $raw_target_title ) : '';
 				$is_trashed_target = ( $target_post instanceof \WP_Post && 'trash' === $target_post->post_status );
 				$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
 				$edit_url          = ( $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
@@ -1655,7 +1684,7 @@ class Bulk_Process {
 				'total_characters'     => $t_chars,
 				'completed_characters' => $c_chars,
 				'target_post_id'       => $target_post_id,
-				'target_post_title'    => $target_post_title,
+				'target_post_title'    => Dom_Filter::decode_html_string( $target_post_title ),
 				'edit_url'             => $edit_url,
 				'source_edit_url'      => $source_edit_url,
 				'view_url'             => $view_url,
