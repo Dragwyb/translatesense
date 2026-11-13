@@ -24,7 +24,7 @@ Beyond content translation, TranslateSense supports **automatic taxonomy transla
 
 == Resources ==
 
-📖 [Documentation](https://docs.dragwyb.com/ai-automatic-translation-addon-for-polylang/) | ✨ [TranslateSense Pro](https://dragwyb.com/product/ai-automatic-translation-addon-for-polylang/)
+📖 [Documentation](https://docs.dragwyb.com/ai-automatic-translation-addon-for-polylang/?utm_source=wpplugin&utm_medium=readme&utm_campaign=translatesense) | ✨ [TranslateSense Pro](https://dragwyb.com/product/ai-automatic-translation-addon-for-polylang/?utm_source=wpplugin&utm_medium=readme&utm_campaign=translatesense)
 
 **Key Features**
 
@@ -142,7 +142,7 @@ When you request an AI translation, the selected source text and relevant langua
 
 * **OpenAI (https://api.openai.com):** Receives text submitted for translation and related language and prompt information when you use OpenAI. TranslateSense also retrieves available model information when validating credentials or loading models. [Privacy Policy](https://openai.com/policies/privacy-policy) | [Terms of Use](https://openai.com/policies/terms-of-use)
 * **Google Gemini (https://generativelanguage.googleapis.com):** Receives text submitted for translation and related language and prompt information when you use Google Gemini. TranslateSense also retrieves available model information when validating credentials or loading models. [Privacy Policy](https://policies.google.com/privacy) | [Terms of Service](https://policies.google.com/terms)
-* **Dragwyb Deactivation Feedback (https://feedback.dragwyb.com):** If you voluntarily submit the optional deactivation feedback form, your selected reason, optional comment, and plugin information are sent to Dragwyb. If you enable the diagnostics option, additional site and environment information may also be included. [Privacy Policy](https://dragwyb.com/privacy-policy/) | [Terms](https://dragwyb.com/terms/)
+* **Dragwyb Deactivation Feedback (https://feedback.dragwyb.com):** If you voluntarily submit the optional deactivation feedback form, your selected reason, optional comment, and plugin information are sent to Dragwyb. If you enable the diagnostics option, additional site and environment information may also be included. [Privacy Policy](https://dragwyb.com/privacy-policy/?utm_source=wpplugin&utm_medium=readme&utm_campaign=translatesense) | [Terms](https://dragwyb.com/terms/?utm_source=wpplugin&utm_medium=readme&utm_campaign=translatesense)
 * **Built-in Browser AI (Chrome / Microsoft Edge):** Uses the browser's Translator API to process translation text locally. TranslateSense does not send that text to OpenAI or Google Gemini when you use this option.
 
 == Installation ==
