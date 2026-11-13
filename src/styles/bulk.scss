@@ -132,44 +132,159 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 42px 20px;
-  text-align: center;
+  padding: 32px;
   background: #ffffff;
   border: 1px dashed #cbd5e1;
-  border-radius: var(--ts-radius-md, 8px);
-  margin: 12px 0 16px 0;
+  border-radius: 12px;
+  box-sizing: border-box;
 
   .ts-empty-batches-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    background: #eff6ff;
-    color: #2563eb;
+    background: #f1f5f9;
+    color: #475569;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 12px;
+    margin-bottom: 18px;
 
     .dashicons {
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
-      line-height: 24px;
+      font-size: 26px;
+      width: 26px;
+      height: 26px;
+      line-height: 26px;
+      color: #475569;
     }
   }
 
   .ts-empty-batches-title {
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 700;
     color: #0f172a;
-    margin: 0 0 6px 0;
+    margin: 0 0 8px 0;
+    text-align: center;
+    line-height: 1.3;
   }
 
   .ts-empty-batches-desc {
-    font-size: 13px;
+    font-size: 14px;
     color: #64748b;
-    margin: 0;
-    line-height: 1.4;
+    margin: 0 0 32px 0;
+    text-align: center;
+    line-height: 1.5;
+    max-width: 580px;
+  }
+
+  .ts-empty-steps-list {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 580px;
+    margin: 0 auto;
+    text-align: left;
+  }
+
+  .ts-empty-step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    position: relative;
+
+    &:not(:last-child) {
+      padding-bottom: 24px;
+
+      .ts-empty-step-num-col:after {
+        content: '';
+        position: absolute;
+        top: 30px;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1px;
+        background: #e2e8f0;
+      }
+    }
+  }
+
+  .ts-empty-step-num-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 28px;
+
+    .ts-empty-step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      z-index: 1;
+    }
+  }
+
+  .ts-empty-step-icon-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding-top: 2px;
+    color: #334155;
+
+    svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+    }
+
+    .dashicons {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+      color: #334155;
+    }
+  }
+
+  .ts-empty-step-content {
+    flex: 1;
+    min-width: 0;
+
+    .ts-empty-step-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 4px 0;
+      line-height: 1.35;
+    }
+
+    .ts-empty-step-text {
+      font-size: 13.5px;
+      color: #64748b;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .ts-empty-step-badge {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-weight: 600;
+      font-size: 12.5px;
+      padding: 1px 7px;
+      border-radius: 4px;
+      margin: 0 2px;
+      vertical-align: baseline;
+    }
   }
 }
 
