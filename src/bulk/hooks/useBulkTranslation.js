@@ -158,6 +158,12 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     };
   }, [isTaxonomy]);
 
+  useEffect(() => {
+    if (!postResultsMap || Object.keys(postResultsMap).length === 0) return;
+    const stats = calculateBatchStats(Object.values(postResultsMap).flatMap(item => Object.values(item.translations)) || []);
+    setStatsSummary(stats);
+  }, [postResultsMap])
+
   // Stop background polling timer
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -237,6 +243,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       });
       setOrderedPostIds(itemsOrder);
     }
+
   }, [isTaxonomy, itemTitlePrefix]);
 
   // Server background polling logic
@@ -298,9 +305,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           setIsTranslating(false);
           setIsCompleted(true);
           stopTimer();
-
-          const stats = calculateBatchStats(data.items || []);
-          setStatsSummary(stats);
 
           // Continue polling only while active batches exist; stop immediately if all finished
           try {
@@ -421,8 +425,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             setIsTranslating(false);
             setIsCompleted(true);
             stopTimer();
-            const stats = calculateBatchStats(data.items || []);
-            setStatsSummary(stats);
             // Completed batch: do not schedule polling
             return;
           } else {
@@ -934,9 +936,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         }
       }
 
-      // Calculate final stats from all batch jobs (merged)
-      setStatsSummary(calculateBatchStats(finalItems));
-
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       setIsCompleted(true);
@@ -1030,7 +1029,16 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       if (isChromeAi || isTaxonomy) {
         runChromeAiTranslation(batchRes.jobs || [], batchRes.batch_id, selectedProvider);
       } else {
-        pollStatus(batchRes.batch_id);
+        const hasQueueJobs = batchRes.jobs.some(job => job.status !== 'already_exists');
+
+        if (hasQueueJobs) {
+          pollStatus(batchRes.batch_id);
+        } else {
+          setIsTranslating(false);
+          setIsCompleted(true);
+          stopTimer();
+          setStatusText('Translation completed!');
+        }
       }
     } catch (err) {
       setEndpointLoading(null);
