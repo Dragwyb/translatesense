@@ -196,34 +196,19 @@ export function BulkApp() {
       // Case B1: User has NOT selected any posts or terms
       if (ids.length === 0) {
         if (!isTaxonomy) {
-          let latestBatches = [];
-          try {
-            const res = await getActiveBatches();
-            latestBatches = res.batches || [];
-          } catch {
-            latestBatches = [];
-          }
-
-          const active = latestBatches.length > 0;
-          setHasActiveJobs(active);
-          updatePulseDot(active);
-
-          if (active) {
-            setIsPrevRunningMode(true);
-            setSelectedPostIds([]);
-            const activeBatch = latestBatches[0];
-            translationState.openBatchMonitor(
-              activeBatch.batch_id,
-              activeBatch,
-              latestBatches,
-              {
-                sessionType: 'existing_queue',
-                modalSource: 'bulk_button',
-              }
-            );
-            setIsOpen(true);
-            return;
-          }
+          setIsPrevRunningMode(true);
+          setSelectedPostIds([]);
+          setIsOpen(true);
+          translationState.openBatchMonitor(
+            null,
+            null,
+            null,
+            {
+              sessionType: 'existing_queue',
+              modalSource: 'bulk_button',
+            }
+          );
+          return;
         }
 
         alert(`Please select ${itemPlural} first.`);

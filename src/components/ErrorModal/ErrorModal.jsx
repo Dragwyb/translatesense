@@ -10,10 +10,16 @@ import copyToClipboard from '../CopyToClipbord';
 export function ErrorModal({
   isOpen,
   onClose,
+  type = 'error',
   title = 'Translation Error',
+  subtitle = '',
+  heading = '',
+  stepTip = '',
   message,
   reasonHTML = '',
   actionHtml = '',
+  actionUrl = '',
+  actionLabel = 'Edit',
   icon = 'dashicons-warning',
   onRetry = null,
   retryLabel = 'Retry',
@@ -108,12 +114,13 @@ export function ErrorModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="ts-error-container"
+      className={`ts-error-container ${type === 'no_language' ? 'ts-no-lang-modal' : ''}`}
       overlayClassName="ts-error-modal-overlay"
       header={
         <ModalHeader
           icon={icon}
           title={title}
+          subtitle={subtitle}
           onClose={onClose}
           closeClass="ts-bulk-close"
         />
@@ -123,19 +130,54 @@ export function ErrorModal({
           customHtml={actionHtml}
           align={actionHtml ? 'space-between' : 'right'}
         >
-          {onRetry && (
-            <Button variant="secondary" onClick={onRetry}>
-              {retryLabel}
+          <div className="ts-footer-buttons-group ts-error-footer-group">
+            <Button variant="secondary" onClick={onClose} className="ts-error-close-btn">
+              Close
             </Button>
-          )}
-          <Button variant="primary" onClick={onClose}>
-            Close
-          </Button>
+            {actionUrl && (
+              <a
+                href={actionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button-primary ts-btn ts-btn-primary"
+              >
+                <span>{actionLabel || 'Edit'}</span>
+                <span className="dashicons dashicons-external" style={{ marginRight: '0px' }} />
+              </a>
+            )}
+            {onRetry && (
+              <Button variant="secondary" onClick={onRetry}>
+                {retryLabel}
+              </Button>
+            )}
+          </div>
         </ModalFooter>
       }
     >
       <div className="ts-error-content-body">
-        {reasonHTML ? (
+        {type === 'no_language' || heading ? (
+          <div className="ts-no-lang-banner-card">
+            <div className="ts-no-lang-banner-icon-col">
+              <span className="ts-no-lang-circle-icon">
+                <span className="dashicons dashicons-info" />
+              </span>
+            </div>
+            <div className="ts-no-lang-banner-text-col">
+              <h4 className="ts-no-lang-banner-title">
+                {heading || `This item doesn't have a language assigned in Polylang.`}
+              </h4>
+              <p className="ts-no-lang-banner-message">
+                {message || 'Assign a language before translating it. Open the editor to select the default language or choose another language.'}
+              </p>
+              {stepTip && (
+                <div className="ts-no-lang-banner-step">
+                  <span className="dashicons dashicons-arrow-right-alt" />
+                  <span>{stepTip}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : reasonHTML ? (
           <div
             className="ts-error-message"
             dangerouslySetInnerHTML={{ __html: reasonHTML }}

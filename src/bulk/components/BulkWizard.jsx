@@ -57,6 +57,9 @@ export function BulkWizard({
     isQueueChromeAi,
     hideReviewNotice,
     handleDismissReviewNotice,
+    endpointLoading,
+    emptyBatchesState,
+    retryFailedTranslations,
   } = translationState;
 
   // Responsive breakpoint hook: <= 864px uses two-step flow, > 864px uses combined flow
@@ -126,17 +129,29 @@ export function BulkWizard({
         /* 2. Error Details Modal */
         <ErrorModal
           isOpen={true}
+          type={errorModal.type}
           title={errorModal.title}
+          subtitle={errorModal.subtitle}
+          heading={errorModal.heading}
+          stepTip={errorModal.stepTip}
           message={errorModal.message}
           reasonHTML={errorModal.reasonHTML}
+          actionUrl={errorModal.actionUrl}
+          actionLabel={errorModal.actionLabel}
           icon={errorModal.icon}
           onClose={() =>
             setErrorModal({
               isOpen: false,
+              type: 'error',
               title: '',
+              subtitle: '',
+              heading: '',
+              stepTip: '',
               message: '',
               errorObj: null,
               reasonHTML: '',
+              actionUrl: '',
+              actionLabel: '',
             })
           }
         />
@@ -273,19 +288,28 @@ export function BulkWizard({
           onErrorDetail={(detail) =>
             setErrorModal({
               isOpen: true,
+              type: detail.type || 'error',
               title: detail.title,
+              subtitle: detail.subtitle || '',
+              heading: detail.heading || '',
+              stepTip: detail.stepTip || '',
               message: detail.message,
               errorObj: detail.errorObj,
-              reasonHTML: detail.errorObj?.reasonHTML,
-              icon: detail.icon || 'dashicons-warning'
+              reasonHTML: detail.reasonHTML || detail.errorObj?.reasonHTML,
+              actionUrl: detail.actionUrl || '',
+              actionLabel: detail.actionLabel || 'Edit',
+              icon: detail.icon || 'dashicons-warning',
             })
           }
+          onTranslateAgain={retryFailedTranslations}
           showBackButton={showBackButton}
           onBack={handleBackFromProgress}
           canSkip={canSkip}
           itemMeta={itemMeta}
           hideReviewNotice={hideReviewNotice}
           onDismissReviewNotice={handleDismissReviewNotice}
+          endpointLoading={endpointLoading}
+          emptyBatchesState={emptyBatchesState}
         />
       ) : null}
     </div>

@@ -27,6 +27,22 @@ class Taxonomy_Translator {
 	const BROWSER_PROVIDERS = array( 'chrome_ai', 'chrome_local_ai', 'edge_ai' );
 
 	/**
+	 * Taxonomy translation warnings recorded during the most recent post translation pass.
+	 *
+	 * @var string[]
+	 */
+	private static array $last_taxonomy_warnings = array();
+
+	/**
+	 * Get warnings recorded during the most recent post translation pass.
+	 *
+	 * @return string[]
+	 */
+	public static function get_last_warnings(): array {
+		return self::$last_taxonomy_warnings;
+	}
+
+	/**
 	 * Validate target language configuration and optional acting user record.
 	 *
 	 * @param string   $target_lang         Target language slug.
@@ -673,6 +689,59 @@ class Taxonomy_Translator {
 			return $authorized_tree;
 		}
 
+		self::$last_taxonomy_warnings = array();
+
+		// Handle missing taxonomy languages for associated translatable taxonomy terms.
+		$source_post_lang = function_exists( 'pll_get_post_language' )
+			? (string) pll_get_post_language( $source_post_id, 'slug' )
+			: sanitize_key( $source_lang );
+		if ( '' === $source_post_lang ) {
+			$source_post_lang = sanitize_key( $source_lang );
+		}
+		$default_lang      = (string) Polylang_Bridge::get_default_language();
+		$is_source_default = ( '' !== $source_post_lang && $source_post_lang === $default_lang );
+
+		foreach ( $authorized_tree as $taxonomy => $terms ) {
+			foreach ( $terms as $term_id => $term ) {
+				$term_lang = function_exists( 'pll_get_term_language' )
+					? (string) pll_get_term_language( (int) $term_id, 'slug' )
+					: Taxonomy_Parser::get_term_language( (int) $term_id );
+
+				if ( '' !== $term_lang ) {
+					// 3. If the term already has a language, preserve it and follow existing workflow.
+					continue;
+				}
+
+				// 4. Term has no language assigned.
+				if ( $is_source_default ) {
+					// Source post language is the default language: assign default language to term.
+					if ( function_exists( 'pll_set_term_language' ) ) {
+						pll_set_term_language( (int) $term_id, $default_lang );
+					}
+					// Continue with the existing taxonomy translation workflow for that term.
+				} else {
+					// Source post language is NOT the default language:
+					// Do not assign language, do not translate, do not assign to translated post.
+					unset( $authorized_tree[ $taxonomy ][ $term_id ] );
+					$warning_entry = sprintf(
+						/* translators: 1: Term ID, 2: Taxonomy slug */
+						__( 'Taxonomy term %1$d in "%2$s" skipped: no language assigned (reason: no_language).', 'translatesense' ),
+						(int) $term_id,
+						$taxonomy
+					);
+					self::$last_taxonomy_warnings[] = $warning_entry;
+				}
+			}
+
+			if ( empty( $authorized_tree[ $taxonomy ] ) ) {
+				unset( $authorized_tree[ $taxonomy ] );
+			}
+		}
+
+		if ( ! empty( self::$last_taxonomy_warnings ) ) {
+			update_post_meta( $source_post_id, '_translatesense_taxonomy_warnings', self::$last_taxonomy_warnings );
+		}
+
 		$preloaded = self::ensure_translations_available(
 			$source_post_id,
 			$authorized_tree,
@@ -1115,7 +1184,29 @@ class Taxonomy_Translator {
 			return new WP_Error( 'translatesense_polylang_term_api_unavailable', __( 'Polylang term translation APIs are unavailable.', 'translatesense' ) );
 		}
 
-		$term_language      = Taxonomy_Parser::get_term_language( $source_term_id );
+		$term_language = function_exists( 'pll_get_term_language' )
+			? (string) pll_get_term_language( $source_term_id, 'slug' )
+			: Taxonomy_Parser::get_term_language( $source_term_id );
+
+		if ( '' === $term_language ) {
+			$default_lang = (string) Polylang_Bridge::get_default_language();
+			if ( '' !== $source_lang && $source_lang === $default_lang ) {
+				if ( function_exists( 'pll_set_term_language' ) ) {
+					pll_set_term_language( $source_term_id, $default_lang );
+				}
+				$term_language = $default_lang;
+			} else {
+				return new WP_Error(
+					'no_language',
+					sprintf(
+						/* translators: %d: term ID */
+						__( 'Taxonomy term %d does not have a language assigned.', 'translatesense' ),
+						$source_term_id
+					)
+				);
+			}
+		}
+
 		$actual_source_lang = '' !== $term_language ? $term_language : sanitize_key( $source_lang );
 
 		if ( $actual_source_lang === $target_lang ) {

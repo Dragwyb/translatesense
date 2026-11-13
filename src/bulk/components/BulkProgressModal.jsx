@@ -3,13 +3,14 @@
  * Encapsulates Progress Monitoring, Results Table, and Actions in its own Modal
  */
 
-import { useState } from '@wordpress/element';
+import { useState, useMemo } from '@wordpress/element';
 import { Modal, ModalHeader, ModalFooter } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { ReviewNotice } from '../../components/ReviewNotice';
 import { BulkProgress } from './BulkProgress';
 import { ProgressSummary } from './ProgressSummary';
 import { TranslationResults } from './TranslationResults';
+import { BulkProgressSkeleton } from './BulkProgressSkeleton';
 import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function BulkProgressModal({
@@ -36,12 +37,15 @@ export function BulkProgressModal({
   onFilterChange,
   onSkipPost,
   onErrorDetail,
+  onTranslateAgain,
   showBackButton = false,
   onBack,
   canSkip = false,
   itemMeta = {},
   hideReviewNotice = true,
   onDismissReviewNotice = null,
+  endpointLoading = null,
+  emptyBatchesState = false,
 }) {
   const [internalFilters, setInternalFilters] = useState([]);
   const activeFilters = Array.isArray(selectedFilters) ? selectedFilters : internalFilters;
@@ -53,6 +57,17 @@ export function BulkProgressModal({
   const completedCount = Number(statsSummary?.completed) || 0;
   const skipExistCount =
     (Number(statsSummary?.alreadyExists) || 0) + (Number(statsSummary?.skipped) || 0);
+
+  const hasFailedItems = useMemo(() => {
+    if (!postResultsMap) return false;
+    return Object.values(postResultsMap).some((post) =>
+      Object.values(post.translations || {}).some(
+        (t) =>
+          t.status === 'failed' ||
+          (t.status === 'skipped' && (t.error === 'no_language' || t.progressStatus === 'No Language'))
+      )
+    );
+  }, [postResultsMap]);
 
   const filterOptions = [
     failedCount > 0 ? { key: 'failed', label: 'Show Failed' } : null,
@@ -127,6 +142,17 @@ export function BulkProgressModal({
           </div>
 
           <div className="ts-footer-buttons-group">
+            {hasFailedItems && !isTranslating && onTranslateAgain && (
+              <Button
+                variant="secondary"
+                className="ts-translate-again-btn"
+                onClick={onTranslateAgain}
+                title="Retry and translate remaining failed items"
+              >
+                <span className="dashicons dashicons-update" />
+                Translate Again
+              </Button>
+            )}
             <Button
               variant="primary"
               disabled={isTranslating && isChromeAi}
@@ -148,52 +174,70 @@ export function BulkProgressModal({
       }
     >
       <div className="ts-bulk-progress-view">
-        <ReviewNotice
-          isVisible={shouldShowReviewNotice}
-          onDismiss={onDismissReviewNotice}
-          className="ts-modal-review-notice"
-        />
-
-        {!isCompleted ? (
-          <BulkProgress
-            statusText={statusText}
-            percent={progressPercent}
-            completedPosts={completedJobsCount}
-            totalPosts={totalJobsCount}
-            timerText={formattedTimer}
-            isChromeAi={isChromeAi}
-            activeBatches={activeBatches}
-            currentBatchId={currentBatchId}
-            onBatchChange={onBatchChange}
-            isTranslating={isTranslating}
-            itemPlural={itemPlural}
+        {endpointLoading ? (
+          <BulkProgressSkeleton
+            type={endpointLoading}
+            postIds={orderedPostIds}
+            selectedLanguages={allLanguages}
           />
+        ) : emptyBatchesState ? (
+          <div className="ts-empty-batches-state">
+            <div className="ts-empty-batches-icon">
+              <span className="dashicons dashicons-translation" />
+            </div>
+            <h3 className="ts-empty-batches-title">No Active Batches</h3>
+            <p className="ts-empty-batches-desc">No active translation batches.</p>
+          </div>
         ) : (
-          statsSummary && (
-            <ProgressSummary
-              completedCount={statsSummary.completed}
-              skippedCount={statsSummary.alreadyExists + statsSummary.skipped}
-              failedCount={statsSummary.failed}
-              totalCharacters={statsSummary.completedCharacters}
-              totalCount={statsSummary.total}
-              elapsedTime={humanReadableTimer}
+          <>
+            <ReviewNotice
+              isVisible={shouldShowReviewNotice}
+              onDismiss={onDismissReviewNotice}
+              className="ts-modal-review-notice"
+            />
+
+            {!isCompleted ? (
+              <BulkProgress
+                statusText={statusText}
+                percent={progressPercent}
+                completedPosts={completedJobsCount}
+                totalPosts={totalJobsCount}
+                timerText={formattedTimer}
+                isChromeAi={isChromeAi}
+                activeBatches={activeBatches}
+                currentBatchId={currentBatchId}
+                onBatchChange={onBatchChange}
+                isTranslating={isTranslating}
+                itemPlural={itemPlural}
+              />
+            ) : (
+              statsSummary && (
+                <ProgressSummary
+                  completedCount={statsSummary.completed}
+                  skippedCount={statsSummary.alreadyExists + statsSummary.skipped}
+                  failedCount={statsSummary.failed}
+                  totalCharacters={statsSummary.completedCharacters}
+                  totalCount={statsSummary.total}
+                  elapsedTime={humanReadableTimer}
+                  itemMeta={itemMeta}
+                />
+              )
+            )}
+
+            <TranslationResults
+              orderedPostIds={orderedPostIds}
+              postResultsMap={postResultsMap}
+              allLanguages={allLanguages}
+              isBackgroundMode={!isChromeAi}
+              canSkip={canSkip}
+              activeBatchId={currentBatchId}
+              selectedFilters={showStatusFilters ? activeFilters : []}
+              onSkipPost={onSkipPost}
+              onErrorDetail={onErrorDetail}
               itemMeta={itemMeta}
             />
-          )
+          </>
         )}
-
-        <TranslationResults
-          orderedPostIds={orderedPostIds}
-          postResultsMap={postResultsMap}
-          allLanguages={allLanguages}
-          isBackgroundMode={!isChromeAi}
-          canSkip={canSkip}
-          activeBatchId={currentBatchId}
-          selectedFilters={showStatusFilters ? activeFilters : []}
-          onSkipPost={onSkipPost}
-          onErrorDetail={onErrorDetail}
-          itemMeta={itemMeta}
-        />
       </div>
     </Modal>
   );

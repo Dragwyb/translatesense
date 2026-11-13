@@ -16,6 +16,7 @@ export const ENDPOINTS = {
   BULK_STATUS: 'bulk-status',
   BULK_UPDATE_JOB: 'bulk-update-job',
   BULK_SKIP_POST: 'bulk-skip-post',
+  BULK_RETRY: 'bulk-retry',
   BULK_ACTIVE_BATCHES: 'bulk-active-batches',
   BULK_TRANSLATE_TERM: 'bulk-translate-term',
   MARK_TRANSLATED: 'mark-translated',

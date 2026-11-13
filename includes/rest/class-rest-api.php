@@ -738,6 +738,29 @@ class Rest_Api {
 		);
 
 		/*
+		 * 11d. Retry failed and unassigned jobs in a bulk batch.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-retry',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_retry' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_status' ),
+				'args'                => array(
+					'batch_id' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $value ) {
+							return '' !== trim( (string) $value );
+						},
+					),
+				),
+			)
+		);
+
+		/*
 		 * 12. Mark post as translated (pending translation).
 		 */
 		register_rest_route(
@@ -3685,6 +3708,14 @@ class Rest_Api {
 			);
 		}
 
+		if ( function_exists( 'pll_get_post_language' ) && empty( pll_get_post_language( $post_id, 'slug' ) ) ) {
+			return new WP_Error(
+				'no_language',
+				__( 'The selected post does not have a language assigned in Polylang.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		if (
 			! is_array( $in_memory_translations )
 		) {
@@ -4247,6 +4278,23 @@ class Rest_Api {
 	}
 
 	/**
+	 * Retry failed and language-unassigned jobs for a bulk batch.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return WP_REST_Response
+	 */
+	public static function bulk_retry( WP_REST_Request $request ) {
+		$params   = $request->get_json_params();
+		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
+		if ( '' === $batch_id && is_array( $params ) && ! empty( $params['batch_id'] ) ) {
+			$batch_id = sanitize_text_field( (string) $params['batch_id'] );
+		}
+
+		$result = Bulk_Process::retry_failed_batch( $batch_id );
+		return rest_ensure_response( $result );
+	}
+
+	/**
 	 * Mark post as translated.
 	 *
 	 * @param WP_REST_Request $request REST request.
@@ -4346,6 +4394,14 @@ class Rest_Api {
 		$provider        = sanitize_key( (string) $request->get_param( 'provider' ) );
 		$raw_memory      = $request->get_param( 'in_memory_translations' );
 		$current_user_id = get_current_user_id();
+
+		if ( function_exists( 'pll_get_term_language' ) && empty( pll_get_term_language( $term_id, 'slug' ) ) ) {
+			return new WP_Error(
+				'no_language',
+				__( 'The selected taxonomy term does not have a language assigned in Polylang.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
 
 		if ( ! is_array( $raw_memory ) ) {
 			$raw_memory = is_object( $raw_memory ) ? (array) $raw_memory : array();

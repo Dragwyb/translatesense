@@ -168,6 +168,10 @@ abstract class Base_Builder {
 		$raw_post_status  = ! empty( $settings['post_status'] ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft';
 		$bulk_post_status = in_array( $raw_post_status, array( 'publish', 'draft' ), true ) ? $raw_post_status : 'draft';
 
+		if ( function_exists( 'pll_get_post_language' ) && empty( pll_get_post_language( $post_id, 'slug' ) ) ) {
+			return new WP_Error( 'no_language', __( 'The source post does not have a language assigned in Polylang.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
 		$source_lang = Polylang_Bridge::get_post_language( $post_id );
 		$custom_opts = array();
 
@@ -288,6 +292,12 @@ abstract class Base_Builder {
 		// 4. Builder-specific persistence runs after the post and Polylang
 		$this->after_save_post( $created_post_id );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
+
+		$tax_warnings = Taxonomy_Translator::get_last_warnings();
+		if ( ! empty( $tax_warnings ) ) {
+			$existing_warnings = (array) get_post_meta( $created_post_id, '_translatesense_sync_warnings', true );
+			update_post_meta( $created_post_id, '_translatesense_sync_warnings', array_values( array_unique( array_merge( $existing_warnings, $tax_warnings ) ) ) );
+		}
 
 		// Replace copied source-language assignments with resolved target-language terms.
 		if ( $include_taxonomies ) {

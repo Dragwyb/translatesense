@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from '@wordpress/element';
 import { getEvaluatedProviders } from '../../services/providers/providerService';
-import { startBulkTranslation, translateBulkTerm, updateBulkJob, skipBulkPost } from '../services/bulkService';
+import { startBulkTranslation, translateBulkTerm, updateBulkJob, skipBulkPost, retryFailedBatch } from '../services/bulkService';
 import { getActiveBatches, getBatchStatus } from '../services/batchService';
 import { extractStrings, translatePost } from '../../services/core/translationService';
 import { getCoreInstance } from '../../services/core/coreService';
@@ -62,9 +62,21 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
   const [progressSessionType, setProgressSessionType] = useState('new_queue'); // 'new_queue' | 'existing_queue'
   const [progressModalSource, setProgressModalSource] = useState('provider_selection'); // 'provider_selection' | 'bulk_button' | 'language_selection_view_progress'
 
+  // Loading and batch states
+  const [endpointLoading, setEndpointLoading] = useState(null); // null | 'start_bulk' | 'active_batches'
+  const [emptyBatchesState, setEmptyBatchesState] = useState(false);
+
   // Modals
   const [skipModal, setSkipModal] = useState({ isOpen: false, postId: null, batchId: null });
-  const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '', errorObj: null });
+  const [errorModal, setErrorModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    errorObj: null,
+    reasonHTML: '',
+    actionUrl: '',
+    actionLabel: '',
+  });
 
   // Timer
   const { formattedTimer, humanReadable, startTimer, stopTimer, resetTimer } =
@@ -137,7 +149,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             setCurrentBatch(batches[0]);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     return () => {
@@ -180,10 +192,14 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
             postId: item.post_id,
             postTitle: item.post_title || `${prefix} #${item.post_id}`,
             provider: item.provider || batchData.provider || 'openai',
+            sourceEditUrl: item.source_edit_url || '',
+            itemSubtype: item.subtype || '',
             translations: {},
           };
         }
         if (item.post_title) updated[pId].postTitle = item.post_title;
+        if (item.source_edit_url) updated[pId].sourceEditUrl = item.source_edit_url;
+        if (item.subtype) updated[pId].itemSubtype = item.subtype;
 
         updated[pId].translations[tLang] = {
           targetLang: item.target_language,
@@ -202,6 +218,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           progressPercent: getPostProgress(item),
           progressStatus: item.progress_status || '',
           editUrl: item.edit_url,
+          sourceEditUrl: item.source_edit_url || '',
           viewUrl: item.view_url,
           error: item.error_message,
           provider: item.provider || batchData.provider,
@@ -234,6 +251,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       isPollingRef.current = true;
 
       try {
+        const startTime = performance.now();
         const data = await getBatchStatus(bId);
 
         // Discard result if user switched to another batch in the meantime
@@ -266,6 +284,12 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           data.overall_status === 'failed' ||
           data.overall_status === 'skipped' ||
           data.overall_status === 'cancelled';
+
+        const timeTaken = performance.now() - startTime;
+
+        if (timeTaken < 3000) {
+          await new Promise((resolve) => setTimeout(resolve, 3000 - timeTaken));
+        }
 
         if (isFinished) {
           setIsTranslating(false);
@@ -339,6 +363,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
       // If missing batch ID or data, trigger /bulk-active-batches immediately once
       if (!bId || !data) {
+        setEndpointLoading('active_batches');
+        setEmptyBatchesState(false);
         try {
           const res = await getActiveBatches();
           const batches = res.batches || [];
@@ -347,11 +373,13 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           // If the response contains an empty batches array, stop polling immediately.
           // Do not schedule another request when there are no active batches.
           if (batches.length === 0) {
+            setEndpointLoading(null);
             setIsTranslating(false);
             setIsCompleted(false);
             setStatsSummary(null);
             stopTimer();
             setStatusText('No active translation batches.');
+            setEmptyBatchesState(true);
             return;
           }
 
@@ -359,10 +387,16 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           data = data || batches.find((b) => b.batch_id === bId) || batches[0];
         } catch (e) {
           console.warn('[TranslateSense] Failed to fetch active batches on openBatchMonitor:', e);
+          setEndpointLoading(null);
           setIsTranslating(false);
           stopTimer();
+          setStatusText('Failed to load active translation batches.');
           return;
+        } finally {
+          setEndpointLoading(null);
         }
+      } else {
+        setEmptyBatchesState(false);
       }
 
       if (bId) {
@@ -459,6 +493,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         if (isResolvedSkip) {
           completedCount++;
         }
+
         return {
           id: job.id,
           post_id: job.post_id,
@@ -911,12 +946,28 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       setIsTranslating(false);
       stopTimer();
 
-      // Calculate final stats from tracked jobs
-      setStatsSummary(calculateBatchStats(runningJobs));
-
-      if (hasRunnableJobs) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Fetch fresh batch state to ensure all jobs in the batch (both initial and retried) are accurately merged
+      let finalItems = runningJobs;
+      try {
+        const freshBatch = await getBatchStatus(batchId);
+        if (freshBatch && Array.isArray(freshBatch.items) && freshBatch.items.length > 0) {
+          finalItems = freshBatch.items;
+          populateMapFromBatch(freshBatch, false);
+          setCompletedJobsCount(
+            (freshBatch.completed_jobs || 0) +
+            (freshBatch.already_exists_jobs || 0) +
+            (freshBatch.skipped_jobs || 0)
+          );
+          setTotalJobsCount(freshBatch.total_jobs || freshBatch.items.length);
+        }
+      } catch {
+        // Fallback to runningJobs if getBatchStatus fails
       }
+
+      // Calculate final stats from all batch jobs (merged)
+      setStatsSummary(calculateBatchStats(finalItems));
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       setIsCompleted(true);
     },
@@ -928,6 +979,8 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     setProgressSessionType('new_queue');
     setProgressModalSource('provider_selection');
     setCurrentStep(2);
+    setEndpointLoading('start_bulk');
+    setEmptyBatchesState(false);
     setIsTranslating(true);
     setIsCompleted(false);
     setCurrentBatch(null);
@@ -979,6 +1032,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         subtype,
       });
 
+      setEndpointLoading(null);
       setHideReviewNotice(parseHideReviewNotice(batchRes));
 
       setCurrentBatchId(batchRes.batch_id);
@@ -1010,6 +1064,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
         pollStatus(batchRes.batch_id);
       }
     } catch (err) {
+      setEndpointLoading(null);
       setHideReviewNotice(true);
       setIsTranslating(false);
       setStatusText(`Error: ${err.message}`);
@@ -1050,6 +1105,69 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     },
     [currentBatchId, pollStatus]
   );
+
+  // Handle Retry Failed Translations Action
+  const retryFailedTranslations = useCallback(async () => {
+    const bId = currentBatchId || currentBatchIdRef.current;
+    if (!bId) return;
+
+    try {
+      setIsTranslating(true);
+      setIsCompleted(false);
+      setStatusText('Restarting failed translations...');
+      startTimer(); // Resumes and merges elapsed timer from where it left off
+
+      const res = await retryFailedBatch(bId);
+
+      if (!res.success) {
+        setIsTranslating(false);
+        setStatusText(res.message || 'Failed to retry translations.');
+        return;
+      }
+
+      if (res.batch) {
+        setCurrentBatch(res.batch);
+        populateMapFromBatch(res.batch, false);
+
+        const pct =
+          Array.isArray(res.batch.items) && res.batch.items.length > 0
+            ? Math.round(getOverallProgress(res.batch.items))
+            : Math.round(res.batch.progress_percent || 0);
+
+        setProgressPercent(pct);
+        const done =
+          (res.batch.completed_jobs || 0) +
+          (res.batch.already_exists_jobs || 0) +
+          (res.batch.skipped_jobs || 0);
+        setCompletedJobsCount(done);
+        setTotalJobsCount(res.batch.total_jobs || (res.batch.items ? res.batch.items.length : 1));
+        setStatusText(`Restarted ${res.retried_count} translation job(s)...`);
+      }
+
+      // If Chrome AI or taxonomy runtime, execute retried jobs in browser
+      if (isQueueChromeAi && Array.isArray(res.retried_jobs) && res.retried_jobs.length > 0) {
+        runChromeAiTranslation(res.retried_jobs, bId, selectedProvider);
+      } else {
+        // Backend provider (OpenAI / Gemini): resume live polling
+        pollStatus(bId);
+      }
+    } catch (err) {
+      console.error('[TranslateSense] Retry failed batch error:', err);
+      setIsTranslating(false);
+      stopTimer();
+      setStatusText(`Retry failed: ${err.message}`);
+    }
+  }, [
+    currentBatchId,
+    startTimer,
+    stopTimer,
+    rawSingular,
+    populateMapFromBatch,
+    isQueueChromeAi,
+    runChromeAiTranslation,
+    selectedProvider,
+    pollStatus,
+  ]);
 
   return {
     currentStep,
@@ -1097,6 +1215,11 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
     isQueueChromeAi,
     hideReviewNotice,
     handleDismissReviewNotice,
+    endpointLoading,
+    setEndpointLoading,
+    emptyBatchesState,
+    setEmptyBatchesState,
+    retryFailedTranslations,
   };
 }
 

@@ -61,3 +61,17 @@ export async function skipBulkPost(batchId, postId) {
   });
 }
 
+/**
+ * Retry failed and language-unassigned jobs for a batch
+ * @param {string} batchId
+ * @returns {Promise<{ success: boolean, retried_count: number, unassigned_count: number, retried_jobs: Array, batch: Object, message: string }>}
+ */
+export async function retryFailedBatch(batchId) {
+  return await apiRequest(ENDPOINTS.BULK_RETRY, {
+    method: 'POST',
+    data: {
+      batch_id: batchId,
+    },
+  });
+}
+

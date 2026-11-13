@@ -95,8 +95,23 @@ export function PostResultItem({
           )}
 
           {skipCount > 0 && skipCount + compCount === transKeys.length && compCount === 0 && (
-            <span className="ts-post-status-pill skipped">
-              Skipped
+            <span
+              className={`ts-post-status-pill ${transKeys.every(
+                (k) =>
+                  translations[k]?.error === 'no_language' ||
+                  translations[k]?.progressStatus === 'No Language'
+              )
+                ? 'no-language'
+                : 'skipped'
+                }`}
+            >
+              {transKeys.every(
+                (k) =>
+                  translations[k]?.error === 'no_language' ||
+                  translations[k]?.progressStatus === 'No Language'
+              )
+                ? 'No Language'
+                : 'Skipped'}
             </span>
           )}
 
@@ -174,9 +189,37 @@ export function PostResultItem({
                       <span className="dashicons dashicons-yes-alt" /> Completed
                     </span>
                   ) : isSkipped ? (
-                    <span className="ts-row-status skipped">
-                      Skipped
-                    </span>
+                    trans.error === 'no_language' || trans.progressStatus === 'No Language' ? (
+                      <button
+                        type="button"
+                        className="ts-row-status failed ts-error-detail-btn"
+                        onClick={() => {
+                          const targetLabel = (itemSingular || 'item').toLowerCase();
+                          const capitalizedTarget = itemSingularTitle || (targetLabel.charAt(0).toUpperCase() + targetLabel.slice(1));
+                          const sourceUrl = trans.sourceEditUrl || postData.sourceEditUrl || editUrl || '';
+                          if (onErrorDetail) {
+                            onErrorDetail({
+                              type: 'no_language',
+                              title: 'Language Not Assigned',
+                              subtitle: `${flagInfo.name} (${flagInfo.code}) — ${displayTitle || postTitle}`,
+                              heading: `This ${targetLabel} doesn't have a language assigned in Polylang.`,
+                              message: 'Assign a language before translating it. Open the editor to select the default language or choose another language.',
+                              stepTip: 'After assigning a language, click Translate Again in the progress modal to translate only failed items.',
+                              actionUrl: sourceUrl,
+                              actionLabel: `Edit ${capitalizedTarget}`,
+                              icon: 'dashicons-warning',
+                            });
+                          }
+                        }}
+                        title="Click to view details and assign a language"
+                      >
+                        <span className="dashicons dashicons-warning" /> No Language
+                      </button>
+                    ) : (
+                      <span className="ts-row-status skipped">
+                        Skipped
+                      </span>
+                    )
                   ) : isCancelling ? (
                     <span className="ts-row-status cancelling">
                       <span className="ts-spinner-circle" /> Cancelling...
@@ -240,6 +283,18 @@ export function PostResultItem({
                         </a>
                       )}
                     </>
+                  ) : isSkipped && (trans.error === 'no_language' || trans.progressStatus === 'No Language') ? (
+                    trans.sourceEditUrl || postData.sourceEditUrl ? (
+                      <a
+                        href={trans.sourceEditUrl || postData.sourceEditUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ts-row-action-btn edit"
+                        title={`Edit source ${itemSingular} to assign language`}
+                      >
+                        <span className="dashicons dashicons-edit" /> Edit
+                      </a>
+                    ) : null
                   ) : !isFail && !isSkipped ? (
                     <>
                       <span className="ts-row-action-btn view disabled">
