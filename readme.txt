@@ -232,12 +232,15 @@ TranslateSense is open source under the GPLv2 or later license. Explore the sour
 == Changelog ==
 
 = 0.2.0 =
-* Added a Bulk Translate button to supported taxonomy pages to translate terms.
-* Added automatic taxonomy translation during bulk post translation.
-* Added Failed, Completed, and Skipped filters to the bulk translation progress modal footer.
-* Added a review notice to the TranslateSense dashboard.
-* Fixed an issue that caused duplicate translated posts when an existing translation was in the trash.
-* Fixed an issue with Elementor page translation during bulk translation.
+* Added a Bulk Translate button to Polylang supported taxonomy pages so you can translate taxonomy terms directly.
+* Added automatic translation of taxonomy terms linked to posts during posts bulk translation.
+* Added Failed, Completed, and Skipped filters to the Bulk Translation progress modal.
+* Added a Translate Again button to retry posts that failed during bulk translation.
+* Added review notices to the TranslateSense dashboard, Bulk Translation progress modal, and Editor String Translation modal.
+* Fixed an issue that created duplicate translated posts when an existing translation was in the trash.
+* Fixed an issue that prevented Elementor pages from translating correctly during bulk translation.
+* Fixed an issue where posts without an assigned language were translated but not linked to their translations. Added a notice with a direct Edit link so you can assign a language to the post or term.
+* Improved error handling and messages to make bulk translation issues easier to understand.
 
 = 0.1.0 =
 * Added default ACF field translation support in Bulk Translation and the Page Editor.
