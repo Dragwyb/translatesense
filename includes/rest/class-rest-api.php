@@ -574,14 +574,6 @@ class Rest_Api {
 							return '' !== trim( (string) $value );
 						},
 					),
-					'post_id'  => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'sanitize_callback' => 'absint',
-						'validate_callback' => static function ( $value ) {
-							return absint( $value ) > 0;
-						},
-					),
 				),
 			)
 		);
@@ -1628,7 +1620,6 @@ class Rest_Api {
 		$batch_id = sanitize_text_field(
 			(string) $request->get_param( 'batch_id' )
 		);
-		$post_id  = absint( $request->get_param( 'post_id' ) );
 
 		if ( '' === $batch_id ) {
 			return self::permission_error(
@@ -1697,9 +1688,6 @@ class Rest_Api {
 				'id'  => $source_post_id,
 				'cap' => $required_cap,
 			);
-			if ( $post_id && $source_post_id === $post_id ) {
-				$has_post_id = true;
-			}
 
 			if ( $target_post_id ) {
 
@@ -1725,12 +1713,6 @@ class Rest_Api {
 					);
 				}
 			}
-		}
-
-		if ( $post_id && ! $has_post_id ) {
-			return self::permission_error(
-				__( 'The requested item does not belong to this batch.', 'translatesense' )
-			);
 		}
 
 		foreach ( $source_items as $source_item ) {
