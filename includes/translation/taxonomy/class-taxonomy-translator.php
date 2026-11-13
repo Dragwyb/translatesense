@@ -712,6 +712,36 @@ class Taxonomy_Translator {
 			}
 		}
 
+		// When post assigned taxonomy is not Polylang translatable, assign same source post taxonomy ID to target language post.
+		$non_translatable_terms = Taxonomy_Parser::get_post_non_translatable_terms( $source_post_id );
+		foreach ( $non_translatable_terms as $taxonomy => $term_ids ) {
+			if ( ! empty( $taxonomies_filter ) && ! in_array( $taxonomy, $taxonomies_filter, true ) ) {
+				continue;
+			}
+
+			$taxonomy_object = get_taxonomy( $taxonomy );
+			if ( ! $taxonomy_object ) {
+				continue;
+			}
+
+			if ( $enforce_permissions && ! Taxonomy_Parser::user_has_cap( $user_id, (string) $taxonomy_object->cap->assign_terms ) ) {
+				if ( $skip_unauthorized ) {
+					continue;
+				}
+				return new WP_Error(
+					'translatesense_taxonomy_assign_forbidden',
+					sprintf(
+						/* translators: %s: taxonomy label */
+						__( 'You are not allowed to assign terms for the %s taxonomy.', 'translatesense' ),
+						$taxonomy_object->labels->name
+					),
+					array( 'status' => 403 )
+				);
+			}
+
+			$map[ $taxonomy ] = $term_ids;
+		}
+
 		return $map;
 	}
 
@@ -743,9 +773,11 @@ class Taxonomy_Translator {
 			return new WP_Error( 'translatesense_invalid_target_post', __( 'You are not allowed to update taxonomy assignments for the translated post.', 'translatesense' ), array( 'status' => 403 ) );
 		}
 
+		$internal_taxonomies = (array) get_taxonomies( array( '_pll' => true ), 'names' );
+
 		foreach ( $translated_terms as $taxonomy => $term_ids ) {
 			$taxonomy = sanitize_key( (string) $taxonomy );
-			if ( ! Taxonomy_Parser::is_translatable_taxonomy( $taxonomy ) ) {
+			if ( '' === $taxonomy || in_array( $taxonomy, $internal_taxonomies, true ) || ! taxonomy_exists( $taxonomy ) ) {
 				continue;
 			}
 
@@ -761,7 +793,7 @@ class Taxonomy_Translator {
 				}
 			}
 
-			if ( $append ) {
+			if ( $append && Taxonomy_Parser::is_translatable_taxonomy( $taxonomy ) ) {
 				$existing_ids = wp_get_object_terms( $target_post_id, $taxonomy, array( 'fields' => 'ids' ) );
 				if ( ! is_wp_error( $existing_ids ) ) {
 					$existing_ids = array_map( 'absint', (array) $existing_ids );
@@ -782,6 +814,27 @@ class Taxonomy_Translator {
 			$result = wp_set_object_terms( $target_post_id, $clean_ids, $taxonomy, false );
 			if ( is_wp_error( $result ) ) {
 				return $result;
+			}
+		}
+
+		// When source_post_id is provided, ensure any non-translatable taxonomies on the source post
+		// that were not explicitly in $translated_terms are also assigned to the target language post.
+		if ( $source_post_id > 0 ) {
+			$source_non_translatable = Taxonomy_Parser::get_post_non_translatable_terms( $source_post_id );
+			foreach ( $source_non_translatable as $taxonomy => $source_term_ids ) {
+				if ( isset( $translated_terms[ $taxonomy ] ) ) {
+					continue;
+				}
+
+				$taxonomy_object = get_taxonomy( $taxonomy );
+				if ( ! $taxonomy_object || ( $enforce_permissions && ! Taxonomy_Parser::user_has_cap( $user_id, (string) $taxonomy_object->cap->assign_terms ) ) ) {
+					continue;
+				}
+
+				$result = wp_set_object_terms( $target_post_id, $source_term_ids, $taxonomy, false );
+				if ( is_wp_error( $result ) ) {
+					return $result;
+				}
 			}
 		}
 

@@ -339,14 +339,7 @@ class Polylang_Synchronizer {
 		$source_taxonomies   = get_post_taxonomies( (int) $from, 'names' );
 		$source_taxonomies   = array_diff( $source_taxonomies, (array) $internal_taxonomies );
 
-		return array_values(
-			array_filter(
-				$source_taxonomies,
-				static function ( $taxonomy ) {
-					return Taxonomy_Parser::is_translatable_taxonomy( (string) $taxonomy );
-				}
-			)
-		);
+		return array_values( $source_taxonomies );
 	}
 
 	/**

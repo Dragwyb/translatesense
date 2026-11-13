@@ -357,6 +357,51 @@ class Taxonomy_Parser {
 	}
 
 	/**
+	 * Collect assigned term IDs for non-translatable taxonomies on a post.
+	 *
+	 * When a taxonomy assigned to a post is not translatable in Polylang,
+	 * its terms are shared across languages and should be assigned directly
+	 * from source post to target language post.
+	 *
+	 * @param int $post_id Source post ID.
+	 * @return array<string, int[]> Map of taxonomy => term IDs.
+	 */
+	public static function get_post_non_translatable_terms( int $post_id ): array {
+		$post = get_post( $post_id );
+		if ( ! $post instanceof WP_Post ) {
+			return array();
+		}
+
+		$internal_taxonomies = (array) get_taxonomies( array( '_pll' => true ), 'names' );
+		$taxonomies          = get_object_taxonomies( $post->post_type, 'names' );
+		$non_translatable    = array();
+
+		foreach ( (array) $taxonomies as $taxonomy ) {
+			$taxonomy = sanitize_key( (string) $taxonomy );
+			if ( '' === $taxonomy || in_array( $taxonomy, $internal_taxonomies, true ) || ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+
+			if ( ! self::is_translatable_taxonomy( $taxonomy ) ) {
+				$terms = wp_get_object_terms(
+					$post_id,
+					$taxonomy,
+					array( 'fields' => 'ids' )
+				);
+
+				if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+					$clean_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $terms ) ) ) );
+					if ( ! empty( $clean_ids ) ) {
+						$non_translatable[ $taxonomy ] = $clean_ids;
+					}
+				}
+			}
+		}
+
+		return $non_translatable;
+	}
+
+	/**
 	 * Evaluate a WordPress capability against a WP_User, explicit user ID, or current user.
 	 *
 	 * @param WP_User|int|null $user       WP_User, explicit user ID, or null for current user.
