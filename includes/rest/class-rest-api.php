@@ -1659,7 +1659,6 @@ class Rest_Api {
 		}
 
 		$source_items = array();
-		$has_post_id  = false;
 
 		foreach ( $rows as $row ) {
 			$row_type       = ! empty( $row['item_type'] ) ? sanitize_key( (string) $row['item_type'] ) : 'post';

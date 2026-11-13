@@ -1626,7 +1626,7 @@ class Bulk_Process {
 				$post              = get_post( $post_id );
 				$post_title        = $post ? $post->post_title : sprintf( '#%d', $post_id );
 				$target_post       = $target_post_id ? get_post( $target_post_id ) : null;
-				$target_post_title = ! empty( $raw_target_title ) ? Dom_Filter::decode_html_string( $raw_target_title ) : '';
+				$target_post_title = $target_post ? Dom_Filter::decode_html_string( $target_post->post_title ) : '';
 				$is_trashed_target = ( $target_post instanceof \WP_Post && 'trash' === $target_post->post_status );
 				$editor_type       = $target_post_id ? Editor_Integration::get_post_editor_type( $target_post_id ) : ( $row['editor_type'] ?? 'classic' );
 				$edit_url          = ( $target_post_id && ! $is_trashed_target ) ? Editor_Integration::get_post_edit_link( $target_post_id ) : '';
@@ -1692,6 +1692,7 @@ class Bulk_Process {
 				'created_at'           => ! empty( $row['created_at'] ) ? str_replace( ' ', 'T', (string) $row['created_at'] ) . 'Z' : '',
 				'updated_at'           => ! empty( $row['updated_at'] ) ? str_replace( ' ', 'T', (string) $row['updated_at'] ) . 'Z' : '',
 			);
+
 		}
 
 		$total_jobs = count( $items );
