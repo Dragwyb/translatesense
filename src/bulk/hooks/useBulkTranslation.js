@@ -183,6 +183,7 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
     setPostResultsMap((prev) => {
       const updated = replace ? {} : { ...prev };
+
       batchData.items.forEach((item) => {
         const pId = String(item.post_id);
         const tLang = String(item.target_language);
@@ -228,12 +229,14 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       return updated;
     });
 
-    const itemsOrder = [];
-    batchData.items.forEach((it) => {
-      const pidStr = String(it.post_id);
-      if (!itemsOrder.includes(pidStr)) itemsOrder.push(pidStr);
-    });
-    setOrderedPostIds(itemsOrder);
+    if (replace) {
+      const itemsOrder = [];
+      batchData.items.forEach((it) => {
+        const pidStr = String(it.post_id);
+        if (!itemsOrder.includes(pidStr)) itemsOrder.push(pidStr);
+      });
+      setOrderedPostIds(itemsOrder);
+    }
   }, [isTaxonomy, itemTitlePrefix]);
 
   // Server background polling logic
@@ -486,12 +489,17 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       let completedCount = 0;
       let failedCount = 0;
       const extractedCache = {};
+      let hasQueueJob = false;
 
       // Track live state of each job for accurate, continuous overall progress calculations matching pollStatus
       const runningJobs = jobsList.map((job) => {
         const isResolvedSkip = job.status === 'already_exists' || job.status === 'skipped';
         if (isResolvedSkip) {
           completedCount++;
+        }
+
+        if (!hasQueueJob && job.status !== 'already_exists') {
+          hasQueueJob = true;
         }
 
         return {
@@ -502,47 +510,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
           total_strings: Number(job.total_strings) || 0,
           completed_strings: Number(job.completed_strings) || 0,
         };
-      });
-
-      // Synchronize initial batch jobs info into postResultsMap
-      setPostResultsMap((prev) => {
-        const updated = { ...prev };
-        jobsList.forEach((j) => {
-          const pId = String(j.post_id);
-          const tLang = String(j.target_language);
-          if (!updated[pId]) {
-            updated[pId] = {
-              postId: j.post_id,
-              postTitle: j.post_title || `${itemTitlePrefix} #${pId}`,
-              provider: j.provider || 'chrome_ai',
-              translations: {},
-            };
-          } else if (j.post_title) {
-            updated[pId].postTitle = j.post_title;
-          }
-
-          const existingTrans = updated[pId].translations[tLang] || {};
-          updated[pId].translations[tLang] = {
-            ...existingTrans,
-            targetLang: j.target_language,
-            targetPostId: j.target_post_id || existingTrans.targetPostId || null,
-            targetTitle:
-              j.status === 'already_exists'
-                ? (j.target_post_title || j.post_title || existingTrans.targetTitle || '')
-                : (existingTrans.targetTitle || ''),
-            editorType: j.editor_type || existingTrans.editorType,
-            status: j.status || existingTrans.status || 'pending',
-            completedStrings: j.completed_strings || existingTrans.completedStrings || 0,
-            totalStrings: j.total_strings || existingTrans.totalStrings || 0,
-            progressPercent: getPostProgress(j),
-            progressStatus: j.progress_status || existingTrans.progressStatus || '',
-            editUrl: j.edit_url || existingTrans.editUrl || '',
-            viewUrl: j.view_url || existingTrans.viewUrl || '',
-            error: j.error_message || existingTrans.error || '',
-            provider: j.provider || 'chrome_ai',
-          };
-        });
-        return updated;
       });
 
       setCompletedJobsCount(completedCount);
@@ -948,20 +915,23 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
 
       // Fetch fresh batch state to ensure all jobs in the batch (both initial and retried) are accurately merged
       let finalItems = runningJobs;
-      try {
-        const freshBatch = await getBatchStatus(batchId);
-        if (freshBatch && Array.isArray(freshBatch.items) && freshBatch.items.length > 0) {
-          finalItems = freshBatch.items;
-          populateMapFromBatch(freshBatch, false);
-          setCompletedJobsCount(
-            (freshBatch.completed_jobs || 0) +
-            (freshBatch.already_exists_jobs || 0) +
-            (freshBatch.skipped_jobs || 0)
-          );
-          setTotalJobsCount(freshBatch.total_jobs || freshBatch.items.length);
+
+      if (hasQueueJob) {
+        try {
+          const freshBatch = await getBatchStatus(batchId);
+          if (freshBatch && Array.isArray(freshBatch.items) && freshBatch.items.length > 0) {
+            finalItems = freshBatch.items;
+            populateMapFromBatch(freshBatch, false);
+            setCompletedJobsCount(
+              (freshBatch.completed_jobs || 0) +
+              (freshBatch.already_exists_jobs || 0) +
+              (freshBatch.skipped_jobs || 0)
+            );
+            setTotalJobsCount(freshBatch.total_jobs || freshBatch.items.length);
+          }
+        } catch {
+          // Fallback to runningJobs if getBatchStatus fails
         }
-      } catch {
-        // Fallback to runningJobs if getBatchStatus fails
       }
 
       // Calculate final stats from all batch jobs (merged)
@@ -1018,7 +988,6 @@ export function useBulkTranslation(initialPostIds = [], options = {}) {
       });
     });
 
-    setPostResultsMap(initialMap);
     setOrderedPostIds(postIds.map(String));
     setTotalJobsCount(postIds.length * selectedLanguages.length);
     setCompletedJobsCount(0);
