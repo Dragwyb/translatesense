@@ -1,4 +1,3 @@
-
 === TranslateSense – AI Translation for Polylang ===
 Contributors: dragwyb
 Tags: translation, polylang, multilingual, ai translation, automatic translation
@@ -9,17 +8,19 @@ Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI Translation for Polylang: bulk translate WordPress posts, pages, taxonomies, ACF fields, and SEO content with AI.
+AI translation for Polylang: automatically translate posts, pages, products, custom post types, categories, tags, ACF fields and SEO metadata with AI.
 
 == Description ==
 
-TranslateSense is an AI translation plugin for WordPress built for Polylang. Its powerful **Bulk Translation** feature helps you translate multiple posts, pages, custom post types, and taxonomy terms into different languages using AI.
+TranslateSense is an **AI Translation for Polylang** plugin built to make translating multilingual WordPress websites faster and easier. Its powerful **Bulk Translation** feature lets you translate multiple WordPress posts, pages, custom post types, WooCommerce products, and taxonomy terms into one or more languages in a single workflow using AI.
 
-Select your content, choose one or more target languages, select an AI provider, and start translating. OpenAI and Google Gemini post translation batches can run in the background using WP-Cron, so you can continue working while translation jobs are processed. Monitor translation progress, review results, and manage pending translations from the progress modal.
+Select the content you want to translate, choose your target languages, select an AI provider, and start bulk translation. With **Background Translation**, OpenAI and Google Gemini translation jobs can run through WP-Cron, so you can continue working while your content is being translated. Monitor progress, review completed or failed translations, and manage pending jobs from the translation progress modal.
 
-You can also use **Page Editor Translation** to translate individual posts directly inside Gutenberg, Elementor, or Classic Editor. Review and edit translated strings before applying them to your content.
+Need to translate individual posts? Use **Page Editor Translation** to translate and review individual strings directly inside Gutenberg, Elementor, or Classic Editor. You can search, edit, reset, and retry translated strings before applying them to your content.
 
-Choose OpenAI, Google Gemini, or Built-in Browser AI in supported Google Chrome and Microsoft Edge browsers. On WordPress 7.0 and newer, TranslateSense also supports WordPress AI Connectors.
+Choose from **OpenAI, Google Gemini, or Built-in Browser AI** to translate your website. On WordPress 7.0 and newer, TranslateSense also supports supported providers through WordPress AI Connectors.
+
+Beyond content translation, TranslateSense supports **automatic taxonomy translation, Advanced Custom Fields (ACF), WooCommerce, SEO metadata, custom fields, internal links, and media references**. Its built-in **Translation Memory** reuses previously saved translations to reduce repeated AI requests.
 
 == Resources ==
 
