@@ -26,6 +26,7 @@ class Bulk_Process {
 	const CRON_HOOK           = 'translatesense_bulk_process_cron';
 	const IMMEDIATE_CRON_HOOK = 'translatesense_bulk_process_now';
 	const CRON_INTERVAL       = 'translatesense_batch_interval';
+	const TAXONOMY_JOB_TIMEOUT = 30 * MINUTE_IN_SECONDS;
 
 	/**
 	 * Initialize hooks.
@@ -444,7 +445,7 @@ class Bulk_Process {
 			'type'       => $type,
 			'subtype'    => $subtype,
 			'total_jobs' => count( $created_jobs ),
-			'notice'     => empty( $created_jobs ) ? __( 'No new translation jobs were added. Recent pending jobs may already exist, or the selected items could not be queued.', 'translatesense' ) : '',
+			'notice'     => empty( $created_jobs ) ? __( 'No new translation jobs were added. The selected items may already be translated or could not be queued.', 'translatesense' ) : '',
 			'jobs'       => $created_jobs,
 			'post_ids'   => $post_ids,
 			'is_backend' => $is_backend,
@@ -571,14 +572,27 @@ class Bulk_Process {
 				'updated_at'        => $now_utc,
 			);
 
+			// A taxonomy job is executed by the browser, so claim its retry atomically
+			// to prevent two browser sessions from processing the same job.
+			$retry_where = $is_term
+				? array(
+					'id'     => $job_id,
+					'status' => (string) $row['status'],
+				)
+				: array( 'id' => $job_id );
+			$retry_where_format = $is_term ? array( '%d', '%s' ) : array( '%d' );
+
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-			$wpdb->update(
+			$updated = $wpdb->update(
 				$table,
 				$update_data,
-				array( 'id' => $job_id ),
+				$retry_where,
 				array( '%s', '%s', '%d', '%s', '%d', '%s' ),
-				array( '%d' )
+				$retry_where_format
 			);
+			if ( $is_term && 1 !== $updated ) {
+				continue;
+			}
 
 			if ( 'pending' === $new_status ) {
 				$is_chrome_ai = ( 'chrome_ai' === $provider || 'chrome_local_ai' === $provider );
@@ -653,7 +667,92 @@ class Bulk_Process {
 			)
 		);
 
-		return false === $result ? 0 : (int) $result;
+		$post_jobs_cleaned = false === $result ? 0 : (int) $result;
+
+		return $post_jobs_cleaned + self::recover_stale_taxonomy_jobs();
+	}
+
+	/**
+	 * Reconcile taxonomy jobs started by the browser that did not report a final
+	 * status. Taxonomy jobs have no server-side worker, so only stale jobs are
+	 * considered and each translation relationship is checked before recovery.
+	 *
+	 * @return int Number of reconciled jobs.
+	 */
+	private static function recover_stale_taxonomy_jobs(): int {
+		global $wpdb;
+
+		$table   = self::get_table_name();
+		$timeout = (int) apply_filters( 'translatesense_taxonomy_job_timeout', self::TAXONOMY_JOB_TIMEOUT );
+		$timeout = max( 5 * MINUTE_IN_SECONDS, $timeout );
+		$cutoff  = gmdate( 'Y-m-d H:i:s', time() - $timeout );
+		$now     = gmdate( 'Y-m-d H:i:s' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$jobs = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, post_id, target_language, updated_at FROM {$table} WHERE item_type = 'taxonomy' AND status = 'processing' AND updated_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$cutoff
+			),
+			ARRAY_A
+		);
+
+		$reconciled = 0;
+		foreach ( (array) $jobs as $job ) {
+			$job_id      = absint( $job['id'] ?? 0 );
+			$term_id     = absint( $job['post_id'] ?? 0 );
+			$target_lang = sanitize_key( (string) ( $job['target_language'] ?? '' ) );
+			$updated_at  = (string) ( $job['updated_at'] ?? '' );
+			$term        = $term_id > 0 ? get_term( $term_id ) : null;
+
+			if ( $job_id <= 0 || ! $term instanceof \WP_Term || '' === $target_lang ) {
+				$updates = array(
+					'status'          => 'failed',
+					'progress_status' => __( 'Failed: Taxonomy job could not be recovered', 'translatesense' ),
+					'error_message'   => __( 'The taxonomy source term or target language is no longer valid.', 'translatesense' ),
+					'updated_at'      => $now,
+				);
+			} else {
+				$term_state = Taxonomy_Translator::term_has_completed_translation( $term_id, (string) $term->taxonomy, $target_lang );
+				if ( $term_state['exists'] && ! $term_state['needs_update'] ) {
+					$updates = array(
+						'status'          => 'completed',
+						'progress_status' => __( 'Completed successfully (recovered)', 'translatesense' ),
+						'error_message'   => null,
+						'target_post_id'  => (int) $term_state['target_term_id'],
+						'updated_at'      => $now,
+					);
+				} else {
+					$updates = array(
+						'status'          => 'failed',
+						'progress_status' => __( 'Failed: Taxonomy job timed out', 'translatesense' ),
+						'error_message'   => __( 'The browser translation did not finish before the recovery timeout. Retry this job to continue.', 'translatesense' ),
+						'updated_at'      => $now,
+					);
+				}
+			}
+
+			// Only claim the stale state observed above; a late client completion wins.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+			$result = $wpdb->update(
+				$table,
+				$updates,
+				array(
+					'id'         => $job_id,
+					'item_type'  => 'taxonomy',
+					'status'     => 'processing',
+					'updated_at' => $updated_at,
+				),
+				null,
+				array( '%d', '%s', '%s', '%s' )
+			);
+
+			if ( 1 === $result ) {
+				++$reconciled;
+			}
+		}
+
+		return $reconciled;
 	}
 
 	/**
