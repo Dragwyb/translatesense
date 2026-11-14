@@ -164,7 +164,7 @@ export function PostResultItem({
                     trans.error ? (
                       <button
                         type="button"
-                        className="ts-row-status failed ts-error-detail-btn"
+                        className="ts-row-status already-exists ts-error-detail-btn"
                         onClick={() =>
                           onErrorDetail &&
                           onErrorDetail({
@@ -177,11 +177,11 @@ export function PostResultItem({
                         }
                         title="Click to view details"
                       >
-                        <span className="dashicons dashicons-yes-alt" /> Already exists
+                        <span className="dashicons dashicons-warning" /> Already exist In Trash
                       </button>
                     ) : (
-                      <span className="ts-row-status completed already-exists">
-                        <span className="dashicons dashicons-yes-alt" /> Already exists
+                      <span className="ts-row-status already-exists">
+                        <span className="dashicons dashicons-yes-alt" /> Already exist
                       </span>
                     )
                   ) : trans.status === 'completed' ? (
