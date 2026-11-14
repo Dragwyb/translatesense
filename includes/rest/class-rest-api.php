@@ -7,9 +7,11 @@ namespace TranslateSense\Includes\REST;
 use TranslateSense\Includes\Content\Parser\Content_Parser;
 use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Manager;
 use TranslateSense\Includes\Content\Parser\Custom_Fields\Custom_Field_Parser;
+use TranslateSense\Includes\Content\Parser\Taxonomy\Taxonomy_Parser;
 use TranslateSense\Includes\XML\Custom_Field_Rule_Resolver;
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Translation\Translate;
+use TranslateSense\Includes\Translation\Taxonomy\Taxonomy_Translator;
 use TranslateSense\Includes\Database\Hashing_Db;
 use TranslateSense\Includes\Admin\Editor_Integration;
 use TranslateSense\Includes\Admin\Admin_Menu;
@@ -365,7 +367,7 @@ class Rest_Api {
 				'callback'            => array( __CLASS__, 'extract_strings' ),
 				'permission_callback' => array( __CLASS__, 'permission_extract_strings' ),
 				'args'                => array(
-					'post_id' => array(
+					'post_id'            => array(
 						'required'          => true,
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
@@ -373,10 +375,32 @@ class Rest_Api {
 							return absint( $value ) > 0;
 						},
 					),
-					'builder' => array(
+					'builder'            => array(
 						'required'          => false,
 						'type'              => 'string',
 						'sanitize_callback' => 'sanitize_key',
+					),
+					'target_lang'        => array(
+						'required'          => false,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'type'               => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'subtype'            => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'include_taxonomies' => array(
+						'required' => false,
+						'type'     => 'boolean',
+						'default'  => false,
 					),
 				),
 			)
@@ -508,6 +532,18 @@ class Rest_Api {
 						'type'              => 'string',
 						'sanitize_callback' => 'sanitize_key',
 					),
+					'type'             => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'subtype'          => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
 					'options'          => array(
 						'required' => false,
 						'type'     => 'object',
@@ -538,14 +574,6 @@ class Rest_Api {
 							return '' !== trim( (string) $value );
 						},
 					),
-					'post_id'  => array(
-						'required'          => false,
-						'type'              => 'integer',
-						'sanitize_callback' => 'absint',
-						'validate_callback' => static function ( $value ) {
-							return absint( $value ) > 0;
-						},
-					),
 				),
 			)
 		);
@@ -568,6 +596,60 @@ class Rest_Api {
 						'validate_callback' => static function ( $value ) {
 							return absint( $value ) > 0;
 						},
+					),
+					'type'             => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'data'             => array(
+						'required'          => false,
+						'type'              => 'object',
+						'validate_callback' => static function ( $value ) {
+							return is_array( $value ) && ! empty( $value );
+						},
+						'properties'        => array(
+							'status'               => array(
+								'type'              => 'string',
+								'enum'              => array( 'pending', 'processing', 'completed', 'failed', 'cancelled', 'error' ),
+								'sanitize_callback' => 'sanitize_key',
+							),
+							'progress_status'      => array(
+								'type'              => 'string',
+								'sanitize_callback' => 'sanitize_text_field',
+							),
+							'total_strings'        => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'completed_strings'    => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'total_characters'     => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'completed_characters' => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'time_take'            => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'target_post_id'       => array(
+								'type'              => 'integer',
+								'sanitize_callback' => 'absint',
+							),
+							'error_message'        => array(
+								'type'              => array( 'string', 'null' ),
+								'sanitize_callback' => static function ( $value ) {
+									return is_string( $value ) ? sanitize_text_field( $value ) : null;
+								},
+							),
+						),
 					),
 					'status'           => array(
 						'required'          => false,
@@ -648,6 +730,29 @@ class Rest_Api {
 		);
 
 		/*
+		 * 11d. Retry failed and unassigned jobs in a bulk batch.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-retry',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_retry' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_status' ),
+				'args'                => array(
+					'batch_id' => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $value ) {
+							return '' !== trim( (string) $value );
+						},
+					),
+				),
+			)
+		);
+
+		/*
 		 * 12. Mark post as translated (pending translation).
 		 */
 		register_rest_route(
@@ -695,6 +800,55 @@ class Rest_Api {
 						'type'              => 'integer',
 						'default'           => 0,
 						'sanitize_callback' => 'absint',
+					),
+				),
+			)
+		);
+
+		/*
+		 * 12b. Translate/create/update a taxonomy term in the bulk taxonomy workflow.
+		 */
+		register_rest_route(
+			self::NAMESPACE,
+			'/bulk-translate-term',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'bulk_translate_term' ),
+				'permission_callback' => array( __CLASS__, 'permission_bulk_translate_term' ),
+				'args'                => array(
+					'term_id'                => array(
+						'required'          => true,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+						'validate_callback' => static function ( $value ) {
+							return absint( $value ) > 0;
+						},
+					),
+					'taxonomy'               => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return '' !== sanitize_key( (string) $value );
+						},
+					),
+					'target_lang'            => array(
+						'required'          => true,
+						'type'              => 'string',
+						'sanitize_callback' => 'sanitize_key',
+						'validate_callback' => static function ( $value ) {
+							return '' !== sanitize_key( (string) $value );
+						},
+					),
+					'provider'               => array(
+						'required'          => false,
+						'type'              => 'string',
+						'default'           => '',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'in_memory_translations' => array(
+						'required' => false,
+						'default'  => array(),
 					),
 				),
 			)
@@ -986,10 +1140,96 @@ class Rest_Api {
 	 * @param WP_REST_Request $request REST request.
 	 * @return true|WP_Error
 	 */
+	/**
+	 * Resolve runtime item type ('post' or 'term') from REST request without storing it in DB.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return string `'post'`, `'term'`, or `''` when an invalid type was submitted.
+	 */
+	private static function get_request_item_type( WP_REST_Request $request ): string {
+		$params   = $request->get_json_params();
+		$raw_type = ( is_array( $params ) && array_key_exists( 'type', $params ) )
+			? $params['type']
+			: $request->get_param( 'type' );
+
+		if ( null !== $raw_type && '' !== (string) $raw_type ) {
+			$type = sanitize_key( (string) $raw_type );
+			return in_array( $type, array( 'post', 'term' ), true ) ? $type : '';
+		}
+
+		$subtype = sanitize_key( (string) ( ( is_array( $params ) && isset( $params['subtype'] ) ) ? $params['subtype'] : $request->get_param( 'subtype' ) ) );
+		return ( '' !== $subtype && taxonomy_exists( $subtype ) ) ? 'term' : 'post';
+	}
+
+	/**
+	 * Resolve item type (`'post'` or `'term'`) for an existing queue job record.
+	 *
+	 * Uses the persisted `item_type` column (`'post'` or `'taxonomy'`) and verifies
+	 * that any explicit runtime `type` parameter matches the stored job type.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @param object          $job     Queue job object.
+	 * @return string `'post'`, `'term'`, or empty string when invalid/mismatched.
+	 */
+	private static function resolve_job_item_type( WP_REST_Request $request, $job ): string {
+		$job_type = ( ! empty( $job->item_type ) && 'taxonomy' === sanitize_key( (string) $job->item_type ) )
+			? 'term'
+			: 'post';
+
+		$params   = $request->get_json_params();
+		$raw_type = ( is_array( $params ) && array_key_exists( 'type', $params ) )
+			? $params['type']
+			: $request->get_param( 'type' );
+
+		if ( null !== $raw_type && '' !== (string) $raw_type ) {
+			$req_type = sanitize_key( (string) $raw_type );
+			if ( ! in_array( $req_type, array( 'post', 'term' ), true ) || $req_type !== $job_type ) {
+				return '';
+			}
+		}
+
+		return $job_type;
+	}
+
+	/**
+	 * Permission: POST /extract-strings.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
 	public static function permission_extract_strings( WP_REST_Request $request ) {
+		$post_id = self::get_request_post_id( $request );
+		$type    = self::get_request_item_type( $request );
+
+		if ( '' === $type ) {
+			return self::permission_error( __( 'Invalid item type specified.', 'translatesense' ), 'rest_invalid_type', 400 );
+		}
+
+		if ( 'term' === $type ) {
+			if ( ! is_user_logged_in() ) {
+				return self::permission_error( __( 'You must be logged in to extract taxonomy strings.', 'translatesense' ), 'rest_forbidden', 401 );
+			}
+
+			$params  = $request->get_json_params();
+			$subtype = sanitize_key( (string) ( is_array( $params ) && isset( $params['subtype'] ) ? $params['subtype'] : $request->get_param( 'subtype' ) ) );
+			if ( '' !== $subtype && ! Taxonomy_Parser::is_translatable_taxonomy( $subtype ) ) {
+				return self::permission_error( __( 'The selected taxonomy is not supported for translation.', 'translatesense' ), 'rest_invalid_taxonomy', 400 );
+			}
+
+			$term = get_term( $post_id, $subtype );
+			if ( ! $term instanceof \WP_Term || ! Taxonomy_Parser::is_translatable_taxonomy( (string) $term->taxonomy ) ) {
+				return self::permission_error( __( 'The selected taxonomy term could not be found.', 'translatesense' ), 'rest_term_not_found', 404 );
+			}
+
+			if ( ! current_user_can( 'edit_term', $post_id ) ) {
+				return self::permission_error( __( 'You are not allowed to extract strings from this taxonomy term.', 'translatesense' ) );
+			}
+
+			return true;
+		}
 
 		return self::require_edit_post(
-			self::get_request_post_id( $request ),
+			$post_id,
 			__( 'You are not allowed to extract strings from this post.', 'translatesense' )
 		);
 	}
@@ -1073,7 +1313,8 @@ class Rest_Api {
 			);
 		}
 
-		if ( ! self::verify_strings_belong_to_post( $params['strings'], $post_id ) ) {
+		$target_lang = isset( $params['target_lang'] ) ? sanitize_key( (string) $params['target_lang'] ) : '';
+		if ( ! self::verify_strings_belong_to_post( $params['strings'], $post_id, $target_lang ) ) {
 			return self::permission_error(
 				__( 'One or more submitted strings do not belong to the source post for this translation.', 'translatesense' ),
 				'rest_forbidden',
@@ -1166,7 +1407,8 @@ class Rest_Api {
 	 */
 	public static function permission_bulk_start( WP_REST_Request $request ) {
 
-		$params = $request->get_json_params();
+		$params  = $request->get_json_params();
+		$subtype = sanitize_key( (string) ( is_array( $params ) && isset( $params['subtype'] ) ? $params['subtype'] : '' ) );
 
 		$post_ids = is_array( $params ) && isset( $params['post_ids'] )
 			? $params['post_ids']
@@ -1178,7 +1420,7 @@ class Rest_Api {
 
 		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
 			return self::permission_error(
-				__( 'At least one post ID is required.', 'translatesense' ),
+				__( 'At least one item ID is required.', 'translatesense' ),
 				'rest_invalid_posts',
 				400
 			);
@@ -1200,8 +1442,6 @@ class Rest_Api {
 			)
 		);
 
-		$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
-
 		$clean_languages = array_values(
 			array_unique(
 				array_filter(
@@ -1214,6 +1454,78 @@ class Rest_Api {
 				)
 			)
 		);
+
+		$type    = self::get_request_item_type( $request );
+		$subtype = sanitize_key( (string) ( is_array( $params ) && isset( $params['subtype'] ) ? $params['subtype'] : '' ) );
+
+		if ( '' === $type ) {
+			return self::permission_error(
+				__( 'Invalid item type specified.', 'translatesense' ),
+				'rest_invalid_type',
+				400
+			);
+		}
+
+		if ( 'term' === $type ) {
+			if ( '' === $subtype && ! empty( $clean_post_ids ) ) {
+				$first_term = get_term( $clean_post_ids[0] );
+				if ( $first_term instanceof \WP_Term ) {
+					$subtype = sanitize_key( (string) $first_term->taxonomy );
+				}
+			}
+
+			if ( '' === $subtype || ! Taxonomy_Parser::is_translatable_taxonomy( $subtype ) ) {
+				return self::permission_error(
+					__( 'The selected taxonomy is not registered or supported for translation in Polylang.', 'translatesense' ),
+					'rest_invalid_taxonomy',
+					400
+				);
+			}
+
+			$clean_term_ids = Taxonomy_Parser::filter_linked_terms( $clean_post_ids, $subtype );
+			if ( empty( $clean_term_ids ) || empty( $clean_languages ) ) {
+				return self::permission_error(
+					__( 'Valid taxonomy term IDs and target languages are required.', 'translatesense' ),
+					'rest_invalid_params',
+					400
+				);
+			}
+
+			if ( count( $clean_term_ids ) > 100 || count( $clean_languages ) > 50 ) {
+				return self::permission_error(
+					__( 'The bulk translation request is too large.', 'translatesense' ),
+					'rest_request_too_large',
+					400
+				);
+			}
+
+			foreach ( $clean_term_ids as $term_id ) {
+				$term = get_term( $term_id, $subtype );
+				if ( ! $term instanceof \WP_Term ) {
+					return self::permission_error(
+						__( 'One or more requested taxonomy terms could not be found.', 'translatesense' ),
+						'rest_term_not_found',
+						404
+					);
+				}
+			}
+
+			foreach ( $clean_languages as $target_language ) {
+				$term_perm = Taxonomy_Translator::check_terms_permissions(
+					$clean_term_ids,
+					$subtype,
+					$target_language,
+					get_current_user_id()
+				);
+				if ( is_wp_error( $term_perm ) ) {
+					return $term_perm;
+				}
+			}
+
+			return true;
+		}
+
+		$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
 
 		if ( empty( $clean_post_ids ) || empty( $clean_languages ) ) {
 			return self::permission_error(
@@ -1308,7 +1620,6 @@ class Rest_Api {
 		$batch_id = sanitize_text_field(
 			(string) $request->get_param( 'batch_id' )
 		);
-		$post_id  = absint( $request->get_param( 'post_id' ) );
 
 		if ( '' === $batch_id ) {
 			return self::permission_error(
@@ -1333,7 +1644,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, target_post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT item_type, post_id, target_post_id FROM {$table} WHERE batch_id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id
 			),
 			ARRAY_A
@@ -1347,14 +1658,24 @@ class Rest_Api {
 			);
 		}
 
-		$source_ids = array();
+		$source_items = array();
 
 		foreach ( $rows as $row ) {
-
+			$row_type       = ! empty( $row['item_type'] ) ? sanitize_key( (string) $row['item_type'] ) : 'post';
+			$is_taxonomy    = ( 'taxonomy' === $row_type );
+			$required_cap   = $is_taxonomy ? 'edit_term' : 'edit_post';
 			$source_post_id = isset( $row['post_id'] ) ? absint( $row['post_id'] ) : 0;
 			$target_post_id = isset( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
 
-			if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+			if ( $is_taxonomy ) {
+				if ( ! $source_post_id || ! get_term( $source_post_id ) instanceof \WP_Term ) {
+					return self::permission_error(
+						__( 'A taxonomy term associated with this batch could not be found.', 'translatesense' ),
+						'rest_post_not_found',
+						404
+					);
+				}
+			} elseif ( ! $source_post_id || ! get_post( $source_post_id ) ) {
 				return self::permission_error(
 					__( 'A post associated with this batch could not be found.', 'translatesense' ),
 					'rest_post_not_found',
@@ -1362,11 +1683,22 @@ class Rest_Api {
 				);
 			}
 
-			$source_ids[ $source_post_id ] = true;
+			$source_items[ $row_type . ':' . $source_post_id ] = array(
+				'id'  => $source_post_id,
+				'cap' => $required_cap,
+			);
 
 			if ( $target_post_id ) {
 
-				if ( ! get_post( $target_post_id ) ) {
+				if ( $is_taxonomy ) {
+					if ( ! get_term( $target_post_id ) instanceof \WP_Term ) {
+						return self::permission_error(
+							__( 'A target translation term associated with this batch could not be found.', 'translatesense' ),
+							'rest_target_post_not_found',
+							404
+						);
+					}
+				} elseif ( ! get_post( $target_post_id ) ) {
 					return self::permission_error(
 						__( 'A target translation post associated with this batch could not be found.', 'translatesense' ),
 						'rest_target_post_not_found',
@@ -1374,7 +1706,7 @@ class Rest_Api {
 					);
 				}
 
-				if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+				if ( ! current_user_can( $required_cap, $target_post_id ) ) {
 					return self::permission_error(
 						__( 'You are not allowed to access a target translation in this batch.', 'translatesense' )
 					);
@@ -1382,14 +1714,8 @@ class Rest_Api {
 			}
 		}
 
-		if ( $post_id && ! isset( $source_ids[ $post_id ] ) ) {
-			return self::permission_error(
-				__( 'The requested post does not belong to this batch.', 'translatesense' )
-			);
-		}
-
-		foreach ( array_keys( $source_ids ) as $source_post_id ) {
-			if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+		foreach ( $source_items as $source_item ) {
+			if ( ! current_user_can( $source_item['cap'], $source_item['id'] ) ) {
 				return self::permission_error(
 					__( 'You are not allowed to access this batch.', 'translatesense' )
 				);
@@ -1436,9 +1762,30 @@ class Rest_Api {
 			);
 		}
 
-		$source_post_id = ! empty( $job->post_id ) ? absint( $job->post_id ) : 0;
+		$type = self::resolve_job_item_type( $request, $job );
+		if ( '' === $type ) {
+			return self::permission_error(
+				__( 'Invalid item type specified.', 'translatesense' ),
+				'rest_invalid_type',
+				400
+			);
+		}
 
-		if ( ! $source_post_id || ! get_post( $source_post_id ) ) {
+		$is_term        = ( 'term' === $type );
+		$source_post_id = ! empty( $job->post_id ) ? absint( $job->post_id ) : 0;
+		$source_term    = $is_term ? get_term( $source_post_id ) : null;
+		$job_taxonomy   = $source_term instanceof \WP_Term ? (string) $source_term->taxonomy : '';
+		$required_cap   = $is_term ? 'edit_term' : 'edit_post';
+
+		if ( $is_term ) {
+			if ( ! $source_term instanceof \WP_Term || ! Taxonomy_Parser::is_translatable_taxonomy( $job_taxonomy ) ) {
+				return self::permission_error(
+					__( 'The translation job has no valid source taxonomy term.', 'translatesense' ),
+					'rest_invalid_job',
+					400
+				);
+			}
+		} elseif ( ! $source_post_id || ! get_post( $source_post_id ) ) {
 			return self::permission_error(
 				__( 'The translation job has no valid source post.', 'translatesense' ),
 				'rest_invalid_job',
@@ -1446,7 +1793,7 @@ class Rest_Api {
 			);
 		}
 
-		if ( ! current_user_can( 'edit_post', $source_post_id ) ) {
+		if ( ! current_user_can( $required_cap, $source_post_id ) ) {
 			return self::permission_error(
 				__( 'You are not allowed to update this translation job.', 'translatesense' )
 			);
@@ -1456,7 +1803,15 @@ class Rest_Api {
 
 			$target_post_id = absint( $job->target_post_id );
 
-			if ( ! $target_post_id || ! get_post( $target_post_id ) ) {
+			if ( $is_term ) {
+				if ( ! $target_post_id || ! get_term( $target_post_id, $job_taxonomy ) instanceof \WP_Term ) {
+					return self::permission_error(
+						__( 'The translation job has an invalid target term.', 'translatesense' ),
+						'rest_invalid_target_post',
+						400
+					);
+				}
+			} elseif ( ! $target_post_id || ! get_post( $target_post_id ) ) {
 				return self::permission_error(
 					__( 'The translation job has an invalid target post.', 'translatesense' ),
 					'rest_invalid_target_post',
@@ -1464,15 +1819,15 @@ class Rest_Api {
 				);
 			}
 
-			if ( ! self::is_job_target( $job, $target_post_id ) ) {
+			if ( ! self::is_job_target( $job, $target_post_id, $type ) ) {
 				return self::permission_error(
 					__( 'The job target does not match the source translation relationship.', 'translatesense' )
 				);
 			}
 
-			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+			if ( ! current_user_can( $required_cap, $target_post_id ) ) {
 				return self::permission_error(
-					__( 'You are not allowed to update the target translation post.', 'translatesense' )
+					__( 'You are not allowed to update the target translation item.', 'translatesense' )
 				);
 			}
 		}
@@ -1487,13 +1842,21 @@ class Rest_Api {
 
 			if ( ! $target_post_id ) {
 				return self::permission_error(
-					__( 'The target post ID is invalid.', 'translatesense' ),
+					__( 'The target ID is invalid.', 'translatesense' ),
 					'rest_invalid_target_post',
 					400
 				);
 			}
 
-			if ( ! get_post( $target_post_id ) ) {
+			if ( $is_term ) {
+				if ( ! get_term( $target_post_id, $job_taxonomy ) instanceof \WP_Term ) {
+					return self::permission_error(
+						__( 'The target term could not be found.', 'translatesense' ),
+						'rest_target_post_not_found',
+						404
+					);
+				}
+			} elseif ( ! get_post( $target_post_id ) ) {
 				return self::permission_error(
 					__( 'The target post could not be found.', 'translatesense' ),
 					'rest_target_post_not_found',
@@ -1501,15 +1864,15 @@ class Rest_Api {
 				);
 			}
 
-			if ( ! self::is_job_target( $job, $target_post_id ) ) {
+			if ( ! self::is_job_target( $job, $target_post_id, $type ) ) {
 				return self::permission_error(
-					__( 'The requested target post is not the translation target for this job.', 'translatesense' )
+					__( 'The requested target is not the translation target for this job.', 'translatesense' )
 				);
 			}
 
-			if ( ! current_user_can( 'edit_post', $target_post_id ) ) {
+			if ( ! current_user_can( $required_cap, $target_post_id ) ) {
 				return self::permission_error(
-					__( 'You are not allowed to update the requested target translation post.', 'translatesense' )
+					__( 'You are not allowed to update the requested target translation item.', 'translatesense' )
 				);
 			}
 		}
@@ -1520,11 +1883,12 @@ class Rest_Api {
 	/**
 	 * Verify that a candidate target is the actual translation target for a job.
 	 *
-	 * @param object $job Job row.
-	 * @param int    $target_post_id Candidate target post ID.
+	 * @param object $job            Job row.
+	 * @param int    $target_post_id Candidate target ID.
+	 * @param string $type           Runtime item type (`'post'` or `'term'`).
 	 * @return bool
 	 */
-	private static function is_job_target( $job, $target_post_id ) {
+	private static function is_job_target( $job, $target_post_id, string $type = 'post' ) {
 
 		$source_post_id  = ! empty( $job->post_id ) ? absint( $job->post_id ) : 0;
 		$target_post_id  = absint( $target_post_id );
@@ -1540,10 +1904,9 @@ class Rest_Api {
 			return false;
 		}
 
-		$expected_target_id = self::get_existing_translation_post_id(
-			$source_post_id,
-			$target_language
-		);
+		$expected_target_id = ( 'term' === $type )
+			? Taxonomy_Parser::get_translation_id( $source_post_id, $target_language )
+			: self::get_existing_translation_post_id( $source_post_id, $target_language );
 
 		return $expected_target_id === $target_post_id;
 	}
@@ -1555,11 +1918,12 @@ class Rest_Api {
 	 * @return true|WP_Error
 	 */
 	public static function permission_bulk_active_batches( WP_REST_Request $request ) {
-		if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
 			return self::permission_error(
 				__( 'You are not allowed to view active translation batches.', 'translatesense' )
 			);
 		}
+
 		return true;
 	}
 
@@ -1590,24 +1954,9 @@ class Rest_Api {
 
 		if ( '' === $batch_id || ! $post_id ) {
 			return self::permission_error(
-				__( 'A valid batch ID and post ID are required.', 'translatesense' ),
+				__( 'A valid batch ID and item ID are required.', 'translatesense' ),
 				'rest_invalid_params',
 				400
-			);
-		}
-
-		$post = get_post( $post_id );
-		if ( ! $post ) {
-			return self::permission_error(
-				__( 'The requested post could not be found.', 'translatesense' ),
-				'rest_post_not_found',
-				404
-			);
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return self::permission_error(
-				__( 'You are not allowed to modify translations for this post.', 'translatesense' )
 			);
 		}
 
@@ -1625,7 +1974,7 @@ class Rest_Api {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, post_id, target_post_id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT id, item_type, post_id, target_post_id, provider, status FROM {$table} WHERE batch_id = %s AND post_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$batch_id,
 				$post_id
 			),
@@ -1634,10 +1983,48 @@ class Rest_Api {
 
 		if ( empty( $rows ) ) {
 			return self::permission_error(
-				__( 'No translation jobs found for the requested post in this batch.', 'translatesense' ),
+				__( 'No translation jobs found for the requested item in this batch.', 'translatesense' ),
 				'rest_jobs_not_found',
 				404
 			);
+		}
+
+		$is_taxonomy_item = false;
+		foreach ( $rows as $row ) {
+			if ( 'taxonomy' === ( $row['item_type'] ?? 'post' ) ) {
+				$is_taxonomy_item = true;
+				break;
+			}
+		}
+
+		if ( $is_taxonomy_item ) {
+			if ( ! get_term( $post_id ) instanceof \WP_Term ) {
+				return self::permission_error(
+					__( 'The requested taxonomy term could not be found.', 'translatesense' ),
+					'rest_term_not_found',
+					404
+				);
+			}
+
+			if ( ! is_user_logged_in() || ! current_user_can( 'edit_term', $post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to modify translations for this term.', 'translatesense' )
+				);
+			}
+		} else {
+			if ( ! get_post( $post_id ) ) {
+				return self::permission_error(
+					__( 'The requested post could not be found.', 'translatesense' ),
+					'rest_post_not_found',
+					404
+				);
+			}
+
+			if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+				return self::permission_error(
+					__( 'You are not allowed to modify translations for this post.', 'translatesense' )
+				);
+			}
 		}
 
 		// Provider validation: STRICTLY restricted to OpenAI and Gemini
@@ -1652,7 +2039,13 @@ class Rest_Api {
 			}
 
 			$target_post_id = ! empty( $row['target_post_id'] ) ? absint( $row['target_post_id'] ) : 0;
-			if ( $target_post_id && get_post( $target_post_id ) && ! current_user_can( 'edit_post', $target_post_id ) ) {
+			if ( $is_taxonomy_item ) {
+				if ( $target_post_id && ( get_term( $target_post_id ) instanceof \WP_Term ) && ! current_user_can( 'edit_term', $target_post_id ) ) {
+					return self::permission_error(
+						__( 'You are not allowed to modify target translations for this term.', 'translatesense' )
+					);
+				}
+			} elseif ( $target_post_id && get_post( $target_post_id ) && ! current_user_can( 'edit_post', $target_post_id ) ) {
 				return self::permission_error(
 					__( 'You are not allowed to modify target translations for this post.', 'translatesense' )
 				);
@@ -1690,6 +2083,45 @@ class Rest_Api {
 		return self::require_edit_post(
 			self::get_request_post_id( $request ),
 			__( 'You are not allowed to mark this post as translated.', 'translatesense' )
+		);
+	}
+
+	/**
+	 * Permission: POST /bulk-translate-term.
+	 *
+	 * Validates authentication, Polylang taxonomy support, term ownership, and
+	 * capabilities to create/update the translated term.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public static function permission_bulk_translate_term( WP_REST_Request $request ) {
+
+		if ( ! is_user_logged_in() ) {
+			return self::permission_error(
+				__( 'You must be logged in to translate taxonomy terms.', 'translatesense' ),
+				'rest_forbidden',
+				401
+			);
+		}
+
+		$term_id     = absint( $request->get_param( 'term_id' ) );
+		$taxonomy    = sanitize_key( (string) $request->get_param( 'taxonomy' ) );
+		$target_lang = sanitize_key( (string) $request->get_param( 'target_lang' ) );
+
+		if ( $term_id <= 0 || '' === $taxonomy || '' === $target_lang ) {
+			return self::permission_error(
+				__( 'A valid taxonomy term ID, taxonomy slug, and target language are required.', 'translatesense' ),
+				'rest_invalid_params',
+				400
+			);
+		}
+
+		return Taxonomy_Translator::check_terms_permissions(
+			array( $term_id ),
+			$taxonomy,
+			$target_lang,
+			get_current_user_id()
 		);
 	}
 
@@ -2386,13 +2818,11 @@ class Rest_Api {
 	 */
 	public static function get_editor_xml_config( WP_REST_Request $request ) {
 
-		$editor = sanitize_key(
-			(string) (
-				$request->get_param( 'editor' )
-				?: $request->get_param( 'builder' )
-				?: ''
-			)
-		);
+		$raw_editor = $request->get_param( 'editor' );
+		if ( empty( $raw_editor ) ) {
+			$raw_editor = $request->get_param( 'builder' );
+		}
+		$editor = sanitize_key( (string) ( ! empty( $raw_editor ) ? $raw_editor : '' ) );
 
 		if (
 			empty( $editor ) ||
@@ -2511,11 +2941,12 @@ class Rest_Api {
 
 		return rest_ensure_response(
 			array(
-				'success' => true,
-				'title'   => $post->post_title,
-				'content' => $post->post_content,
-				'excerpt' => $post->post_excerpt,
-				'slug'    => $post->post_name,
+				'success'          => true,
+				'title'            => $post->post_title,
+				'content'          => $post->post_content,
+				'excerpt'          => $post->post_excerpt,
+				'slug'             => $post->post_name,
+				'hideReviewNotice' => Admin_Menu::is_review_notice_hidden(),
 			)
 		);
 	}
@@ -2664,12 +3095,10 @@ class Rest_Api {
 		$updated = self::sanitize_settings( $params, $current );
 
 		if ( is_wp_error( $updated ) ) {
-			return rest_ensure_response(
-				array(
-					'success' => false,
-					'message' => $updated->get_error_message(),
-				)
-			);
+			if ( empty( $updated->get_error_data() ) ) {
+				$updated->add_data( array( 'status' => 400 ) );
+			}
+			return $updated;
 		}
 
 		update_option(
@@ -2830,9 +3259,16 @@ class Rest_Api {
 			$value           = trim( (string) $input[ $key ] );
 			$existing_key    = isset( $current[ $key ] ) ? trim( (string) $current[ $key ] ) : '';
 			$expected_masked = self::mask_api_key( $existing_key );
+			$provider_id     = str_replace( '_api_key', '', $key );
 
 			// 1. If the submitted API key is empty, do not update the existing saved API key.
 			if ( '' === $value ) {
+				if ( isset( $updated[ $key ] ) ) {
+					unset( $updated[ $key ] );
+					// 2. Check 1-hour transient cache for connector models.
+					$transient_key = 'translatesense_models_' . $provider_id;
+					delete_transient( $transient_key );
+				}
 				continue;
 			}
 
@@ -2844,8 +3280,7 @@ class Rest_Api {
 			// 4. Only update the saved API key when the user submits a new, actual API key.
 			if ( 'true' !== $value && 'false' !== $value && '1' !== $value && '0' !== $value ) {
 
-				$api_key     = sanitize_text_field( $value );
-				$provider_id = str_replace( '_api_key', '', $key );
+				$api_key = sanitize_text_field( $value );
 
 				$validate_key = $bridge->api_key_validation( $provider_id, $api_key );
 
@@ -2864,7 +3299,8 @@ class Rest_Api {
 							$is_invalid_key
 							? __( 'Invalid API key.', 'translatesense' )
 							: __( 'API key validation failed.', 'translatesense' )
-						)
+						),
+						array( 'status' => 400 )
 					);
 				}
 
@@ -2931,7 +3367,8 @@ class Rest_Api {
 	 */
 	public static function extract_strings( WP_REST_Request $request ) {
 
-		$params = $request->get_json_params();
+		$params  = $request->get_json_params();
+		$subtype = sanitize_key( (string) ( is_array( $params ) && isset( $params['subtype'] ) ? $params['subtype'] : $request->get_param( 'subtype' ) ) );
 
 		$post_id = self::get_request_post_id(
 			$request
@@ -2940,9 +3377,49 @@ class Rest_Api {
 		if ( ! $post_id ) {
 			return new WP_Error(
 				'invalid_post_id',
-				__( 'Post ID is required.', 'translatesense' ),
+				__( 'Post or term ID is required.', 'translatesense' ),
 				array(
 					'status' => 400,
+				)
+			);
+		}
+
+		$target_language = isset( $params['target_lang'] ) ? sanitize_key( (string) $params['target_lang'] ) : sanitize_key( (string) $request->get_param( 'target_lang' ) );
+		$type            = self::get_request_item_type( $request );
+
+		if ( '' === $type ) {
+			return new WP_Error( 'invalid_type', __( 'Invalid item type specified.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		if ( 'term' === $type ) {
+			if ( '' !== $subtype && ! Taxonomy_Parser::is_translatable_taxonomy( $subtype ) ) {
+				return new WP_Error( 'invalid_taxonomy', __( 'The selected taxonomy is not supported for translation.', 'translatesense' ), array( 'status' => 400 ) );
+			}
+
+			$term = get_term( $post_id, $subtype );
+			if ( ! $term instanceof \WP_Term || ! Taxonomy_Parser::is_translatable_taxonomy( (string) $term->taxonomy ) ) {
+				return new WP_Error( 'term_not_found', __( 'Taxonomy term not found.', 'translatesense' ), array( 'status' => 404 ) );
+			}
+
+			$term_taxonomy = (string) $term->taxonomy;
+			$term_lang     = Taxonomy_Parser::get_term_language( $post_id );
+			$source_lang   = '' !== $term_lang ? $term_lang : sanitize_key( (string) Polylang_Bridge::get_default_language() );
+
+			$term_strings = '' !== $target_language
+				? Taxonomy_Parser::extract_terms_strings( array( $post_id ), $term_taxonomy, $target_language, get_current_user_id(), true )
+				: array();
+
+			return rest_ensure_response(
+				array(
+					'success'                     => true,
+					'editor_type'                 => 'taxonomy',
+					'type'                        => 'term',
+					'taxonomy'                    => $term_taxonomy,
+					'subtype'                     => $term_taxonomy,
+					'source_language'             => $source_lang,
+					'strings'                     => $term_strings,
+					'custom_fields_sync_enabled'  => false,
+					'skipped_custom_fields_count' => 0,
 				)
 			);
 		}
@@ -3070,10 +3547,22 @@ class Rest_Api {
 			return $package_strings;
 		}
 
+		// Taxonomy strings are extracted for Workflow B (post bulk translation) only.
+		// Individual editor translation omits taxonomy extraction/translation.
+		$include_taxonomies = is_array( $params ) && ! empty( $params['include_taxonomies'] );
+		$taxonomy_strings   = ( $include_taxonomies && '' !== $target_language )
+			? Taxonomy_Parser::extract_strings( $post_id, $target_language, get_current_user_id(), true )
+			: array();
+
+		if ( ! empty( $taxonomy_strings ) ) {
+			$package_strings = array_merge( $package_strings, $taxonomy_strings );
+		}
+
 		return rest_ensure_response(
 			array(
 				'success'                     => true,
 				'editor_type'                 => $source_editor_type,
+				'source_language'             => $source_language,
 				'strings'                     => $package_strings,
 				'custom_fields_sync_enabled'  => $is_sync_enabled,
 				'skipped_custom_fields_count' => $skipped_cf_count,
@@ -3200,6 +3689,14 @@ class Rest_Api {
 			);
 		}
 
+		if ( function_exists( 'pll_get_post_language' ) && empty( pll_get_post_language( $post_id, 'slug' ) ) ) {
+			return new WP_Error(
+				'no_language',
+				__( 'The selected post does not have a language assigned in Polylang.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		if (
 			! is_array( $in_memory_translations )
 		) {
@@ -3237,6 +3734,11 @@ class Rest_Api {
 			(string) $target_lang,
 			(string) $provider,
 			$normalized_translations,
+			array(
+				'user_id'            => get_current_user_id(),
+				'skip_unauthorized'  => true,
+				'include_taxonomies' => is_array( $params ) && ! empty( $params['include_taxonomies'] ),
+			)
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -3275,7 +3777,8 @@ class Rest_Api {
 	 */
 	public static function bulk_start( WP_REST_Request $request ) {
 
-		$params = $request->get_json_params();
+		$params  = $request->get_json_params();
+		$subtype = sanitize_key( (string) ( is_array( $params ) && isset( $params['subtype'] ) ? $params['subtype'] : '' ) );
 
 		$post_ids = (
 			is_array( $params ) &&
@@ -3301,7 +3804,7 @@ class Rest_Api {
 		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
 			return new WP_Error(
 				'invalid_posts',
-				__( 'Post IDs array is required.', 'translatesense' ),
+				__( 'Item IDs array is required.', 'translatesense' ),
 				array(
 					'status' => 400,
 				)
@@ -3336,12 +3839,31 @@ class Rest_Api {
 			array_unique( $clean_post_ids )
 		);
 
-		$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
+		$type = self::get_request_item_type( $request );
+		if ( '' === $type ) {
+			return new WP_Error(
+				'invalid_type',
+				__( 'Invalid item type specified.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( 'term' === $type ) {
+			if ( '' === $subtype && ! empty( $clean_post_ids ) ) {
+				$first_term = get_term( $clean_post_ids[0] );
+				if ( $first_term instanceof \WP_Term ) {
+					$subtype = sanitize_key( (string) $first_term->taxonomy );
+				}
+			}
+			$clean_post_ids = Taxonomy_Parser::filter_linked_terms( $clean_post_ids, $subtype );
+		} else {
+			$clean_post_ids = Bulk_Process::filter_linked_posts( $clean_post_ids );
+		}
 
 		if ( empty( $clean_post_ids ) ) {
 			return new WP_Error(
 				'invalid_posts',
-				__( 'No valid post IDs were supplied.', 'translatesense' ),
+				__( 'No valid item IDs were supplied.', 'translatesense' ),
 				array(
 					'status' => 400,
 				)
@@ -3351,15 +3873,27 @@ class Rest_Api {
 		$result = Bulk_Process::create_batch(
 			$clean_post_ids,
 			$target_languages,
-			(string) $provider
+			(string) $provider,
+			array(
+				'type'    => $type,
+				'subtype' => $subtype,
+			)
 		);
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
 
+		if ( ! empty( $result['error'] ) ) {
+			return new WP_Error(
+				'bulk_batch_error',
+				(string) $result['error'],
+				array( 'status' => 400 )
+			);
+		}
+
 		if ( is_array( $result ) ) {
-			$result['post_ids'] = $clean_post_ids;
+			$result['hideReviewNotice'] = Admin_Menu::is_review_notice_hidden();
 		}
 
 		return rest_ensure_response( $result );
@@ -3525,10 +4059,19 @@ class Rest_Api {
 			}
 		}
 
+		$type = self::resolve_job_item_type( $request, $job );
+		if ( '' === $type ) {
+			return new WP_Error(
+				'invalid_type',
+				__( 'Invalid item type specified.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		if (
 			isset( $clean_data['target_post_id'] ) &&
 			$clean_data['target_post_id'] > 0 &&
-			! self::is_job_target( $job, $clean_data['target_post_id'] )
+			! self::is_job_target( $job, $clean_data['target_post_id'], $type )
 		) {
 			return new WP_Error(
 				'invalid_target_post',
@@ -3548,34 +4091,51 @@ class Rest_Api {
 		}
 
 		if (
-			isset( $updates['status'] ) &&
-			'completed' === $updates['status'] &&
-			! empty( $updates['target_post_id'] )
+			isset( $clean_data['status'] ) &&
+			'completed' === $clean_data['status'] &&
+			! empty( $clean_data['target_post_id'] )
 		) {
 
-			$target_post_id = absint( $updates['target_post_id'] );
+			$target_post_id = absint( $clean_data['target_post_id'] );
 
-			if (
-				! get_post( $target_post_id ) ||
-				! self::is_job_target( $job, $target_post_id ) ||
-				! current_user_can( 'edit_post', $target_post_id )
-			) {
-				return new WP_Error(
-					'rest_forbidden',
-					__( 'You are not allowed to update the target translation post.', 'translatesense' ),
-					array( 'status' => rest_authorization_required_code() )
+			if ( 'term' === $type ) {
+				$source_term  = ! empty( $job->post_id ) ? get_term( absint( $job->post_id ) ) : null;
+				$job_taxonomy = $source_term instanceof \WP_Term ? (string) $source_term->taxonomy : '';
+				if (
+					'' === $job_taxonomy
+					|| ! get_term( $target_post_id, $job_taxonomy ) instanceof \WP_Term
+					|| ! self::is_job_target( $job, $target_post_id, 'term' )
+					|| ! current_user_can( 'edit_term', $target_post_id )
+				) {
+					return new WP_Error(
+						'rest_forbidden',
+						__( 'You are not allowed to update the target translation term.', 'translatesense' ),
+						array( 'status' => rest_authorization_required_code() )
+					);
+				}
+			} else {
+				if (
+					! get_post( $target_post_id ) ||
+					! self::is_job_target( $job, $target_post_id, 'post' ) ||
+					! current_user_can( 'edit_post', $target_post_id )
+				) {
+					return new WP_Error(
+						'rest_forbidden',
+						__( 'You are not allowed to update the target translation post.', 'translatesense' ),
+						array( 'status' => rest_authorization_required_code() )
+					);
+				}
+
+				update_post_meta(
+					$target_post_id,
+					'_translatesense_translated',
+					$target_post_id
 				);
-			}
 
-			update_post_meta(
-				$target_post_id,
-				'_translatesense_translated',
-				$target_post_id
-			);
-
-			$target_post = get_post( $target_post_id );
-			if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
-				Block_Processor::mark_process_pending( $target_post_id );
+				$target_post = get_post( $target_post_id );
+				if ( $target_post && function_exists( 'has_blocks' ) && has_blocks( $target_post->post_content ) ) {
+					Block_Processor::mark_process_pending( $target_post_id );
+				}
 			}
 		}
 
@@ -3610,11 +4170,13 @@ class Rest_Api {
 				? absint( $updates['time_take'] )
 				: 0;
 
+			$is_job_completed = ( 'completed' === $clean_data['status'] );
+
 			Statics::update_translation_statistics(
 				array(
-					'status'           => 'completed' === $clean_data['status'] ? 'success' : 'failed',
-					'total_characters' => $c_chars,
-					'total_strings'    => $c_strings,
+					'status'           => $is_job_completed ? 'success' : 'failed',
+					'total_characters' => $is_job_completed ? $c_chars : 0,
+					'total_strings'    => $is_job_completed ? $c_strings : 0,
 					'provider'         => $job_provider,
 					'time_take'        => $time_take,
 					'request_id'       => 'bulk_job_' . $job_id,
@@ -3675,8 +4237,8 @@ class Rest_Api {
 
 			$filtered_items = array();
 			foreach ( $batch['items'] as $item ) {
-				$post_id = isset( $item['post_id'] ) ? absint( $item['post_id'] ) : 0;
-				if ( $post_id > 0 && current_user_can( 'edit_post', $post_id ) ) {
+				$item_post_id = isset( $item['post_id'] ) ? absint( $item['post_id'] ) : 0;
+				if ( $item_post_id > 0 && current_user_can( 'edit_post', $item_post_id ) ) {
 					$filtered_items[] = $item;
 				}
 			}
@@ -3694,6 +4256,23 @@ class Rest_Api {
 				'batches' => $filtered_batches,
 			)
 		);
+	}
+
+	/**
+	 * Retry failed and language-unassigned jobs for a bulk batch.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return WP_REST_Response
+	 */
+	public static function bulk_retry( WP_REST_Request $request ) {
+		$params   = $request->get_json_params();
+		$batch_id = sanitize_text_field( (string) $request->get_param( 'batch_id' ) );
+		if ( '' === $batch_id && is_array( $params ) && ! empty( $params['batch_id'] ) ) {
+			$batch_id = sanitize_text_field( (string) $params['batch_id'] );
+		}
+
+		$result = Bulk_Process::retry_failed_batch( $batch_id );
+		return rest_ensure_response( $result );
 	}
 
 	/**
@@ -3775,6 +4354,103 @@ class Rest_Api {
 				'success' => true,
 				'post_id' => $post_id,
 				'stats'   => $stats,
+			)
+		);
+	}
+
+	/**
+	 * Translate, create, update, and link a taxonomy term for the bulk taxonomy workflow.
+	 *
+	 * Used exclusively by browser AI bulk taxonomy translation (Workflow A).
+	 * Reuses `Taxonomy_Translator::translate_terms()`.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|WP_Error
+	 */
+	public static function bulk_translate_term( WP_REST_Request $request ) {
+
+		$term_id         = absint( $request->get_param( 'term_id' ) );
+		$taxonomy        = sanitize_key( (string) $request->get_param( 'taxonomy' ) );
+		$target_lang     = sanitize_key( (string) $request->get_param( 'target_lang' ) );
+		$provider        = sanitize_key( (string) $request->get_param( 'provider' ) );
+		$raw_memory      = $request->get_param( 'in_memory_translations' );
+		$current_user_id = get_current_user_id();
+
+		if ( function_exists( 'pll_get_term_language' ) && empty( pll_get_term_language( $term_id, 'slug' ) ) ) {
+			return new WP_Error(
+				'no_language',
+				__( 'The selected taxonomy term does not have a language assigned in Polylang.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( ! is_array( $raw_memory ) ) {
+			$raw_memory = is_object( $raw_memory ) ? (array) $raw_memory : array();
+		}
+
+		$normalized_translations = self::normalize_translation_value( $raw_memory );
+		if ( ! is_array( $normalized_translations ) ) {
+			return new WP_Error( 'invalid_translations', __( 'Invalid taxonomy translation data.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		if ( strlen( (string) wp_json_encode( $normalized_translations ) ) > 1048576 ) {
+			return new WP_Error( 'rest_request_too_large', __( 'The taxonomy translation payload is too large.', 'translatesense' ), array( 'status' => 400 ) );
+		}
+
+		$term_strings = Taxonomy_Parser::extract_terms_strings( array( $term_id ), $taxonomy, $target_lang, $current_user_id, true );
+		$sent_values  = array_values(
+			array_filter(
+				array_map(
+					static function ( $item ) {
+						return isset( $item['value'] ) ? (string) $item['value'] : '';
+					},
+					$term_strings
+				)
+			)
+		);
+		$total_chars  = 0;
+		foreach ( $sent_values as $val ) {
+			$total_chars += mb_strlen( $val, 'UTF-8' );
+		}
+
+		$translated_map = Taxonomy_Translator::translate_terms(
+			array( $term_id ),
+			$taxonomy,
+			$target_lang,
+			$provider,
+			$normalized_translations,
+			array(
+				'user_id'             => $current_user_id,
+				'enforce_permissions' => true,
+				'skip_unauthorized'   => false,
+			)
+		);
+
+		if ( is_wp_error( $translated_map ) ) {
+			return $translated_map;
+		}
+
+		$target_term_id = isset( $translated_map[ $term_id ] ) ? absint( $translated_map[ $term_id ] ) : 0;
+		$target_term    = $target_term_id > 0 ? get_term( $target_term_id, $taxonomy ) : null;
+		if ( ! $target_term instanceof \WP_Term ) {
+			return new WP_Error( 'translatesense_term_translate_failed', __( 'The translated taxonomy term could not be saved.', 'translatesense' ), array( 'status' => 500 ) );
+		}
+
+		return rest_ensure_response(
+			array(
+				'success'          => true,
+				'type'             => 'term',
+				'source_term_id'   => $term_id,
+				'target_term_id'   => $target_term_id,
+				'target_post_id'   => $target_term_id,
+				'translated_title' => $target_term->name,
+				'taxonomy'         => $taxonomy,
+				'target_lang'      => $target_lang,
+				'total_strings'    => count( $sent_values ),
+				'total_characters' => $total_chars,
+				'sent_data'        => $sent_values,
+				'edit_url'         => (string) get_edit_term_link( $target_term_id, $taxonomy ),
+				'view_url'         => Bulk_Process::get_safe_term_link( $target_term_id, $taxonomy ),
 			)
 		);
 	}
@@ -3956,7 +4632,7 @@ class Rest_Api {
 	/**
 	 * Get an existing target translation post ID.
 	 *
-	 * @param int    $source_post_id Source post ID.
+	 * @param int    $source_post_id  Source post ID.
 	 * @param string $target_language Target language slug.
 	 * @return int Target post ID or 0.
 	 */
@@ -3966,7 +4642,7 @@ class Rest_Api {
 		// orphaned target recovered through _translatesense_source_id.
 		return Polylang_Bridge::get_existing_translation_post_id(
 			absint( $source_post_id ),
-			sanitize_key( (string) $target_language )
+			sanitize_key( (string) $target_language ),
 		);
 	}
 
@@ -4015,11 +4691,12 @@ class Rest_Api {
 	 * This check is called by the REST permission callback before translation.
 	 * It fails closed if the source post cannot be resolved or has no stored strings.
 	 *
-	 * @param array $strings List of strings to translate.
-	 * @param int   $post_id Translation target post ID.
+	 * @param array  $strings     List of strings to translate.
+	 * @param int    $post_id     Translation target post ID.
+	 * @param string $target_lang Optional target language slug.
 	 * @return bool True if every string belongs to the source post, false otherwise.
 	 */
-	public static function verify_strings_belong_to_post( array $strings, int $post_id ): bool {
+	public static function verify_strings_belong_to_post( array $strings, int $post_id, string $target_lang = '' ): bool {
 
 		if ( empty( $strings ) ) {
 			return false;

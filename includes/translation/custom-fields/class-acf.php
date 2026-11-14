@@ -64,7 +64,7 @@ class Acf {
 			case 'link':
 				$source_val = get_post_meta( $source_post_id, $current_path, true );
 				if ( is_string( $source_val ) && is_serialized( $source_val ) ) {
-					$source_val = maybe_unserialize( $source_val );
+					$source_val = self::safe_unserialize_meta( $source_val );
 				}
 
 				if ( is_array( $source_val ) ) {
@@ -107,7 +107,7 @@ class Acf {
 
 				$layout_order = get_post_meta( $source_post_id, $current_path, true );
 				if ( is_string( $layout_order ) && is_serialized( $layout_order ) ) {
-					$layout_order = maybe_unserialize( $layout_order );
+					$layout_order = self::safe_unserialize_meta( $layout_order );
 				}
 
 				update_post_meta( $target_post_id, $current_path, $layout_order );
@@ -144,7 +144,7 @@ class Acf {
 			case 'gallery':
 				$raw_gallery = get_post_meta( $source_post_id, $current_path, true );
 				if ( is_string( $raw_gallery ) && is_serialized( $raw_gallery ) ) {
-					$raw_gallery = maybe_unserialize( $raw_gallery );
+					$raw_gallery = self::safe_unserialize_meta( $raw_gallery );
 				}
 				if ( is_array( $raw_gallery ) ) {
 					$mapped = array();
@@ -163,7 +163,7 @@ class Acf {
 			case 'page_link':
 				$raw_rel = get_post_meta( $source_post_id, $current_path, true );
 				if ( is_string( $raw_rel ) && is_serialized( $raw_rel ) ) {
-					$raw_rel = maybe_unserialize( $raw_rel );
+					$raw_rel = self::safe_unserialize_meta( $raw_rel );
 				}
 				if ( is_array( $raw_rel ) ) {
 					$mapped = array();
@@ -182,7 +182,7 @@ class Acf {
 			case 'taxonomy':
 				$raw_terms = get_post_meta( $source_post_id, $current_path, true );
 				if ( is_string( $raw_terms ) && is_serialized( $raw_terms ) ) {
-					$raw_terms = maybe_unserialize( $raw_terms );
+					$raw_terms = self::safe_unserialize_meta( $raw_terms );
 				}
 				if ( is_array( $raw_terms ) ) {
 					$mapped = array();
@@ -312,5 +312,33 @@ class Acf {
 		}
 
 		return $term_id;
+	}
+
+	/**
+	 * Unserialize metadata values safely without instantiating PHP objects.
+	 *
+	 * @param mixed $value Serialized metadata value.
+	 * @return mixed
+	 */
+	private static function safe_unserialize_meta( $value ) {
+		if ( ! is_string( $value ) || ! is_serialized( $value ) ) {
+			return $value;
+		}
+
+		$trimmed = trim( $value );
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Required to safely decode serialized metadata without instantiating PHP objects.
+		$unserialized = @unserialize(
+			$trimmed,
+			array(
+				'allowed_classes' => false,
+			)
+		);
+
+		if ( false !== $unserialized || 'b:0;' === $trimmed ) {
+			return $unserialized;
+		}
+
+		return $value;
 	}
 }

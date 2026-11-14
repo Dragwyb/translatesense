@@ -20,23 +20,36 @@ export function BulkApp() {
   const localizedData =
     (typeof window !== 'undefined' && window.TranslateSenseBulkData) || {};
   const allLanguages = Object.values(localizedData.languages || {});
+  const itemType = localizedData.type === 'term' ? 'term' : 'post';
+  const subtype = localizedData.subtype || '';
+  const isTaxonomy = itemType === 'term';
+  const itemSingular = localizedData.itemSingular || (isTaxonomy ? 'term' : 'post');
+  const itemPlural = localizedData.itemPlural || (isTaxonomy ? 'terms' : 'posts');
+  const itemLabel = localizedData.itemLabel || '';
 
   const translationState = useBulkTranslation(selectedPostIds, {
     isPreviouslyRunning: isPrevRunningMode,
+    type: itemType,
+    subtype,
   });
 
-  // Query selected posts from DOM checkboxes
+  // Query selected posts or taxonomy terms from DOM checkboxes
   const getCheckedPostIds = useCallback(() => {
-    const checkedBoxes = document.querySelectorAll(
-      'input[name="post[]"]:checked, input[name="media[]"]:checked'
-    );
+    const selector = isTaxonomy
+      ? '#posts-filter input[name="delete_tags[]"]:checked, input[name="delete_tags[]"]:checked'
+      : 'input[name="post[]"]:checked, input[name="media[]"]:checked';
+    const checkedBoxes = document.querySelectorAll(selector);
     const ids = [];
+    const seen = new Set();
     checkedBoxes.forEach((cb) => {
       const val = parseInt(cb.value, 10);
-      if (!isNaN(val) && val > 0) ids.push(val);
+      if (!isNaN(val) && val > 0 && !seen.has(val)) {
+        seen.add(val);
+        ids.push(val);
+      }
     });
     return ids;
-  }, []);
+  }, [isTaxonomy]);
 
   // Update animated pulse dot on Bulk Translate buttons in table header/footer
   const updatePulseDot = useCallback((active) => {
@@ -50,6 +63,68 @@ export function BulkApp() {
     });
   }, []);
 
+  // On supported Polylang taxonomy listing pages (edit-tags.php), inject Bulk Translate buttons
+  // into top and bottom tablenav matching edit.php markup and hooks.
+  useEffect(() => {
+    if (!isTaxonomy || typeof document === 'undefined') return undefined;
+
+    const insertedWrappers = [];
+    const positions = [
+      { navSelector: '#posts-filter .tablenav.top', btnId: 'ts-quick-filter-translate-btn' },
+      { navSelector: '#posts-filter .tablenav.bottom', btnId: 'ts-quick-filter-translate-btn-bottom' },
+    ];
+
+    positions.forEach(({ navSelector, btnId }) => {
+      const tablenav = document.querySelector(navSelector);
+      if (!tablenav || document.getElementById(btnId)) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'alignleft actions ts-bulk-tablenav-action';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = btnId;
+      btn.className = 'button button-primary ts-filter-action-btn';
+
+      const icon = document.createElement('span');
+      icon.className = 'dashicons dashicons-translation';
+
+      const labelText = document.createTextNode(' Bulk Translate ');
+
+      const pulseDot = document.createElement('span');
+      pulseDot.className = 'ts-active-pulse-dot';
+      pulseDot.style.display = 'none';
+      pulseDot.title = 'Background translations running';
+
+      btn.appendChild(icon);
+      btn.appendChild(labelText);
+      btn.appendChild(pulseDot);
+      wrapper.appendChild(btn);
+
+      const bulkActions = tablenav.querySelector('.alignleft.actions.bulkactions');
+      if (bulkActions) {
+        bulkActions.insertAdjacentElement('afterend', wrapper);
+      } else {
+        tablenav.insertBefore(wrapper, tablenav.firstChild);
+      }
+
+      insertedWrappers.push(wrapper);
+    });
+
+    return () => {
+      insertedWrappers.forEach((wrapper) => {
+        if (wrapper && wrapper.parentNode) {
+          wrapper.parentNode.removeChild(wrapper);
+        }
+      });
+    };
+  }, [isTaxonomy]);
+
+  // Keep pulse dot synced whenever active job state changes (including right after button injection)
+  useEffect(() => {
+    updatePulseDot(hasActiveJobs);
+  }, [hasActiveJobs, updatePulseDot]);
+
   // Stop background polling timer cleanly
   const stopBgPolling = useCallback(() => {
     if (bgTimerRef.current) {
@@ -61,6 +136,13 @@ export function BulkApp() {
 
   // Check background jobs with conditional interval scheduling
   const checkBackgroundJobs = useCallback(async (shouldSchedule = false) => {
+    if (isTaxonomy) {
+      setHasActiveJobs(false);
+      updatePulseDot(false);
+      stopBgPolling();
+      return [];
+    }
+
     if (isCheckingBgRef.current) return [];
     isCheckingBgRef.current = true;
 
@@ -90,14 +172,17 @@ export function BulkApp() {
     } finally {
       isCheckingBgRef.current = false;
     }
-  }, [updatePulseDot]);
+  }, [isTaxonomy, updatePulseDot, stopBgPolling]);
 
-  // Initial check on mount: perform one fresh check.
+  // Initial check on mount: perform one fresh check for background post queues.
   // Continues polling only while active batches exist; stops immediately if empty.
   useEffect(() => {
+    if (isTaxonomy) {
+      return undefined;
+    }
     checkBackgroundJobs(true);
     return () => stopBgPolling();
-  }, [checkBackgroundJobs, stopBgPolling]);
+  }, [isTaxonomy, checkBackgroundJobs, stopBgPolling]);
 
   // Bind click listener to table action buttons
   useEffect(() => {
@@ -108,42 +193,29 @@ export function BulkApp() {
 
       const ids = getCheckedPostIds();
 
-      // Case B1: User has NOT selected any posts
+      // Case B1: User has NOT selected any posts or terms
       if (ids.length === 0) {
-        let latestBatches = [];
-        try {
-          const res = await getActiveBatches();
-          latestBatches = res.batches || [];
-        } catch {
-          latestBatches = [];
-        }
-
-        const active = latestBatches.length > 0;
-        setHasActiveJobs(active);
-        updatePulseDot(active);
-
-        if (active) {
+        if (!isTaxonomy) {
           setIsPrevRunningMode(true);
           setSelectedPostIds([]);
-          const activeBatch = latestBatches[0];
+          setIsOpen(true);
           translationState.openBatchMonitor(
-            activeBatch.batch_id,
-            activeBatch,
-            latestBatches,
+            null,
+            null,
+            null,
             {
               sessionType: 'existing_queue',
               modalSource: 'bulk_button',
             }
           );
-          setIsOpen(true);
           return;
         }
 
-        alert('Please select posts first.');
+        alert(`Please select ${itemPlural} first.`);
         return;
       }
 
-      // Case B2 / Workflow A: User HAS selected posts
+      // Case B2 / Workflow A: User HAS selected posts or terms
       setIsPrevRunningMode(false);
       setSelectedPostIds(ids);
       translationState.setPostIds(ids);
@@ -151,19 +223,21 @@ export function BulkApp() {
       translationState.setProgressModalSource('provider_selection');
       translationState.setCurrentStep(1);
 
-      // Perform one fresh check to see if background jobs are running, so Step 1 notice banner can show
-      checkBackgroundJobs(false).then((batches) => {
-        if (translationState.setActiveBatches) {
-          translationState.setActiveBatches(batches || []);
-        }
-      });
+      if (!isTaxonomy) {
+        // Perform one fresh check to see if background jobs are running, so Step 1 notice banner can show
+        checkBackgroundJobs(false).then((batches) => {
+          if (translationState.setActiveBatches) {
+            translationState.setActiveBatches(batches || []);
+          }
+        });
+      }
 
       setIsOpen(true);
     };
 
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
-  }, [getCheckedPostIds, checkBackgroundJobs, updatePulseDot, translationState]);
+  }, [getCheckedPostIds, checkBackgroundJobs, updatePulseDot, translationState, isTaxonomy, itemPlural]);
 
   return (
     <BulkWizard
@@ -174,12 +248,22 @@ export function BulkApp() {
         if (translationState.stopPolling) {
           translationState.stopPolling();
         }
-        // When modal is closed: perform one fresh check.
-        // If active batches exist, resumes polling; if none, does not start polling.
-        checkBackgroundJobs(true);
+        if (!isTaxonomy) {
+          // When modal is closed: perform one fresh check.
+          // If active batches exist, resumes polling; if none, does not start polling.
+          checkBackgroundJobs(true);
+        }
       }}
       translationState={translationState}
       allLanguages={allLanguages}
+      itemMeta={{
+        type: itemType,
+        isTaxonomy,
+        subtype,
+        itemLabel,
+        itemSingular,
+        itemPlural,
+      }}
     />
   );
 }

@@ -54,7 +54,6 @@
 
 .ts-btn .dashicons{
   line-height: 1 !important;
-  margin-right: 4px;
 }
 
 /* Primary Button (Solid Vivid Blue with Minimal 3px Radius) */
@@ -353,10 +352,10 @@
   color: #1e293b;
 }
 
-.ts-error-container *{
+.ts-error-container .ts-modal-body *{
   margin: 0;
-  line-height: 1;
-  font-size: 16px;
+  line-height: 1.5;
+  font-size: 13px;
 }
 
 .ts-guidance-container {
@@ -726,4 +725,117 @@
   margin: 0 4px;
   font-size: 12px;
   font-weight: 400;
+}
+
+/* ==========================================================================
+   Scoped Review Notice (Dashboard & Translation Modals)
+   ========================================================================== */
+.ts-review-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 14px;
+  background: var(--ts-surface, #ffffff);
+  border: 1px solid var(--ts-border, #e2e8f0);
+  border-left: 4px solid var(--ts-primary, #2563eb);
+  box-shadow: var(--ts-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.04));
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.ts-review-notice.ts-modal-review-notice {
+  margin-bottom: 14px;
+}
+
+.ts-review-notice-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ts-text-main, #1e293b);
+}
+
+.ts-review-notice-lead {
+  font-weight: 700;
+  color: var(--ts-text-main, #0f172a);
+}
+
+.ts-review-notice-link {
+  color: var(--ts-primary, #2563eb);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.ts-review-notice-link:hover,
+.ts-review-notice-link:focus {
+  color: var(--ts-primary-hover, #1d4ed8);
+}
+
+.ts-review-notice-link:focus-visible {
+  outline: 2px solid var(--ts-primary, #2563eb);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ts-review-notice-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ts-review-notice-action {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--ts-border, #e2e8f0);
+  padding: 2px 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: color 0.15s ease;
+}
+
+.ts-review-notice-action:last-child {
+  padding-right: 2px;
+}
+
+.ts-review-notice-action:hover,
+.ts-review-notice-action:focus {
+  color: var(--ts-text-main, #0f172a);
+  background: transparent;
+}
+
+.ts-review-notice-action:focus-visible {
+  outline: 2px solid var(--ts-primary, #2563eb);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (max-width: 782px) {
+  .ts-review-notice {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .ts-review-notice-actions {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--ts-border, #e2e8f0);
+  }
+
+  .ts-review-notice-action:first-child {
+    border-left: none;
+    padding-left: 0;
+  }
 }

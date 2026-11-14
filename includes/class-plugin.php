@@ -6,6 +6,7 @@ namespace TranslateSense\Includes;
 
 use TranslateSense\Includes\XML\Xml_Engine;
 use TranslateSense\Includes\Database\Hashing_Db;
+use TranslateSense\Includes\Core\Activator;
 use TranslateSense\Includes\Core\Detector;
 use TranslateSense\Includes\REST\Rest_Api;
 use TranslateSense\Includes\Admin\Admin_Menu;
@@ -69,11 +70,18 @@ class Plugin {
 		Cron::init();
 
 		if ( is_admin() ) {
+			Activator::maybe_upgrade_db();
 			Feedback_Form::get_instance();
 		}
 	}
 
 	public function handle_activation_redirect() {
+		global $pagenow;
+
+		if ( ! isset( $pagenow ) || 'plugins.php' !== $pagenow ) {
+			return;
+		}
+
 		if ( get_transient( 'translatesense_activation_redirect' ) ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( ! isset( $_GET['activate-multi'] ) && current_user_can( 'manage_options' ) ) {

@@ -103,9 +103,10 @@ class Translate {
 	 * @param string $target_lang
 	 * @param string $provider
 	 * @param array  $in_memory_translations
+	 * @param array  $options
 	 * @return array|WP_Error
 	 */
-	public static function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
+	public static function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
 		if ( ! $post_id || empty( $target_lang ) ) {
 			return new WP_Error( 'invalid_params', __( 'Post ID and Target Language are required.', 'translatesense' ), array( 'status' => 400 ) );
 		}
@@ -122,7 +123,7 @@ class Translate {
 			$builder = self::get_builder( 'classic' );
 		}
 
-		return $builder->translate_post( $post_id, $target_lang, $provider, $in_memory_translations );
+		return $builder->translate_post( $post_id, $target_lang, $provider, $in_memory_translations, $options );
 	}
 
 	/**
@@ -633,15 +634,23 @@ class Translate {
 	 * @param string $source_lang
 	 * @param string $target_lang
 	 * @param array  $custom_options
-	 * @return array
+	 * @return array|\WP_Error
 	 */
 	public static function translate_batch( $strings_array, $source_lang, $target_lang, $custom_options = array() ) {
 		$results = array();
 		$hashes  = array();
 
-		if ( ! isset( $custom_options['provider'] ) || ! in_array( $custom_options['provider'], array( 'openai', 'google', 'gemini' ) ) ) {
-			wp_send_json_error( 'Invalid provider' );
-			return;
+		$requested_provider = isset( $custom_options['provider'] ) ? sanitize_key( (string) $custom_options['provider'] ) : '';
+		if ( 'google' === $requested_provider ) {
+			$requested_provider = 'gemini';
+		}
+
+		if ( '' === $requested_provider || ! in_array( $requested_provider, array( 'openai', 'gemini' ), true ) ) {
+			return new \WP_Error(
+				'invalid_provider',
+				__( 'Invalid translation provider.', 'translatesense' ),
+				array( 'status' => 400 )
+			);
 		}
 
 		foreach ( $strings_array as $idx => $str ) {
@@ -710,7 +719,7 @@ class Translate {
 
 		// Translate uncached strings via provider
 		$settings = get_option( 'translatesense_settings', array() );
-		$provider = $custom_options['provider'] ?? ( $settings['provider'] ?? 'openai' );
+		$provider = $requested_provider;
 
 		// Execute provider batch translation preserving array keys / indices
 		$translated_batch = self::execute_provider_batch_translation( $to_translate, $source_lang, $target_lang, $provider, $settings );

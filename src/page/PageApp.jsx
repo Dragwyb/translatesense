@@ -193,6 +193,9 @@ export function PageApp() {
                 skippedCustomFieldsCount={translation.skippedCustomFieldsCount}
                 showReTranslateAll={translation.showReTranslateAll}
                 isRetrying={translation.isRetrying}
+                isTranslationComplete={translation.isTranslationComplete}
+                hideReviewNotice={translation.hideReviewNotice}
+                onDismissReviewNotice={translation.handleDismissReviewNotice}
                 onReTranslateAll={translation.retranslateFailed}
                 onApply={handleApplyToPage}
               />

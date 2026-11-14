@@ -4,7 +4,7 @@
  * Gutenberg/Elementor Builders, Cache Manager, RightSidebar, and FooterBar.
  */
 
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useRef } from '@wordpress/element';
 import { useDashboardData } from './hooks/useDashboardData';
 import { TopHeader } from './components/TopHeader';
 import { RightSidebar } from './components/RightSidebar';
@@ -18,6 +18,13 @@ import { DashboardIcons } from './components/DashboardIcons';
 import * as dashboardService from './services/dashboardService';
 import { apiRequest } from '../services/api/apiClient';
 import { ENDPOINTS } from '../services/api/endpoints';
+import {
+  REVIEW_URL,
+  REVIEW_NOTICE_BODY,
+  REVIEW_NOTICE_LINK_TEXT,
+  dismissReviewNotice,
+} from '../services/api/reviewService';
+import { escapeHtml } from '../utils/html'
 
 export function DashboardApp() {
   const {
@@ -54,6 +61,30 @@ export function DashboardApp() {
 
   const localizedData =
     (typeof window !== 'undefined' && window.TranslateSenseData) || {};
+
+  const [isReviewNoticeDismissed, setIsReviewNoticeDismissed] = useState(
+    () => Boolean(localizedData.hideReviewNotice)
+  );
+  const isDismissingReviewRef = useRef(false);
+
+  const handleDismissReviewNotice = async (reviewAction) => {
+    if (isDismissingReviewRef.current) {
+      return;
+    }
+    isDismissingReviewRef.current = true;
+    const result = await dismissReviewNotice(reviewAction);
+    if (result && result.success) {
+      setIsReviewNoticeDismissed(true);
+    } else {
+      isDismissingReviewRef.current = false;
+    }
+  };
+
+  const showDashboardReviewNotice = Boolean(
+    localizedData.showReviewNotice &&
+    !localizedData.hideReviewNotice &&
+    !isReviewNoticeDismissed
+  );
 
   // Global keyboard shortcut (Ctrl+S / Cmd+S) to save settings when on settings tab
   useEffect(() => {
@@ -198,6 +229,46 @@ export function DashboardApp() {
         supportUrl="https://dragwyb.com/support/"
         pluginUrl={localizedData.pluginUrl}
       />
+
+      {/* Dashboard Review Notice (shown only when install age >= 3 days and >= 5,000 translated chars) */}
+      {showDashboardReviewNotice && (
+        <div
+          className="ts-review-notice ts-dashboard-review-notice"
+          role="region"
+          aria-label="TranslateSense Review Notice"
+        >
+          <p className="ts-review-notice-text">
+            <span dangerouslySetInnerHTML={{ __html: REVIEW_NOTICE_BODY }} />{' '}
+            <a
+              href={REVIEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ts-review-notice-link"
+            >
+              {REVIEW_NOTICE_LINK_TEXT}
+            </a>
+          </p>
+
+          <div className="ts-review-notice-actions">
+            <button
+              type="button"
+              className="ts-review-notice-action"
+              onClick={() => handleDismissReviewNotice('already_reviewed')}
+              style={{ borderLeftWidth: '0px' }}
+            >
+              Already Reviewed
+            </button>
+
+            <button
+              type="button"
+              className="ts-review-notice-action"
+              onClick={() => handleDismissReviewNotice('not_interested')}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Notification Banner */}
       {notice && (

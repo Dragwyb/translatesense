@@ -185,8 +185,21 @@ class Custom_Field_Manager {
 			return;
 		}
 
-		$placeholders = implode( ',', array_fill( 0, count( $active_package_hashes ), '%s' ) );
-		$params       = array_merge( array( $post_id, $editor_type ), $active_package_hashes );
+		// Validate all hashes are alphanumeric with fixed length
+		$validated_hashes = array_filter(
+			$active_package_hashes,
+			function ( $hash ) {
+				return is_string( $hash ) && preg_match( '/^[a-f0-9]{32}$/i', $hash );
+			}
+		);
+
+		if ( empty( $validated_hashes ) ) {
+			self::purge_package_rows( $post_id, $editor_type );
+			return;
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $validated_hashes ), '%s' ) );
+		$params       = array_merge( array( $post_id, $editor_type ), $validated_hashes );
 
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query(

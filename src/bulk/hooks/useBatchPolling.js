@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from '@wordpress/element';
-import { getBatchStatus, getActiveBatches } from '../services/batchService';
+import { getBatchStatus } from '../services/batchService';
 
 /**
  * Hook for managing background batch status polling

@@ -5,7 +5,7 @@
 
 import { useState } from '@wordpress/element';
 import { getLanguageFlag } from '../../utils/language';
-import { getDisplayTitle, getStatusBadgeInfo } from '../utils/bulkFormatters';
+import { getBulkItemLabels, getDisplayTitle } from '../utils/bulkFormatters';
 
 export function PostResultItem({
   postId,
@@ -16,10 +16,16 @@ export function PostResultItem({
   activeBatchId = null,
   onSkipPost,
   onErrorDetail,
+  itemMeta = {},
 }) {
   const [expanded, setExpanded] = useState(true);
+  const { isTaxonomy, singular: itemSingular, singularTitle: itemSingularTitle } = getBulkItemLabels(itemMeta);
 
-  const { postTitle = `Post #${postId}`, translations = {}, provider = '' } = postData;
+  const {
+    postTitle = `${itemSingularTitle} #${postId}`,
+    translations = {},
+    provider = '',
+  } = postData;
   const transKeys = Object.keys(translations);
 
   let compCount = 0;
@@ -64,7 +70,7 @@ export function PostResultItem({
       >
         <div className="ts-post-source-info">
           <div className="ts-post-icon-box">
-            <span className="dashicons dashicons-media-text" />
+            <span className={`dashicons ${isTaxonomy ? 'dashicons-tag' : 'dashicons-media-text'}`} />
           </div>
           <span className="ts-source-title-text">{postTitle}</span>
           <span className="ts-post-id-tag">#{postId}</span>
@@ -76,7 +82,7 @@ export function PostResultItem({
               type="button"
               className="ts-post-skip-btn button button-small"
               onClick={handleSkipClick}
-              title="Skip remaining translations for this post"
+              title={`Skip remaining translations for this ${itemSingular}`}
             >
               Skip Translations
             </button>
@@ -89,8 +95,23 @@ export function PostResultItem({
           )}
 
           {skipCount > 0 && skipCount + compCount === transKeys.length && compCount === 0 && (
-            <span className="ts-post-status-pill skipped">
-              Skipped
+            <span
+              className={`ts-post-status-pill ${transKeys.every(
+                (k) =>
+                  translations[k]?.error === 'no_language' ||
+                  translations[k]?.progressStatus === 'No Language'
+              )
+                ? 'no-language'
+                : 'skipped'
+                }`}
+            >
+              {transKeys.every(
+                (k) =>
+                  translations[k]?.error === 'no_language' ||
+                  translations[k]?.progressStatus === 'No Language'
+              )
+                ? 'No Language'
+                : 'Skipped'}
             </span>
           )}
 
@@ -106,21 +127,17 @@ export function PostResultItem({
           {transKeys.map((langSlug) => {
             const trans = translations[langSlug];
             const flagInfo = getLanguageFlag(langSlug, allLanguages);
-            const displayTitle = getDisplayTitle(trans, postTitle, postId);
-            const isDone = trans.status === 'completed' || trans.status === 'already_exists';
+            const displayTitle = getDisplayTitle(trans, postTitle, postId, itemSingularTitle);
+            const isDone =
+              trans.status === 'completed' ||
+              (trans.status === 'already_exists' && !trans.error);
             const isFail = trans.status === 'failed';
             const isSkipped = trans.status === 'skipped';
             const isCancelling = trans.status === 'cancelling';
             const isRunning = trans.status === 'running' || trans.status === 'processing';
 
-            const editUrl =
-              trans.editUrl ||
-              (trans.targetPostId
-                ? trans.editorType === 'elementor'
-                  ? `post.php?post=${trans.targetPostId}&action=elementor`
-                  : `post.php?post=${trans.targetPostId}&action=edit`
-                : '#');
-            const viewUrl = trans.viewUrl || (trans.targetPostId ? `/?p=${trans.targetPostId}` : '#');
+            const editUrl = trans.editUrl && '' !== trans.editUrl ? trans.editUrl : '';
+            const viewUrl = trans.viewUrl && '' !== trans.viewUrl ? trans.viewUrl : ''
 
             const isUnsupported =
               trans.error &&
@@ -144,17 +161,65 @@ export function PostResultItem({
 
                 <div className="ts-trans-status-col">
                   {trans.status === 'already_exists' ? (
-                    <span className="ts-row-status completed already-exists">
-                      <span className="dashicons dashicons-yes-alt" /> Already exists
-                    </span>
+                    trans.error ? (
+                      <button
+                        type="button"
+                        className="ts-row-status already-exists ts-error-detail-btn"
+                        onClick={() =>
+                          onErrorDetail &&
+                          onErrorDetail({
+                            title: `${flagInfo.name} (${flagInfo.code}) — Already Exists`,
+                            message: trans.error,
+                            icon: flagInfo.hasFlag ? (
+                              <img src={flagInfo.flagUrl} alt="" className="ts-lang-flag-img" />
+                            ) : null
+                          })
+                        }
+                        title="Click to view details"
+                      >
+                        <span className="dashicons dashicons-warning" /> Already exist In Trash
+                      </button>
+                    ) : (
+                      <span className="ts-row-status already-exists">
+                        <span className="dashicons dashicons-yes-alt" /> Already exist
+                      </span>
+                    )
                   ) : trans.status === 'completed' ? (
                     <span className="ts-row-status completed">
                       <span className="dashicons dashicons-yes-alt" /> Completed
                     </span>
                   ) : isSkipped ? (
-                    <span className="ts-row-status skipped">
-                      Skipped
-                    </span>
+                    trans.error === 'no_language' || trans.progressStatus === 'No Language' ? (
+                      <button
+                        type="button"
+                        className="ts-row-status failed ts-error-detail-btn"
+                        onClick={() => {
+                          const targetLabel = (itemSingular || 'item').toLowerCase();
+                          const capitalizedTarget = itemSingularTitle || (targetLabel.charAt(0).toUpperCase() + targetLabel.slice(1));
+                          const sourceUrl = trans.sourceEditUrl || postData.sourceEditUrl || editUrl || '';
+                          if (onErrorDetail) {
+                            onErrorDetail({
+                              type: 'no_language',
+                              title: 'Language Not Assigned',
+                              subtitle: `${flagInfo.name} (${flagInfo.code}) — ${displayTitle || postTitle}`,
+                              heading: `This ${targetLabel} doesn't have a language assigned in Polylang.`,
+                              message: 'Assign a language before translating it. Open the editor to select the default language or choose another language.',
+                              stepTip: 'After assigning a language, click Translate Again in the progress modal to translate only failed items.',
+                              actionUrl: sourceUrl,
+                              actionLabel: `Edit ${capitalizedTarget}`,
+                              icon: 'dashicons-warning',
+                            });
+                          }
+                        }}
+                        title="Click to view details and assign a language"
+                      >
+                        <span className="dashicons dashicons-warning" /> No Language
+                      </button>
+                    ) : (
+                      <span className="ts-row-status skipped">
+                        Skipped
+                      </span>
+                    )
                   ) : isCancelling ? (
                     <span className="ts-row-status cancelling">
                       <span className="ts-spinner-circle" /> Cancelling...
@@ -195,25 +260,41 @@ export function PostResultItem({
                 <div className="ts-trans-actions-col">
                   {isDone ? (
                     <>
+                      {viewUrl && viewUrl !== '#' && (
+                        <a
+                          href={viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ts-row-action-btn view"
+                          title={`View translated ${itemSingular} on site`}
+                        >
+                          <span className="dashicons dashicons-visibility" /> View
+                        </a>
+                      )}
+                      {editUrl && editUrl !== '#' && (
+                        <a
+                          href={editUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ts-row-action-btn edit"
+                          title={`Edit translated ${itemSingular}`}
+                        >
+                          <span className="dashicons dashicons-edit" /> Edit
+                        </a>
+                      )}
+                    </>
+                  ) : isSkipped && (trans.error === 'no_language' || trans.progressStatus === 'No Language') ? (
+                    trans.sourceEditUrl || postData.sourceEditUrl ? (
                       <a
-                        href={viewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ts-row-action-btn view"
-                        title="View translated post on site"
-                      >
-                        <span className="dashicons dashicons-visibility" /> View
-                      </a>
-                      <a
-                        href={editUrl}
+                        href={trans.sourceEditUrl || postData.sourceEditUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ts-row-action-btn edit"
-                        title="Edit translated post"
+                        title={`Edit source ${itemSingular} to assign language`}
                       >
                         <span className="dashicons dashicons-edit" /> Edit
                       </a>
-                    </>
+                    ) : null
                   ) : !isFail && !isSkipped ? (
                     <>
                       <span className="ts-row-action-btn view disabled">

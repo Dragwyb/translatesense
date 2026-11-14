@@ -4,14 +4,19 @@
  */
 
 import { formatNumber } from '../../utils/formatting';
+import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 export function ProgressSummary({
   completedCount = 0,
+  skippedCount = 0,
   failedCount = 0,
   totalCharacters = 0,
   totalCount = 0,
   elapsedTime = '0s',
+  itemMeta = {},
 }) {
+  const { pluralTitle } = getBulkItemLabels(itemMeta);
+
   return (
     <div className="ts-summary-stats-grid">
       {completedCount > 0 &&
@@ -20,9 +25,23 @@ export function ProgressSummary({
             <span className="dashicons dashicons-yes-alt" />
           </div>
           <div className="ts-stat-info">
-            <div className="ts-stat-label">Completed Posts</div>
+            <div className="ts-stat-label">Completed {pluralTitle}</div>
             <div className="ts-stat-val">
               {completedCount} / {totalCount}
+            </div>
+          </div>
+        </div>
+      }
+
+      {skippedCount > 0 &&
+        <div className="ts-stat-card gray">
+          <div className="ts-stat-icon-box gray">
+            <span className="dashicons dashicons-controls-skipforward" />
+          </div>
+          <div className="ts-stat-info">
+            <div className="ts-stat-label">Skipped {pluralTitle}</div>
+            <div className="ts-stat-val">
+              {skippedCount} / {totalCount}
             </div>
           </div>
         </div>
@@ -34,7 +53,7 @@ export function ProgressSummary({
             <span className="dashicons dashicons-dismiss" />
           </div>
           <div className="ts-stat-info">
-            <div className="ts-stat-label">Failed Posts</div>
+            <div className="ts-stat-label">Failed {pluralTitle}</div>
             <div className="ts-stat-val">
               {failedCount} / {totalCount}
             </div>

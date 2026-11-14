@@ -28,7 +28,7 @@ class Cron {
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_schedules' ) );
 		add_action( self::CLEANUP_HOOK, array( __CLASS__, 'run_cache_cleanup' ) );
-		add_action( 'init', array( __CLASS__, 'ensure_cleanup_scheduled' ) );
+		add_action( 'admin_init', array( __CLASS__, 'ensure_cleanup_scheduled' ) );
 	}
 
 	/**
@@ -73,26 +73,21 @@ class Cron {
 		$table_translations = Hashing_Db::get_translations_table();
 		$table_packages     = Hashing_Db::get_packages_table();
 
-		$day_in_seconds      = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
-		$current_timestamp   = function_exists( 'current_time' ) ? (int) current_time( 'timestamp' ) : time();
-		$translations_cutoff = gmdate( 'Y-m-d H:i:s', $current_timestamp - ( 30 * $day_in_seconds ) );
-		$packages_cutoff     = gmdate( 'Y-m-d H:i:s', $current_timestamp - ( 10 * $day_in_seconds ) );
-
-		// Clean cached translations not accessed for more than 30 days
+		// Clean cached translations not accessed for more than 30 days (matching Hashing_Db NOW() clock).
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table_translations} WHERE last_used_at IS NOT NULL AND last_used_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$translations_cutoff
+				"DELETE FROM {$table_translations} WHERE last_used_at IS NOT NULL AND last_used_at < DATE_SUB(NOW(), INTERVAL %d DAY)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				30
 			)
 		);
 
-		// Clean cached packages not accessed for more than 10 days
+		// Clean cached packages not accessed for more than 10 days (matching Hashing_Db NOW() clock).
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table_packages} WHERE last_used_at IS NOT NULL AND last_used_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$packages_cutoff
+				"DELETE FROM {$table_packages} WHERE last_used_at IS NOT NULL AND last_used_at < DATE_SUB(NOW(), INTERVAL %d DAY)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				10
 			)
 		);
 

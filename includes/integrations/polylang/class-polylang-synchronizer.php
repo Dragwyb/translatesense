@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace TranslateSense\Includes\Integrations\Polylang;
 
+use TranslateSense\Includes\Content\Parser\Taxonomy\Taxonomy_Parser;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
+use TranslateSense\Includes\Translation\Taxonomy\Taxonomy_Translator;
 
 use WP_Error;
 use WP_Post;
@@ -137,6 +139,7 @@ class Polylang_Synchronizer {
 	 * @param int    $target_post_id Target post ID.
 	 * @param string $target_lang    Target language slug.
 	 * @param bool   $is_new         Whether this call created the target post.
+	 * @param array  $options        Optional `{ sync_taxonomies?: bool }`.
 	 * @return array {
 	 *     @type bool     $success           Whether all available operations succeeded.
 	 *     @type bool     $taxonomies_synced Whether taxonomy copy ran.
@@ -146,8 +149,9 @@ class Polylang_Synchronizer {
 	 *     @type bool     $skipped           Whether generic synchronization was intentionally skipped.
 	 * }
 	 */
-	public static function synchronize( int $source_post_id, int $target_post_id, string $target_lang, bool $is_new = false ): array {
-		$result = array(
+	public static function synchronize( int $source_post_id, int $target_post_id, string $target_lang, bool $is_new = false, array $options = array() ): array {
+		$sync_taxonomies = ! array_key_exists( 'sync_taxonomies', $options ) || ! empty( $options['sync_taxonomies'] );
+		$result          = array(
 			'success'           => true,
 			'taxonomies_synced' => false,
 			'post_meta_synced'  => false,
@@ -208,16 +212,20 @@ class Polylang_Synchronizer {
 		);
 
 		// Media/term callbacks are scoped to this synchronization operation.
-		add_filter( 'pll_copy_taxonomies', array( __CLASS__, 'filter_copy_taxonomies' ), 99, 4 );
+		if ( $sync_taxonomies ) {
+			add_filter( 'pll_copy_taxonomies', array( __CLASS__, 'filter_copy_taxonomies' ), 99, 4 );
+			add_filter( 'pll_maybe_translate_term', array( __CLASS__, 'maybe_translate_term' ), 10, 3 );
+		}
 		add_filter( 'pll_copy_post_metas', array( __CLASS__, 'filter_copy_post_metas' ), 99, 4 );
 		add_filter( 'pll_translate_post_meta', array( __CLASS__, 'translate_post_meta' ), 10, 3 );
-		add_filter( 'pll_maybe_translate_term', array( __CLASS__, 'maybe_translate_term' ), 10, 3 );
 
 		try {
 			// Copy taxonomies first so term translation relationships are
 			// available to integrations which inspect the target post metadata.
-			$polylang->sync->taxonomies->copy( $source_post_id, $target_post_id, $target_lang );
-			$result['taxonomies_synced'] = true;
+			if ( $sync_taxonomies ) {
+				$polylang->sync->taxonomies->copy( $source_post_id, $target_post_id, $target_lang );
+				$result['taxonomies_synced'] = true;
+			}
 
 			// Copy configured/custom metadata. Protected builder and plugin
 			// operational metadata is excluded by filter_copy_post_metas().
@@ -297,10 +305,12 @@ class Polylang_Synchronizer {
 				$throwable->getMessage()
 			);
 		} finally {
-			remove_filter( 'pll_copy_taxonomies', array( __CLASS__, 'filter_copy_taxonomies' ), 99 );
+			if ( $sync_taxonomies ) {
+				remove_filter( 'pll_copy_taxonomies', array( __CLASS__, 'filter_copy_taxonomies' ), 99 );
+				remove_filter( 'pll_maybe_translate_term', array( __CLASS__, 'maybe_translate_term' ), 10 );
+			}
 			remove_filter( 'pll_copy_post_metas', array( __CLASS__, 'filter_copy_post_metas' ), 99 );
 			remove_filter( 'pll_translate_post_meta', array( __CLASS__, 'translate_post_meta' ), 10 );
-			remove_filter( 'pll_maybe_translate_term', array( __CLASS__, 'maybe_translate_term' ), 10 );
 			self::$context = array();
 			self::$running = false;
 		}
@@ -327,8 +337,9 @@ class Polylang_Synchronizer {
 
 		$internal_taxonomies = get_taxonomies( array( '_pll' => true ), 'names' );
 		$source_taxonomies   = get_post_taxonomies( (int) $from, 'names' );
+		$source_taxonomies   = array_diff( $source_taxonomies, (array) $internal_taxonomies );
 
-		return array_values( array_diff( $source_taxonomies, (array) $internal_taxonomies ) );
+		return array_values( $source_taxonomies );
 	}
 
 	/**
@@ -546,9 +557,9 @@ class Polylang_Synchronizer {
 	/**
 	 * Resolve or create a translated taxonomy term when Polylang requests one.
 	 *
-	 * Hierarchical parents are translated first. Existing translations are
-	 * reused, and WP_Error from term insertion is handled without breaking
-	 * the entire post translation.
+	 * Uses only existing target-language parent translations (`parent = 0` when none
+	 * exists) and updates existing translated direct children without creating missing
+	 * relatives. WP_Error from term insertion is handled without breaking post translation.
 	 *
 	 * @param int    $translated_term_id Existing translated term ID, if any.
 	 * @param int    $source_term_id     Source term ID.
@@ -563,23 +574,8 @@ class Polylang_Synchronizer {
 			return $translated_term_id;
 		}
 
-		$polylang = self::get_polylang_instance();
-		if (
-			! is_object( $polylang )
-			|| ! isset( $polylang->model->term )
-			|| ! is_object( $polylang->model->term )
-		) {
-			return 0;
-		}
-
-		$term_model = $polylang->model->term;
-		if (
-			! is_callable( array( $term_model, 'get_language' ) )
-			|| ! is_callable( array( $term_model, 'get_translation' ) )
-			|| ! is_callable( array( $term_model, 'set_language' ) )
-			|| ! is_callable( array( $term_model, 'get_translations' ) )
-			|| ! is_callable( array( $term_model, 'save_translations' ) )
-		) {
+		$term_model = Taxonomy_Parser::get_term_model();
+		if ( ! $term_model ) {
 			return 0;
 		}
 
@@ -595,21 +591,17 @@ class Polylang_Synchronizer {
 			return 0;
 		}
 
-		$existing_id = (int) $term_model->get_translation( $source_term_id, $target_lang );
+		$existing_id = Taxonomy_Parser::get_translation_id( $source_term_id, (string) $target_lang );
 		if ( $existing_id > 0 ) {
+			Taxonomy_Translator::synchronize_existing_children( $term, $existing_id, (string) $target_lang );
 			return $existing_id;
 		}
 
-		$parent_id = 0;
-		if ( ! empty( $term->parent ) ) {
-			$parent_id = (int) $term_model->get_translation( (int) $term->parent, $target_lang );
+		// Synchronize upward only to an existing target-language parent; never create missing parents.
+		$parent_id = Taxonomy_Translator::resolve_existing_parent_id( $term, (string) $target_lang );
 
-			if ( $parent_id <= 0 ) {
-				$parent_id = self::maybe_translate_term( 0, (int) $term->parent, $target_lang );
-			}
-		}
-
-		$force_lang = isset( $polylang->options['force_lang'] ) && $polylang->options['force_lang'];
+		$polylang   = self::get_polylang_instance();
+		$force_lang = is_object( $polylang ) && ! empty( $polylang->options['force_lang'] );
 		$term_slug  = $force_lang
 			? $term->slug . '___' . $target_lang
 			: sanitize_title( $term->name ) . '-' . $target_lang;
@@ -672,6 +664,8 @@ class Polylang_Synchronizer {
 		 */
 		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Polylang integration hook.
 		do_action( 'pll_duplicate_term', $source_term_id, $new_term_id, $target_lang );
+
+		Taxonomy_Translator::synchronize_existing_children( $term, $new_term_id, (string) $target_lang );
 
 		return $new_term_id;
 	}

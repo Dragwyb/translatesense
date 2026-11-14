@@ -1,9 +1,6 @@
 /**
  * BulkProgress Component (Step 3 Progress Bar Card)
  */
-
-import { ProgressBar } from '../../components/ProgressBar';
-
 export function BulkProgress({
   statusText = 'Translating content...',
   percent = 0,
@@ -14,7 +11,8 @@ export function BulkProgress({
   activeBatches = [],
   currentBatchId = null,
   onBatchChange,
-  isTranslating
+  isTranslating,
+  itemPlural = 'posts',
 }) {
   return (
     <div className="ts-bulk-progress-section">
@@ -54,7 +52,7 @@ export function BulkProgress({
             </strong>
             <span className="ts-notice-desc">
               {isChromeAi
-                ? 'On-device AI is translating in your browser. Navigating away will cancel remaining jobs.'
+                ? 'Translation is running in your browser session. Navigating away will cancel remaining jobs.'
                 : 'Your translations are processing in the background on the server. You can safely close this window or navigate away at any time.'}
             </span>
           </div>
@@ -67,7 +65,7 @@ export function BulkProgress({
           <span className="ts-progress-status">{statusText}</span>
           <div className="ts-progress-meta">
             <span className="ts-progress-posts-count">
-              {completedPosts} / {totalPosts} posts ({Math.round(percent)}%)
+              {completedPosts} / {totalPosts} {itemPlural} ({Math.round(percent)}%)
             </span>
             <span className="ts-progress-timer">{timerText}</span>
           </div>

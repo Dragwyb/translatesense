@@ -16,6 +16,7 @@ export function BulkWizard({
   onClose,
   translationState,
   allLanguages = [],
+  itemMeta = {},
 }) {
   const {
     currentStep,
@@ -40,8 +41,8 @@ export function BulkWizard({
     formattedTimer,
     humanReadableTimer,
     statsSummary,
-    filterOnlyFailed,
-    setFilterOnlyFailed,
+    statusFilters,
+    setStatusFilters,
     startTranslation,
     skipModal,
     setSkipModal,
@@ -54,6 +55,11 @@ export function BulkWizard({
     progressSessionType,
     progressModalSource,
     isQueueChromeAi,
+    hideReviewNotice,
+    handleDismissReviewNotice,
+    endpointLoading,
+    emptyBatchesState,
+    retryFailedTranslations,
   } = translationState;
 
   // Responsive breakpoint hook: <= 864px uses two-step flow, > 864px uses combined flow
@@ -115,6 +121,7 @@ export function BulkWizard({
         <SkipConfirmation
           isOpen={true}
           postId={skipModal.postId}
+          itemMeta={itemMeta}
           onClose={() => setSkipModal({ isOpen: false, postId: null, batchId: null })}
           onConfirm={() => handleSkipPost(skipModal.postId, skipModal.batchId)}
         />
@@ -122,17 +129,29 @@ export function BulkWizard({
         /* 2. Error Details Modal */
         <ErrorModal
           isOpen={true}
+          type={errorModal.type}
           title={errorModal.title}
+          subtitle={errorModal.subtitle}
+          heading={errorModal.heading}
+          stepTip={errorModal.stepTip}
           message={errorModal.message}
           reasonHTML={errorModal.reasonHTML}
+          actionUrl={errorModal.actionUrl}
+          actionLabel={errorModal.actionLabel}
           icon={errorModal.icon}
           onClose={() =>
             setErrorModal({
               isOpen: false,
+              type: 'error',
               title: '',
+              subtitle: '',
+              heading: '',
+              stepTip: '',
               message: '',
               errorObj: null,
               reasonHTML: '',
+              actionUrl: '',
+              actionLabel: '',
             })
           }
         />
@@ -144,6 +163,7 @@ export function BulkWizard({
               isOpen={true}
               onClose={handleModalClose}
               postIds={postIds}
+              itemMeta={itemMeta}
               allLanguages={allLanguages}
               selectedLanguages={selectedLanguages}
               onLanguagesChange={setSelectedLanguages}
@@ -170,6 +190,7 @@ export function BulkWizard({
               isOpen={true}
               onClose={handleModalClose}
               postIds={postIds}
+              itemMeta={itemMeta}
               allLanguages={allLanguages}
               selectedLanguages={selectedLanguages}
               providers={providers}
@@ -195,6 +216,7 @@ export function BulkWizard({
             isOpen={true}
             onClose={handleModalClose}
             postIds={postIds}
+            itemMeta={itemMeta}
             allLanguages={allLanguages}
             selectedLanguages={selectedLanguages}
             onLanguagesChange={setSelectedLanguages}
@@ -258,23 +280,36 @@ export function BulkWizard({
           orderedPostIds={orderedPostIds}
           postResultsMap={postResultsMap}
           allLanguages={allLanguages}
-          filterOnlyFailed={filterOnlyFailed}
-          onFilterChange={setFilterOnlyFailed}
+          selectedFilters={statusFilters}
+          onFilterChange={setStatusFilters}
           onSkipPost={(pId, bId) =>
             setSkipModal({ isOpen: true, postId: pId, batchId: bId })
           }
           onErrorDetail={(detail) =>
             setErrorModal({
               isOpen: true,
+              type: detail.type || 'error',
               title: detail.title,
+              subtitle: detail.subtitle || '',
+              heading: detail.heading || '',
+              stepTip: detail.stepTip || '',
               message: detail.message,
               errorObj: detail.errorObj,
-              reasonHTML: detail.errorObj?.reasonHTML,
+              reasonHTML: detail.reasonHTML || detail.errorObj?.reasonHTML,
+              actionUrl: detail.actionUrl || '',
+              actionLabel: detail.actionLabel || 'Edit',
+              icon: detail.icon || 'dashicons-warning',
             })
           }
+          onTranslateAgain={retryFailedTranslations}
           showBackButton={showBackButton}
           onBack={handleBackFromProgress}
           canSkip={canSkip}
+          itemMeta={itemMeta}
+          hideReviewNotice={hideReviewNotice}
+          onDismissReviewNotice={handleDismissReviewNotice}
+          endpointLoading={endpointLoading}
+          emptyBatchesState={emptyBatchesState}
         />
       ) : null}
     </div>

@@ -1,8 +1,4 @@
 /**
- * HTML and String Sanitization utilities
- */
-
-/**
  * Escapes HTML characters for safe DOM insertion
  * @param {string} str
  * @returns {string}

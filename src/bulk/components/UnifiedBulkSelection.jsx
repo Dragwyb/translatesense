@@ -6,6 +6,7 @@
 import { useState, useMemo } from '@wordpress/element';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { getLanguageFlag } from '../../utils/language';
+import { getBulkItemLabels } from '../utils/bulkFormatters';
 
 function GlobeIcon({ size = 18, color = 'currentColor' }) {
   return (
@@ -132,8 +133,10 @@ export function UnifiedBulkSelection({
   activeBatches = [],
   onShowRunning,
   isTranslating = false,
+  itemMeta = {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { plural: itemPlural, pluralTitle: itemPluralTitle } = getBulkItemLabels(itemMeta);
 
   const localizedData =
     (typeof window !== 'undefined' &&
@@ -289,7 +292,7 @@ export function UnifiedBulkSelection({
       header={
         <ModalHeader
           title="Bulk Translation"
-          subtitle="Translate multiple posts into one or more languages using AI."
+          subtitle={`Translate multiple ${itemPlural} into one or more languages using AI.`}
           onClose={onClose}
           closeClass="ts-bulk-close"
         />
@@ -538,7 +541,7 @@ export function UnifiedBulkSelection({
             </span>
             <div className="ts-summary-text">
               <span className="ts-summary-num">{postsCount}</span>
-              <span className="ts-summary-lbl">Posts</span>
+              <span className="ts-summary-lbl">{itemPluralTitle}</span>
             </div>
           </div>
 
@@ -565,7 +568,7 @@ export function UnifiedBulkSelection({
               <span className="ts-summary-lbl">Translation Jobs</span>
               <span
                 className="ts-summary-info-tooltip"
-                title={`${postsCount} posts × ${targetLangsCount} target languages = ${totalJobs} jobs`}
+                title={`${postsCount} ${itemPlural} × ${targetLangsCount} target languages = ${totalJobs} jobs`}
               >
                 ⓘ
               </span>

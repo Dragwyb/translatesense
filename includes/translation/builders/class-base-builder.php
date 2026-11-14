@@ -9,6 +9,7 @@ use TranslateSense\Includes\Translation\Custom_Fields\Custom_Field_Translator;
 use TranslateSense\Includes\Translation\InternalLinks\Internal_Link_Translator;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Bridge;
 use TranslateSense\Includes\Integrations\Polylang\Polylang_Synchronizer;
+use TranslateSense\Includes\Translation\Taxonomy\Taxonomy_Translator;
 use TranslateSense\Includes\Admin\Editor_Integration;
 
 use WP_Post;
@@ -147,9 +148,10 @@ abstract class Base_Builder {
 	 * @param string $target_lang
 	 * @param string $provider
 	 * @param array  $in_memory_translations
+	 * @param array  $options
 	 * @return array|WP_Error
 	 */
-	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array() ) {
+	public function translate_post( int $post_id, string $target_lang, string $provider = '', array $in_memory_translations = array(), array $options = array() ) {
 		$source_post = get_post( $post_id );
 		if ( ! $source_post ) {
 			return new WP_Error( 'post_not_found', __( 'Source post not found.', 'translatesense' ), array( 'status' => 404 ) );
@@ -165,6 +167,10 @@ abstract class Base_Builder {
 
 		$raw_post_status  = ! empty( $settings['post_status'] ) ? sanitize_key( (string) $settings['post_status'] ) : 'draft';
 		$bulk_post_status = in_array( $raw_post_status, array( 'publish', 'draft' ), true ) ? $raw_post_status : 'draft';
+
+		if ( function_exists( 'pll_get_post_language' ) && empty( pll_get_post_language( $post_id, 'slug' ) ) ) {
+			return new WP_Error( 'no_language', __( 'The source post does not have a language assigned in Polylang.', 'translatesense' ), array( 'status' => 400 ) );
+		}
 
 		$source_lang = Polylang_Bridge::get_post_language( $post_id );
 		$custom_opts = array();
@@ -206,7 +212,7 @@ abstract class Base_Builder {
 		// Remove filter after translation
 		remove_filter( 'safe_style_css', array( $this, 'allowed_css_properties' ), 10, 1 );
 
-		$wp_post_content = is_string( $translated_content ) ? $translated_content : $source_post->post_content;
+		$wp_post_content = ! empty( $translated_content ) && is_string( $translated_content ) ? $translated_content : $source_post->post_content;
 
 		// Translate internal references (URLs and media) across content strings in batch.
 		$translator         = new Internal_Link_Translator();
@@ -242,7 +248,35 @@ abstract class Base_Builder {
 			$create_args['post_name'] = sanitize_title( $translated_post_name );
 		}
 
-		// 3. Create or update Polylang translated post
+		$include_taxonomies    = ! array_key_exists( 'include_taxonomies', $options ) || ! empty( $options['include_taxonomies'] );
+		$translated_taxonomies = array();
+
+		$taxonomy_options = array(
+			'user_id'             => ( array_key_exists( 'user_id', $options ) && null !== $options['user_id'] ) ? (int) $options['user_id'] : null,
+			'enforce_permissions' => array_key_exists( 'enforce_permissions', $options ) ? (bool) $options['enforce_permissions'] : true,
+			'skip_unauthorized'   => ! empty( $options['skip_unauthorized'] ),
+		);
+
+		// 3. Resolve taxonomy translations before creating/updating the target post (Bulk workflow only).
+		// This ensures Polylang can link existing translated terms during its copy pass.
+		if ( $include_taxonomies ) {
+			$translated_taxonomies = Taxonomy_Translator::prepare_post_translation(
+				$post_id,
+				$target_lang,
+				(string) $source_lang,
+				(string) $provider,
+				$in_memory_translations,
+				$taxonomy_options
+			);
+
+			if ( is_wp_error( $translated_taxonomies ) ) {
+				return $translated_taxonomies;
+			}
+		} else {
+			$create_args['skip_taxonomies_sync'] = true;
+		}
+
+		// 4. Create or update Polylang translated post.
 		$created_post_id = Polylang_Bridge::create_or_update_translated_post(
 			$post_id,
 			$target_lang,
@@ -256,10 +290,37 @@ abstract class Base_Builder {
 		}
 
 		// 4. Builder-specific persistence runs after the post and Polylang
-		$this->after_save_post( $post_id, $created_post_id, $source_lang, $target_lang, $translated_content );
+		$this->after_save_post( $created_post_id );
 		Polylang_Synchronizer::attach_translated_media_to_post( $created_post_id );
 
-		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules
+		$tax_warnings = Taxonomy_Translator::get_last_warnings();
+		if ( ! empty( $tax_warnings ) ) {
+			$existing_warnings = (array) get_post_meta( $created_post_id, '_translatesense_sync_warnings', true );
+			update_post_meta( $created_post_id, '_translatesense_sync_warnings', array_values( array_unique( array_merge( $existing_warnings, $tax_warnings ) ) ) );
+		}
+
+		// Replace copied source-language assignments with resolved target-language terms.
+		if ( $include_taxonomies ) {
+			$taxonomy_assignment = Taxonomy_Translator::assign_translated_terms(
+				$created_post_id,
+				$translated_taxonomies,
+				$is_existing,
+				$post_id,
+				$taxonomy_options
+			);
+
+			if ( is_wp_error( $taxonomy_assignment ) ) {
+				// Never leave source-language terms attached to a newly created target.
+				if ( ! $is_existing ) {
+					foreach ( array_keys( $translated_taxonomies ) as $failed_taxonomy ) {
+						wp_set_object_terms( $created_post_id, array(), $failed_taxonomy, false );
+					}
+				}
+				return $taxonomy_assignment;
+			}
+		}
+
+		// 5. Apply dynamic custom-field and ACF translation, copy, and copy-once rules.
 		Custom_Field_Translator::apply_target_metadata(
 			$post_id,
 			$created_post_id,
@@ -292,7 +353,7 @@ abstract class Base_Builder {
 			'target_post_title' => $translated_title,
 			'is_retranslation'  => $is_existing,
 			'sync_status'       => get_post_meta( $created_post_id, '_translatesense_sync_status', true ),
-			'sync_warnings'     => (array) get_post_meta( $created_post_id, '_translatesense_sync_warnings', true ),
+			'sync_warnings'     => get_post_meta( $created_post_id, '_translatesense_sync_warnings', true ),
 			'builder'           => $this->get_builder_slug(),
 			'editor_type'       => $editor_type,
 			'edit_url'          => $edit_url,
@@ -304,13 +365,9 @@ abstract class Base_Builder {
 	 * Lifecycle method called immediately after target post is inserted/updated.
 	 * Override in specific builder (e.g. Elementor_Builder) to update builder-specific meta & settings.
 	 *
-	 * @param int    $source_post_id
-	 * @param int    $target_post_id
-	 * @param string $source_lang
-	 * @param string $target_lang
-	 * @param mixed  $translated_content
+	 * @param int $target_post_id
 	 */
-	public function after_save_post( int $source_post_id, int $target_post_id, string $source_lang, string $target_lang, $translated_content ): void {
+	public function after_save_post( int $target_post_id ): void {
 		// Base implementation - can be extended by builders
 	}
 

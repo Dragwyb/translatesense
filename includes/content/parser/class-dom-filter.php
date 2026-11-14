@@ -74,6 +74,11 @@ class Dom_Filter {
 	 * @return string
 	 */
 	public static function decode_html_string( string $string ): string {
+
+		if ( ! isset( $string ) || empty( $string ) ) {
+			return $string;
+		}
+
 		$decoded = html_entity_decode(
 			$string,
 			ENT_QUOTES | ENT_HTML5,

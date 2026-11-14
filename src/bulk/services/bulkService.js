@@ -20,17 +20,26 @@ export async function startBulkTranslation(payload) {
   });
 }
 
+export async function translateBulkTerm(payload) {
+  return await apiRequest(ENDPOINTS.BULK_TRANSLATE_TERM, {
+    method: 'POST',
+    data: payload,
+  });
+}
+
 /**
  * Update an individual bulk translation job
  * @param {number} jobId
  * @param {Object} data
+ * @param {'post'|'term'} [type='post']
  * @returns {Promise<{ success: boolean }>}
  */
-export async function updateBulkJob(jobId, data) {
+export async function updateBulkJob(jobId, data, type = 'post') {
   return await apiRequest(ENDPOINTS.BULK_UPDATE_JOB, {
     method: 'POST',
     data: {
       job_id: jobId,
+      type,
       data,
     },
   });
@@ -48,6 +57,20 @@ export async function skipBulkPost(batchId, postId) {
     data: {
       batch_id: batchId,
       post_id: Number(postId),
+    },
+  });
+}
+
+/**
+ * Retry failed and language-unassigned jobs for a batch
+ * @param {string} batchId
+ * @returns {Promise<{ success: boolean, retried_count: number, unassigned_count: number, retried_jobs: Array, batch: Object, message: string }>}
+ */
+export async function retryFailedBatch(batchId) {
+  return await apiRequest(ENDPOINTS.BULK_RETRY, {
+    method: 'POST',
+    data: {
+      batch_id: batchId,
     },
   });
 }

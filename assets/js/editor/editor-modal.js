@@ -353,6 +353,25 @@
     close: closeModal,
   };
 
+  function escapeHtml(val) {
+    return String(val == null ? '' : val)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function sanitizeUrl(url) {
+    if (typeof url !== 'string') return '';
+    var trimmed = url.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed) || (trimmed.charAt(0) === '/' && trimmed.charAt(1) !== '/')) {
+      return escapeHtml(trimmed);
+    }
+    return '';
+  }
+
   function createModalDOM() {
     if (modalOverlay) return modalOverlay;
 
@@ -363,7 +382,14 @@
       document.body.appendChild(portalRoot);
     }
 
-    var logoSrc = pluginUrl ? (pluginUrl.replace(/\/+$/, '') + '/assets/img/logo.png') : '';
+    var safeLogoSrc = sanitizeUrl(pluginUrl ? (pluginUrl.replace(/\/+$/, '') + '/assets/img/logo.png') : '');
+    var safeEditorName = escapeHtml(sourceEditorName);
+    var safeSourceFlag = sanitizeUrl(sourceFlag);
+    var safeTargetFlag = sanitizeUrl(targetFlag);
+    var safeSourceLangName = escapeHtml(sourceLangName);
+    var safeTargetLangName = escapeHtml(targetLangName);
+    var safeSourceLangCode = escapeHtml(sourceLangCode);
+    var safeTargetLangCode = escapeHtml(targetLangCode);
 
     var overlay = document.createElement('div');
     overlay.className = 'ts-modal-overlay';
@@ -376,13 +402,13 @@
       '<div class="ts-modal-header ts-common-header">' +
       '<div class="ts-header-title-group">' +
       '<div class="ts-header-icon-box">' +
-      (logoSrc
-        ? '<img src="' + logoSrc + '" alt="TranslateSense" class="ts-header-icon-img" />'
+      (safeLogoSrc
+        ? '<img src="' + safeLogoSrc + '" alt="TranslateSense" class="ts-header-icon-img" />'
         : '<span class="dashicons dashicons-translation" style="font-size: 22px; width: 22px; height: 22px; color: #2563eb;"></span>') +
       '</div>' +
       '<div class="ts-header-text-wrap">' +
       '<h2 class="ts-modal-title ts-common-title">Translate Page Content</h2>' +
-      '<p class="ts-modal-subtitle ts-common-subtitle">' + sourceEditorName + ' Page Translation</p>' +
+      '<p class="ts-modal-subtitle ts-common-subtitle">' + safeEditorName + ' Page Translation</p>' +
       '</div>' +
       '</div>' +
       '<button type="button" class="ts-modal-close-btn ts-bulk-close" id="ts-editor-modal-x-btn" aria-label="Close modal" title="Close modal">&times;</button>' +
@@ -392,18 +418,18 @@
       '<div class="ts-modal-body ts-common-body">' +
       '<div class="ts-source-guidance-content">' +
       '<p class="ts-prompt-intro-text">' +
-      'This page was created in ' + sourceEditorName + '. Click Translate to open this page in the ' + sourceEditorName + ' editor to start translation, or click Close to skip.' +
+      'This page was created in ' + safeEditorName + '. Click Translate to open this page in the ' + safeEditorName + ' editor to start translation, or click Close to skip.' +
       '</p>' +
 
       '<div class="ts-prompt-languages-row">' +
       '<div class="ts-prompt-lang-pill source">' +
-      (sourceFlag ? '<img src="' + sourceFlag + '" alt="' + sourceLangName + '" class="ts-lang-flag-img" />' : '') +
-      '<span>' + sourceLangName + ' (' + sourceLangCode + ')</span>' +
+      (safeSourceFlag ? '<img src="' + safeSourceFlag + '" alt="' + safeSourceLangName + '" class="ts-lang-flag-img" />' : '') +
+      '<span>' + safeSourceLangName + ' (' + safeSourceLangCode + ')</span>' +
       '</div>' +
       '<div class="ts-prompt-arrow-wrap" aria-hidden="true"><svg viewBox="0 0 576 512"><path d="M566.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L466.7 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l434.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128z"/></svg></div>' +
       '<div class="ts-prompt-lang-pill target">' +
-      (targetFlag ? '<img src="' + targetFlag + '" alt="' + targetLangName + '" class="ts-lang-flag-img" />' : '') +
-      '<span>' + targetLangName + ' (' + targetLangCode + ')</span>' +
+      (safeTargetFlag ? '<img src="' + safeTargetFlag + '" alt="' + safeTargetLangName + '" class="ts-lang-flag-img" />' : '') +
+      '<span>' + safeTargetLangName + ' (' + safeTargetLangCode + ')</span>' +
       '</div>' +
       '</div>' +
 
