@@ -202,17 +202,27 @@ class Elementor_Builder extends Base_Builder {
 						$discovered_rules
 					);
 
-					// Persist newly discovered rules to custom XML if authorized, and update in-memory rules
+					// Persist discovered rules for authorized admin requests and trusted WP-Cron
+					// translation jobs. The filter allows the plugin's own background workflow
+					// to explicitly authorize persistence when it uses a custom queue runner.
 					if ( ! empty( $discovered_rules ) ) {
-						$can_persist = current_user_can( 'manage_options' );
+						$can_persist = current_user_can( 'manage_options' ) || ( function_exists( 'wp_doing_cron' ) && wp_doing_cron() );
 						$can_persist = (bool) apply_filters( 'translatesense_can_persist_xml_rules', $can_persist, 'elementor', $widget_name, $discovered_rules );
 
 						if ( $can_persist ) {
-							Xml_Engine::append_custom_rule(
+							$persist_result = Xml_Engine::append_custom_rule(
 								'elementor',
 								$widget_name,
 								$discovered_rules
 							);
+
+							// append_custom_rule() may return null when its implementation is void.
+							// Only an explicit false is treated as a failed persistence operation.
+							if ( false === $persist_result ) {
+								$this->log_xml_rule_persistence_issue( $widget_name, $discovered_rules, 'append_custom_rule_returned_false' );
+							}
+						} else {
+							$this->log_xml_rule_persistence_issue( $widget_name, $discovered_rules, 'persistence_not_authorized' );
 						}
 
 						foreach ( $discovered_rules as $new_path => $schema_info ) {
@@ -493,5 +503,30 @@ class Elementor_Builder extends Base_Builder {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Log discovered Elementor rules that could not be persisted.
+	 *
+	 * Avoid logging field values because they may contain private page content.
+	 *
+	 * @param string $widget_name      Elementor widget name.
+	 * @param array  $discovered_rules Discovered field rules.
+	 * @param string $reason           Persistence failure reason.
+	 */
+	protected function log_xml_rule_persistence_issue( string $widget_name, array $discovered_rules, string $reason ): void {
+		$paths   = array_map( 'strval', array_keys( $discovered_rules ) );
+		$message = sprintf(
+			'TranslateSense Elementor XML rule persistence issue. Widget: %s. Reason: %s. Paths: %s',
+			sanitize_key( $widget_name ),
+			sanitize_key( $reason ),
+			implode( ', ', array_map( 'sanitize_text_field', $paths ) )
+		);
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+			error_log( $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		}
+
+		do_action( 'translatesense_elementor_xml_rule_persistence_issue', $widget_name, $discovered_rules, $reason );
 	}
 }
